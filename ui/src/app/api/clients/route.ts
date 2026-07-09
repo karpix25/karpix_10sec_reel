@@ -364,11 +364,14 @@ export async function GET(request: Request) {
         ),
       }));
 
-    if (clients.length) {
-      return NextResponse.json(clients);
-    }
+    const legacyClients = await listLegacyClientFallback();
+    const primaryClientIds = new Set(clients.map((client) => Number(client.id)));
+    const mergedClients = [
+      ...clients,
+      ...legacyClients.filter((client) => !primaryClientIds.has(Number(client.id))),
+    ];
 
-    return NextResponse.json(await listLegacyClientFallback());
+    return NextResponse.json(mergedClients);
   } catch (error) {
     console.error('Database error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

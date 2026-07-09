@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOmniProjects, useOmniStudio } from "@/hooks/useOmniStudio";
 import {
   buildReadiness,
@@ -10,33 +11,35 @@ import {
   getEffectiveLegacyLibraryId,
   getLatestAvatar,
 } from "@/lib/omni/workspace";
-import type { OmniProduct, OmniProject } from "@/lib/omni/types";
+import type { OmniProject } from "@/lib/omni/types";
 import type { Client } from "@/types";
 import { AvatarDraft, AvatarVideoPanel } from "./AvatarVideoPanel";
-import { ClientProductPanel, ProductDraft } from "./ClientProductPanel";
 import { LibraryScenarioPanel } from "./LibraryScenarioPanel";
+import { OmniOverviewTab } from "./OmniOverviewTab";
 import { OmniPipelineHeader } from "./OmniPipelineHeader";
-
-const emptyProductDraft: ProductDraft = {
-  name: "",
-  description: "",
-  productReferenceUrl: "",
-  avatarReferenceNotes: "",
-  targetDurationSeconds: 30,
-};
+import { OmniProductTab } from "./OmniProductTab";
 
 const emptyAvatarDraft: AvatarDraft = {
   prompt: "",
   referenceUrl: "",
 };
 
-export function OmniStudioScreen({ selectedClient }: { selectedClient: Client | null }) {
-  const [projectId, setProjectId] = useState<number | null>(null);
-  const [productId, setProductId] = useState<number | null>(null);
+export function OmniStudioScreen({
+  selectedClient,
+  selectedProjectId,
+  selectedProductId,
+  onSelectProject,
+  onSelectProduct,
+}: {
+  selectedClient: Client | null;
+  selectedProjectId: number | null;
+  selectedProductId: number | null;
+  onSelectProject: (projectId: number | null) => void;
+  onSelectProduct: (productId: number | null) => void;
+}) {
   const [legacySearch, setLegacySearch] = useState("");
   const [activeLibraryId, setActiveLibraryId] = useState<number | null>(null);
   const [selectedScenarioId, setSelectedScenarioId] = useState<number | null>(null);
-  const [productDraft, setProductDraft] = useState<ProductDraft>(emptyProductDraft);
   const [avatarDraft, setAvatarDraft] = useState<AvatarDraft>(emptyAvatarDraft);
 
   const projectsQuery = useOmniProjects();
@@ -45,11 +48,10 @@ export function OmniStudioScreen({ selectedClient }: { selectedClient: Client | 
     () => findClientWorkspaceProject(allProjects, selectedClient),
     [allProjects, selectedClient]
   );
-  const selectedProject = allProjects.find((project) => project.id === projectId) || null;
+  const selectedProject = allProjects.find((project) => project.id === selectedProjectId) || null;
   const activeProject = selectedProject || inferredProject;
   const activeProjectId = activeProject?.id || null;
-  const studio = useOmniStudio(activeProjectId, productId, legacySearch, activeLibraryId);
-  const projects = allProjects;
+  const studio = useOmniStudio(activeProjectId, selectedProductId, legacySearch, activeLibraryId);
   const products = useMemo(() => studio.productsQuery.data || [], [studio.productsQuery.data]);
   const libraries = studio.legacyLibrariesQuery.data || [];
   const libraryLinks = studio.libraryLinksQuery.data || [];
@@ -59,7 +61,7 @@ export function OmniStudioScreen({ selectedClient }: { selectedClient: Client | 
   const reels = studio.reelsQuery.data?.reels || [];
   const segments = studio.reelsQuery.data?.segments || [];
 
-  const activeProduct = useMemo(() => getActiveProduct(products, productId), [products, productId]);
+  const activeProduct = useMemo(() => getActiveProduct(products, selectedProductId), [products, selectedProductId]);
   const effectiveLibraryId = getEffectiveLegacyLibraryId(activeLibraryId, libraryLinks);
   const latestAvatar = getLatestAvatar(avatars);
   const readiness = buildReadiness({
@@ -81,46 +83,10 @@ export function OmniStudioScreen({ selectedClient }: { selectedClient: Client | 
       },
       {
         onSuccess: (project: OmniProject) => {
-          setProjectId(project.id);
-          setProductId(null);
+          onSelectProject(project.id);
+          onSelectProduct(null);
           setActiveLibraryId(null);
           setSelectedScenarioId(null);
-        },
-      }
-    );
-  };
-
-  const handleCreateProduct = () => {
-    if (!activeProjectId || !productDraft.name.trim()) return;
-    const refs = productDraft.productReferenceUrl.trim()
-      ? [
-          {
-            id: productDraft.productReferenceUrl.trim(),
-            url: productDraft.productReferenceUrl.trim(),
-            kind: "image",
-            role: "product_primary",
-            label: "product reference",
-            storage_provider: "manual",
-            status: "manual_url",
-            is_primary: true,
-          },
-        ]
-      : [];
-
-    studio.createProductMutation.mutate(
-      {
-        projectId: activeProjectId,
-        name: productDraft.name.trim(),
-        description: productDraft.description.trim(),
-        productReferenceNotes: productDraft.description.trim(),
-        avatarReferenceNotes: productDraft.avatarReferenceNotes.trim(),
-        targetDurationSeconds: productDraft.targetDurationSeconds,
-        productRefs: refs,
-      },
-      {
-        onSuccess: (product: OmniProduct) => {
-          setProductId(product.id);
-          setProductDraft(emptyProductDraft);
         },
       }
     );
@@ -142,23 +108,23 @@ export function OmniStudioScreen({ selectedClient }: { selectedClient: Client | 
 
   const handleActivateLibrary = (legacyClientId: number) => {
     if (!activeProjectId) return;
-    studio.linkLibraryMutation.mutate({ projectId: activeProjectId, productId, legacyClientId });
+    studio.linkLibraryMutation.mutate({ projectId: activeProjectId, productId: selectedProductId, legacyClientId });
     setActiveLibraryId(legacyClientId);
   };
 
   const handleLinkScenario = (legacyScenarioId: number) => {
-    if (!activeProjectId || !productId) return;
-    studio.linkScenarioMutation.mutate({ projectId: activeProjectId, productId, legacyScenarioId });
+    if (!activeProjectId || !selectedProductId) return;
+    studio.linkScenarioMutation.mutate({ projectId: activeProjectId, productId: selectedProductId, legacyScenarioId });
     setSelectedScenarioId(legacyScenarioId);
   };
 
   const handleCreateReel = () => {
-    if (!activeProjectId || !productId) return;
+    if (!activeProjectId || !selectedProductId) return;
     studio.createReelMutation.mutate({
       projectId: activeProjectId,
-      productId,
+      productId: selectedProductId,
       sourceLegacyScenarioId: selectedScenarioId,
-      targetDurationSeconds: activeProduct?.target_duration_seconds || productDraft.targetDurationSeconds,
+      targetDurationSeconds: activeProduct?.target_duration_seconds || 30,
       brief: activeProduct?.product_reference_notes || activeProduct?.description || "",
     });
   };
@@ -166,83 +132,82 @@ export function OmniStudioScreen({ selectedClient }: { selectedClient: Client | 
   return (
     <div className="mx-auto max-w-[94rem] space-y-5">
       <OmniPipelineHeader
-        clientName={selectedClient?.name || "не выбран"}
+        clientName={activeProject?.name || selectedClient?.name || "не выбран"}
         productName={activeProduct?.name || "не выбран"}
         libraryLabel={effectiveLibraryId ? `legacy #${effectiveLibraryId}` : "не выбрана"}
         readiness={readiness}
       />
 
-      <div className="grid gap-4 xl:grid-cols-[22rem_minmax(0,1fr)_24rem]">
-        <ClientProductPanel
-          selectedClient={selectedClient}
-          projects={projects}
-          products={products}
-          activeProject={activeProject}
-          activeProductId={productId}
-          productDraft={productDraft}
-          isProjectsLoading={projectsQuery.isLoading}
-          isProductsLoading={studio.productsQuery.isLoading}
-          isCreatingProject={studio.createProjectMutation.isPending}
-          isCreatingProduct={studio.createProductMutation.isPending}
-          onCreateWorkspace={handleCreateWorkspace}
-          onSelectProject={(id) => {
-            setProjectId(id);
-            setProductId(null);
-            setActiveLibraryId(null);
-            setSelectedScenarioId(null);
-          }}
-          onSelectProduct={(id) => {
-            setProductId(id);
-            setActiveLibraryId(null);
-            setSelectedScenarioId(null);
-          }}
-          onProductDraftChange={setProductDraft}
-          onCreateProduct={handleCreateProduct}
-        />
+      <Tabs defaultValue="overview" className="rounded-lg border border-border bg-card p-3">
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 bg-muted/60">
+          <TabsTrigger value="overview" className="min-h-9 flex-none px-3">Управление</TabsTrigger>
+          <TabsTrigger value="product" className="min-h-9 flex-none px-3">Продукт</TabsTrigger>
+          <TabsTrigger value="library" className="min-h-9 flex-none px-3">Сценарии</TabsTrigger>
+          <TabsTrigger value="generation" className="min-h-9 flex-none px-3">Аватар + генерация</TabsTrigger>
+        </TabsList>
 
-        <LibraryScenarioPanel
-          activeProduct={activeProduct}
-          libraries={libraries}
-          libraryLinks={libraryLinks}
-          scenarios={scenarios}
-          scenarioLinks={scenarioLinks}
-          activeLibraryId={effectiveLibraryId}
-          selectedScenarioId={selectedScenarioId}
-          legacySearch={legacySearch}
-          totalScenarios={studio.legacyScenariosQuery.data?.totalCount || 0}
-          isLibrariesLoading={studio.legacyLibrariesQuery.isLoading}
-          isScenariosLoading={studio.legacyScenariosQuery.isLoading}
-          isLibrariesError={studio.legacyLibrariesQuery.isError}
-          isScenariosError={studio.legacyScenariosQuery.isError}
-          isLinkingLibrary={studio.linkLibraryMutation.isPending}
-          isLinkingScenario={studio.linkScenarioMutation.isPending}
-          onSearchChange={setLegacySearch}
-          onSelectLibrary={(legacyClientId) => {
-            setActiveLibraryId(legacyClientId);
-            setSelectedScenarioId(null);
-          }}
-          onActivateLibrary={handleActivateLibrary}
-          onLinkScenario={handleLinkScenario}
-        />
+        <TabsContent value="overview" className="mt-4">
+          <OmniOverviewTab
+            activeProject={activeProject}
+            activeProduct={activeProduct}
+            selectedClient={selectedClient}
+            readiness={readiness}
+            isCreatingProject={studio.createProjectMutation.isPending}
+            onCreateWorkspace={handleCreateWorkspace}
+          />
+        </TabsContent>
 
-        <AvatarVideoPanel
-          activeProject={activeProject}
-          activeProduct={activeProduct}
-          selectedScenarioId={selectedScenarioId}
-          avatars={avatars}
-          latestAvatar={latestAvatar}
-          avatarDraft={avatarDraft}
-          reels={reels}
-          segments={segments}
-          isAvatarsLoading={studio.avatarsQuery.isLoading}
-          isReelsLoading={studio.reelsQuery.isLoading}
-          isCreatingAvatar={studio.createAvatarMutation.isPending}
-          isCreatingReel={studio.createReelMutation.isPending}
-          onAvatarDraftChange={setAvatarDraft}
-          onCreateAvatar={handleCreateAvatar}
-          onCreateReel={handleCreateReel}
-        />
-      </div>
+        <TabsContent value="product" className="mt-4">
+          <OmniProductTab activeProduct={activeProduct} />
+        </TabsContent>
+
+        <TabsContent value="library" className="mt-4">
+          <LibraryScenarioPanel
+            activeProduct={activeProduct}
+            libraries={libraries}
+            libraryLinks={libraryLinks}
+            scenarios={scenarios}
+            scenarioLinks={scenarioLinks}
+            activeLibraryId={effectiveLibraryId}
+            selectedScenarioId={selectedScenarioId}
+            legacySearch={legacySearch}
+            totalScenarios={studio.legacyScenariosQuery.data?.totalCount || 0}
+            isLibrariesLoading={studio.legacyLibrariesQuery.isLoading}
+            isScenariosLoading={studio.legacyScenariosQuery.isLoading}
+            isLibrariesError={studio.legacyLibrariesQuery.isError}
+            isScenariosError={studio.legacyScenariosQuery.isError}
+            isLinkingLibrary={studio.linkLibraryMutation.isPending}
+            isLinkingScenario={studio.linkScenarioMutation.isPending}
+            onSearchChange={setLegacySearch}
+            onSelectLibrary={(legacyClientId) => {
+              setActiveLibraryId(legacyClientId);
+              setSelectedScenarioId(null);
+            }}
+            onActivateLibrary={handleActivateLibrary}
+            onLinkScenario={handleLinkScenario}
+          />
+        </TabsContent>
+
+        <TabsContent value="generation" className="mt-4">
+          <AvatarVideoPanel
+            activeProject={activeProject}
+            activeProduct={activeProduct}
+            selectedScenarioId={selectedScenarioId}
+            avatars={avatars}
+            latestAvatar={latestAvatar}
+            avatarDraft={avatarDraft}
+            reels={reels}
+            segments={segments}
+            isAvatarsLoading={studio.avatarsQuery.isLoading}
+            isReelsLoading={studio.reelsQuery.isLoading}
+            isCreatingAvatar={studio.createAvatarMutation.isPending}
+            isCreatingReel={studio.createReelMutation.isPending}
+            onAvatarDraftChange={setAvatarDraft}
+            onCreateAvatar={handleCreateAvatar}
+            onCreateReel={handleCreateReel}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

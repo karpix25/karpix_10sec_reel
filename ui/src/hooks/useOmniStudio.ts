@@ -19,11 +19,59 @@ type ReelsPayload = {
 
 const API_BASE = "/api/omni";
 
+export type CreateOmniProjectPayload = {
+  name: string;
+  description?: string;
+  legacyClientId?: number;
+  telegramChatId?: string;
+  telegramTopicId?: string;
+};
+
+export type CreateOmniProductPayload = {
+  projectId: number;
+  name: string;
+  description?: string;
+  productReferenceNotes?: string;
+  avatarReferenceNotes?: string;
+  targetDurationSeconds?: number;
+  productRefs?: unknown[];
+  avatarRefs?: unknown[];
+};
+
 export function useOmniProjects() {
   return useQuery<OmniProject[]>({
     queryKey: ["omni-projects"],
     queryFn: async () => (await axios.get(`${API_BASE}/projects`)).data,
     staleTime: 30_000,
+  });
+}
+
+export function useOmniProducts(projectId: number | null) {
+  return useQuery<OmniProduct[]>({
+    queryKey: ["omni-products", projectId],
+    queryFn: async () => (await axios.get(`${API_BASE}/products`, { params: { projectId } })).data,
+    enabled: Boolean(projectId),
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateOmniProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: CreateOmniProjectPayload) =>
+      (await axios.post(`${API_BASE}/projects`, payload)).data as OmniProject,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["omni-projects"] }),
+  });
+}
+
+export function useCreateOmniProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: CreateOmniProductPayload) =>
+      (await axios.post(`${API_BASE}/products`, payload)).data as OmniProduct,
+    onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-products", variables.projectId] }),
   });
 }
 
@@ -37,12 +85,7 @@ export function useOmniStudio(
 
   const projectsQuery = useOmniProjects();
 
-  const productsQuery = useQuery<OmniProduct[]>({
-    queryKey: ["omni-products", projectId],
-    queryFn: async () => (await axios.get(`${API_BASE}/products`, { params: { projectId } })).data,
-    enabled: Boolean(projectId),
-    staleTime: 30_000,
-  });
+  const productsQuery = useOmniProducts(projectId);
 
   const legacyScenariosQuery = useQuery<{ data: OmniLegacyScenario[]; totalCount: number }>({
     queryKey: ["omni-legacy-scenarios", legacySearch, legacyClientId],
@@ -105,31 +148,9 @@ export function useOmniStudio(
     staleTime: 15_000,
   });
 
-  const createProjectMutation = useMutation({
-    mutationFn: async (payload: {
-      name: string;
-      description?: string;
-      legacyClientId?: number;
-      telegramChatId?: string;
-      telegramTopicId?: string;
-    }) =>
-      (await axios.post(`${API_BASE}/projects`, payload)).data as OmniProject,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["omni-projects"] }),
-  });
+  const createProjectMutation = useCreateOmniProject();
 
-  const createProductMutation = useMutation({
-    mutationFn: async (payload: {
-      projectId: number;
-      name: string;
-      description?: string;
-      productReferenceNotes?: string;
-      avatarReferenceNotes?: string;
-      targetDurationSeconds?: number;
-      productRefs?: unknown[];
-      avatarRefs?: unknown[];
-    }) => (await axios.post(`${API_BASE}/products`, payload)).data as OmniProduct,
-    onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-products", variables.projectId] }),
-  });
+  const createProductMutation = useCreateOmniProduct();
 
   const createAvatarMutation = useMutation({
     mutationFn: async (payload: { projectId: number; prompt: string; referenceUrl?: string }) =>

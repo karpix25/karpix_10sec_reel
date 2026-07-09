@@ -147,6 +147,8 @@ export default function CuratorDashboard() {
   // --- Local State ---
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [selectedOmniProjectId, setSelectedOmniProjectId] = useState<number | null>(null);
+  const [selectedOmniProductId, setSelectedOmniProductId] = useState<number | null>(null);
   
   // Selection state for generator and modal
   const [selectedReferenceId, setSelectedReferenceId] = useState<number | null>(null);
@@ -204,7 +206,7 @@ export default function CuratorDashboard() {
     );
   }, [clients]);
 
-  const activeClientId = selectedClientId || defaultClient?.id?.toString() || "";
+  const activeClientId = selectedClientId || (selectedOmniProjectId ? "" : defaultClient?.id?.toString() || "");
 
   // --- Derived State ---
   const selectedClient = useMemo(
@@ -289,13 +291,13 @@ export default function CuratorDashboard() {
   );
 
   useEffect(() => {
-    if (clients.length > 0 && !selectedClientId) {
+    if (clients.length > 0 && !selectedClientId && !selectedOmniProjectId) {
       startTransition(() => {
         const resolvedDefaultClientId = defaultClient?.id?.toString() || clients[0].id.toString();
         setSelectedClientId(resolvedDefaultClientId);
       });
     }
-  }, [clients, defaultClient, selectedClientId]);
+  }, [clients, defaultClient, selectedClientId, selectedOmniProjectId]);
 
   const checkTelegramSession = useCallback(async () => {
     const controller = new AbortController();
@@ -600,13 +602,18 @@ export default function CuratorDashboard() {
       <Sidebar
         selectedClientId={activeClientId}
         setSelectedClientId={setSelectedClientId}
+        selectedClient={selectedClient ?? null}
+        selectedProjectId={selectedOmniProjectId}
+        setSelectedProjectId={setSelectedOmniProjectId}
+        selectedProductId={selectedOmniProductId}
+        setSelectedProductId={setSelectedOmniProductId}
         clients={clients}
         isLoadingClients={isLoadingClients}
         screen={screen}
         setScreen={setScreen}
       />
 
-      <div className="flex-1 xl:pl-64">
+      <div className="flex-1 xl:pl-72">
         <Header
           screenTitle={currentScreenTitle}
           selectedClientName={selectedClient?.name}
@@ -627,7 +634,15 @@ export default function CuratorDashboard() {
             />
           )}
 
-          {screen === "omni" && <OmniStudioScreen selectedClient={selectedClient ?? null} />}
+          {screen === "omni" && (
+            <OmniStudioScreen
+              selectedClient={selectedClient ?? null}
+              selectedProjectId={selectedOmniProjectId}
+              selectedProductId={selectedOmniProductId}
+              onSelectProject={setSelectedOmniProjectId}
+              onSelectProduct={setSelectedOmniProductId}
+            />
+          )}
 
           {screen === "references" && (
             <LibraryScreen
