@@ -42,6 +42,37 @@ export interface OmniLegacyScenario {
   topic: string | null;
   created_at: string | null;
   source_reference: string | null;
+  legacy_client_name?: string | null;
+  legacy_product_keyword?: string | null;
+}
+
+export interface OmniLegacyLibrary {
+  client_id: number;
+  name: string;
+  product_info: string | null;
+  product_keyword: string | null;
+  niche: string | null;
+  scenario_count: number;
+  last_scenario_at: string | null;
+}
+
+export interface OmniLegacyLibraryLink {
+  id: number;
+  project_id: number;
+  product_id: number | null;
+  legacy_client_id: number;
+  created_at: string;
+}
+
+export interface OmniClientAvatar {
+  id: number;
+  project_id: number;
+  prompt: string;
+  reference_url: string | null;
+  status: "draft" | "queued" | "generating" | "completed" | "failed";
+  provider: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface OmniLegacyScenarioLink {

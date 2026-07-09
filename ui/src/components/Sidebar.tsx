@@ -29,57 +29,78 @@ export function Sidebar({
   setScreen
 }: SidebarProps) {
   return (
-    <aside className="fixed left-0 top-0 z-50 hidden h-screen w-64 flex-col border-r border-transparent bg-[#f0f4f7] p-4 xl:flex">
-      <div className="mb-8 px-2 py-4">
-        <div className="flex items-center gap-3">
-          <div className="primary-gradient flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-lg">
-            <BarChart3 className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-xl font-black leading-none text-foreground uppercase tracking-tight">Контент машина</h1>
-            <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground whitespace-nowrap">
-              Для ИИ аватаров с B-roll
-            </p>
+    <>
+      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-64 flex-col border-r border-transparent bg-[#f0f4f7] p-4 xl:flex">
+        <div className="mb-8 px-2 py-4">
+          <div className="flex items-center gap-3">
+            <div className="primary-gradient flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-lg">
+              <BarChart3 className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black leading-none text-foreground uppercase tracking-tight">Контент машина</h1>
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground whitespace-nowrap">
+                Для ИИ аватаров с B-roll
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="mb-6 space-y-2">
-        <Select
-          value={selectedClientId}
-          onValueChange={setSelectedClientId}
-          disabled={isLoadingClients || !clients.length}
-        >
-          <SelectTrigger className="h-12 w-full min-w-0 rounded-xl border-none bg-white text-sm font-medium shadow-sm">
-            <SelectValue className="max-w-full truncate" placeholder="Выберите проект" />
-          </SelectTrigger>
-          <SelectContent>
-            {clients.map((client) => (
-              <SelectItem key={client.id} value={client.id.toString()} className="max-w-[22rem]">
-                <span className="block max-w-full truncate">{client.name}</span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <nav className="flex-1 space-y-1">
+        <div className="mb-6 space-y-2">
+          <Select
+            value={selectedClientId}
+            onValueChange={setSelectedClientId}
+            disabled={isLoadingClients || !clients.length}
+          >
+            <SelectTrigger className="h-12 w-full min-w-0 rounded-xl border-none bg-white text-sm font-medium shadow-sm">
+              <SelectValue className="max-w-full truncate" placeholder="Выберите проект" />
+            </SelectTrigger>
+            <SelectContent>
+              {clients.map((client) => (
+                <SelectItem key={client.id} value={client.id.toString()} className="max-w-[22rem]">
+                  <span className="block max-w-full truncate">{client.name}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <nav className="flex-1 space-y-1">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setScreen(item.id)}
+              className={`w-full rounded-lg px-4 py-3 text-left transition-[background-color,color,transform] duration-200 hover:translate-x-1 ${
+                screen === item.id
+                  ? "bg-white font-bold text-primary shadow-sm"
+                  : "text-muted-foreground hover:bg-[#e8eff3]"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <item.icon className="h-5 w-5" />
+                <span className="text-[11px] font-semibold uppercase tracking-wider">{item.label}</span>
+              </div>
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-6 gap-1 rounded-2xl border border-border bg-card/95 p-1 shadow-lg backdrop-blur xl:hidden">
         {navItems.map((item) => (
           <button
             key={item.id}
             onClick={() => setScreen(item.id)}
-            className={`w-full rounded-lg px-4 py-3 text-left transition-all duration-200 hover:translate-x-1 ${
+            title={item.label}
+            aria-label={item.label}
+            className={`flex min-h-12 items-center justify-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               screen === item.id
-                ? "bg-white font-bold text-primary shadow-sm"
-                : "text-muted-foreground hover:bg-[#e8eff3]"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted"
             }`}
           >
-            <div className="flex items-center gap-3">
-              <item.icon className="h-5 w-5" />
-              <span className="text-[11px] font-semibold uppercase tracking-wider">{item.label}</span>
-            </div>
+            <item.icon className="h-5 w-5" />
+            <span className="sr-only">{item.label}</span>
           </button>
         ))}
       </nav>
-    </aside>
+    </>
   );
 }

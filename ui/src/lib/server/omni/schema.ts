@@ -27,6 +27,16 @@ const statements = [
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS omni_client_avatars (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES omni_projects(id) ON DELETE CASCADE,
+    prompt TEXT NOT NULL,
+    reference_url TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',
+    provider TEXT NOT NULL DEFAULT 'kie_omni',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
   `CREATE TABLE IF NOT EXISTS omni_telegram_topic_bindings (
     id SERIAL PRIMARY KEY,
     project_id INTEGER NOT NULL REFERENCES omni_projects(id) ON DELETE CASCADE,
@@ -45,6 +55,14 @@ const statements = [
     note TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(project_id, product_id, legacy_source, legacy_scenario_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS omni_legacy_library_links (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES omni_projects(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES omni_products(id) ON DELETE CASCADE,
+    legacy_client_id BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(project_id, product_id, legacy_client_id)
   )`,
   `CREATE TABLE IF NOT EXISTS omni_reels (
     id SERIAL PRIMARY KEY,
@@ -77,8 +95,11 @@ const statements = [
     UNIQUE(reel_id, segment_index)
   )`,
   "CREATE INDEX IF NOT EXISTS idx_omni_products_project ON omni_products(project_id)",
+  "CREATE INDEX IF NOT EXISTS idx_omni_client_avatars_project ON omni_client_avatars(project_id, updated_at DESC)",
   "CREATE INDEX IF NOT EXISTS idx_omni_links_project ON omni_legacy_scenario_links(project_id)",
   "CREATE INDEX IF NOT EXISTS idx_omni_links_product ON omni_legacy_scenario_links(product_id)",
+  "CREATE INDEX IF NOT EXISTS idx_omni_library_links_project ON omni_legacy_library_links(project_id)",
+  "CREATE INDEX IF NOT EXISTS idx_omni_library_links_product ON omni_legacy_library_links(product_id)",
   "CREATE INDEX IF NOT EXISTS idx_omni_reels_project_product ON omni_reels(project_id, product_id)",
   "CREATE INDEX IF NOT EXISTS idx_omni_segments_reel ON omni_reel_segments(reel_id, segment_index)",
 ];

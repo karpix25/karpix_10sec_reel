@@ -634,7 +634,7 @@ export default function CuratorDashboard() {
             />
           )}
 
-          {screen === "omni" && <OmniStudioScreen />}
+          {screen === "omni" && <OmniStudioScreen selectedClient={selectedClient ?? null} />}
 
           {screen === "references" && (
             <LibraryScreen
