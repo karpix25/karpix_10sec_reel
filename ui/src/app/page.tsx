@@ -598,7 +598,7 @@ export default function CuratorDashboard() {
         </button>
       </div>
       <Sidebar
-        selectedClientId={selectedClientId}
+        selectedClientId={activeClientId}
         setSelectedClientId={setSelectedClientId}
         clients={clients}
         isLoadingClients={isLoadingClients}
