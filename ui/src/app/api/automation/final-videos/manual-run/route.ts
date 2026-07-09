@@ -1,0 +1,135 @@
+import { NextResponse } from "next/server";
+import pool from "@/lib/db";
+import { getTelegramSessionUserFromRequest } from "@/lib/server/telegram-auth";
+
+const MANUAL_FINAL_VIDEO_RUN_LOCK_KEY = 84244002;
+
+export async function POST(request: Request) {
+  try {
+    const user = await getTelegramSessionUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const payload = await request.json().catch(() => ({}));
+    const clientId = Number(payload?.clientId);
+    if (!Number.isFinite(clientId) || clientId <= 0) {
+      return NextResponse.json({ error: "Valid clientId is required" }, { status: 400 });
+    }
+
+    await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS final_video_project_started_job_count INTEGER DEFAULT 0");
+    await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS final_video_automation_stopped_at TIMESTAMP");
+    await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS final_video_automation_stop_reason TEXT");
+
+    const dbClient = await pool.connect();
+    try {
+      await dbClient.query("BEGIN");
+
+      const lockRes = await dbClient.query<{ locked: boolean }>(
+        "SELECT pg_try_advisory_xact_lock($1, $2) AS locked",
+        [MANUAL_FINAL_VIDEO_RUN_LOCK_KEY, clientId]
+      );
+
+      if (!lockRes.rows[0]?.locked) {
+        await dbClient.query("ROLLBACK");
+        return NextResponse.json(
+          { error: "Manual run is already in progress for this project" },
+          { status: 409 }
+        );
+      }
+
+      const statsRes = await dbClient.query<{
+        id: number;
+        daily_limit: number;
+        project_limit: number;
+        project_job_count: number;
+      }>(
+        `
+        SELECT
+          c.id,
+          GREATEST(0, COALESCE(c.daily_final_video_limit, 0))::int AS daily_limit,
+          GREATEST(0, COALESCE(c.monthly_final_video_limit, 0))::int AS project_limit,
+          GREATEST(0, (
+            COALESCE((
+              SELECT COUNT(*)::int
+              FROM final_video_jobs fvj
+              WHERE fvj.client_id = c.id
+            ), 0)
+          ) - COALESCE(c.final_video_project_started_job_count, 0))::int AS project_job_count
+        FROM clients c
+        WHERE c.id = $1
+        FOR UPDATE
+        `,
+        [clientId]
+      );
+
+      const stats = statsRes.rows[0];
+      if (!stats) {
+        await dbClient.query("ROLLBACK");
+        return NextResponse.json({ error: "Client not found" }, { status: 404 });
+      }
+
+      const dailyLimit = Number(stats.daily_limit || 0);
+      const monthlyLimit = Number(stats.project_limit || 0);
+      const monthlyJobCount = Number(stats.project_job_count || 0);
+
+      if (dailyLimit <= 0 || monthlyLimit <= 0) {
+        await dbClient.query("ROLLBACK");
+        return NextResponse.json(
+          { error: "Сначала задайте дневной лимит и лимит проекта больше нуля" },
+          { status: 400 }
+        );
+      }
+
+      const remainingProject = Math.max(0, monthlyLimit - monthlyJobCount);
+      const requestedBatchSize = dailyLimit;
+      const toEnqueue = Math.min(requestedBatchSize, remainingProject);
+
+      if (toEnqueue > 0) {
+        await dbClient.query(
+          `INSERT INTO final_video_jobs (client_id)
+           SELECT $1
+           FROM generate_series(1, $2)`,
+          [clientId, toEnqueue]
+        );
+      }
+
+      const reachedProjectLimit = monthlyJobCount + toEnqueue >= monthlyLimit;
+      if (reachedProjectLimit) {
+        await dbClient.query(
+          `
+          UPDATE clients
+          SET auto_generate_final_videos = FALSE,
+              final_video_automation_stopped_at = CURRENT_TIMESTAMP,
+              final_video_automation_stop_reason = 'Достигнут лимит проекта'
+          WHERE id = $1
+          `,
+          [clientId]
+        );
+      }
+
+      await dbClient.query("COMMIT");
+
+      return NextResponse.json({
+        ok: true,
+        clientId,
+        requestedBatchSize,
+        queuedCount: toEnqueue,
+        monthlyLimit,
+        monthlyJobCountBefore: monthlyJobCount,
+        monthlyJobCountAfter: monthlyJobCount + toEnqueue,
+        remainingMonthlyAfter: remainingProject - toEnqueue,
+        skippedDueToMonthlyLimit: toEnqueue === 0,
+        reachedProjectLimit,
+      });
+    } catch (error) {
+      await dbClient.query("ROLLBACK");
+      throw error;
+    } finally {
+      dbClient.release();
+    }
+  } catch (error) {
+    console.error("Manual final video run error:", error);
+    return NextResponse.json({ error: "Failed to start manual automation run" }, { status: 500 });
+  }
+}

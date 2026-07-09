@@ -1,0 +1,197 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-postgres}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-postgres}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+      MINIMAX_GROUP_ID: ${MINIMAX_GROUP_ID:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      HEYGEN_API_KEY: ${HEYGEN_API_KEY:-}
+      KIE_API_KEY: ${KIE_API_KEY:-}
+      RAPIDAPI_KEY: ${RAPIDAPI_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_SUPER_ADMIN_IDS: ${TELEGRAM_SUPER_ADMIN_IDS:-}
+      TELEGRAM_SUPER_ADMIN_ID: ${TELEGRAM_SUPER_ADMIN_ID:-}
+      YANDEX_DISK_OAUTH_TOKEN: ${YANDEX_DISK_OAUTH_TOKEN:-}
+      YANDEX_DISK_TOKEN: ${YANDEX_DISK_TOKEN:-}
+      YANDEX_TOKEN: ${YANDEX_TOKEN:-}
+      YANDEX_DISK_PROJECT_FOLDER: ${YANDEX_DISK_PROJECT_FOLDER:-Плати по миру}
+      AUTOMATION_INTERNAL_TOKEN: ${AUTOMATION_INTERNAL_TOKEN:-change-me-in-production}
+      INTERNAL_API_BASE_URL: http://web:3000
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      NEXT_TELEMETRY_DISABLED: 1
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    expose:
+      - "3000"
+
+  final-video-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - web
+    command: ["python3", "services/v1/automation/final_video_worker.py"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-postgres}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+      MINIMAX_GROUP_ID: ${MINIMAX_GROUP_ID:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      HEYGEN_API_KEY: ${HEYGEN_API_KEY:-}
+      KIE_API_KEY: ${KIE_API_KEY:-}
+      RAPIDAPI_KEY: ${RAPIDAPI_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_SUPER_ADMIN_IDS: ${TELEGRAM_SUPER_ADMIN_IDS:-}
+      TELEGRAM_SUPER_ADMIN_ID: ${TELEGRAM_SUPER_ADMIN_ID:-}
+      YANDEX_DISK_OAUTH_TOKEN: ${YANDEX_DISK_OAUTH_TOKEN:-}
+      YANDEX_DISK_TOKEN: ${YANDEX_DISK_TOKEN:-}
+      YANDEX_TOKEN: ${YANDEX_TOKEN:-}
+      YANDEX_DISK_PROJECT_FOLDER: ${YANDEX_DISK_PROJECT_FOLDER:-Плати по миру}
+      INTERNAL_API_BASE_URL: http://web:3000
+      AUTOMATION_INTERNAL_TOKEN: ${AUTOMATION_INTERNAL_TOKEN:-change-me-in-production}
+      FINAL_VIDEO_PER_CLIENT_CONCURRENCY: ${FINAL_VIDEO_PER_CLIENT_CONCURRENCY:-1}
+      FINAL_VIDEO_WORKER_LEASE_SECONDS: ${FINAL_VIDEO_WORKER_LEASE_SECONDS:-3600}
+      FINAL_VIDEO_WORKER_IDLE_SECONDS: ${FINAL_VIDEO_WORKER_IDLE_SECONDS:-10}
+      FINAL_VIDEO_RETRY_BASE_SECONDS: ${FINAL_VIDEO_RETRY_BASE_SECONDS:-30}
+      FINAL_VIDEO_RETRY_MAX_SECONDS: ${FINAL_VIDEO_RETRY_MAX_SECONDS:-1800}
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
+  final-video-poller:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - web
+    command: ["python3", "services/v1/automation/final_video_poller.py"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-postgres}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      HEYGEN_API_KEY: ${HEYGEN_API_KEY:-}
+      KIE_API_KEY: ${KIE_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_SUPER_ADMIN_IDS: ${TELEGRAM_SUPER_ADMIN_IDS:-}
+      TELEGRAM_SUPER_ADMIN_ID: ${TELEGRAM_SUPER_ADMIN_ID:-}
+      INTERNAL_API_BASE_URL: http://web:3000
+      AUTOMATION_INTERNAL_TOKEN: ${AUTOMATION_INTERNAL_TOKEN:-change-me-in-production}
+      FINAL_VIDEO_PER_CLIENT_CONCURRENCY: ${FINAL_VIDEO_PER_CLIENT_CONCURRENCY:-1}
+      FINAL_VIDEO_POLLER_LEASE_SECONDS: ${FINAL_VIDEO_POLLER_LEASE_SECONDS:-600}
+      FINAL_VIDEO_POLLER_IDLE_SECONDS: ${FINAL_VIDEO_POLLER_IDLE_SECONDS:-10}
+      FINAL_VIDEO_KIE_POLL_INTERVAL_SECONDS: ${FINAL_VIDEO_KIE_POLL_INTERVAL_SECONDS:-30}
+      FINAL_VIDEO_HEYGEN_POLL_INTERVAL_SECONDS: ${FINAL_VIDEO_HEYGEN_POLL_INTERVAL_SECONDS:-30}
+      FINAL_VIDEO_RETRY_BASE_SECONDS: ${FINAL_VIDEO_RETRY_BASE_SECONDS:-30}
+      FINAL_VIDEO_RETRY_MAX_SECONDS: ${FINAL_VIDEO_RETRY_MAX_SECONDS:-1800}
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
+  final-video-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    command: ["python3", "services/v1/automation/final_video_scheduler.py"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-postgres}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_SUPER_ADMIN_IDS: ${TELEGRAM_SUPER_ADMIN_IDS:-}
+      TELEGRAM_SUPER_ADMIN_ID: ${TELEGRAM_SUPER_ADMIN_ID:-}
+      FINAL_VIDEO_SCHEDULER_INTERVAL_SECONDS: ${FINAL_VIDEO_SCHEDULER_INTERVAL_SECONDS:-60}
+      FINAL_VIDEO_SCHEDULER_BATCH_PER_CLIENT: ${FINAL_VIDEO_SCHEDULER_BATCH_PER_CLIENT:-1}
+      FINAL_VIDEO_QUEUE_BACKLOG_PER_CLIENT: ${FINAL_VIDEO_QUEUE_BACKLOG_PER_CLIENT:-3}
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    command: ["python3", "services/v1/ingestion/telegram_bot.py"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-postgres}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_ADMIN_IDS: ${TELEGRAM_ADMIN_IDS:-}
+      TELEGRAM_ADMIN_ID: ${TELEGRAM_ADMIN_ID:-}
+      WEBAPP_BASE_URL: ${WEBAPP_BASE_URL:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+      MINIMAX_GROUP_ID: ${MINIMAX_GROUP_ID:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      HEYGEN_API_KEY: ${HEYGEN_API_KEY:-}
+      KIE_API_KEY: ${KIE_API_KEY:-}
+      RAPIDAPI_KEY: ${RAPIDAPI_KEY:-}
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
+volumes:
+  postgres_data:
