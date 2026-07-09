@@ -4,7 +4,8 @@ import {
   FolderOpen, 
   FileText, 
   Zap, 
-  Settings 
+  Settings,
+  Sparkles
 } from "lucide-react";
 import { ClientSettings, Screen } from "@/types";
 
@@ -69,6 +70,7 @@ export const navItems: Array<{
   label: string;
 }> = [
   { id: "dashboard", icon: LayoutDashboard, label: "Панель" },
+  { id: "omni", icon: Sparkles, label: "Omni Studio" },
   { id: "references", icon: FolderOpen, label: "Библиотека (Темы и паттерны)" },
   { id: "scenarios", icon: FileText, label: "Сценарии" },
   { id: "generator", icon: Zap, label: "Генератор" },

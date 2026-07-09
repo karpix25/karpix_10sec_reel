@@ -1,12 +1,24 @@
 import { NextResponse } from "next/server";
 import {
   extractTelegramSessionToken,
+  getLocalDevTelegramUser,
+  getStagingAuthUser,
   getTelegramSessionUser,
   TELEGRAM_SESSION_COOKIE,
 } from "@/lib/server/telegram-auth";
 
 export async function GET(request: Request) {
   try {
+    const devUser = getLocalDevTelegramUser(request);
+    if (devUser) {
+      return NextResponse.json({ ok: true, user: devUser, localDevBypass: true }, { status: 200 });
+    }
+
+    const stagingUser = getStagingAuthUser(request);
+    if (stagingUser) {
+      return NextResponse.json({ ok: true, user: stagingUser, stagingBypass: true }, { status: 200 });
+    }
+
     const sessionToken = extractTelegramSessionToken(request);
     if (!sessionToken) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });

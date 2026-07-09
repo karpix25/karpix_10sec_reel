@@ -4,6 +4,7 @@ import { rateLimit, getClientIp } from "./rate-limit";
 import { NextResponse } from "next/server";
 
 export const TELEGRAM_SESSION_COOKIE = "tg_session";
+export const STAGING_AUTH_COOKIE = "staging_auth";
 
 const AUTH_REQUEST_TTL_MINUTES = 20;
 const TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -52,6 +53,82 @@ const SUPER_ADMIN_TELEGRAM_IDS = new Set<number>([
   ...parseTelegramIds(String(process.env.TELEGRAM_SUPER_ADMIN_IDS || "")),
   ...parseTelegramIds(String(process.env.TELEGRAM_SUPER_ADMIN_ID || "")),
 ]);
+
+function isLocalhostRequest(request: Request) {
+  try {
+    const hostname = new URL(request.url).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  } catch {
+    return false;
+  }
+}
+
+function extractCookieValue(request: Request, name: string) {
+  const cookieHeader = request.headers.get("cookie") || "";
+  return cookieHeader
+    .split(";")
+    .map((chunk) => chunk.trim())
+    .find((chunk) => chunk.startsWith(`${name}=`))
+    ?.split("=")
+    .slice(1)
+    .join("=")
+    .trim();
+}
+
+function isValidStagingPassword(candidate: string | null) {
+  const expected = String(process.env.STAGING_AUTH_PASSWORD || "").trim();
+  if (!expected || !candidate) {
+    return false;
+  }
+
+  const candidateBuffer = Buffer.from(candidate);
+  const expectedBuffer = Buffer.from(expected);
+  if (candidateBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(candidateBuffer, expectedBuffer);
+}
+
+function buildBypassUser(username: string, firstName: string): TelegramSessionUser {
+  return {
+    telegramUserId: 1,
+    username,
+    firstName,
+    lastName: null,
+    isAdmin: true,
+    isSuperAdmin: true,
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+  };
+}
+
+export function getLocalDevTelegramUser(request: Request): TelegramSessionUser | null {
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
+  if (process.env.LOCAL_TELEGRAM_AUTH_BYPASS === "false") {
+    return null;
+  }
+  if (!isLocalhostRequest(request)) {
+    return null;
+  }
+
+  return buildBypassUser("local-dev", "Local");
+}
+
+export function getStagingAuthUser(request: Request): TelegramSessionUser | null {
+  const cookieValue = extractCookieValue(request, STAGING_AUTH_COOKIE);
+  const password = cookieValue ? decodeURIComponent(cookieValue) : null;
+  if (!isValidStagingPassword(password)) {
+    return null;
+  }
+
+  return buildBypassUser("staging-admin", "Staging");
+}
+
+export function isValidStagingAuthPassword(password: string) {
+  return isValidStagingPassword(password);
+}
 
 function randomId(length: number) {
   const bytes = crypto.randomBytes(length);
@@ -357,6 +434,16 @@ export async function getTelegramSessionUser(rawToken: string): Promise<Telegram
 }
 
 export async function getTelegramSessionUserFromRequest(request: Request) {
+  const devUser = getLocalDevTelegramUser(request);
+  if (devUser) {
+    return devUser;
+  }
+
+  const stagingUser = getStagingAuthUser(request);
+  if (stagingUser) {
+    return stagingUser;
+  }
+
   const sessionToken = extractTelegramSessionToken(request);
   if (!sessionToken) {
     return null;
