@@ -73,6 +73,30 @@ export async function listLegacyScenarios(options: {
   };
 }
 
+export async function getLegacyScenario(legacyScenarioId: number) {
+  const legacyPool = getLegacyPool();
+  const rowsResult = await legacyPool.query<LegacyScenarioRow>(
+    `SELECT
+       gs.id,
+       gs.client_id,
+       gs.scenario_json,
+       gs.tts_script,
+       gs.topic,
+       gs.created_at,
+       gs.generation_source,
+       gs.source_content_id,
+       c.name AS legacy_client_name,
+       c.product_keyword AS legacy_product_keyword
+     FROM generated_scenarios gs
+     LEFT JOIN clients c ON c.id = gs.client_id
+     WHERE gs.id = $1
+     LIMIT 1`,
+    [legacyScenarioId]
+  );
+
+  return rowsResult.rows[0] ? normalizeLegacyScenario(rowsResult.rows[0]) : null;
+}
+
 function normalizeLegacyScenario(row: LegacyScenarioRow): OmniLegacyScenario {
   const script = row.scenario_json?.script || row.tts_script || "";
   return {

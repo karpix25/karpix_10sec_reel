@@ -106,7 +106,13 @@ export function useOmniStudio(
   });
 
   const createProjectMutation = useMutation({
-    mutationFn: async (payload: { name: string; description?: string; telegramChatId?: string; telegramTopicId?: string }) =>
+    mutationFn: async (payload: {
+      name: string;
+      description?: string;
+      legacyClientId?: number;
+      telegramChatId?: string;
+      telegramTopicId?: string;
+    }) =>
       (await axios.post(`${API_BASE}/projects`, payload)).data as OmniProject,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["omni-projects"] }),
   });

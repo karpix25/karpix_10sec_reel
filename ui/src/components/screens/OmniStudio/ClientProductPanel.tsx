@@ -1,6 +1,7 @@
 "use client";
 
-import { PackagePlus, Plus, UploadCloud } from "lucide-react";
+import { Image as ImageIcon, PackagePlus, Plus, UploadCloud } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { OmniProduct, OmniProject } from "@/lib/omni/types";
@@ -51,8 +52,8 @@ export function ClientProductPanel({
   return (
     <div className="space-y-4">
       <WorkbenchPanel
-        title="Клиент"
-        description="Omni workspace связывает клиента, продукты, Telegram topic и новые draft-ролики."
+        title="Клиентский workspace"
+        description="Связывает legacy-клиента, продуктовую линейку, avatar и новую БД Omni."
         action={
           <Button size="sm" variant="outline" onClick={onCreateWorkspace} disabled={!selectedClient || isCreatingProject}>
             <Plus className="h-4 w-4" />
@@ -104,7 +105,7 @@ export function ClientProductPanel({
         )}
       </WorkbenchPanel>
 
-      <WorkbenchPanel title="Продукты" description="У клиента может быть несколько продуктов, каждый со своими refs для Omni.">
+      <WorkbenchPanel title="Продукты" description="Каждый продукт имеет свои visual refs, библиотеку сценариев и reel queue.">
         <QueryState
           isLoading={isProductsLoading}
           loadingText="Загружаю продукты"
@@ -128,7 +129,7 @@ export function ClientProductPanel({
           <Input
             value={productDraft.productReferenceUrl}
             onChange={(event) => onProductDraftChange({ ...productDraft, productReferenceUrl: event.target.value })}
-            placeholder="S3 URL картинки/видео продукта"
+            placeholder="Manual S3/external URL reference. Upload подключим отдельным действием."
             disabled={!activeProject}
             className="h-11"
           />
@@ -177,9 +178,18 @@ export function ClientProductPanel({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{product.target_duration_seconds} сек</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <Badge variant="secondary">{product.target_duration_seconds} сек</Badge>
+                    <Badge variant={product.product_refs.length ? "success" : "outline"}>
+                      {product.product_refs.length ? `${product.product_refs.length} ref` : "no refs"}
+                    </Badge>
+                  </div>
                 </div>
-                <UploadCloud className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+                {product.product_refs.length ? (
+                  <ImageIcon className="mt-1 h-4 w-4 shrink-0 text-primary" />
+                ) : (
+                  <UploadCloud className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
               </div>
             </button>
           ))}

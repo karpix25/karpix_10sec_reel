@@ -163,17 +163,11 @@ export default function CuratorDashboard() {
     structureCards,
     scenarios,
     scenariosQuery,
-    referencesQuery,
-    heygenAvatarsQuery,
     heygenCatalogQuery,
-    minimaxVoicesQuery,
-    elevenlabsVoicesQuery,
     scenarioPage,
     setScenarioPage,
     scenarioPageSize,
     setScenarioPageSize,
-    scenarioSearch,
-    setScenarioSearch,
     referencePage,
     setReferencePage,
     referencePageSize,
@@ -196,10 +190,9 @@ export default function CuratorDashboard() {
     deleteTopicCardMutation,
     deleteStructureCardMutation,
     saveHeygenAvatarsMutation,
-    batchRewriteMutation,
     batchMixMutation,
     singleRewriteMutation,
-  } = useWorkspaceData(selectedClientId);
+  } = useWorkspaceData(selectedClientId, { loadLegacyProviders: screen === "settings" });
 
   const defaultClient = useMemo(() => {
     if (!clients.length) return undefined;

@@ -1,8 +1,6 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
-import { Network, ArrowRight } from "lucide-react";
-import { Client, DashboardMonthlyStats, Screen, TopicCard } from "@/types";
+import { ArrowRight, Database, PackageCheck, Sparkles, Video } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Client, Screen, TopicCard } from "@/types";
 import { formatUsd } from "@/lib/generation-costs";
 
 interface DashboardScreenProps {
@@ -19,196 +17,83 @@ interface DashboardScreenProps {
   setScreen: (screen: Screen) => void;
 }
 
-const toMonthKey = (date: Date): string => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
-};
-
-const buildLastMonths = (count: number): string[] => {
-  const now = new Date();
-  const result: string[] = [];
-  for (let i = 0; i < count; i += 1) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    result.push(toMonthKey(d));
-  }
-  return result;
-};
+const workflow = [
+  { icon: PackageCheck, title: "Продукты", text: "Создай несколько продуктов клиента и добавь reference assets." },
+  { icon: Sparkles, title: "Avatar", text: "Сохрани клиентский avatar prompt и позже запусти генерацию через KIE Omni." },
+  { icon: Database, title: "Библиотеки", text: "Подключи старые сценарии read-only к конкретному продукту." },
+  { icon: Video, title: "Видео", text: "Собери 30-40 секунд из 10-секундных stitch-friendly сегментов." },
+];
 
 export function DashboardScreen({
   selectedClient,
-  selectedClientId,
   totalReferences,
   totalScenarios,
   topicCards,
   costStats,
   setScreen,
 }: DashboardScreenProps) {
-  const [selectedMonth, setSelectedMonth] = useState<string>(toMonthKey(new Date()));
-  const monthOptions = useMemo(() => buildLastMonths(12), []);
-  const monthLabelFormatter = useMemo(
-    () => new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }),
-    []
-  );
-
-  const monthlyStatsQuery = useQuery<DashboardMonthlyStats>({
-    queryKey: ["reports-dashboard-monthly", selectedClientId, selectedMonth],
-    queryFn: async () => {
-      if (!selectedClientId) {
-        return {
-          month: selectedMonth,
-          referenceCount: 0,
-          scenarioCount: 0,
-          topicCount: 0,
-          finalVideoCount: 0,
-          totalPrompts: 0,
-          totalHeygenDuration: 0,
-          totalCostUsd: 0,
-        };
-      }
-      const { data } = await axios.get("/api/reports/dashboard-monthly", {
-        params: { clientId: selectedClientId, month: selectedMonth },
-      });
-      return {
-        month: String(data?.month || selectedMonth),
-        referenceCount: Number(data?.referenceCount || 0),
-        scenarioCount: Number(data?.scenarioCount || 0),
-        topicCount: Number(data?.topicCount || 0),
-        finalVideoCount: Number(data?.finalVideoCount || 0),
-        totalPrompts: Number(data?.totalPrompts || 0),
-        totalHeygenDuration: Number(data?.totalHeygenDuration || 0),
-        totalCostUsd: Number(data?.totalCostUsd || 0),
-      };
-    },
-    enabled: Boolean(selectedClientId),
-    staleTime: 60_000,
-  });
-
-  const monthlyStats = monthlyStatsQuery.data;
-  const selectedMonthDate = new Date(`${selectedMonth}-01T00:00:00`);
-  const selectedMonthLabel = Number.isNaN(selectedMonthDate.getTime())
-    ? selectedMonth
-    : monthLabelFormatter.format(selectedMonthDate);
-
-  const referencesValue = monthlyStats?.referenceCount ?? totalReferences;
-  const scenariosValue = monthlyStats?.scenarioCount ?? totalScenarios;
-  const topicsValue = monthlyStats?.topicCount ?? topicCards.length;
-  const finalVideosValue = monthlyStats?.finalVideoCount ?? Number(selectedClient?.total_final_video_count || 0);
-  const totalPromptsValue = monthlyStats?.totalPrompts ?? costStats.totalPrompts;
-  const heygenDurationSeconds = monthlyStats?.totalHeygenDuration ?? costStats.totalHeygenDuration;
-  const totalCostUsd = monthlyStats?.totalCostUsd ?? costStats.totalCostUsd;
-
   return (
-    <div className="max-w-7xl space-y-10">
-      <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-        <div>
-          <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
-            Центр кураторства
-          </span>
-          <h2 className="mb-2 text-[3.5rem] font-bold leading-none tracking-tighter text-foreground">
-            Активный проект
-          </h2>
-          <p className="max-w-md text-muted-foreground">
-            Управляй референсами, извлеченными паттернами и генерацией сценариев в одном рабочем контуре.
-          </p>
-        </div>
-        <div className="w-full max-w-xs">
-          <label className="mb-2 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            Месяц панели
-          </label>
-          <select
-            className="w-full rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm text-foreground"
-            value={selectedMonth}
-            onChange={(event) => setSelectedMonth(event.target.value)}
-          >
-            {monthOptions.map((month) => {
-              const d = new Date(`${month}-01T00:00:00`);
-              const label = Number.isNaN(d.getTime()) ? month : monthLabelFormatter.format(d);
-              return (
-                <option key={month} value={month}>
-                  {label}
-                </option>
-              );
-            })}
-          </select>
-          <div className="mt-1 text-xs text-muted-foreground">
-            Показатели за {selectedMonthLabel}
-            {monthlyStatsQuery.isFetching ? " • обновляется..." : ""}
+    <div className="mx-auto max-w-[94rem] space-y-5">
+      <section className="rounded-lg border border-border bg-card">
+        <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Client workspace</p>
+            <h2 className="mt-2 max-w-3xl text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+              {selectedClient?.name || "Выбери клиента"}, затем собирай продукты и рилсы в Omni
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Главный контур теперь строится вокруг клиента и его продуктовой линейки. Старые refs, сценарии и
+              генератор остаются доступными как legacy-инструменты, но production pipeline находится в Omni.
+            </p>
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              <Button size="lg" onClick={() => setScreen("omni")} className="min-h-11">
+                <Sparkles className="h-4 w-4" />
+                Открыть производство
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => setScreen("references")} className="min-h-11">
+                Legacy библиотека
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/35 p-4">
+            <p className="text-sm font-semibold text-foreground">Контекст клиента</p>
+            <p className="mt-2 line-clamp-5 text-sm leading-6 text-muted-foreground">
+              {selectedClient?.product_info ||
+                selectedClient?.target_audience ||
+                "Заполни контекст в настройках, чтобы сценарии и prompts точнее попадали в продукт."}
+            </p>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5">
-        {[
-          { label: "Референсы", value: referencesValue, helper: "Добавлено за месяц" },
-          { label: "Сценарии", value: scenariosValue, helper: "Сгенерировано за месяц" },
-          { label: "Финальные ролики", value: finalVideosValue, helper: "Смонтировано за месяц" },
-          { label: "Темы", value: topicsValue, helper: "Создано карточек за месяц" },
-          {
-            label: "Общий расход",
-            value: formatUsd(totalCostUsd),
-            helper: `${totalPromptsValue} prompts • ${heygenDurationSeconds.toFixed(1)}s HeyGen`,
-          },
-        ].map((item) => (
-          <div key={item.label} className="rounded-xl bg-white p-6 shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{item.label}</p>
-            <p className="mt-2 text-5xl font-bold tracking-tighter text-foreground">{item.value}</p>
-            <p className="mt-2 text-sm text-muted-foreground">{item.helper}</p>
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {workflow.map((item) => (
+          <div key={item.title} className="rounded-lg border border-border bg-card p-4">
+            <item.icon className="h-5 w-5 text-primary" />
+            <h3 className="mt-3 text-sm font-semibold text-foreground">{item.title}</h3>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.text}</p>
           </div>
         ))}
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <div className="group relative rounded-xl bg-white p-6 shadow-sm">
-          <div className="mb-8 flex items-start justify-between">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#f0f4f7] text-primary">
-              <Network className="h-6 w-6" />
-            </div>
-            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-              активен
-            </span>
-          </div>
-          <h3 className="mb-2 text-xl font-semibold text-foreground">{selectedClient?.name || "Не выбран"}</h3>
-          <p className="mb-6 line-clamp-3 text-sm text-muted-foreground">
-            {selectedClient?.product_info || "Добавь описание продукта, чтобы сценарии создавались точнее."}
-          </p>
-          <div className="flex items-center justify-between border-t border-[#f0f4f7] pt-6">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Последнее действие
-              </span>
-              <div className="text-sm font-medium">Сейчас</div>
-            </div>
-            <button className="rounded-lg bg-[#f0f4f7] p-2 text-foreground">
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="rounded-xl bg-[#f0f4f7] p-8 lg:col-span-2">
-          <h4 className="text-2xl font-semibold text-foreground">Система работает так</h4>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            Референсы анализируются, затем из них извлекаются темы и паттерны. После этого можно либо
-            переписывать конкретный исходник, либо генерировать новые сценарии на основе комбинации theme + structure.
-          </p>
-          <div className="mt-6 flex gap-6">
-            <button
-              onClick={() => setScreen("references")}
-              className="border-b-2 border-primary/20 pb-1 text-xs font-bold uppercase tracking-widest text-primary"
-            >
-              Просмотреть референсы
-            </button>
-            <button
-              onClick={() => setScreen("graph")}
-              className="pb-1 text-xs font-bold uppercase tracking-widest text-muted-foreground hover:text-primary"
-            >
-              Темы и паттерны
-            </button>
-          </div>
-        </div>
-      </div>
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Legacy refs" value={totalReferences} helper="read/import source" />
+        <Metric label="Legacy scenarios" value={totalScenarios} helper="old DB + generated" />
+        <Metric label="Topic cards" value={topicCards.length} helper="legacy pattern layer" />
+        <Metric label="Cost" value={formatUsd(costStats.totalCostUsd)} helper={`${costStats.totalPrompts} prompts`} />
+      </section>
     </div>
   );
 }
 
+function Metric({ label, value, helper }: { label: string; value: number | string; helper: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+      <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+    </div>
+  );
+}

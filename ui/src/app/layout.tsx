@@ -4,8 +4,8 @@ import { QueryProvider } from "@/components/providers/query-provider";
 import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
-  title: "Контент машина | AI Avatar Workspace",
-  description: "Для ИИ аватаров с B-roll — генератор рекламного контента",
+  title: "Omni Reels | Client Production OS",
+  description: "Клиентская консоль для продуктов, сценариев и Omni/KIE reel production.",
 };
 
 export default function RootLayout({
@@ -14,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="ru">
       <body className="antialiased">
         <QueryProvider>
           {children}
