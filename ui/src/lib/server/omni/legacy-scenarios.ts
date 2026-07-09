@@ -8,7 +8,8 @@ type LegacyScenarioRow = {
   tts_script: string | null;
   topic: string | null;
   created_at: string | null;
-  source_reference: string | null;
+  generation_source: string | null;
+  source_content_id: number | null;
 };
 
 export async function listLegacyScenarios(options: {
@@ -43,7 +44,7 @@ export async function listLegacyScenarios(options: {
   );
 
   const rowsResult = await legacyPool.query<LegacyScenarioRow>(
-    `SELECT id, client_id, scenario_json, tts_script, topic, created_at, source_reference
+    `SELECT id, client_id, scenario_json, tts_script, topic, created_at, generation_source, source_content_id
      FROM generated_scenarios
      ${whereSql}
      ORDER BY created_at DESC, id DESC
@@ -66,6 +67,13 @@ function normalizeLegacyScenario(row: LegacyScenarioRow): OmniLegacyScenario {
     title: row.scenario_json?.title || row.scenario_json?.hook || null,
     topic: row.topic || null,
     created_at: row.created_at,
-    source_reference: row.source_reference || null,
+    source_reference: getSourceReference(row),
   };
+}
+
+function getSourceReference(row: LegacyScenarioRow): string | null {
+  if (row.source_content_id) {
+    return `source_content:${row.source_content_id}`;
+  }
+  return row.generation_source || null;
 }
