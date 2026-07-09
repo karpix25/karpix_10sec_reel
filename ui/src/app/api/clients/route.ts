@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
-import { getTelegramSessionUserFromRequest, validateApiRequest } from '@/lib/server/telegram-auth';
+import { validateApiRequest } from '@/lib/server/telegram-auth';
 import {
   buildDeepgramKeywordSource,
   normalizeDeepgramVocabularyRulesInput,
 } from '@/lib/server/deepgram-keywords';
+import { listLegacyLibraries } from '@/lib/server/omni/legacy-libraries';
 
 type TtsPronunciationOverride = {
   search: string;
@@ -100,6 +101,33 @@ function normalizeTtsPronunciationOverrides(value: unknown): TtsPronunciationOve
   }
 
   return [];
+}
+
+async function listLegacyClientFallback() {
+  try {
+    const libraries = await listLegacyLibraries({ limit: 200 });
+    return libraries.map((library) => ({
+      id: library.client_id,
+      name: library.name,
+      product_info: library.product_info || "",
+      product_keyword: library.product_keyword || "",
+      target_audience: library.niche || "",
+      target_duration_seconds: 30,
+      target_duration_min_seconds: 30,
+      target_duration_max_seconds: 30,
+      product_media_assets: [],
+      tts_pronunciation_overrides: [],
+      deepgram_vocabulary_rules: [],
+      total_final_video_count: 0,
+      open_final_video_jobs: 0,
+      daily_final_video_count: 0,
+      monthly_final_video_count: 0,
+      __source: "legacy_library",
+    }));
+  } catch (error) {
+    console.error("Legacy client fallback error:", error);
+    return [];
+  }
 }
 
 async function ensureClientVoiceColumn() {
@@ -250,7 +278,7 @@ async function getFinalVideoAutomationState(clientId: number) {
 
 export async function GET(request: Request) {
   try {
-    const { user, errorResponse } = await validateApiRequest(request);
+    const { errorResponse } = await validateApiRequest(request);
     if (errorResponse) return errorResponse;
 
     await ensureClientVoiceColumn();
@@ -326,8 +354,7 @@ export async function GET(request: Request) {
       ) project_jobs ON project_jobs.client_id = c.id
       ORDER BY c.created_at DESC
     `);
-    return NextResponse.json(
-      rows.map((row) => ({
+    const clients = rows.map((row) => ({
         ...row,
         product_media_assets: normalizeProductMediaAssets(row.product_media_assets),
         tts_pronunciation_overrides: normalizeTtsPronunciationOverrides(row.tts_pronunciation_overrides),
@@ -335,8 +362,13 @@ export async function GET(request: Request) {
           row.deepgram_vocabulary_rules,
           row.deepgram_keywords
         ),
-      }))
-    );
+      }));
+
+    if (clients.length) {
+      return NextResponse.json(clients);
+    }
+
+    return NextResponse.json(await listLegacyClientFallback());
   } catch (error) {
     console.error('Database error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -345,7 +377,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { user, errorResponse } = await validateApiRequest(request);
+    const { errorResponse } = await validateApiRequest(request);
     if (errorResponse) return errorResponse;
 
     await ensureClientVoiceColumn();
@@ -531,7 +563,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const { user, errorResponse } = await validateApiRequest(request);
+    const { errorResponse } = await validateApiRequest(request);
     if (errorResponse) return errorResponse;
 
     await ensureClientVoiceColumn();
