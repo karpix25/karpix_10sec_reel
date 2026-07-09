@@ -1,3 +1,8 @@
+openai
+python-telegram-bot
+pyTelegramBotAPI
+deepgram-sdk
 requests
-ffmpeg-python
 python-dotenv
+flask
+psycopg2-binary
