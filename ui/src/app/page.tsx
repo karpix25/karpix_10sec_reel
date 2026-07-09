@@ -9,6 +9,7 @@ import { LibraryScreen } from "@/components/screens/LibraryScreen";
 import { ScenariosScreen } from "@/components/screens/ScenariosScreen";
 import { GeneratorScreen } from "@/components/screens/GeneratorScreen";
 import { SettingsScreen } from "@/components/screens/SettingsScreen";
+import { OmniStudioScreen } from "@/components/screens/OmniStudio";
 
 import { ReferenceModal } from "@/components/ReferenceModal";
 import {
@@ -140,6 +141,8 @@ export default function CuratorDashboard() {
   const [authError, setAuthError] = useState("");
   const [isStartingTelegramAuth, setIsStartingTelegramAuth] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [stagingPassword, setStagingPassword] = useState("");
+  const [isSubmittingStagingPassword, setIsSubmittingStagingPassword] = useState(false);
 
   // --- Local State ---
   const [screen, setScreen] = useState<Screen>("dashboard");
@@ -382,6 +385,34 @@ export default function CuratorDashboard() {
     }
   };
 
+  const handleStagingLogin = async () => {
+    const password = stagingPassword.trim();
+    if (!password) {
+      setAuthError("Введите staging пароль.");
+      return;
+    }
+
+    setIsSubmittingStagingPassword(true);
+    setAuthError("");
+    try {
+      const response = await fetch("/api/auth/staging", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      if (!response.ok) {
+        throw new Error("Неверный staging пароль.");
+      }
+      setStagingPassword("");
+      await checkTelegramSession();
+    } catch (error) {
+      console.error("Staging login failed:", error);
+      setAuthError(error instanceof Error ? error.message : "Не удалось войти по staging паролю.");
+    } finally {
+      setIsSubmittingStagingPassword(false);
+    }
+  };
+
   if (authState === "loading") {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f8fafc] px-6">
@@ -425,6 +456,32 @@ export default function CuratorDashboard() {
           >
             Я уже авторизовался
           </button>
+
+          <div className="space-y-3 border-t border-[#eef2f6] pt-5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Staging доступ
+            </label>
+            <input
+              type="password"
+              value={stagingPassword}
+              onChange={(event) => setStagingPassword(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  void handleStagingLogin();
+                }
+              }}
+              className="w-full rounded-xl border border-[#dce5ec] px-4 py-3 text-sm outline-none transition focus:border-primary"
+              placeholder="Пароль для тестового стенда"
+            />
+            <button
+              type="button"
+              onClick={() => void handleStagingLogin()}
+              disabled={isSubmittingStagingPassword}
+              className="w-full rounded-xl bg-[#f0f4f7] px-4 py-3 text-sm font-semibold text-foreground transition hover:bg-[#e6eef4] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSubmittingStagingPassword ? "Проверяю..." : "Войти на staging"}
+            </button>
+          </div>
         </div>
       </main>
     );
@@ -576,6 +633,8 @@ export default function CuratorDashboard() {
               setScreen={setScreen}
             />
           )}
+
+          {screen === "omni" && <OmniStudioScreen />}
 
           {screen === "references" && (
             <LibraryScreen

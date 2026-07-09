@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { revokeTelegramSession, TELEGRAM_SESSION_COOKIE } from "@/lib/server/telegram-auth";
+import { revokeTelegramSession, STAGING_AUTH_COOKIE, TELEGRAM_SESSION_COOKIE } from "@/lib/server/telegram-auth";
 
 function extractSessionToken(cookieHeader: string) {
   return cookieHeader
@@ -27,10 +27,15 @@ export async function POST(request: Request) {
       path: "/",
       maxAge: 0,
     });
+    response.cookies.set({
+      name: STAGING_AUTH_COOKIE,
+      value: "",
+      path: "/",
+      maxAge: 0,
+    });
     return response;
   } catch (error) {
     console.error("Telegram auth logout error:", error);
     return NextResponse.json({ ok: false, error: "Internal Server Error" }, { status: 500 });
   }
 }
-
