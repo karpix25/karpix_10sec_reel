@@ -1,14 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Database, Sparkles } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { useOmniProjects, useOmniStudio } from "@/hooks/useOmniStudio";
+import {
+  buildReadiness,
+  findClientWorkspaceProject,
+  getActiveProduct,
+  getClientWorkspaceDescription,
+  getEffectiveLegacyLibraryId,
+  getLatestAvatar,
+} from "@/lib/omni/workspace";
 import type { OmniProduct, OmniProject } from "@/lib/omni/types";
 import type { Client } from "@/types";
 import { AvatarDraft, AvatarVideoPanel } from "./AvatarVideoPanel";
 import { ClientProductPanel, ProductDraft } from "./ClientProductPanel";
 import { LibraryScenarioPanel } from "./LibraryScenarioPanel";
+import { OmniPipelineHeader } from "./OmniPipelineHeader";
 
 const emptyProductDraft: ProductDraft = {
   name: "",
@@ -23,10 +30,6 @@ const emptyAvatarDraft: AvatarDraft = {
   referenceUrl: "",
 };
 
-function clientWorkspaceDescription(client: Client) {
-  return `legacy-client:${client.id}`;
-}
-
 export function OmniStudioScreen({ selectedClient }: { selectedClient: Client | null }) {
   const [projectId, setProjectId] = useState<number | null>(null);
   const [productId, setProductId] = useState<number | null>(null);
@@ -38,15 +41,10 @@ export function OmniStudioScreen({ selectedClient }: { selectedClient: Client | 
 
   const projectsQuery = useOmniProjects();
   const allProjects = useMemo(() => projectsQuery.data || [], [projectsQuery.data]);
-  const inferredProject = useMemo(() => {
-    if (!selectedClient) return null;
-    return (
-      allProjects.find(
-        (project) =>
-          project.description === clientWorkspaceDescription(selectedClient) || project.name === selectedClient.name
-      ) || null
-    );
-  }, [allProjects, selectedClient]);
+  const inferredProject = useMemo(
+    () => findClientWorkspaceProject(allProjects, selectedClient),
+    [allProjects, selectedClient]
+  );
   const selectedProject = allProjects.find((project) => project.id === projectId) || null;
   const activeProject = selectedProject || inferredProject;
   const activeProjectId = activeProject?.id || null;
@@ -61,18 +59,25 @@ export function OmniStudioScreen({ selectedClient }: { selectedClient: Client | 
   const reels = studio.reelsQuery.data?.reels || [];
   const segments = studio.reelsQuery.data?.segments || [];
 
-  const activeProduct = useMemo(
-    () => products.find((product) => product.id === productId) || null,
-    [products, productId]
-  );
-  const effectiveLibraryId = activeLibraryId || Number(libraryLinks[0]?.legacy_client_id || 0) || null;
+  const activeProduct = useMemo(() => getActiveProduct(products, productId), [products, productId]);
+  const effectiveLibraryId = getEffectiveLegacyLibraryId(activeLibraryId, libraryLinks);
+  const latestAvatar = getLatestAvatar(avatars);
+  const readiness = buildReadiness({
+    activeProject,
+    activeProduct,
+    latestAvatar,
+    activeLibraryId: effectiveLibraryId,
+    selectedScenarioId,
+    reels,
+  });
 
   const handleCreateWorkspace = () => {
     if (!selectedClient) return;
     studio.createProjectMutation.mutate(
       {
         name: selectedClient.name,
-        description: clientWorkspaceDescription(selectedClient),
+        description: getClientWorkspaceDescription(selectedClient),
+        legacyClientId: selectedClient.id,
       },
       {
         onSuccess: (project: OmniProject) => {
@@ -93,7 +98,11 @@ export function OmniStudioScreen({ selectedClient }: { selectedClient: Client | 
             id: productDraft.productReferenceUrl.trim(),
             url: productDraft.productReferenceUrl.trim(),
             kind: "image",
+            role: "product_primary",
             label: "product reference",
+            storage_provider: "manual",
+            status: "manual_url",
+            is_primary: true,
           },
         ]
       : [];
@@ -156,34 +165,12 @@ export function OmniStudioScreen({ selectedClient }: { selectedClient: Client | 
 
   return (
     <div className="mx-auto max-w-[94rem] space-y-5">
-      <header className="rounded-lg border border-border bg-card px-4 py-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="min-w-0">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="gap-1">
-                <Sparkles className="h-3.5 w-3.5" />
-                Omni Reels
-              </Badge>
-              <Badge variant="outline" className="gap-1">
-                <Database className="h-3.5 w-3.5" />
-                old DB read-only
-              </Badge>
-            </div>
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              Клиенты, продукты, сценарии, видео
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Рабочая панель для клиента: создаем продукты, сохраняем refs, подключаем продуктовые библиотеки сценариев и
-              готовим 10-секундные сегменты для Omni через KIE.
-            </p>
-          </div>
-          <div className="grid gap-1 text-left text-xs text-muted-foreground xl:text-right">
-            <span>Клиент: {selectedClient?.name || "не выбран"}</span>
-            <span>Продукт: {activeProduct?.name || "не выбран"}</span>
-            <span>Библиотека: {effectiveLibraryId ? `legacy #${effectiveLibraryId}` : "не выбрана"}</span>
-          </div>
-        </div>
-      </header>
+      <OmniPipelineHeader
+        clientName={selectedClient?.name || "не выбран"}
+        productName={activeProduct?.name || "не выбран"}
+        libraryLabel={effectiveLibraryId ? `legacy #${effectiveLibraryId}` : "не выбрана"}
+        readiness={readiness}
+      />
 
       <div className="grid gap-4 xl:grid-cols-[22rem_minmax(0,1fr)_24rem]">
         <ClientProductPanel
@@ -243,6 +230,7 @@ export function OmniStudioScreen({ selectedClient }: { selectedClient: Client | 
           activeProduct={activeProduct}
           selectedScenarioId={selectedScenarioId}
           avatars={avatars}
+          latestAvatar={latestAvatar}
           avatarDraft={avatarDraft}
           reels={reels}
           segments={segments}

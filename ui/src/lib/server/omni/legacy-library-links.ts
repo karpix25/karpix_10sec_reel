@@ -1,6 +1,7 @@
 import pool from "@/lib/db";
 import { OmniLegacyLibraryLink } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
+import { requireOmniProductInProject } from "./products";
 
 export async function listLegacyLibraryLinks(projectId: number, productId?: number | null) {
   await ensureOmniSchema();
@@ -28,6 +29,9 @@ export async function linkLegacyLibrary(input: {
   legacyClientId: number;
 }) {
   await ensureOmniSchema();
+  if (input.productId) {
+    await requireOmniProductInProject(input.projectId, input.productId);
+  }
   const { rows } = await pool.query<OmniLegacyLibraryLink>(
     `INSERT INTO omni_legacy_library_links (
        project_id,

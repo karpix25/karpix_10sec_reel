@@ -68,13 +68,14 @@ export const navItems: Array<{
   id: Screen;
   icon: LucideIcon;
   label: string;
+  group: "primary" | "legacy" | "system";
 }> = [
-  { id: "dashboard", icon: LayoutDashboard, label: "Панель" },
-  { id: "omni", icon: Sparkles, label: "Omni Studio" },
-  { id: "references", icon: FolderOpen, label: "Библиотека (Темы и паттерны)" },
-  { id: "scenarios", icon: FileText, label: "Сценарии" },
-  { id: "generator", icon: Zap, label: "Генератор" },
-  { id: "settings", icon: Settings, label: "Настройки" },
+  { id: "dashboard", icon: LayoutDashboard, label: "Клиенты", group: "primary" },
+  { id: "omni", icon: Sparkles, label: "Производство", group: "primary" },
+  { id: "references", icon: FolderOpen, label: "Legacy refs", group: "legacy" },
+  { id: "scenarios", icon: FileText, label: "Legacy сценарии", group: "legacy" },
+  { id: "generator", icon: Zap, label: "Legacy генератор", group: "legacy" },
+  { id: "settings", icon: Settings, label: "Настройки", group: "system" },
 ];
 
 export const PATTERN_COLORS: Record<string, { base: string; light: string; text: string }> = {

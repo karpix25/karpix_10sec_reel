@@ -23,6 +23,7 @@ export async function POST(request: Request) {
     const project = await createOmniProject({
       name: body.name,
       description: body.description,
+      legacyClientId: body.legacyClientId,
       telegramChatId: body.telegramChatId,
       telegramTopicId: body.telegramTopicId,
       createdByTelegramId: auth.user?.telegramUserId,

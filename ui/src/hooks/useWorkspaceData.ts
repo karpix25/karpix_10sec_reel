@@ -41,8 +41,12 @@ const normalizeProductMediaAssets = (value: unknown) => {
     .filter(Boolean);
 };
 
-export function useWorkspaceData(selectedClientId: string) {
+export function useWorkspaceData(
+  selectedClientId: string,
+  options: { loadLegacyProviders?: boolean } = {}
+) {
   const queryClient = useQueryClient();
+  const loadLegacyProviders = Boolean(options.loadLegacyProviders);
   const [scenarioPolling, setScenarioPolling] = useState<{ clientId: string; deadline: number; baselineCount: number } | null>(null);
 
   // Pagination & Filter State
@@ -149,7 +153,7 @@ export function useWorkspaceData(selectedClientId: string) {
       const { data } = await axios.get(`${API_BASE}/heygen/avatars?clientId=${selectedClientId}`);
       return data;
     },
-    enabled: !!selectedClientId,
+    enabled: !!selectedClientId && loadLegacyProviders,
     staleTime: 60000,
   });
 
@@ -159,6 +163,7 @@ export function useWorkspaceData(selectedClientId: string) {
       const { data } = await axios.get(`${API_BASE}/heygen/catalog`);
       return data;
     },
+    enabled: loadLegacyProviders,
     staleTime: 1000 * 60 * 30, // 30 minutes
   });
 
@@ -168,6 +173,7 @@ export function useWorkspaceData(selectedClientId: string) {
       const { data } = await axios.get(`${API_BASE}/minimax/voices`);
       return data;
     },
+    enabled: loadLegacyProviders,
     staleTime: 0,
     refetchOnMount: "always",
   });
@@ -178,6 +184,7 @@ export function useWorkspaceData(selectedClientId: string) {
       const { data } = await axios.get(`${API_BASE}/elevenlabs/voices`);
       return data;
     },
+    enabled: loadLegacyProviders,
     staleTime: 0,
     refetchOnMount: "always",
   });

@@ -16,6 +16,7 @@ export function AvatarVideoPanel({
   activeProduct,
   selectedScenarioId,
   avatars,
+  latestAvatar,
   avatarDraft,
   reels,
   segments,
@@ -31,6 +32,7 @@ export function AvatarVideoPanel({
   activeProduct: OmniProduct | null;
   selectedScenarioId: number | null;
   avatars: OmniClientAvatar[];
+  latestAvatar: OmniClientAvatar | null;
   avatarDraft: AvatarDraft;
   reels: OmniReel[];
   segments: OmniReelSegment[];
@@ -42,8 +44,7 @@ export function AvatarVideoPanel({
   onCreateAvatar: () => void;
   onCreateReel: () => void;
 }) {
-  const latestAvatar = avatars[0] || null;
-  const canCreateReel = Boolean(activeProject && activeProduct && selectedScenarioId);
+  const canCreateReel = Boolean(activeProject && activeProduct && latestAvatar && selectedScenarioId);
 
   return (
     <div className="space-y-4">
@@ -64,6 +65,7 @@ export function AvatarVideoPanel({
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-foreground">Avatar draft #{latestAvatar.id}</p>
                   <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">{latestAvatar.prompt}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{avatars.length} draft(s) saved for this client</p>
                 </div>
                 <StatusBadge status={latestAvatar.status} />
               </div>
@@ -71,7 +73,7 @@ export function AvatarVideoPanel({
           ) : (
             <EmptyState
               title="Аватар еще не сохранен"
-              description="Опиши, каким должен быть клиентский аватар. Сейчас это draft, далее подключим генерацию через KIE Omni."
+              description="Опиши, каким должен быть клиентский аватар. Далее подключим очередь генерации и approve flow через KIE Omni."
             />
           )}
 
@@ -97,14 +99,14 @@ export function AvatarVideoPanel({
             className="min-h-11 w-full whitespace-nowrap"
           >
             <WandSparkles className="h-4 w-4" />
-            Сохранить avatar draft
+            Сохранить avatar prompt
           </Button>
         </div>
       </WorkbenchPanel>
 
       <WorkbenchPanel
-        title="Подготовка видео"
-        description="Сценарий превращается в draft reel: 3-4 сегмента по 10 секунд для будущей генерации и склейки."
+        title="План видео"
+        description="Сценарий превращается в production plan: 3-4 сегмента по 10 секунд, снапшоты refs и prompt contract."
       >
         <div className="grid gap-2 rounded-lg bg-muted/30 p-3">
           <ReadinessItem done={Boolean(activeProject)} label="Клиентский workspace выбран" />
@@ -119,11 +121,11 @@ export function AvatarVideoPanel({
           className="mt-3 min-h-11 w-full whitespace-nowrap"
         >
           <Film className="h-4 w-4" />
-          Подготовить видео
+          Собрать план сегментов
         </Button>
       </WorkbenchPanel>
 
-      <WorkbenchPanel title="Reel jobs" description="Очередь draft-роликов и сегментов. Submit/poll/stitch подключим следующим шагом.">
+      <WorkbenchPanel title="Reel jobs" description="Очередь планов и 10-секундных сегментов. Submit/poll/stitch станут отдельными действиями.">
         <QueryState isLoading={isReelsLoading} loadingText="Загружаю draft reels" errorText="Не удалось загрузить reels" />
         <div className="space-y-2">
           {reels.map((reel) => (
@@ -132,7 +134,7 @@ export function AvatarVideoPanel({
                 <div>
                   <p className="text-sm font-semibold text-foreground">Reel #{reel.id}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {reel.target_duration_seconds} сек / {reel.segment_count} сегмента
+                    {reel.target_duration_seconds} сек / {reel.segment_count} сегмента / stitch: {reel.stitch_status}
                   </p>
                 </div>
                 <StatusBadge status={reel.status} />

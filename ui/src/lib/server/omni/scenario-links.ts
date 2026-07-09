@@ -1,6 +1,7 @@
 import pool from "@/lib/db";
 import { OmniLegacyScenarioLink } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
+import { requireOmniProductInProject } from "./products";
 
 export async function listOmniScenarioLinks(projectId: number) {
   await ensureOmniSchema();
@@ -21,6 +22,9 @@ export async function createOmniScenarioLink(input: {
   note?: unknown;
 }) {
   await ensureOmniSchema();
+  if (input.productId) {
+    await requireOmniProductInProject(input.projectId, input.productId);
+  }
   const note = typeof input.note === "string" && input.note.trim() ? input.note.trim() : null;
   const { rows } = await pool.query<OmniLegacyScenarioLink>(
     `INSERT INTO omni_legacy_scenario_links (

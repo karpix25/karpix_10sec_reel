@@ -18,11 +18,39 @@ function normalizeRefs(value: unknown): OmniReferenceAsset[] {
       const kind = candidate.kind === "image" || candidate.kind === "video" || candidate.kind === "note"
         ? candidate.kind
         : "image";
+      const role =
+        candidate.role === "product_primary" ||
+        candidate.role === "product_secondary" ||
+        candidate.role === "avatar_reference" ||
+        candidate.role === "continuity_reference"
+          ? candidate.role
+          : kind === "image"
+            ? "product_primary"
+            : undefined;
+      const storageProvider =
+        candidate.storage_provider === "s3" ||
+        candidate.storage_provider === "external" ||
+        candidate.storage_provider === "manual"
+          ? candidate.storage_provider
+          : "manual";
+      const status =
+        candidate.status === "ready" ||
+        candidate.status === "uploading" ||
+        candidate.status === "failed" ||
+        candidate.status === "manual_url"
+          ? candidate.status
+          : "manual_url";
       return {
         id: cleanText(candidate.id) || url,
         url,
         kind,
+        role,
         label: cleanText(candidate.label) || undefined,
+        storage_provider: storageProvider,
+        content_type: cleanText(candidate.content_type) || null,
+        status,
+        is_primary: typeof candidate.is_primary === "boolean" ? candidate.is_primary : role === "product_primary",
+        created_at: cleanText(candidate.created_at) || new Date().toISOString(),
       };
     })
     .filter((item): item is OmniReferenceAsset => Boolean(item));
@@ -90,4 +118,16 @@ export async function getOmniProduct(productId: number) {
   await ensureOmniSchema();
   const { rows } = await pool.query<OmniProduct>("SELECT * FROM omni_products WHERE id = $1 LIMIT 1", [productId]);
   return rows[0] || null;
+}
+
+export async function requireOmniProductInProject(projectId: number, productId: number) {
+  await ensureOmniSchema();
+  const { rows } = await pool.query<OmniProduct>(
+    "SELECT * FROM omni_products WHERE id = $1 AND project_id = $2 LIMIT 1",
+    [productId, projectId]
+  );
+  if (!rows[0]) {
+    throw new Error("Product does not belong to this Omni workspace");
+  }
+  return rows[0];
 }

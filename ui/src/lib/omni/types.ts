@@ -6,6 +6,7 @@ export interface OmniProject {
   id: number;
   name: string;
   description: string | null;
+  legacy_client_id: number | null;
   status: OmniProjectStatus;
   telegram_chat_id: string | null;
   telegram_topic_id: string | null;
@@ -31,7 +32,13 @@ export interface OmniReferenceAsset {
   id: string;
   url: string;
   kind: "image" | "video" | "note";
+  role?: "product_primary" | "product_secondary" | "avatar_reference" | "continuity_reference";
   label?: string;
+  storage_provider?: "s3" | "external" | "manual";
+  content_type?: string | null;
+  status?: "ready" | "uploading" | "failed" | "manual_url";
+  is_primary?: boolean;
+  created_at?: string;
 }
 
 export interface OmniLegacyScenario {
@@ -94,6 +101,10 @@ export interface OmniReel {
   segment_count: number;
   status: OmniReelStatus;
   brief: string | null;
+  source_snapshot: Record<string, unknown> | null;
+  product_snapshot: Record<string, unknown> | null;
+  avatar_snapshot: Record<string, unknown> | null;
+  stitch_status: "not_ready" | "ready" | "queued" | "stitching" | "completed" | "failed";
   final_video_url: string | null;
   error_message: string | null;
   created_at: string;
@@ -105,11 +116,15 @@ export interface OmniReelSegment {
   reel_id: number;
   segment_index: number;
   duration_seconds: number;
+  slot_role: string | null;
   prompt: string | null;
+  reference_url: string | null;
   kie_task_id: string | null;
   status: OmniSegmentStatus;
   video_url: string | null;
   error_message: string | null;
+  submitted_at: string | null;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
 }
