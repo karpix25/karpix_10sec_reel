@@ -10,6 +10,8 @@ type LegacyScenarioRow = {
   created_at: string | null;
   generation_source: string | null;
   source_content_id: number | null;
+  legacy_client_name: string | null;
+  legacy_product_keyword: string | null;
 };
 
 export async function listLegacyScenarios(options: {
@@ -20,34 +22,47 @@ export async function listLegacyScenarios(options: {
 }) {
   const legacyPool = getLegacyPool();
   const whereClauses = [
-    "COALESCE(TRIM(scenario_json->>'script'), TRIM(tts_script), '') <> ''",
-    "COALESCE(scenario_json->>'script', tts_script, '') NOT ILIKE 'Error %'",
+    "COALESCE(TRIM(gs.scenario_json->>'script'), TRIM(gs.tts_script), '') <> ''",
+    "COALESCE(gs.scenario_json->>'script', gs.tts_script, '') NOT ILIKE 'Error %'",
   ];
   const values: unknown[] = [];
 
   if (options.clientId) {
     values.push(options.clientId);
-    whereClauses.push(`client_id = $${values.length}`);
+    whereClauses.push(`gs.client_id = $${values.length}`);
   }
 
   if (options.query) {
     values.push(`%${options.query}%`);
     whereClauses.push(
-      `(scenario_json->>'script' ILIKE $${values.length} OR tts_script ILIKE $${values.length} OR topic ILIKE $${values.length})`
+      `(gs.scenario_json->>'script' ILIKE $${values.length} OR gs.tts_script ILIKE $${values.length} OR gs.topic ILIKE $${values.length})`
     );
   }
 
   const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
   const countResult = await legacyPool.query<{ total: string }>(
-    `SELECT COUNT(*) AS total FROM generated_scenarios ${whereSql}`,
+    `SELECT COUNT(*) AS total
+     FROM generated_scenarios gs
+     ${whereSql}`,
     values
   );
 
   const rowsResult = await legacyPool.query<LegacyScenarioRow>(
-    `SELECT id, client_id, scenario_json, tts_script, topic, created_at, generation_source, source_content_id
-     FROM generated_scenarios
+    `SELECT
+       gs.id,
+       gs.client_id,
+       gs.scenario_json,
+       gs.tts_script,
+       gs.topic,
+       gs.created_at,
+       gs.generation_source,
+       gs.source_content_id,
+       c.name AS legacy_client_name,
+       c.product_keyword AS legacy_product_keyword
+     FROM generated_scenarios gs
+     LEFT JOIN clients c ON c.id = gs.client_id
      ${whereSql}
-     ORDER BY created_at DESC, id DESC
+     ORDER BY gs.created_at DESC, gs.id DESC
      LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
     [...values, options.limit, options.offset]
   );
@@ -68,6 +83,8 @@ function normalizeLegacyScenario(row: LegacyScenarioRow): OmniLegacyScenario {
     topic: row.topic || null,
     created_at: row.created_at,
     source_reference: getSourceReference(row),
+    legacy_client_name: row.legacy_client_name || null,
+    legacy_product_keyword: row.legacy_product_keyword || null,
   };
 }
 
