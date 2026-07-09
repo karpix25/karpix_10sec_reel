@@ -16,7 +16,7 @@ export function Header({
   isSavingSettings = false,
 }: HeaderProps) {
   return (
-    <header className="glass-panel fixed left-0 right-0 top-0 z-40 flex min-h-16 items-center border-b border-border px-4 xl:left-64 xl:px-8">
+    <header className="glass-panel fixed left-0 right-0 top-0 z-40 flex min-h-16 items-center border-b border-border px-4 xl:left-72 xl:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <span className="truncate text-base font-bold tracking-tight text-foreground sm:text-lg">{screenTitle}</span>
         <div className="h-4 w-px bg-border/70" />

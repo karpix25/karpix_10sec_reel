@@ -1,19 +1,18 @@
 import { 
   Sparkles
 } from "lucide-react";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
+import { ClientProductNavigator } from "@/components/ClientProductNavigator";
 import { navItems } from "@/lib/constants";
 import { Client, Screen } from "@/types";
 
 interface SidebarProps {
   selectedClientId: string;
   setSelectedClientId: (id: string) => void;
+  selectedClient: Client | null;
+  selectedProjectId: number | null;
+  setSelectedProjectId: (id: number | null) => void;
+  selectedProductId: number | null;
+  setSelectedProductId: (id: number | null) => void;
   clients: Client[];
   isLoadingClients: boolean;
   screen: Screen;
@@ -23,6 +22,11 @@ interface SidebarProps {
 export function Sidebar({
   selectedClientId,
   setSelectedClientId,
+  selectedClient,
+  selectedProjectId,
+  setSelectedProjectId,
+  selectedProductId,
+  setSelectedProductId,
   clients,
   isLoadingClients,
   screen,
@@ -35,7 +39,7 @@ export function Sidebar({
 
   return (
     <>
-      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-64 flex-col border-r border-border bg-sidebar p-4 xl:flex">
+      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-72 flex-col border-r border-border bg-sidebar p-4 xl:flex">
         <div className="mb-8 px-2 py-4">
           <div className="flex items-center gap-3">
             <div className="primary-gradient flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-lg">
@@ -50,25 +54,21 @@ export function Sidebar({
           </div>
         </div>
 
-        <div className="mb-6 space-y-2">
-          <Select
-            value={selectedClientId}
-            onValueChange={setSelectedClientId}
-            disabled={isLoadingClients || !clients.length}
-          >
-            <SelectTrigger className="h-12 w-full min-w-0 rounded-xl border-none bg-white text-sm font-medium shadow-sm">
-              <SelectValue className="max-w-full truncate" placeholder="Выберите клиента" />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map((client) => (
-                <SelectItem key={client.id} value={client.id.toString()} className="max-w-[22rem]">
-                  <span className="block max-w-full truncate">{client.name}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="mb-5">
+          <ClientProductNavigator
+            clients={clients}
+            selectedClient={selectedClient}
+            selectedClientId={selectedClientId}
+            selectedProjectId={selectedProjectId}
+            selectedProductId={selectedProductId}
+            isLoadingClients={isLoadingClients}
+            onSelectClientId={setSelectedClientId}
+            onSelectProjectId={setSelectedProjectId}
+            onSelectProductId={setSelectedProductId}
+            onOpenOmni={() => setScreen("omni")}
+          />
         </div>
-        <nav className="flex-1 space-y-5">
+        <nav className="flex-1 space-y-5 overflow-y-auto pb-4">
           <NavGroup title="Рабочий контур" items={primaryItems} screen={screen} setScreen={setScreen} />
           <NavGroup title="Старый контур" items={legacyItems} screen={screen} setScreen={setScreen} />
           <NavGroup title="Система" items={systemItems} screen={screen} setScreen={setScreen} />
