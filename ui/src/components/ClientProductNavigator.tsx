@@ -14,8 +14,6 @@ type NavigatorProps = {
   onOpenOmni: () => void;
 };
 
-const emptyClientDraft = { name: "", description: "", targetAudience: "", brandVoice: "" };
-
 export function ClientProductNavigator({
   selectedProjectId,
   onClearLegacyClientSelection,
@@ -23,7 +21,7 @@ export function ClientProductNavigator({
   onSelectProductId,
   onOpenOmni,
 }: NavigatorProps) {
-  const [clientDraft, setClientDraft] = useState(emptyClientDraft);
+  const [clientName, setClientName] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const projectsQuery = useOmniProjects();
   const createProjectMutation = useCreateOmniProject();
@@ -55,19 +53,14 @@ export function ClientProductNavigator({
   };
 
   const handleCreateClient = async () => {
-    const name = clientDraft.name.trim();
+    const name = clientName.trim();
     if (!name) return;
 
-    const project = await createProjectMutation.mutateAsync({
-      name,
-      description: clientDraft.description.trim() || undefined,
-      targetAudience: clientDraft.targetAudience.trim() || undefined,
-      brandVoice: clientDraft.brandVoice.trim() || undefined,
-    });
+    const project = await createProjectMutation.mutateAsync({ name });
     onClearLegacyClientSelection();
     onSelectProjectId(project.id);
     onSelectProductId(null);
-    setClientDraft(emptyClientDraft);
+    setClientName("");
     setIsCreateOpen(false);
     onOpenOmni();
   };
@@ -109,33 +102,15 @@ export function ClientProductNavigator({
             </div>
             <div className="space-y-2">
               <Input
-                value={clientDraft.name}
-                onChange={(event) => setClientDraft({ ...clientDraft, name: event.target.value })}
+                value={clientName}
+                onChange={(event) => setClientName(event.target.value)}
                 placeholder="Название клиента"
                 className="h-10"
-              />
-              <Input
-                value={clientDraft.description}
-                onChange={(event) => setClientDraft({ ...clientDraft, description: event.target.value })}
-                placeholder="Ниша или краткий контекст"
-                className="h-10"
-              />
-              <textarea
-                value={clientDraft.targetAudience}
-                onChange={(event) => setClientDraft({ ...clientDraft, targetAudience: event.target.value })}
-                placeholder="Целевая аудитория"
-                className="min-h-20 w-full resize-y rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <textarea
-                value={clientDraft.brandVoice}
-                onChange={(event) => setClientDraft({ ...clientDraft, brandVoice: event.target.value })}
-                placeholder="Tone of voice"
-                className="min-h-20 w-full resize-y rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <Button
                 type="button"
                 onClick={() => void handleCreateClient()}
-                disabled={!clientDraft.name.trim() || createProjectMutation.isPending}
+                disabled={!clientName.trim() || createProjectMutation.isPending}
                 className="min-h-10 w-full"
               >
                 <Plus className="h-4 w-4" />
