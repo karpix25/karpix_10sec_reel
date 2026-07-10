@@ -22,6 +22,8 @@ const API_BASE = "/api/omni";
 export type CreateOmniProjectPayload = {
   name: string;
   description?: string;
+  targetAudience?: string;
+  brandVoice?: string;
   legacyClientId?: number;
   telegramChatId?: string;
   telegramTopicId?: string;

@@ -11,17 +11,25 @@ import {
   getEffectiveLegacyLibraryId,
   getLatestAvatar,
 } from "@/lib/omni/workspace";
+import { buildManualProductRefs } from "@/lib/omni/navigator";
 import type { OmniProject } from "@/lib/omni/types";
 import type { Client } from "@/types";
 import { AvatarDraft, AvatarVideoPanel } from "./AvatarVideoPanel";
 import { LibraryScenarioPanel } from "./LibraryScenarioPanel";
 import { OmniOverviewTab } from "./OmniOverviewTab";
 import { OmniPipelineHeader } from "./OmniPipelineHeader";
-import { OmniProductTab } from "./OmniProductTab";
+import { OmniProductTab, ProductDraft } from "./OmniProductTab";
 
 const emptyAvatarDraft: AvatarDraft = {
   prompt: "",
   referenceUrl: "",
+};
+
+const emptyProductDraft: ProductDraft = {
+  name: "",
+  description: "",
+  referenceUrl: "",
+  duration: 30,
 };
 
 export function OmniStudioScreen({
@@ -41,6 +49,7 @@ export function OmniStudioScreen({
   const [activeLibraryId, setActiveLibraryId] = useState<number | null>(null);
   const [selectedScenarioId, setSelectedScenarioId] = useState<number | null>(null);
   const [avatarDraft, setAvatarDraft] = useState<AvatarDraft>(emptyAvatarDraft);
+  const [productDraft, setProductDraft] = useState<ProductDraft>(emptyProductDraft);
 
   const projectsQuery = useOmniProjects();
   const allProjects = useMemo(() => projectsQuery.data || [], [projectsQuery.data]);
@@ -79,6 +88,8 @@ export function OmniStudioScreen({
       {
         name: selectedClient.name,
         description: getClientWorkspaceDescription(selectedClient),
+        targetAudience: selectedClient.target_audience || undefined,
+        brandVoice: selectedClient.brand_voice || undefined,
         legacyClientId: selectedClient.id,
       },
       {
@@ -90,6 +101,43 @@ export function OmniStudioScreen({
         },
       }
     );
+  };
+
+  const ensureProject = async () => {
+    if (activeProject) return activeProject;
+    if (!selectedClient) return null;
+
+    const project = await studio.createProjectMutation.mutateAsync({
+      name: selectedClient.name,
+      description: getClientWorkspaceDescription(selectedClient),
+      targetAudience: selectedClient.target_audience || undefined,
+      brandVoice: selectedClient.brand_voice || undefined,
+      legacyClientId: selectedClient.id,
+    });
+    onSelectProject(project.id);
+    return project;
+  };
+
+  const handleCreateProduct = async () => {
+    const name = productDraft.name.trim();
+    if (!name) return;
+
+    const project = await ensureProject();
+    if (!project) return;
+
+    const product = await studio.createProductMutation.mutateAsync({
+      projectId: project.id,
+      name,
+      description: productDraft.description.trim(),
+      productReferenceNotes: productDraft.description.trim(),
+      targetDurationSeconds: productDraft.duration,
+      productRefs: buildManualProductRefs(productDraft.referenceUrl),
+    });
+    onSelectProject(project.id);
+    onSelectProduct(product.id);
+    setActiveLibraryId(null);
+    setSelectedScenarioId(null);
+    setProductDraft(emptyProductDraft);
   };
 
   const handleCreateAvatar = () => {
@@ -158,7 +206,23 @@ export function OmniStudioScreen({
         </TabsContent>
 
         <TabsContent value="product" className="mt-4">
-          <OmniProductTab activeProduct={activeProduct} />
+          <OmniProductTab
+            activeProject={activeProject}
+            activeProduct={activeProduct}
+            products={products}
+            selectedProductId={selectedProductId}
+            productDraft={productDraft}
+            isProductsLoading={studio.productsQuery.isLoading}
+            isCreatingProduct={studio.createProductMutation.isPending}
+            canCreateProduct={Boolean(activeProject || selectedClient)}
+            onSelectProduct={(productId: number | null) => {
+              onSelectProduct(productId);
+              setActiveLibraryId(null);
+              setSelectedScenarioId(null);
+            }}
+            onProductDraftChange={setProductDraft}
+            onCreateProduct={() => void handleCreateProduct()}
+          />
         </TabsContent>
 
         <TabsContent value="library" className="mt-4">

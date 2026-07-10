@@ -7,6 +7,8 @@ const statements = [
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
+    target_audience TEXT,
+    brand_voice TEXT,
     legacy_client_id BIGINT,
     status TEXT NOT NULL DEFAULT 'active',
     telegram_chat_id TEXT,
@@ -104,6 +106,8 @@ const statements = [
     UNIQUE(reel_id, segment_index)
   )`,
   "ALTER TABLE omni_projects ADD COLUMN IF NOT EXISTS legacy_client_id BIGINT",
+  "ALTER TABLE omni_projects ADD COLUMN IF NOT EXISTS target_audience TEXT",
+  "ALTER TABLE omni_projects ADD COLUMN IF NOT EXISTS brand_voice TEXT",
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS source_snapshot JSONB",
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS product_snapshot JSONB",
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS avatar_snapshot JSONB",

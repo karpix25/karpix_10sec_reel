@@ -6,6 +6,8 @@ export interface OmniProject {
   id: number;
   name: string;
   description: string | null;
+  target_audience: string | null;
+  brand_voice: string | null;
   legacy_client_id: number | null;
   status: OmniProjectStatus;
   telegram_chat_id: string | null;

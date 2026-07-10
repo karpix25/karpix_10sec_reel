@@ -11,7 +11,6 @@ interface SidebarProps {
   selectedClient: Client | null;
   selectedProjectId: number | null;
   setSelectedProjectId: (id: number | null) => void;
-  selectedProductId: number | null;
   setSelectedProductId: (id: number | null) => void;
   clients: Client[];
   isLoadingClients: boolean;
@@ -25,7 +24,6 @@ export function Sidebar({
   selectedClient,
   selectedProjectId,
   setSelectedProjectId,
-  selectedProductId,
   setSelectedProductId,
   clients,
   isLoadingClients,
@@ -60,7 +58,6 @@ export function Sidebar({
             selectedClient={selectedClient}
             selectedClientId={selectedClientId}
             selectedProjectId={selectedProjectId}
-            selectedProductId={selectedProductId}
             isLoadingClients={isLoadingClients}
             onSelectClientId={setSelectedClientId}
             onSelectProjectId={setSelectedProjectId}

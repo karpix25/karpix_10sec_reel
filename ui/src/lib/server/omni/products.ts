@@ -127,7 +127,7 @@ export async function requireOmniProductInProject(projectId: number, productId: 
     [productId, projectId]
   );
   if (!rows[0]) {
-    throw new Error("Product does not belong to this Omni workspace");
+    throw new Error("Product does not belong to this Omni client project");
   }
   return rows[0];
 }
