@@ -42,8 +42,13 @@ export type CreateOmniProductPayload = {
   productReferenceNotes?: string;
   avatarReferenceNotes?: string;
   targetDurationSeconds?: number;
-  productRefs?: unknown[];
+  productRefs?: OmniProduct["product_refs"];
   avatarRefs?: unknown[];
+};
+
+export type UploadOmniProductImagesPayload = {
+  projectId: number;
+  files: File[];
 };
 
 export function useOmniProjects() {
@@ -95,6 +100,19 @@ export function useCreateOmniProduct() {
     mutationFn: async (payload: CreateOmniProductPayload) =>
       (await axios.post(`${API_BASE}/products`, payload)).data as OmniProduct,
     onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-products", variables.projectId] }),
+  });
+}
+
+export function useUploadOmniProductImages() {
+  return useMutation({
+    mutationFn: async (payload: UploadOmniProductImagesPayload) => {
+      const formData = new FormData();
+      formData.append("projectId", String(payload.projectId));
+      payload.files.forEach((file) => formData.append("files", file));
+      return (await axios.post(`${API_BASE}/product-images`, formData)).data as {
+        refs: OmniProduct["product_refs"];
+      };
+    },
   });
 }
 

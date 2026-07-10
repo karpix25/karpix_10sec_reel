@@ -4,13 +4,13 @@ import { Image as ImageIcon, Package, PackagePlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { OmniProduct, OmniProject } from "@/lib/omni/types";
+import type { OmniProduct, OmniProject, OmniReferenceAsset } from "@/lib/omni/types";
 import { EmptyState, QueryState, WorkbenchPanel } from "./ui";
 
 export type ProductDraft = {
   name: string;
   description: string;
-  referenceUrl: string;
+  productRefs: OmniReferenceAsset[];
 };
 
 export function OmniProductTab({
@@ -21,9 +21,11 @@ export function OmniProductTab({
   productDraft,
   isProductsLoading,
   isCreatingProduct,
+  isUploadingProductImages,
   canCreateProduct,
   onSelectProduct,
   onProductDraftChange,
+  onUploadProductImages,
   onCreateProduct,
 }: {
   activeProject: OmniProject | null;
@@ -33,17 +35,20 @@ export function OmniProductTab({
   productDraft: ProductDraft;
   isProductsLoading: boolean;
   isCreatingProduct: boolean;
+  isUploadingProductImages: boolean;
   canCreateProduct: boolean;
   onSelectProduct: (productId: number | null) => void;
   onProductDraftChange: (draft: ProductDraft) => void;
+  onUploadProductImages: (files: FileList | null) => void;
   onCreateProduct: () => void;
 }) {
   const canSubmitProduct =
     Boolean(productDraft.name.trim()) &&
     Boolean(productDraft.description.trim()) &&
-    Boolean(productDraft.referenceUrl.trim()) &&
+    Boolean(productDraft.productRefs.length) &&
     canCreateProduct &&
-    !isCreatingProduct;
+    !isCreatingProduct &&
+    !isUploadingProductImages;
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
@@ -96,14 +101,34 @@ export function OmniProductTab({
                 />
               </label>
               <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Фото/ref продукта
+                Картинки продукта
                 <Input
-                  value={productDraft.referenceUrl}
-                  onChange={(event) => onProductDraftChange({ ...productDraft, referenceUrl: event.target.value })}
-                  placeholder="S3 URL или внешний URL изображения"
-                  className="h-11 normal-case tracking-normal"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => {
+                    onUploadProductImages(event.currentTarget.files);
+                    event.currentTarget.value = "";
+                  }}
+                  disabled={!activeProject || isUploadingProductImages}
+                  className="h-11 normal-case tracking-normal file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-primary-foreground"
                 />
               </label>
+              {isUploadingProductImages ? (
+                <p className="text-xs leading-5 text-muted-foreground">Загружаю картинки...</p>
+              ) : null}
+              {productDraft.productRefs.length ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {productDraft.productRefs.map((ref) => (
+                    <img
+                      key={ref.id}
+                      src={ref.url}
+                      alt={ref.label || "Product reference"}
+                      className="aspect-square rounded-md border border-border object-cover"
+                    />
+                  ))}
+                </div>
+              ) : null}
               <Button
                 type="button"
                 onClick={onCreateProduct}
@@ -115,7 +140,7 @@ export function OmniProductTab({
               </Button>
               {!canSubmitProduct ? (
                 <p className="text-xs leading-5 text-muted-foreground">
-                  Для создания продукта нужны название, описание, фото/ref URL и выбранный клиент.
+                  Для создания продукта нужны название, описание, картинки и выбранный клиент.
                 </p>
               ) : null}
             </div>
@@ -140,6 +165,13 @@ export function OmniProductTab({
                 <ImageIcon className="h-4 w-4 text-primary" />
                 {activeProduct.name}
               </div>
+              {activeProduct.product_refs[0] ? (
+                <img
+                  src={activeProduct.product_refs[0].url}
+                  alt={activeProduct.name}
+                  className="mb-3 aspect-video w-full rounded-md border border-border object-cover"
+                />
+              ) : null}
               <p className="text-sm leading-6 text-muted-foreground">
                 {activeProduct.description || activeProduct.product_reference_notes || "Описание продукта пока не заполнено."}
               </p>

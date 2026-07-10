@@ -8,9 +8,10 @@ import {
   useCreateOmniProduct,
   useOmniProducts,
   useOmniProjects,
+  useUploadOmniProductImages,
   useUpdateOmniProjectProfile,
 } from "@/hooks/useOmniStudio";
-import { buildManualProductRefs } from "@/lib/omni/navigator";
+import type { OmniReferenceAsset } from "@/lib/omni/types";
 
 type DashboardScreenProps = {
   selectedProjectId: number | null;
@@ -21,13 +22,13 @@ type DashboardScreenProps = {
 type ProductDraft = {
   name: string;
   description: string;
-  referenceUrl: string;
+  productRefs: OmniReferenceAsset[];
 };
 
 const emptyProductDraft: ProductDraft = {
   name: "",
   description: "",
-  referenceUrl: "",
+  productRefs: [],
 };
 
 export function DashboardScreen({ selectedProjectId, selectedProductId, onSelectProduct }: DashboardScreenProps) {
@@ -36,6 +37,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
   const activeProject = projects.find((project) => project.id === selectedProjectId) || null;
   const productsQuery = useOmniProducts(activeProject?.id || null);
   const createProductMutation = useCreateOmniProduct();
+  const uploadImagesMutation = useUploadOmniProductImages();
   const updateProjectMutation = useUpdateOmniProjectProfile();
 
   const products = useMemo(() => productsQuery.data || [], [productsQuery.data]);
@@ -52,8 +54,21 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
     Boolean(activeProject) &&
     Boolean(productDraft.name.trim()) &&
     Boolean(productDraft.description.trim()) &&
-    Boolean(productDraft.referenceUrl.trim()) &&
+    Boolean(productDraft.productRefs.length) &&
+    !uploadImagesMutation.isPending &&
     !createProductMutation.isPending;
+
+  const handleUploadImages = async (files: FileList | null) => {
+    if (!activeProject || !files?.length) return;
+    const result = await uploadImagesMutation.mutateAsync({
+      projectId: activeProject.id,
+      files: Array.from(files),
+    });
+    setProductDraft((draft) => ({
+      ...draft,
+      productRefs: [...draft.productRefs, ...result.refs],
+    }));
+  };
 
   const handleCreateProduct = async () => {
     if (!activeProject || !canCreateProduct) return;
@@ -62,7 +77,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
       name: productDraft.name,
       description: productDraft.description,
       targetDurationSeconds: 30,
-      productRefs: buildManualProductRefs(productDraft.referenceUrl),
+      productRefs: productDraft.productRefs,
     });
     onSelectProduct(product.id);
     setProductDraft(emptyProductDraft);
@@ -110,6 +125,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
           <div className="grid gap-3 md:grid-cols-2">
             {products.map((product) => {
               const isActive = product.id === selectedProductId;
+              const preview = product.product_refs.find((ref) => ref.kind === "image") || product.product_refs[0];
               return (
                 <button
                   key={product.id}
@@ -119,6 +135,13 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
                     isActive ? "border-primary bg-primary/5" : "border-border bg-background hover:bg-muted/35"
                   }`}
                 >
+                  {preview ? (
+                    <img
+                      src={preview.url}
+                      alt={product.name}
+                      className="mb-3 aspect-video w-full rounded-md border border-border object-cover"
+                    />
+                  ) : null}
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h4 className="truncate text-sm font-semibold text-foreground">{product.name}</h4>
@@ -167,12 +190,41 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
               placeholder="Описание продукта"
               className="min-h-28 w-full resize-y rounded-lg border border-input bg-background px-3 py-2 text-sm leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
-            <Input
-              value={productDraft.referenceUrl}
-              onChange={(event) => setProductDraft({ ...productDraft, referenceUrl: event.target.value })}
-              placeholder="S3/ref URL продукта"
-              className="h-11"
-            />
+            <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Картинки продукта
+              <Input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(event) => {
+                  const input = event.currentTarget;
+                  void handleUploadImages(input.files).finally(() => {
+                    input.value = "";
+                  });
+                }}
+                disabled={!activeProject || uploadImagesMutation.isPending}
+                className="h-11 normal-case tracking-normal file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-primary-foreground"
+              />
+            </label>
+            {uploadImagesMutation.isPending ? (
+              <p className="text-xs leading-5 text-muted-foreground">Загружаю картинки...</p>
+            ) : null}
+            {productDraft.productRefs.length ? (
+              <div className="grid grid-cols-3 gap-2">
+                {productDraft.productRefs.map((ref) => (
+                  <img
+                    key={ref.id}
+                    src={ref.url}
+                    alt={ref.label || "Product reference"}
+                    className="aspect-square rounded-md border border-border object-cover"
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs leading-5 text-muted-foreground">
+                Загрузите одну или несколько картинок продукта.
+              </p>
+            )}
             <Button type="button" onClick={() => void handleCreateProduct()} disabled={!canCreateProduct} className="min-h-11">
               <Package className="h-4 w-4" />
               Добавить продукт
@@ -188,17 +240,26 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
               <p className="text-sm leading-6 text-muted-foreground">
                 {activeProduct.description || "Описание продукта пока не заполнено."}
               </p>
-              {activeProduct.product_refs.map((ref) => (
-                <a
-                  key={ref.id}
-                  href={ref.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block truncate rounded-lg border border-border bg-background px-3 py-2 text-sm text-primary transition hover:bg-muted/40"
-                >
-                  {ref.label || ref.url}
-                </a>
-              ))}
+              <div className="grid grid-cols-2 gap-2">
+                {activeProduct.product_refs.map((ref) => (
+                  <a
+                    key={ref.id}
+                    href={ref.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block overflow-hidden rounded-lg border border-border bg-background transition hover:bg-muted/40"
+                  >
+                    <img
+                      src={ref.url}
+                      alt={ref.label || activeProduct.name}
+                      className="aspect-square w-full object-cover"
+                    />
+                  </a>
+                ))}
+              </div>
+              {!activeProduct.product_refs.length ? (
+                <p className="text-sm leading-6 text-muted-foreground">Картинки продукта пока не загружены.</p>
+              ) : null}
             </div>
           ) : (
             <p className="mt-2 text-sm leading-6 text-muted-foreground">Выберите продукт из списка или создайте новый.</p>
