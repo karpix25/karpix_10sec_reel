@@ -11,7 +11,6 @@ export type ProductDraft = {
   name: string;
   description: string;
   referenceUrl: string;
-  duration: number;
 };
 
 export function OmniProductTab({
@@ -105,14 +104,6 @@ export function OmniProductTab({
                   className="h-11 normal-case tracking-normal"
                 />
               </label>
-              <select
-                value={productDraft.duration}
-                onChange={(event) => onProductDraftChange({ ...productDraft, duration: Number(event.target.value) })}
-                className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value={30}>30 сек / 3 сегмента</option>
-                <option value={40}>40 сек / 4 сегмента</option>
-              </select>
               <Button
                 type="button"
                 onClick={onCreateProduct}
