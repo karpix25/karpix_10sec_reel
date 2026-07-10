@@ -1,6 +1,3 @@
-import type { OmniProject } from "@/lib/omni/types";
-import type { Client } from "@/types";
-
 export function buildManualProductRefs(referenceUrl: string) {
   const url = referenceUrl.trim();
   if (!url) return [];
@@ -17,11 +14,4 @@ export function buildManualProductRefs(referenceUrl: string) {
       is_primary: true,
     },
   ];
-}
-
-export function resolveProjectLabel(project: OmniProject, clients: Client[]) {
-  const linkedClient = project.legacy_client_id
-    ? clients.find((client) => client.id === project.legacy_client_id)
-    : null;
-  return linkedClient?.name || project.name;
 }

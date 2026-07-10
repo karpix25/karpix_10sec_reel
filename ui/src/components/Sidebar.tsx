@@ -3,30 +3,22 @@ import {
 } from "lucide-react";
 import { ClientProductNavigator } from "@/components/ClientProductNavigator";
 import { navItems } from "@/lib/constants";
-import { Client, Screen } from "@/types";
+import { Screen } from "@/types";
 
 interface SidebarProps {
-  selectedClientId: string;
   setSelectedClientId: (id: string) => void;
-  selectedClient: Client | null;
   selectedProjectId: number | null;
   setSelectedProjectId: (id: number | null) => void;
   setSelectedProductId: (id: number | null) => void;
-  clients: Client[];
-  isLoadingClients: boolean;
   screen: Screen;
   setScreen: (screen: Screen) => void;
 }
 
 export function Sidebar({
-  selectedClientId,
   setSelectedClientId,
-  selectedClient,
   selectedProjectId,
   setSelectedProjectId,
   setSelectedProductId,
-  clients,
-  isLoadingClients,
   screen,
   setScreen
 }: SidebarProps) {
@@ -54,12 +46,8 @@ export function Sidebar({
 
         <div className="mb-5">
           <ClientProductNavigator
-            clients={clients}
-            selectedClient={selectedClient}
-            selectedClientId={selectedClientId}
             selectedProjectId={selectedProjectId}
-            isLoadingClients={isLoadingClients}
-            onSelectClientId={setSelectedClientId}
+            onClearLegacyClientSelection={() => setSelectedClientId("")}
             onSelectProjectId={setSelectedProjectId}
             onSelectProductId={setSelectedProductId}
             onOpenOmni={() => setScreen("omni")}
