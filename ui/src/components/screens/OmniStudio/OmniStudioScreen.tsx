@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useOmniProjects, useOmniStudio } from "@/hooks/useOmniStudio";
+import { useOmniProjects, useOmniStudio, useUploadOmniProductImages } from "@/hooks/useOmniStudio";
 import {
   buildReadiness,
   findClientWorkspaceProject,
@@ -11,7 +11,6 @@ import {
   getEffectiveLegacyLibraryId,
   getLatestAvatar,
 } from "@/lib/omni/workspace";
-import { buildManualProductRefs } from "@/lib/omni/navigator";
 import type { OmniProject } from "@/lib/omni/types";
 import type { Client } from "@/types";
 import { AvatarDraft, AvatarVideoPanel } from "./AvatarVideoPanel";
@@ -28,7 +27,7 @@ const emptyAvatarDraft: AvatarDraft = {
 const emptyProductDraft: ProductDraft = {
   name: "",
   description: "",
-  referenceUrl: "",
+  productRefs: [],
 };
 
 export function OmniStudioScreen({
@@ -51,6 +50,7 @@ export function OmniStudioScreen({
   const [productDraft, setProductDraft] = useState<ProductDraft>(emptyProductDraft);
 
   const projectsQuery = useOmniProjects();
+  const uploadProductImagesMutation = useUploadOmniProductImages();
   const allProjects = useMemo(() => projectsQuery.data || [], [projectsQuery.data]);
   const inferredProject = useMemo(
     () => findClientWorkspaceProject(allProjects, selectedClient),
@@ -130,13 +130,25 @@ export function OmniStudioScreen({
       description: productDraft.description.trim(),
       productReferenceNotes: productDraft.description.trim(),
       targetDurationSeconds: 30,
-      productRefs: buildManualProductRefs(productDraft.referenceUrl),
+      productRefs: productDraft.productRefs,
     });
     onSelectProject(project.id);
     onSelectProduct(product.id);
     setActiveLibraryId(null);
     setSelectedScenarioId(null);
     setProductDraft(emptyProductDraft);
+  };
+
+  const handleUploadProductImages = async (files: FileList | null) => {
+    if (!activeProject?.id || !files?.length) return;
+    const result = await uploadProductImagesMutation.mutateAsync({
+      projectId: activeProject.id,
+      files: Array.from(files),
+    });
+    setProductDraft((draft) => ({
+      ...draft,
+      productRefs: [...draft.productRefs, ...result.refs],
+    }));
   };
 
   const handleCreateAvatar = () => {
@@ -213,6 +225,7 @@ export function OmniStudioScreen({
             productDraft={productDraft}
             isProductsLoading={studio.productsQuery.isLoading}
             isCreatingProduct={studio.createProductMutation.isPending}
+            isUploadingProductImages={uploadProductImagesMutation.isPending}
             canCreateProduct={Boolean(activeProject || selectedClient)}
             onSelectProduct={(productId: number | null) => {
               onSelectProduct(productId);
@@ -220,6 +233,7 @@ export function OmniStudioScreen({
               setSelectedScenarioId(null);
             }}
             onProductDraftChange={setProductDraft}
+            onUploadProductImages={(files) => void handleUploadProductImages(files)}
             onCreateProduct={() => void handleCreateProduct()}
           />
         </TabsContent>
