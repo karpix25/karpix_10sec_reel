@@ -62,7 +62,7 @@ export function buildReadiness({
   reels: OmniReel[];
 }): OmniReadinessItem[] {
   return [
-    { key: "workspace", label: "Клиентский workspace", done: Boolean(activeProject) },
+    { key: "workspace", label: "Карточка клиента", done: Boolean(activeProject) },
     { key: "product", label: "Продукт выбран", done: Boolean(activeProduct) },
     { key: "avatar", label: "Avatar draft", done: Boolean(latestAvatar) },
     { key: "library", label: "Библиотека подключена", done: Boolean(activeLibraryId) },

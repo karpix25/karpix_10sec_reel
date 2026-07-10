@@ -605,7 +605,6 @@ export default function CuratorDashboard() {
         selectedClient={selectedClient ?? null}
         selectedProjectId={selectedOmniProjectId}
         setSelectedProjectId={setSelectedOmniProjectId}
-        selectedProductId={selectedOmniProductId}
         setSelectedProductId={setSelectedOmniProductId}
         clients={clients}
         isLoadingClients={isLoadingClients}

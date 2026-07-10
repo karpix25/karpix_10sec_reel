@@ -22,6 +22,8 @@ export async function listOmniProjects() {
 export async function createOmniProject(input: {
   name: unknown;
   description?: unknown;
+  targetAudience?: unknown;
+  brandVoice?: unknown;
   legacyClientId?: unknown;
   telegramChatId?: unknown;
   telegramTopicId?: unknown;
@@ -38,17 +40,21 @@ export async function createOmniProject(input: {
     `INSERT INTO omni_projects (
        name,
        description,
+       target_audience,
+       brand_voice,
        legacy_client_id,
        telegram_chat_id,
        telegram_topic_id,
        created_by_telegram_id,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
      RETURNING *`,
     [
       name,
       normalizeText(input.description) || null,
+      normalizeText(input.targetAudience) || null,
+      normalizeText(input.brandVoice) || null,
       Number.parseInt(String(input.legacyClientId || ""), 10) || null,
       normalizeText(input.telegramChatId) || null,
       normalizeText(input.telegramTopicId) || null,
