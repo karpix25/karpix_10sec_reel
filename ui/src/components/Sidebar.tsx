@@ -2,14 +2,13 @@ import {
   Sparkles
 } from "lucide-react";
 import { ClientProductNavigator } from "@/components/ClientProductNavigator";
-import type { Screen } from "@/types";
 
 interface SidebarProps {
   setSelectedClientId: (id: string) => void;
   selectedProjectId: number | null;
   setSelectedProjectId: (id: number | null) => void;
   setSelectedProductId: (id: number | null) => void;
-  setScreen: (screen: Screen) => void;
+  onOpenClientWorkspace: () => void;
 }
 
 export function Sidebar({
@@ -17,7 +16,7 @@ export function Sidebar({
   selectedProjectId,
   setSelectedProjectId,
   setSelectedProductId,
-  setScreen
+  onOpenClientWorkspace
 }: SidebarProps) {
   return (
     <>
@@ -42,7 +41,7 @@ export function Sidebar({
             onClearLegacyClientSelection={() => setSelectedClientId("")}
             onSelectProjectId={setSelectedProjectId}
             onSelectProductId={setSelectedProductId}
-            onOpenOmni={() => setScreen("omni")}
+            onOpenClientWorkspace={onOpenClientWorkspace}
           />
         </div>
       </aside>

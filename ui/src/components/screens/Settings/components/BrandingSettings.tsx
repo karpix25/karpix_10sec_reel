@@ -79,10 +79,10 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({
     <div className="space-y-4 rounded-2xl border border-[#e5ebf0] bg-[#fbfcfd] p-6 shadow-sm">
       <div className="space-y-1">
         <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-          Продукт и аудитория
+          Продуктовые ассеты
         </div>
         <p className="text-sm text-muted-foreground">
-          Базовый продуктовый контекст, который используется в сценариях, product clip и брендовой интеграции.
+          Legacy-настройки product clip и медиапула. Tone of voice и целевая аудитория теперь редактируются во вкладке Клиенты.
         </p>
       </div>
 
@@ -98,34 +98,6 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({
             className="w-full rounded-xl border-none bg-[#f0f4f7] px-4 py-3 text-sm leading-6 text-foreground outline-none focus:ring-2 focus:ring-primary/10 transition-shadow"
             placeholder="Опишите ваш продукт..."
           />
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Tone of voice
-            </label>
-            <textarea
-              value={draftSettings.brand_voice}
-              onChange={(event) => setDraftSettings((prev) => ({ ...prev, brand_voice: event.target.value }))}
-              rows={4}
-              className="w-full rounded-xl border-none bg-[#f0f4f7] px-4 py-3 text-sm leading-6 text-foreground outline-none focus:ring-2 focus:ring-primary/10 transition-shadow"
-              placeholder="Как должен звучать бренд? (например: дерзко, профессионально...)"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Целевая аудитория
-            </label>
-            <textarea
-              value={draftSettings.target_audience}
-              onChange={(event) => setDraftSettings((prev) => ({ ...prev, target_audience: event.target.value }))}
-              rows={4}
-              className="w-full rounded-xl border-none bg-[#f0f4f7] px-4 py-3 text-sm leading-6 text-foreground outline-none focus:ring-2 focus:ring-primary/10 transition-shadow"
-              placeholder="Кто ваш идеальный клиент?"
-            />
-          </div>
         </div>
 
         <div className="space-y-2">

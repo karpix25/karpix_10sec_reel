@@ -10,6 +10,7 @@ import { ScenariosScreen } from "@/components/screens/ScenariosScreen";
 import { GeneratorScreen } from "@/components/screens/GeneratorScreen";
 import { SettingsScreen } from "@/components/screens/SettingsScreen";
 import { OmniStudioScreen } from "@/components/screens/OmniStudio";
+import { useOmniProjects } from "@/hooks/useOmniStudio";
 
 import { ReferenceModal } from "@/components/ReferenceModal";
 import {
@@ -179,7 +180,6 @@ export default function CuratorDashboard() {
     setReferenceStatusFilter,
     totalScenarios,
     totalReferences,
-    costStats,
     heygenAvatars,
     heygenCatalog,
     minimaxVoices,
@@ -194,6 +194,13 @@ export default function CuratorDashboard() {
     batchMixMutation,
     singleRewriteMutation,
   } = useWorkspaceData(selectedClientId, { loadLegacyProviders: screen === "settings" });
+
+  const omniProjectsQuery = useOmniProjects();
+  const omniProjects = useMemo(() => omniProjectsQuery.data || [], [omniProjectsQuery.data]);
+  const selectedOmniProject = useMemo(
+    () => omniProjects.find((project) => project.id === selectedOmniProjectId) || null,
+    [omniProjects, selectedOmniProjectId]
+  );
 
   const defaultClient = useMemo(() => {
     if (!clients.length) return undefined;
@@ -213,6 +220,7 @@ export default function CuratorDashboard() {
     () => clients.find((c) => c.id.toString() === activeClientId),
     [clients, activeClientId]
   );
+  const headerClientName = selectedOmniProject?.name || (screen === "dashboard" || screen === "omni" ? undefined : selectedClient?.name);
 
   const clientSettings = useMemo<Settings>(
     () => {
@@ -604,13 +612,13 @@ export default function CuratorDashboard() {
         selectedProjectId={selectedOmniProjectId}
         setSelectedProjectId={setSelectedOmniProjectId}
         setSelectedProductId={setSelectedOmniProductId}
-        setScreen={setScreen}
+        onOpenClientWorkspace={() => setScreen("dashboard")}
       />
 
       <div className="flex-1 xl:pl-72">
         <Header
           screenTitle={currentScreenTitle}
-          selectedClientName={selectedClient?.name}
+          selectedClientName={headerClientName}
           screen={screen}
           setScreen={setScreen}
           showSettingsSaveStatus={screen === "settings"}
@@ -620,13 +628,9 @@ export default function CuratorDashboard() {
         <section className="px-4 pb-20 pt-36 xl:px-8">
           {screen === "dashboard" && (
             <DashboardScreen
-              selectedClient={selectedClient}
-              selectedClientId={activeClientId}
-              totalReferences={totalReferences}
-              totalScenarios={totalScenarios}
-              topicCards={topicCards}
-              costStats={costStats}
-              setScreen={setScreen}
+              selectedProjectId={selectedOmniProjectId}
+              selectedProductId={selectedOmniProductId}
+              onSelectProduct={setSelectedOmniProductId}
             />
           )}
 
