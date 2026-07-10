@@ -22,14 +22,12 @@ type ProductDraft = {
   name: string;
   description: string;
   referenceUrl: string;
-  duration: number;
 };
 
 const emptyProductDraft: ProductDraft = {
   name: "",
   description: "",
   referenceUrl: "",
-  duration: 30,
 };
 
 export function DashboardScreen({ selectedProjectId, selectedProductId, onSelectProduct }: DashboardScreenProps) {
@@ -63,7 +61,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
       projectId: activeProject.id,
       name: productDraft.name,
       description: productDraft.description,
-      targetDurationSeconds: productDraft.duration,
+      targetDurationSeconds: 30,
       productRefs: buildManualProductRefs(productDraft.referenceUrl),
     });
     onSelectProduct(product.id);
@@ -175,14 +173,6 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
               placeholder="S3/ref URL продукта"
               className="h-11"
             />
-            <select
-              value={productDraft.duration}
-              onChange={(event) => setProductDraft({ ...productDraft, duration: Number(event.target.value) })}
-              className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value={30}>30 сек / 3 сегмента</option>
-              <option value={40}>40 сек / 4 сегмента</option>
-            </select>
             <Button type="button" onClick={() => void handleCreateProduct()} disabled={!canCreateProduct} className="min-h-11">
               <Package className="h-4 w-4" />
               Добавить продукт

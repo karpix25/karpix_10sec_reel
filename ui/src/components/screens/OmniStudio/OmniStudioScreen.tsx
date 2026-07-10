@@ -29,7 +29,6 @@ const emptyProductDraft: ProductDraft = {
   name: "",
   description: "",
   referenceUrl: "",
-  duration: 30,
 };
 
 export function OmniStudioScreen({
@@ -130,7 +129,7 @@ export function OmniStudioScreen({
       name,
       description: productDraft.description.trim(),
       productReferenceNotes: productDraft.description.trim(),
-      targetDurationSeconds: productDraft.duration,
+      targetDurationSeconds: 30,
       productRefs: buildManualProductRefs(productDraft.referenceUrl),
     });
     onSelectProject(project.id);
