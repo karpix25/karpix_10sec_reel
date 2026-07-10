@@ -29,6 +29,12 @@ export type CreateOmniProjectPayload = {
   telegramTopicId?: string;
 };
 
+export type UpdateOmniProjectProfilePayload = {
+  projectId: number;
+  targetAudience?: string;
+  brandVoice?: string;
+};
+
 export type CreateOmniProductPayload = {
   projectId: number;
   name: string;
@@ -64,6 +70,21 @@ export function useCreateOmniProject() {
     mutationFn: async (payload: CreateOmniProjectPayload) =>
       (await axios.post(`${API_BASE}/projects`, payload)).data as OmniProject,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["omni-projects"] }),
+  });
+}
+
+export function useUpdateOmniProjectProfile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: UpdateOmniProjectProfilePayload) =>
+      (await axios.patch(`${API_BASE}/projects`, payload)).data as OmniProject,
+    onSuccess: (updatedProject) => {
+      queryClient.setQueryData<OmniProject[]>(["omni-projects"], (projects) =>
+        projects?.map((project) => (project.id === updatedProject.id ? updatedProject : project)) || projects
+      );
+      queryClient.invalidateQueries({ queryKey: ["omni-projects"] });
+    },
   });
 }
 

@@ -11,7 +11,7 @@ type NavigatorProps = {
   onClearLegacyClientSelection: () => void;
   onSelectProjectId: (id: number | null) => void;
   onSelectProductId: (id: number | null) => void;
-  onOpenOmni: () => void;
+  onOpenClientWorkspace: () => void;
 };
 
 export function ClientProductNavigator({
@@ -19,7 +19,7 @@ export function ClientProductNavigator({
   onClearLegacyClientSelection,
   onSelectProjectId,
   onSelectProductId,
-  onOpenOmni,
+  onOpenClientWorkspace,
 }: NavigatorProps) {
   const [clientName, setClientName] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -42,7 +42,7 @@ export function ClientProductNavigator({
   const handleSelectClient = (value: string) => {
     onSelectProductId(null);
     onClearLegacyClientSelection();
-    onOpenOmni();
+    onOpenClientWorkspace();
 
     if (!value) {
       onSelectProjectId(null);
@@ -62,7 +62,7 @@ export function ClientProductNavigator({
     onSelectProductId(null);
     setClientName("");
     setIsCreateOpen(false);
-    onOpenOmni();
+    onOpenClientWorkspace();
   };
 
   return (

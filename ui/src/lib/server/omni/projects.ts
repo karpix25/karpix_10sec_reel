@@ -65,6 +65,34 @@ export async function createOmniProject(input: {
   return rows[0];
 }
 
+export async function updateOmniProjectProfile(input: {
+  projectId: number;
+  targetAudience?: unknown;
+  brandVoice?: unknown;
+}) {
+  await ensureOmniSchema();
+
+  const { rows } = await pool.query<ProjectRow>(
+    `UPDATE omni_projects
+     SET target_audience = $2,
+         brand_voice = $3,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND status <> 'archived'
+     RETURNING *`,
+    [
+      input.projectId,
+      normalizeText(input.targetAudience) || null,
+      normalizeText(input.brandVoice) || null,
+    ]
+  );
+
+  if (!rows[0]) {
+    throw new Error("Omni client project not found");
+  }
+
+  return rows[0];
+}
+
 export async function getOmniProject(projectId: number) {
   await ensureOmniSchema();
   const { rows } = await pool.query<ProjectRow>("SELECT * FROM omni_projects WHERE id = $1 LIMIT 1", [projectId]);

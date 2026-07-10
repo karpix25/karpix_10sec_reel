@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createOmniProject, listOmniProjects } from "@/lib/server/omni/projects";
-import { jsonError, requireOmniUser } from "@/lib/server/omni/http";
+import { createOmniProject, listOmniProjects, updateOmniProjectProfile } from "@/lib/server/omni/projects";
+import { jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
 
 export async function GET(request: Request) {
   const auth = await requireOmniUser(request);
@@ -33,6 +33,28 @@ export async function POST(request: Request) {
     return NextResponse.json(project, { status: 201 });
   } catch (error) {
     console.error("Omni project create error:", error);
+    return jsonError(error instanceof Error ? error.message : "Internal Server Error", 500);
+  }
+}
+
+export async function PATCH(request: Request) {
+  const auth = await requireOmniUser(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
+  try {
+    const body = await request.json().catch(() => ({}));
+    const projectId = parsePositiveInt(body.projectId);
+    if (!projectId) return jsonError("projectId is required");
+
+    return NextResponse.json(
+      await updateOmniProjectProfile({
+        projectId,
+        targetAudience: body.targetAudience,
+        brandVoice: body.brandVoice,
+      })
+    );
+  } catch (error) {
+    console.error("Omni project update error:", error);
     return jsonError(error instanceof Error ? error.message : "Internal Server Error", 500);
   }
 }
