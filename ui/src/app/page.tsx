@@ -159,7 +159,6 @@ export default function CuratorDashboard() {
   // --- Data Fetching ---
   const {
     clients,
-    isLoadingClients,
     references,
     topicCards,
     structureCards,
@@ -206,7 +205,8 @@ export default function CuratorDashboard() {
     );
   }, [clients]);
 
-  const activeClientId = selectedClientId || (selectedOmniProjectId ? "" : defaultClient?.id?.toString() || "");
+  const activeClientId =
+    selectedClientId || (screen === "omni" || selectedOmniProjectId ? "" : defaultClient?.id?.toString() || "");
 
   // --- Derived State ---
   const selectedClient = useMemo(
@@ -291,13 +291,13 @@ export default function CuratorDashboard() {
   );
 
   useEffect(() => {
-    if (clients.length > 0 && !selectedClientId && !selectedOmniProjectId) {
+    if (screen !== "omni" && clients.length > 0 && !selectedClientId && !selectedOmniProjectId) {
       startTransition(() => {
         const resolvedDefaultClientId = defaultClient?.id?.toString() || clients[0].id.toString();
         setSelectedClientId(resolvedDefaultClientId);
       });
     }
-  }, [clients, defaultClient, selectedClientId, selectedOmniProjectId]);
+  }, [clients, defaultClient, screen, selectedClientId, selectedOmniProjectId]);
 
   const checkTelegramSession = useCallback(async () => {
     const controller = new AbortController();
@@ -600,14 +600,10 @@ export default function CuratorDashboard() {
         </button>
       </div>
       <Sidebar
-        selectedClientId={activeClientId}
         setSelectedClientId={setSelectedClientId}
-        selectedClient={selectedClient ?? null}
         selectedProjectId={selectedOmniProjectId}
         setSelectedProjectId={setSelectedOmniProjectId}
         setSelectedProductId={setSelectedOmniProductId}
-        clients={clients}
-        isLoadingClients={isLoadingClients}
         screen={screen}
         setScreen={setScreen}
       />
@@ -635,7 +631,7 @@ export default function CuratorDashboard() {
 
           {screen === "omni" && (
             <OmniStudioScreen
-              selectedClient={selectedClient ?? null}
+              selectedClient={null}
               selectedProjectId={selectedOmniProjectId}
               selectedProductId={selectedOmniProductId}
               onSelectProject={setSelectedOmniProjectId}
