@@ -604,7 +604,6 @@ export default function CuratorDashboard() {
         selectedProjectId={selectedOmniProjectId}
         setSelectedProjectId={setSelectedOmniProjectId}
         setSelectedProductId={setSelectedOmniProductId}
-        screen={screen}
         setScreen={setScreen}
       />
 
@@ -612,11 +611,13 @@ export default function CuratorDashboard() {
         <Header
           screenTitle={currentScreenTitle}
           selectedClientName={selectedClient?.name}
+          screen={screen}
+          setScreen={setScreen}
           showSettingsSaveStatus={screen === "settings"}
           isSavingSettings={saveSettingsMutation.isPending || saveHeygenAvatarsMutation.isPending}
         />
 
-        <section className="px-4 pb-20 pt-24 xl:px-8">
+        <section className="px-4 pb-20 pt-36 xl:px-8">
           {screen === "dashboard" && (
             <DashboardScreen
               selectedClient={selectedClient}
@@ -702,7 +703,7 @@ export default function CuratorDashboard() {
           )}
 
           {screen === "settings" && (
-            <div className="h-[calc(100vh-11rem)] min-h-0">
+            <div className="h-[calc(100vh-14rem)] min-h-0">
               <SettingsScreen
                 key={`${activeClientId}-${heygenAvatars.length}-${heygenCatalog.length}`}
                 settings={clientSettings}
