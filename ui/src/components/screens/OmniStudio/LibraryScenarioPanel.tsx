@@ -54,17 +54,69 @@ export function LibraryScenarioPanel({
 }) {
   const activeBundleIds = new Set(libraryLinks.map((link) => link.legacy_client_id));
   const selectedBundle = libraries.find((library) => library.client_id === activeLibraryId) || null;
-  const sortedLibraries = [...libraries].sort((left, right) => {
-    const leftActive = activeBundleIds.has(left.client_id) ? 1 : 0;
-    const rightActive = activeBundleIds.has(right.client_id) ? 1 : 0;
-    return rightActive - leftActive;
-  });
+  const activeLibraries = libraries.filter((library) => activeBundleIds.has(library.client_id));
+  const inactiveLibraries = libraries.filter((library) => !activeBundleIds.has(library.client_id));
 
   return (
     <div className="space-y-4">
       <WorkbenchPanel
+        title="Активные бандлы"
+        description="Эти legacy-бандлы уже подключены к текущему проекту и будут использоваться в production-контуре."
+      >
+        <div className="grid gap-2">
+          {activeLibraries.map((library) => {
+            const isActive = activeLibraryId === library.client_id;
+            return (
+              <div
+                key={library.client_id}
+                className={`rounded-lg border p-3 transition ${
+                  isActive ? "border-primary bg-primary/5" : "border-emerald-200 bg-emerald-50"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => onSelectLibrary(library.client_id)}
+                  className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                        <p className="truncate text-sm font-semibold text-foreground">{library.name}</p>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                        {library.product_keyword || library.product_info || library.niche || "Legacy project bundle"}
+                      </p>
+                    </div>
+                    <div className="shrink-0 rounded-md bg-white/70 px-2 py-1 text-xs font-medium text-muted-foreground">
+                      {library.scenario_count} скриптов
+                    </div>
+                  </div>
+                </button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => onDeactivateBundle(library.client_id)}
+                  disabled={isActivatingBundle || isDeactivatingBundle}
+                  className="mt-3 min-h-9"
+                >
+                  Выключить
+                </Button>
+              </div>
+            );
+          })}
+          {!activeLibraries.length ? (
+            <EmptyState
+              title="Активных бандлов пока нет"
+              description="Нажмите «Активировать бандл» в legacy-списке ниже, и он появится в этом фрейме."
+            />
+          ) : null}
+        </div>
+      </WorkbenchPanel>
+
+      <WorkbenchPanel
         title="Legacy-бандлы"
-        description="Каждый бандл соответствует старому проекту/продукту и подключается целиком к текущему проекту."
+        description="Доступные бандлы из старых проектов. После активации бандл перемещается в верхний фрейм."
       >
         <div className="relative mb-3">
           <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
@@ -82,14 +134,13 @@ export function LibraryScenarioPanel({
           errorText="Legacy DB недоступна"
         />
         <div className="grid max-h-80 gap-2 overflow-auto pr-1">
-          {sortedLibraries.map((library) => {
+          {inactiveLibraries.map((library) => {
             const isActive = activeLibraryId === library.client_id;
-            const isLinked = activeBundleIds.has(library.client_id);
             return (
               <div
                 key={library.client_id}
                 className={`rounded-lg border p-3 transition ${
-                  isActive ? "border-primary bg-primary/5" : isLinked ? "border-emerald-200 bg-emerald-50" : "border-border bg-background"
+                  isActive ? "border-primary bg-primary/5" : "border-border bg-background"
                 }`}
               >
                 <button
@@ -100,11 +151,7 @@ export function LibraryScenarioPanel({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        {isLinked ? (
-                          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-                        ) : (
-                          <Archive className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        )}
+                        <Archive className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <p className="truncate text-sm font-semibold text-foreground">{library.name}</p>
                       </div>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
@@ -118,20 +165,27 @@ export function LibraryScenarioPanel({
                 </button>
                 <Button
                   size="sm"
-                  variant={isLinked ? "destructive" : "outline"}
-                  onClick={() => (isLinked ? onDeactivateBundle(library.client_id) : onActivateBundle(library.client_id))}
+                  variant="outline"
+                  onClick={() => {
+                    onSelectLibrary(library.client_id);
+                    onActivateBundle(library.client_id);
+                  }}
                   disabled={isActivatingBundle || isDeactivatingBundle}
                   className="mt-3 min-h-9"
                 >
-                  {isLinked ? "Выключить" : "Активировать бандл"}
+                  Активировать бандл
                 </Button>
               </div>
             );
           })}
-          {!libraries.length && !isLibrariesLoading && (
+          {!inactiveLibraries.length && !isLibrariesLoading && (
             <EmptyState
-              title="Бандлы не найдены"
-              description="Попробуй другой поиск или проверь доступность старой БД."
+              title={libraries.length ? "Все найденные бандлы активны" : "Бандлы не найдены"}
+              description={
+                libraries.length
+                  ? "Активные бандлы находятся в верхнем фрейме."
+                  : "Попробуй другой поиск или проверь доступность старой БД."
+              }
             />
           )}
         </div>
