@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { DashboardProductDetailsCard } from "@/components/screens/DashboardProductDetailsCard";
 import {
   useCreateOmniProduct,
+  useDeleteOmniProduct,
   useOmniProducts,
   useOmniProjects,
   useUpdateOmniProduct,
@@ -42,6 +43,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
   const uploadImagesMutation = useUploadOmniProductImages();
   const updateProjectMutation = useUpdateOmniProjectProfile();
   const updateProductMutation = useUpdateOmniProduct();
+  const deleteProductMutation = useDeleteOmniProduct();
 
   const products = useMemo(() => productsQuery.data || [], [productsQuery.data]);
   const activeProduct = products.find((product) => product.id === selectedProductId) || null;
@@ -240,13 +242,30 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
           key={activeProduct?.id || "empty-product"}
           product={activeProduct}
           isSaving={updateProductMutation.isPending}
+          isUploading={uploadImagesMutation.isPending}
+          isDeleting={deleteProductMutation.isPending}
           onSave={async (productId, draft) => {
             await updateProductMutation.mutateAsync({
               projectId: activeProject.id,
               productId,
               name: draft.name,
               description: draft.description,
+              productRefs: draft.productRefs,
             });
+          }}
+          onUploadImages={async (files) => {
+            const result = await uploadImagesMutation.mutateAsync({
+              projectId: activeProject.id,
+              files: Array.from(files),
+            });
+            return result.refs;
+          }}
+          onDeleteProduct={async (productId) => {
+            await deleteProductMutation.mutateAsync({
+              projectId: activeProject.id,
+              productId,
+            });
+            onSelectProduct(null);
           }}
         />
       </aside>

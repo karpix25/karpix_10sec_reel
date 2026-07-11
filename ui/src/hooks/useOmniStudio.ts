@@ -55,11 +55,18 @@ export type UpdateOmniProductPayload = {
   description?: string;
   productReferenceNotes?: string;
   avatarReferenceNotes?: string;
+  productRefs?: OmniProduct["product_refs"];
+  avatarRefs?: OmniProduct["avatar_refs"];
 };
 
 export type UploadOmniProductImagesPayload = {
   projectId: number;
   files: File[];
+};
+
+export type DeleteOmniProductPayload = {
+  projectId: number;
+  productId: number;
 };
 
 export function useOmniProjects() {
@@ -140,6 +147,25 @@ export function useUpdateOmniProduct() {
       );
       queryClient.invalidateQueries({ queryKey: ["omni-products", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ["omni-generated-scripts", variables.projectId, variables.productId] });
+    },
+  });
+}
+
+export function useDeleteOmniProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: DeleteOmniProductPayload) =>
+      (await axios.delete(`${API_BASE}/products`, { params: payload })).data as { deleted: OmniProduct },
+    onSuccess: (_, variables) => {
+      queryClient.setQueryData<OmniProduct[]>(["omni-products", variables.projectId], (products) =>
+        products?.filter((product) => product.id !== variables.productId) || products
+      );
+      queryClient.invalidateQueries({ queryKey: ["omni-products", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-scripts", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-legacy-library-links", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-scenario-links", variables.projectId] });
     },
   });
 }
