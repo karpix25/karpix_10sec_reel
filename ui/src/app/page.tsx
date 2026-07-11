@@ -11,6 +11,7 @@ import { GeneratorScreen } from "@/components/screens/GeneratorScreen";
 import { SettingsScreen } from "@/components/screens/SettingsScreen";
 import { OmniStudioScreen } from "@/components/screens/OmniStudio";
 import { useOmniProjects } from "@/hooks/useOmniStudio";
+import { buildWorkspaceUrl, readInitialWorkspaceUrlState } from "@/lib/navigation/workspace-url-state";
 
 import { ReferenceModal } from "@/components/ReferenceModal";
 import {
@@ -146,10 +147,14 @@ export default function CuratorDashboard() {
   const [isSubmittingStagingPassword, setIsSubmittingStagingPassword] = useState(false);
 
   // --- Local State ---
-  const [screen, setScreen] = useState<Screen>("dashboard");
+  const [screen, setScreen] = useState<Screen>(() => readInitialWorkspaceUrlState().screen);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
-  const [selectedOmniProjectId, setSelectedOmniProjectId] = useState<number | null>(null);
-  const [selectedOmniProductId, setSelectedOmniProductId] = useState<number | null>(null);
+  const [selectedOmniProjectId, setSelectedOmniProjectId] = useState<number | null>(
+    () => readInitialWorkspaceUrlState().projectId
+  );
+  const [selectedOmniProductId, setSelectedOmniProductId] = useState<number | null>(
+    () => readInitialWorkspaceUrlState().productId
+  );
   
   // Selection state for generator and modal
   const [selectedReferenceId, setSelectedReferenceId] = useState<number | null>(null);
@@ -350,6 +355,23 @@ export default function CuratorDashboard() {
     url.searchParams.delete("auth_error");
     window.history.replaceState({}, "", url.toString());
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const nextUrl = buildWorkspaceUrl(window.location.href, {
+      screen,
+      projectId: selectedOmniProjectId,
+      productId: selectedOmniProductId,
+    });
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState({}, "", nextUrl);
+    }
+  }, [screen, selectedOmniProjectId, selectedOmniProductId]);
 
   const handleStartTelegramAuth = () => {
     setAuthError("");
