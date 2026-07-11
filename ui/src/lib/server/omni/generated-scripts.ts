@@ -65,7 +65,7 @@ export async function createGeneratedScriptFromLegacy(input: {
 
   const sourceScenario = await getRandomLegacyScenarioFromClients(legacyClientIds);
   if (!sourceScenario) {
-    throw new Error("No source scripts found in active legacy bundles");
+    throw new Error("No reference transcripts found in active legacy bundles");
   }
 
   const model = process.env.SCENARIO_MODEL || "google/gemini-2.5-flash";
@@ -87,7 +87,11 @@ export async function createGeneratedScriptFromLegacy(input: {
     legacy_product_keyword: sourceScenario.legacy_product_keyword,
     title: sourceScenario.title,
     topic: sourceScenario.topic,
-    script: sourceScenario.script,
+    source_kind: "legacy_reference_transcript",
+    transcript: sourceScenario.script,
+    reels_url: sourceScenario.reels_url,
+    word_count: sourceScenario.word_count,
+    duration_seconds: sourceScenario.duration_seconds,
     source_reference: sourceScenario.source_reference,
   };
   const productSnapshot = {
@@ -227,7 +231,7 @@ function buildPrompt(input: {
 Создай 1 новый сценарий для Instagram Reels по методологии reels-script-writer.
 
 Правила:
-1. Используй исходный legacy-сценарий только как паттерн структуры, удержания и подачи.
+1. Используй исходную транскрибацию референс-видео как паттерн формата: хук, структура удержания, ритм, порядок смысловых битов и подачу.
 2. Новый сценарий должен продвигать выбранный продукт.
 3. Формат: говорящая голова.
 4. Структура: кульминационный хук 0-3 сек, 2-3 плотных бита, один CTA.
@@ -245,7 +249,7 @@ Tone of voice: ${input.brandVoice || "не указан"}
 Описание продукта: ${input.productDescription || "не указано"}
 Заметки по продукту: ${input.productReferenceNotes || "не указаны"}
 
-Исходный legacy-сценарий:
+Оригинальная транскрибация reference-видео:
 ${input.sourceScenario.script}
 
 Верни JSON строго такого вида:

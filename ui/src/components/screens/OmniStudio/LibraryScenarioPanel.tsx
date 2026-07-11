@@ -101,7 +101,7 @@ export function LibraryScenarioPanel({
                       </p>
                     </div>
                     <div className="shrink-0 rounded-md bg-white/70 px-2 py-1 text-xs font-medium text-muted-foreground">
-                      {library.scenario_count} скриптов
+                      {library.scenario_count} refs
                     </div>
                   </div>
                 </button>
@@ -171,7 +171,7 @@ export function LibraryScenarioPanel({
                       </p>
                     </div>
                     <div className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
-                      {library.scenario_count} скриптов
+                      {library.scenario_count} refs
                     </div>
                   </div>
                 </button>
@@ -204,18 +204,18 @@ export function LibraryScenarioPanel({
       </WorkbenchPanel>
 
       <WorkbenchPanel
-        title="Оригинальные скрипты в бандле"
+        title="Референс-транскрибации в бандле"
         description={
           selectedBundle
-            ? `${totalScenarios} оригинальных скриптов в бандле «${selectedBundle.name}»`
-            : "Выберите бандл, чтобы увидеть оригинальные скрипты внутри него."
+            ? `${totalScenarios} транскрибаций reference-видео в бандле «${selectedBundle.name}»`
+            : "Выберите бандл, чтобы увидеть оригинальные транскрибации reference-видео внутри него."
         }
       >
         <QueryState
           isLoading={isScenariosLoading}
           isError={isScenariosError}
-          loadingText="Загружаю сценарии"
-          errorText="Не удалось загрузить сценарии"
+          loadingText="Загружаю транскрибации"
+          errorText="Не удалось загрузить транскрибации"
         />
         {!activeLibraryId ? (
           <EmptyState
@@ -236,7 +236,21 @@ export function LibraryScenarioPanel({
                         {getScriptHook(scenario.script)}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Оригинальный скрипт
+                        Оригинальная транскрибация референса
+                      </p>
+                      {scenario.reels_url ? (
+                        <a
+                          href={scenario.reels_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1 inline-flex max-w-full text-xs font-medium text-primary hover:underline"
+                        >
+                          <span className="truncate">{scenario.reels_url}</span>
+                        </a>
+                      ) : null}
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {scenario.word_count ? `${scenario.word_count} слов` : "слов: n/a"}
+                        {scenario.duration_seconds ? ` · ${scenario.duration_seconds} сек` : ""}
                       </p>
                       <p className="mt-2 line-clamp-3 text-xs leading-5 text-muted-foreground">{scenario.script}</p>
                     </div>
@@ -246,7 +260,7 @@ export function LibraryScenarioPanel({
               );
             })}
             {!scenarios.length && !isScenariosLoading && (
-              <EmptyState title="Скрипты не найдены" description="В этом бандле нет оригинальных скриптов под текущий поиск." />
+              <EmptyState title="Транскрибации не найдены" description="В этом бандле нет reference-транскрибаций под текущий поиск." />
             )}
           </div>
         )}

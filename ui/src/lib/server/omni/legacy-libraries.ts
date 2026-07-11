@@ -13,9 +13,9 @@ export async function listLegacyLibraries(options: { query?: string | null; limi
   );
   let includeParamIndex: number | null = null;
   const whereClauses = [
-    "COALESCE(TRIM(gs.scenario_json->>'script'), TRIM(gs.tts_script), '') <> ''",
-    "COALESCE(gs.scenario_json->>'script', gs.tts_script, '') NOT ILIKE 'Error %'",
-    "gs.client_id IS NOT NULL",
+    "COALESCE(TRIM(pc.transcript), '') <> ''",
+    "pc.transcript NOT ILIKE 'Error %'",
+    "pc.client_id IS NOT NULL",
   ];
 
   if (includeClientIds.length) {
@@ -29,27 +29,27 @@ export async function listLegacyLibraries(options: { query?: string | null; limi
     const queryClause = `(c.name ILIKE $${queryParamIndex} OR c.product_info ILIKE $${queryParamIndex} OR c.product_keyword ILIKE $${queryParamIndex})`;
     whereClauses.push(
       includeParamIndex
-        ? `(${queryClause} OR gs.client_id = ANY($${includeParamIndex}::bigint[]))`
+        ? `(${queryClause} OR pc.client_id = ANY($${includeParamIndex}::bigint[]))`
         : queryClause
     );
   }
 
   const { rows } = await legacyPool.query<LegacyLibraryRow>(
     `SELECT
-       gs.client_id,
-       COALESCE(c.name, 'Legacy library #' || gs.client_id::text) AS name,
+       pc.client_id,
+       COALESCE(c.name, 'Legacy library #' || pc.client_id::text) AS name,
        c.product_info,
        c.product_keyword,
        c.niche,
        COUNT(*) AS scenario_count,
-       MAX(gs.created_at) AS last_scenario_at
-     FROM generated_scenarios gs
-     LEFT JOIN clients c ON c.id = gs.client_id
+       MAX(pc.created_at) AS last_scenario_at
+     FROM processed_content pc
+     LEFT JOIN clients c ON c.id = pc.client_id
      WHERE ${whereClauses.join(" AND ")}
-     GROUP BY gs.client_id, c.name, c.product_info, c.product_keyword, c.niche
+     GROUP BY pc.client_id, c.name, c.product_info, c.product_keyword, c.niche
      ORDER BY ${
-       includeParamIndex ? `CASE WHEN gs.client_id = ANY($${includeParamIndex}::bigint[]) THEN 0 ELSE 1 END,` : ""
-     } MAX(gs.created_at) DESC, COUNT(*) DESC
+       includeParamIndex ? `CASE WHEN pc.client_id = ANY($${includeParamIndex}::bigint[]) THEN 0 ELSE 1 END,` : ""
+     } MAX(pc.created_at) DESC, COUNT(*) DESC
      LIMIT $${values.length + 1}`,
     [...values, options.limit]
   );

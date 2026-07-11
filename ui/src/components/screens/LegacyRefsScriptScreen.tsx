@@ -58,7 +58,7 @@ export function LegacyRefsScriptScreen({
           </Badge>
           <Badge variant="outline" className="gap-1">
             <Archive className="h-3.5 w-3.5" />
-            1 random legacy script
+            1 random reference transcript
           </Badge>
         </div>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -66,8 +66,8 @@ export function LegacyRefsScriptScreen({
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Legacy refs</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Написать сценарий под продукт</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Берём один случайный оригинальный скрипт из активного legacy-бандла, сохраняем его как источник и пишем
-              новый draft-сценарий под выбранный продукт, ЦА и tone of voice клиента.
+              Берём одну случайную оригинальную транскрибацию reference-видео из активного legacy-бандла и внедряем
+              выбранный продукт в её формат, ритм, хук и структуру удержания.
             </p>
           </div>
           <Button type="button" onClick={() => void handleGenerate()} disabled={!canGenerate} className="min-h-11">
@@ -136,7 +136,7 @@ export function LegacyRefsScriptScreen({
                       </p>
                     </div>
                     <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
-                      {library.scenario_count}
+                      {library.scenario_count} refs
                     </span>
                   </div>
                 </div>
@@ -190,7 +190,7 @@ function GeneratedScriptsList({ scripts, isLoading }: { scripts: OmniGeneratedSc
                   {script.hook || script.title || "Сценарий без заголовка"}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Source #{script.source_legacy_scenario_id || "n/a"} · {new Date(script.created_at).toLocaleString("ru-RU")}
+                  Ref #{script.source_legacy_scenario_id || "n/a"} · {new Date(script.created_at).toLocaleString("ru-RU")}
                 </p>
               </div>
               <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
