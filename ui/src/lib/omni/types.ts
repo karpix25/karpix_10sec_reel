@@ -73,6 +73,26 @@ export interface OmniLegacyLibraryLink {
   created_at: string;
 }
 
+export interface OmniGeneratedScript {
+  id: number;
+  project_id: number;
+  product_id: number;
+  source_legacy_scenario_id: number | null;
+  source_legacy_client_id: number | null;
+  status: "draft" | "approved" | "archived";
+  title: string | null;
+  hook: string | null;
+  script: string;
+  caption: string | null;
+  cta_keyword: string | null;
+  lead_magnet: string | null;
+  source_snapshot: Record<string, unknown> | null;
+  product_snapshot: Record<string, unknown> | null;
+  model: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface OmniClientAvatar {
   id: number;
   project_id: number;
