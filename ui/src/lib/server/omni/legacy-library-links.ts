@@ -3,6 +3,13 @@ import { OmniLegacyLibraryLink } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
 import { requireOmniProductInProject } from "./products";
 
+function normalizeLegacyLibraryLink(row: OmniLegacyLibraryLink): OmniLegacyLibraryLink {
+  return {
+    ...row,
+    legacy_client_id: Number(row.legacy_client_id),
+  };
+}
+
 export async function listLegacyLibraryLinks(projectId: number, productId?: number | null) {
   await ensureOmniSchema();
   const values: unknown[] = [projectId];
@@ -22,7 +29,7 @@ export async function listLegacyLibraryLinks(projectId: number, productId?: numb
      ORDER BY created_at DESC, id DESC`,
     values
   );
-  return rows;
+  return rows.map(normalizeLegacyLibraryLink);
 }
 
 export async function linkLegacyLibrary(input: {
@@ -47,7 +54,7 @@ export async function linkLegacyLibrary(input: {
     );
 
     if (existing.rows[0]) {
-      return existing.rows[0];
+      return normalizeLegacyLibraryLink(existing.rows[0]);
     }
   }
 
@@ -63,7 +70,7 @@ export async function linkLegacyLibrary(input: {
      RETURNING *`,
     [input.projectId, input.productId || null, input.legacyClientId]
   );
-  return rows[0];
+  return normalizeLegacyLibraryLink(rows[0]);
 }
 
 export async function unlinkLegacyLibrary(input: {
@@ -88,5 +95,5 @@ export async function unlinkLegacyLibrary(input: {
      RETURNING *`,
     values
   );
-  return rows[0] || null;
+  return rows[0] ? normalizeLegacyLibraryLink(rows[0]) : null;
 }
