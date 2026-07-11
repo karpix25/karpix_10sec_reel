@@ -2,8 +2,6 @@ import {
   type LucideIcon,
   LayoutDashboard, 
   FolderOpen, 
-  FileText, 
-  Zap, 
   Settings,
   Sparkles
 } from "lucide-react";
@@ -73,8 +71,6 @@ export const navItems: Array<{
   { id: "dashboard", icon: LayoutDashboard, label: "Клиенты", group: "primary" },
   { id: "omni", icon: Sparkles, label: "Производство", group: "primary" },
   { id: "references", icon: FolderOpen, label: "Legacy refs", group: "legacy" },
-  { id: "scenarios", icon: FileText, label: "Legacy сценарии", group: "legacy" },
-  { id: "generator", icon: Zap, label: "Legacy генератор", group: "legacy" },
   { id: "settings", icon: Settings, label: "Настройки", group: "system" },
 ];
 
