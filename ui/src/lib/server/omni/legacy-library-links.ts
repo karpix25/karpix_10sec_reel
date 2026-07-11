@@ -65,3 +65,28 @@ export async function linkLegacyLibrary(input: {
   );
   return rows[0];
 }
+
+export async function unlinkLegacyLibrary(input: {
+  projectId: number;
+  productId?: number | null;
+  legacyClientId: number;
+}) {
+  await ensureOmniSchema();
+  const values: unknown[] = [input.projectId, input.legacyClientId];
+  const clauses = ["project_id = $1", "legacy_client_id = $2"];
+
+  if (input.productId) {
+    values.push(input.productId);
+    clauses.push(`product_id = $${values.length}`);
+  } else {
+    clauses.push("product_id IS NULL");
+  }
+
+  const { rows } = await pool.query<OmniLegacyLibraryLink>(
+    `DELETE FROM omni_legacy_library_links
+     WHERE ${clauses.join(" AND ")}
+     RETURNING *`,
+    values
+  );
+  return rows[0] || null;
+}

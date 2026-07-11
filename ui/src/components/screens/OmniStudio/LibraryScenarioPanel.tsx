@@ -29,9 +29,11 @@ export function LibraryScenarioPanel({
   isLibrariesError,
   isScenariosError,
   isActivatingBundle,
+  isDeactivatingBundle,
   onSearchChange,
   onSelectLibrary,
   onActivateBundle,
+  onDeactivateBundle,
 }: {
   libraries: OmniLegacyLibrary[];
   libraryLinks: OmniLegacyLibraryLink[];
@@ -44,12 +46,19 @@ export function LibraryScenarioPanel({
   isLibrariesError: boolean;
   isScenariosError: boolean;
   isActivatingBundle: boolean;
+  isDeactivatingBundle: boolean;
   onSearchChange: (value: string) => void;
   onSelectLibrary: (legacyClientId: number) => void;
   onActivateBundle: (legacyClientId: number) => void;
+  onDeactivateBundle: (legacyClientId: number) => void;
 }) {
   const activeBundleIds = new Set(libraryLinks.map((link) => link.legacy_client_id));
   const selectedBundle = libraries.find((library) => library.client_id === activeLibraryId) || null;
+  const sortedLibraries = [...libraries].sort((left, right) => {
+    const leftActive = activeBundleIds.has(left.client_id) ? 1 : 0;
+    const rightActive = activeBundleIds.has(right.client_id) ? 1 : 0;
+    return rightActive - leftActive;
+  });
 
   return (
     <div className="space-y-4">
@@ -73,7 +82,7 @@ export function LibraryScenarioPanel({
           errorText="Legacy DB недоступна"
         />
         <div className="grid max-h-80 gap-2 overflow-auto pr-1">
-          {libraries.map((library) => {
+          {sortedLibraries.map((library) => {
             const isActive = activeLibraryId === library.client_id;
             const isLinked = activeBundleIds.has(library.client_id);
             return (
@@ -109,12 +118,12 @@ export function LibraryScenarioPanel({
                 </button>
                 <Button
                   size="sm"
-                  variant={isLinked ? "secondary" : "outline"}
-                  onClick={() => onActivateBundle(library.client_id)}
-                  disabled={isLinked || isActivatingBundle}
+                  variant={isLinked ? "destructive" : "outline"}
+                  onClick={() => (isLinked ? onDeactivateBundle(library.client_id) : onActivateBundle(library.client_id))}
+                  disabled={isActivatingBundle || isDeactivatingBundle}
                   className="mt-3 min-h-9"
                 >
-                  {isLinked ? "Бандл активен" : "Активировать бандл"}
+                  {isLinked ? "Выключить" : "Активировать бандл"}
                 </Button>
               </div>
             );

@@ -206,6 +206,13 @@ export function useOmniStudio(
       queryClient.invalidateQueries({ queryKey: ["omni-legacy-library-links", variables.projectId] }),
   });
 
+  const unlinkLibraryMutation = useMutation({
+    mutationFn: async (payload: { projectId: number; productId?: number | null; legacyClientId: number }) =>
+      (await axios.delete(`${API_BASE}/legacy-library-links`, { data: payload })).data as OmniLegacyLibraryLink | null,
+    onSuccess: (_, variables) =>
+      queryClient.invalidateQueries({ queryKey: ["omni-legacy-library-links", variables.projectId] }),
+  });
+
   const linkScenarioMutation = useMutation({
     mutationFn: async (payload: { projectId: number; productId?: number | null; legacyScenarioId: number }) =>
       (await axios.post(`${API_BASE}/scenario-links`, payload)).data as OmniLegacyScenarioLink,
@@ -236,6 +243,7 @@ export function useOmniStudio(
     createProductMutation,
     createAvatarMutation,
     linkLibraryMutation,
+    unlinkLibraryMutation,
     linkScenarioMutation,
     createReelMutation,
   };
