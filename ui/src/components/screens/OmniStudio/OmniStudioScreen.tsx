@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Archive, Database } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useOmniProjects, useOmniStudio } from "@/hooks/useOmniStudio";
@@ -26,7 +26,10 @@ export function OmniStudioScreen({
   onSelectProduct: (productId: number | null) => void;
 }) {
   const [legacySearch, setLegacySearch] = useState("");
-  const [activeLibraryId, setActiveLibraryId] = useState<number | null>(null);
+  const [activeLibrarySelection, setActiveLibrarySelection] = useState<{
+    projectId: number | null;
+    libraryId: number | null;
+  }>({ projectId: null, libraryId: null });
 
   const projectsQuery = useOmniProjects();
   const allProjects = useMemo(() => projectsQuery.data || [], [projectsQuery.data]);
@@ -37,14 +40,12 @@ export function OmniStudioScreen({
   const selectedProject = allProjects.find((project) => project.id === selectedProjectId) || null;
   const activeProject = selectedProject || inferredProject;
   const activeProjectId = activeProject?.id || null;
+  const activeLibraryId =
+    activeLibrarySelection.projectId === activeProjectId ? activeLibrarySelection.libraryId : null;
   const studio = useOmniStudio(activeProjectId, null, legacySearch, activeLibraryId);
   const libraries = studio.legacyLibrariesQuery.data || [];
   const scenarios = studio.legacyScenariosQuery.data?.data || [];
   const libraryLinks = studio.libraryLinksQuery.data || [];
-
-  useEffect(() => {
-    setActiveLibraryId(null);
-  }, [activeProjectId]);
 
   const handleCreateWorkspace = () => {
     if (!selectedClient) return;
@@ -60,10 +61,15 @@ export function OmniStudioScreen({
         onSuccess: (project: OmniProject) => {
           onSelectProject(project.id);
           onSelectProduct(null);
-          setActiveLibraryId(null);
+          setActiveLibrarySelection({ projectId: project.id, libraryId: null });
         },
       }
     );
+  };
+
+  const handleSelectLibrary = (legacyClientId: number) => {
+    if (!activeProjectId) return;
+    setActiveLibrarySelection({ projectId: activeProjectId, libraryId: legacyClientId });
   };
 
   const handleActivateBundle = (legacyClientId: number) => {
@@ -122,8 +128,8 @@ export function OmniStudioScreen({
               Активация legacy-бандлов для {activeProject.name}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Каждый бандл соответствует старому проекту/продукту и содержит набор оригинальных скриптов. Активируйте
-              один или несколько бандлов для текущего проекта.
+              Каждый бандл соответствует старому проекту/продукту и содержит оригинальные транскрибации reference-видео.
+              Активируйте один или несколько бандлов для текущего проекта.
             </p>
           </div>
           <div className="rounded-lg border border-border bg-muted/35 px-4 py-3 text-sm">
@@ -151,7 +157,7 @@ export function OmniStudioScreen({
         isActivatingBundle={studio.linkLibraryMutation.isPending}
         isDeactivatingBundle={studio.unlinkLibraryMutation.isPending}
         onSearchChange={setLegacySearch}
-        onSelectLibrary={setActiveLibraryId}
+        onSelectLibrary={handleSelectLibrary}
         onActivateBundle={handleActivateBundle}
         onDeactivateBundle={handleDeactivateBundle}
       />

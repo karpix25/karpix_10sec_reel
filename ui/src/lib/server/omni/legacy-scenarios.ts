@@ -4,12 +4,17 @@ import { getLegacyPool } from "./legacy-db";
 type LegacyScenarioRow = {
   id: number;
   client_id: number | null;
-  scenario_json: { script?: string; title?: string; hook?: string } | null;
-  tts_script: string | null;
+  transcript: string | null;
+  reels_url: string | null;
+  audit_json: {
+    atoms?: { verbal_hook?: string };
+    pattern_framework?: { pattern_type?: string; core_thesis?: string };
+    reference_strategy?: { topic_cluster?: string; topic_angle?: string };
+  } | null;
   topic: string | null;
   created_at: string | null;
-  generation_source: string | null;
-  source_content_id: number | null;
+  word_count: number | null;
+  duration_seconds: number | null;
   legacy_client_name: string | null;
   legacy_product_keyword: string | null;
 };
@@ -22,47 +27,48 @@ export async function listLegacyScenarios(options: {
 }) {
   const legacyPool = getLegacyPool();
   const whereClauses = [
-    "COALESCE(TRIM(gs.scenario_json->>'script'), TRIM(gs.tts_script), '') <> ''",
-    "COALESCE(gs.scenario_json->>'script', gs.tts_script, '') NOT ILIKE 'Error %'",
+    "COALESCE(TRIM(pc.transcript), '') <> ''",
+    "pc.transcript NOT ILIKE 'Error %'",
   ];
   const values: unknown[] = [];
 
   if (options.clientId) {
     values.push(options.clientId);
-    whereClauses.push(`gs.client_id = $${values.length}`);
+    whereClauses.push(`pc.client_id = $${values.length}`);
   }
 
   if (options.query) {
     values.push(`%${options.query}%`);
     whereClauses.push(
-      `(gs.scenario_json->>'script' ILIKE $${values.length} OR gs.tts_script ILIKE $${values.length} OR gs.topic ILIKE $${values.length})`
+      `(pc.transcript ILIKE $${values.length} OR pc.audit_json->'atoms'->>'verbal_hook' ILIKE $${values.length} OR pc.niche ILIKE $${values.length})`
     );
   }
 
   const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
   const countResult = await legacyPool.query<{ total: string }>(
     `SELECT COUNT(*) AS total
-     FROM generated_scenarios gs
+     FROM processed_content pc
      ${whereSql}`,
     values
   );
 
   const rowsResult = await legacyPool.query<LegacyScenarioRow>(
     `SELECT
-       gs.id,
-       gs.client_id,
-       gs.scenario_json,
-       gs.tts_script,
-       gs.topic,
-       gs.created_at,
-       gs.generation_source,
-       gs.source_content_id,
+       pc.id,
+       pc.client_id,
+       pc.transcript,
+       pc.reels_url,
+       pc.audit_json,
+       pc.niche AS topic,
+       pc.created_at,
+       pc.word_count,
+       pc.duration_seconds,
        c.name AS legacy_client_name,
        c.product_keyword AS legacy_product_keyword
-     FROM generated_scenarios gs
-     LEFT JOIN clients c ON c.id = gs.client_id
+     FROM processed_content pc
+     LEFT JOIN clients c ON c.id = pc.client_id
      ${whereSql}
-     ORDER BY gs.created_at DESC, gs.id DESC
+     ORDER BY pc.created_at DESC, pc.id DESC
      LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
     [...values, options.limit, options.offset]
   );
@@ -77,19 +83,20 @@ export async function getLegacyScenario(legacyScenarioId: number) {
   const legacyPool = getLegacyPool();
   const rowsResult = await legacyPool.query<LegacyScenarioRow>(
     `SELECT
-       gs.id,
-       gs.client_id,
-       gs.scenario_json,
-       gs.tts_script,
-       gs.topic,
-       gs.created_at,
-       gs.generation_source,
-       gs.source_content_id,
+       pc.id,
+       pc.client_id,
+       pc.transcript,
+       pc.reels_url,
+       pc.audit_json,
+       pc.niche AS topic,
+       pc.created_at,
+       pc.word_count,
+       pc.duration_seconds,
        c.name AS legacy_client_name,
        c.product_keyword AS legacy_product_keyword
-     FROM generated_scenarios gs
-     LEFT JOIN clients c ON c.id = gs.client_id
-     WHERE gs.id = $1
+     FROM processed_content pc
+     LEFT JOIN clients c ON c.id = pc.client_id
+     WHERE pc.id = $1
      LIMIT 1`,
     [legacyScenarioId]
   );
@@ -106,21 +113,22 @@ export async function getRandomLegacyScenarioFromClients(legacyClientIds: number
   const legacyPool = getLegacyPool();
   const rowsResult = await legacyPool.query<LegacyScenarioRow>(
     `SELECT
-       gs.id,
-       gs.client_id,
-       gs.scenario_json,
-       gs.tts_script,
-       gs.topic,
-       gs.created_at,
-       gs.generation_source,
-       gs.source_content_id,
+       pc.id,
+       pc.client_id,
+       pc.transcript,
+       pc.reels_url,
+       pc.audit_json,
+       pc.niche AS topic,
+       pc.created_at,
+       pc.word_count,
+       pc.duration_seconds,
        c.name AS legacy_client_name,
        c.product_keyword AS legacy_product_keyword
-     FROM generated_scenarios gs
-     LEFT JOIN clients c ON c.id = gs.client_id
-     WHERE gs.client_id = ANY($1::bigint[])
-       AND COALESCE(TRIM(gs.scenario_json->>'script'), TRIM(gs.tts_script), '') <> ''
-       AND COALESCE(gs.scenario_json->>'script', gs.tts_script, '') NOT ILIKE 'Error %'
+     FROM processed_content pc
+     LEFT JOIN clients c ON c.id = pc.client_id
+     WHERE pc.client_id = ANY($1::bigint[])
+       AND COALESCE(TRIM(pc.transcript), '') <> ''
+       AND pc.transcript NOT ILIKE 'Error %'
      ORDER BY RANDOM()
      LIMIT 1`,
     [clientIds]
@@ -130,23 +138,27 @@ export async function getRandomLegacyScenarioFromClients(legacyClientIds: number
 }
 
 function normalizeLegacyScenario(row: LegacyScenarioRow): OmniLegacyScenario {
-  const script = row.scenario_json?.script || row.tts_script || "";
+  const transcript = row.transcript || "";
+  const hook = row.audit_json?.atoms?.verbal_hook || row.audit_json?.pattern_framework?.core_thesis || null;
   return {
     id: Number(row.id),
     client_id: row.client_id === null ? null : Number(row.client_id),
-    script,
-    title: row.scenario_json?.title || row.scenario_json?.hook || null,
+    script: transcript,
+    title: hook,
     topic: row.topic || null,
     created_at: row.created_at,
     source_reference: getSourceReference(row),
     legacy_client_name: row.legacy_client_name || null,
     legacy_product_keyword: row.legacy_product_keyword || null,
+    reels_url: row.reels_url || null,
+    word_count: row.word_count === null ? null : Number(row.word_count),
+    duration_seconds: row.duration_seconds === null ? null : Number(row.duration_seconds),
   };
 }
 
 function getSourceReference(row: LegacyScenarioRow): string | null {
-  if (row.source_content_id) {
-    return `source_content:${row.source_content_id}`;
+  if (row.id) {
+    return `source_content:${row.id}`;
   }
-  return row.generation_source || null;
+  return row.reels_url || null;
 }

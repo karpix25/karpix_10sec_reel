@@ -53,6 +53,9 @@ export interface OmniLegacyScenario {
   source_reference: string | null;
   legacy_client_name?: string | null;
   legacy_product_keyword?: string | null;
+  reels_url?: string | null;
+  word_count?: number | null;
+  duration_seconds?: number | null;
 }
 
 export interface OmniLegacyLibrary {
