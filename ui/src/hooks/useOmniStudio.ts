@@ -140,24 +140,6 @@ export function useOmniStudio(
     staleTime: 20_000,
   });
 
-  const legacyLibrariesQuery = useQuery<OmniLegacyLibrary[]>({
-    queryKey: ["omni-legacy-libraries", legacySearch],
-    queryFn: async () =>
-      (
-        await axios.get(`${API_BASE}/legacy-libraries`, {
-          params: { q: legacySearch.trim() || undefined, limit: 40 },
-        })
-      ).data,
-    staleTime: 60_000,
-  });
-
-  const scenarioLinksQuery = useQuery<OmniLegacyScenarioLink[]>({
-    queryKey: ["omni-scenario-links", projectId],
-    queryFn: async () => (await axios.get(`${API_BASE}/scenario-links`, { params: { projectId } })).data,
-    enabled: Boolean(projectId),
-    staleTime: 20_000,
-  });
-
   const libraryLinksQuery = useQuery<OmniLegacyLibraryLink[]>({
     queryKey: ["omni-legacy-library-links", projectId, productId],
     queryFn: async () =>
@@ -166,6 +148,32 @@ export function useOmniStudio(
           params: { projectId, productId: productId || undefined },
         })
       ).data,
+    enabled: Boolean(projectId),
+    staleTime: 20_000,
+  });
+
+  const activeLegacyClientIds = (libraryLinksQuery.data || [])
+    .map((link) => link.legacy_client_id)
+    .filter((id, index, ids) => ids.indexOf(id) === index);
+
+  const legacyLibrariesQuery = useQuery<OmniLegacyLibrary[]>({
+    queryKey: ["omni-legacy-libraries", legacySearch, activeLegacyClientIds.join(",")],
+    queryFn: async () =>
+      (
+        await axios.get(`${API_BASE}/legacy-libraries`, {
+          params: {
+            q: legacySearch.trim() || undefined,
+            limit: 40,
+            includeClientIds: activeLegacyClientIds.length ? activeLegacyClientIds.join(",") : undefined,
+          },
+        })
+      ).data,
+    staleTime: 60_000,
+  });
+
+  const scenarioLinksQuery = useQuery<OmniLegacyScenarioLink[]>({
+    queryKey: ["omni-scenario-links", projectId],
+    queryFn: async () => (await axios.get(`${API_BASE}/scenario-links`, { params: { projectId } })).data,
     enabled: Boolean(projectId),
     staleTime: 20_000,
   });
