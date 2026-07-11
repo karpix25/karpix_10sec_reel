@@ -114,6 +114,48 @@ export async function createOmniProduct(input: {
   return rows[0];
 }
 
+export async function updateOmniProduct(input: {
+  projectId: number;
+  productId: number;
+  name?: unknown;
+  description?: unknown;
+  productReferenceNotes?: unknown;
+  avatarReferenceNotes?: unknown;
+}) {
+  await ensureOmniSchema();
+  const current = await requireOmniProductInProject(input.projectId, input.productId);
+  const hasName = input.name !== undefined;
+  const hasDescription = input.description !== undefined;
+  const hasProductReferenceNotes = input.productReferenceNotes !== undefined;
+  const hasAvatarReferenceNotes = input.avatarReferenceNotes !== undefined;
+  const nextName = hasName ? cleanText(input.name) : current.name;
+  if (!nextName) throw new Error("Product name is required");
+
+  const { rows } = await pool.query<OmniProduct>(
+    `UPDATE omni_products
+     SET name = $3,
+         description = $4,
+         product_reference_notes = $5,
+         avatar_reference_notes = $6,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND project_id = $2
+     RETURNING *`,
+    [
+      input.productId,
+      input.projectId,
+      nextName,
+      hasDescription ? cleanText(input.description) || null : current.description,
+      hasProductReferenceNotes ? cleanText(input.productReferenceNotes) || null : current.product_reference_notes,
+      hasAvatarReferenceNotes ? cleanText(input.avatarReferenceNotes) || null : current.avatar_reference_notes,
+    ]
+  );
+
+  if (!rows[0]) {
+    throw new Error("Product does not belong to this Omni client project");
+  }
+  return rows[0];
+}
+
 export async function getOmniProduct(productId: number) {
   await ensureOmniSchema();
   const { rows } = await pool.query<OmniProduct>("SELECT * FROM omni_products WHERE id = $1 LIMIT 1", [productId]);

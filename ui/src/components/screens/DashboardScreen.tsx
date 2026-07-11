@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Image as ImageIcon, Package, PackagePlus, Save } from "lucide-react";
+import { Image as ImageIcon, Package, PackagePlus, Pencil, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DashboardProductDetailsCard } from "@/components/screens/DashboardProductDetailsCard";
 import {
   useCreateOmniProduct,
   useOmniProducts,
   useOmniProjects,
+  useUpdateOmniProduct,
   useUploadOmniProductImages,
   useUpdateOmniProjectProfile,
 } from "@/hooks/useOmniStudio";
@@ -39,6 +41,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
   const createProductMutation = useCreateOmniProduct();
   const uploadImagesMutation = useUploadOmniProductImages();
   const updateProjectMutation = useUpdateOmniProjectProfile();
+  const updateProductMutation = useUpdateOmniProduct();
 
   const products = useMemo(() => productsQuery.data || [], [productsQuery.data]);
   const activeProduct = products.find((product) => product.id === selectedProductId) || null;
@@ -102,13 +105,14 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
           key={activeProject.id}
           project={activeProject}
           isSaving={updateProjectMutation.isPending}
-          onSave={(targetAudience, brandVoice) =>
-            updateProjectMutation.mutate({
+          onSave={async (name, targetAudience, brandVoice) => {
+            await updateProjectMutation.mutateAsync({
               projectId: activeProject.id,
+              name,
               targetAudience,
               brandVoice,
-            })
-          }
+            });
+          }}
         />
 
         <div className="rounded-lg border border-border bg-card p-5">
@@ -232,39 +236,19 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
           </div>
         </div>
 
-        <div className="rounded-lg border border-border bg-card p-5">
-          <p className="text-sm font-semibold text-foreground">Активный продукт</p>
-          {activeProduct ? (
-            <div className="mt-3 space-y-3">
-              <h4 className="text-lg font-semibold text-foreground">{activeProduct.name}</h4>
-              <p className="text-sm leading-6 text-muted-foreground">
-                {activeProduct.description || "Описание продукта пока не заполнено."}
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {activeProduct.product_refs.map((ref) => (
-                  <a
-                    key={ref.id}
-                    href={ref.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block overflow-hidden rounded-lg border border-border bg-background transition hover:bg-muted/40"
-                  >
-                    <img
-                      src={ref.url}
-                      alt={ref.label || activeProduct.name}
-                      className="aspect-square w-full object-cover"
-                    />
-                  </a>
-                ))}
-              </div>
-              {!activeProduct.product_refs.length ? (
-                <p className="text-sm leading-6 text-muted-foreground">Картинки продукта пока не загружены.</p>
-              ) : null}
-            </div>
-          ) : (
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">Выберите продукт из списка или создайте новый.</p>
-          )}
-        </div>
+        <DashboardProductDetailsCard
+          key={activeProduct?.id || "empty-product"}
+          product={activeProduct}
+          isSaving={updateProductMutation.isPending}
+          onSave={async (productId, draft) => {
+            await updateProductMutation.mutateAsync({
+              projectId: activeProject.id,
+              productId,
+              name: draft.name,
+              description: draft.description,
+            });
+          }}
+        />
       </aside>
     </div>
   );
@@ -277,24 +261,60 @@ function ClientProfileCard({
 }: {
   project: { name: string; target_audience: string | null; brand_voice: string | null };
   isSaving: boolean;
-  onSave: (targetAudience: string, brandVoice: string) => void;
+  onSave: (name: string, targetAudience: string, brandVoice: string) => void | Promise<unknown>;
 }) {
+  const [name, setName] = useState(project.name);
   const [targetAudience, setTargetAudience] = useState(project.target_audience || "");
   const [brandVoice, setBrandVoice] = useState(project.brand_voice || "");
+  const [isEditingName, setIsEditingName] = useState(false);
+
   const hasProfileChanges =
-    targetAudience.trim() !== (project.target_audience || "") || brandVoice.trim() !== (project.brand_voice || "");
+    name.trim() !== project.name ||
+    targetAudience.trim() !== (project.target_audience || "") ||
+    brandVoice.trim() !== (project.brand_voice || "");
+  const canSave = Boolean(name.trim()) && hasProfileChanges && !isSaving;
+
+  const handleSave = async () => {
+    if (!canSave) return;
+    await onSave(name.trim(), targetAudience.trim(), brandVoice.trim());
+    setIsEditingName(false);
+  };
 
   return (
     <div className="rounded-lg border border-border bg-card p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Клиент</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{project.name}</h2>
+          <div className="mt-2 flex items-center gap-2">
+            {isEditingName ? (
+              <Input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                className="h-11 max-w-md text-lg font-semibold"
+                autoFocus
+              />
+            ) : (
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">{project.name}</h2>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                setName(project.name);
+                setIsEditingName((value) => !value);
+              }}
+              aria-label={isEditingName ? "Отменить редактирование имени клиента" : "Редактировать имя клиента"}
+              title={isEditingName ? "Отменить" : "Редактировать имя клиента"}
+            >
+              {isEditingName ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
         <Button
           type="button"
-          onClick={() => onSave(targetAudience, brandVoice)}
-          disabled={!hasProfileChanges || isSaving}
+          onClick={() => void handleSave()}
+          disabled={!canSave}
           className="min-h-10"
         >
           <Save className="h-4 w-4" />

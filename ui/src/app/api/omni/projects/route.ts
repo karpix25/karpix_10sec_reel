@@ -49,6 +49,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json(
       await updateOmniProjectProfile({
         projectId,
+        name: body.name,
         targetAudience: body.targetAudience,
         brandVoice: body.brandVoice,
       })
