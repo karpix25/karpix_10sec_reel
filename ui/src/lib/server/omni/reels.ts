@@ -1,7 +1,9 @@
 import pool from "@/lib/db";
 import { OmniClientAvatar, OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
+import { getGeneratedScript } from "./generated-scripts";
 import { getLegacyScenario } from "./legacy-scenarios";
+import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
 import { requireOmniProductInProject } from "./products";
 
 const SEGMENT_SECONDS = 10;
@@ -51,6 +53,7 @@ export async function listOmniReelSegments(reelIds: number[]) {
 export async function createOmniReel(input: {
   projectId: number;
   productId: number;
+  sourceGeneratedScriptId?: number | null;
   sourceLegacyScenarioId?: number | null;
   targetDurationSeconds?: unknown;
   brief?: unknown;
@@ -60,17 +63,40 @@ export async function createOmniReel(input: {
   const segmentCount = segmentCountForDuration(targetDuration);
   const brief = typeof input.brief === "string" && input.brief.trim() ? input.brief.trim() : null;
   const product = await requireOmniProductInProject(input.projectId, input.productId);
+  const generatedScript = input.sourceGeneratedScriptId
+    ? await getGeneratedScript({
+        projectId: input.projectId,
+        productId: input.productId,
+        scriptId: input.sourceGeneratedScriptId,
+      })
+    : null;
+  if (input.sourceGeneratedScriptId && !generatedScript) {
+    throw new Error("Generated script not found for this product");
+  }
   const sourceScenario = input.sourceLegacyScenarioId ? await getLegacyScenario(input.sourceLegacyScenarioId) : null;
   const latestAvatar = await getLatestAvatarDraft(input.projectId);
-  const sourceSnapshot = sourceScenario
+  const sourceSnapshot = generatedScript
     ? {
+        source_kind: "generated_script",
+        id: generatedScript.id,
+        source_legacy_scenario_id: generatedScript.source_legacy_scenario_id,
+        source_legacy_client_id: generatedScript.source_legacy_client_id,
+        title: generatedScript.title,
+        hook: generatedScript.hook,
+        script: generatedScript.script,
+        source_snapshot: generatedScript.source_snapshot,
+      }
+    : sourceScenario
+      ? {
+        source_kind: "legacy_reference_transcript",
         id: sourceScenario.id,
         legacy_client_id: sourceScenario.client_id,
         legacy_client_name: sourceScenario.legacy_client_name,
         legacy_product_keyword: sourceScenario.legacy_product_keyword,
         title: sourceScenario.title,
         topic: sourceScenario.topic,
-        script: sourceScenario.script,
+        transcript: sourceScenario.script,
+        reels_url: sourceScenario.reels_url,
         source_reference: sourceScenario.source_reference,
       }
     : null;
@@ -115,7 +141,7 @@ export async function createOmniReel(input: {
       [
         input.projectId,
         input.productId,
-        input.sourceLegacyScenarioId || null,
+        generatedScript?.source_legacy_scenario_id || input.sourceLegacyScenarioId || null,
         targetDuration,
         segmentCount,
         brief,
@@ -125,8 +151,18 @@ export async function createOmniReel(input: {
       ]
     );
     const reel = reelResult.rows[0];
+    const promptPlan = buildOmniSegmentPrompts({
+      generatedScript,
+      legacyTranscript: sourceScenario?.script || null,
+      product,
+      avatar: latestAvatar,
+      segmentCount,
+      segmentSeconds: SEGMENT_SECONDS,
+      brief,
+    });
 
     for (let index = 0; index < segmentCount; index += 1) {
+      const segmentPrompt = promptPlan[index];
       await client.query(
         `INSERT INTO omni_reel_segments (
            reel_id,
@@ -142,17 +178,9 @@ export async function createOmniReel(input: {
           reel.id,
           index + 1,
           SEGMENT_SECONDS,
-          getSegmentRole(index + 1, segmentCount),
-          buildDraftPrompt({
-            index: index + 1,
-            total: segmentCount,
-            brief,
-            script: sourceScenario?.script || null,
-            productName: product.name,
-            productRefs: product.product_refs,
-            avatarPrompt: latestAvatar?.prompt || null,
-          }),
-          product.product_refs?.find((asset) => asset.is_primary)?.url || product.product_refs?.[0]?.url || null,
+          segmentPrompt.role,
+          segmentPrompt.prompt,
+          segmentPrompt.referenceUrl,
         ]
       );
     }
@@ -177,41 +205,4 @@ async function getLatestAvatarDraft(projectId: number) {
     [projectId]
   );
   return rows[0] || null;
-}
-
-function getSegmentRole(index: number, total: number) {
-  if (index === 1) return "hook";
-  if (index === total) return "cta_or_payoff";
-  return "body";
-}
-
-function buildDraftPrompt({
-  index,
-  total,
-  brief,
-  script,
-  productName,
-  productRefs,
-  avatarPrompt,
-}: {
-  index: number;
-  total: number;
-  brief: string | null;
-  script: string | null;
-  productName: string;
-  productRefs: Array<{ url: string; label?: string }>;
-  avatarPrompt: string | null;
-}) {
-  const role = getSegmentRole(index, total);
-  const sourceLines = [
-    `Omni reel segment ${index}/${total}. Duration exactly 10 seconds. Vertical 9:16.`,
-    `Segment role: ${role}.`,
-    `Product: ${productName}.`,
-  ];
-  if (brief) sourceLines.push(`Brief: ${brief}`);
-  if (script) sourceLines.push(`Source script snapshot: ${script}`);
-  if (avatarPrompt) sourceLines.push(`Client avatar prompt: ${avatarPrompt}`);
-  if (productRefs?.length) sourceLines.push(`Product references: ${productRefs.map((asset) => asset.url).join(", ")}`);
-  sourceLines.push("Keep visual continuity with previous/next 10s segment. Output must be stitch-friendly.");
-  return sourceLines.join("\n");
 }
