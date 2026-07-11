@@ -26,6 +26,31 @@ export async function createOmniScenarioLink(input: {
     await requireOmniProductInProject(input.projectId, input.productId);
   }
   const note = typeof input.note === "string" && input.note.trim() ? input.note.trim() : null;
+  if (!input.productId) {
+    const existing = await pool.query<OmniLegacyScenarioLink>(
+      `SELECT *
+       FROM omni_legacy_scenario_links
+       WHERE project_id = $1
+         AND product_id IS NULL
+         AND legacy_source = 'old_db'
+         AND legacy_scenario_id = $2
+       ORDER BY id DESC
+       LIMIT 1`,
+      [input.projectId, input.legacyScenarioId]
+    );
+
+    if (existing.rows[0]) {
+      const { rows } = await pool.query<OmniLegacyScenarioLink>(
+        `UPDATE omni_legacy_scenario_links
+         SET note = COALESCE($2, note)
+         WHERE id = $1
+         RETURNING *`,
+        [existing.rows[0].id, note]
+      );
+      return rows[0];
+    }
+  }
+
   const { rows } = await pool.query<OmniLegacyScenarioLink>(
     `INSERT INTO omni_legacy_scenario_links (
        project_id,
