@@ -56,6 +56,18 @@ function normalizeRefs(value: unknown): OmniReferenceAsset[] {
     .filter((item): item is OmniReferenceAsset => Boolean(item));
 }
 
+function normalizeRefsForUpdate(value: unknown, fieldName: string) {
+  if (!Array.isArray(value)) {
+    throw new Error(`${fieldName} must be an array`);
+  }
+
+  const refs = normalizeRefs(value);
+  if (refs.length !== value.length) {
+    throw new Error(`${fieldName} contains invalid refs`);
+  }
+  return refs;
+}
+
 export async function listOmniProducts(projectId: number) {
   await ensureOmniSchema();
   const { rows } = await pool.query<OmniProduct>(
@@ -121,6 +133,8 @@ export async function updateOmniProduct(input: {
   description?: unknown;
   productReferenceNotes?: unknown;
   avatarReferenceNotes?: unknown;
+  productRefs?: unknown;
+  avatarRefs?: unknown;
 }) {
   await ensureOmniSchema();
   const current = await requireOmniProductInProject(input.projectId, input.productId);
@@ -128,6 +142,8 @@ export async function updateOmniProduct(input: {
   const hasDescription = input.description !== undefined;
   const hasProductReferenceNotes = input.productReferenceNotes !== undefined;
   const hasAvatarReferenceNotes = input.avatarReferenceNotes !== undefined;
+  const hasProductRefs = input.productRefs !== undefined;
+  const hasAvatarRefs = input.avatarRefs !== undefined;
   const nextName = hasName ? cleanText(input.name) : current.name;
   if (!nextName) throw new Error("Product name is required");
 
@@ -137,6 +153,8 @@ export async function updateOmniProduct(input: {
          description = $4,
          product_reference_notes = $5,
          avatar_reference_notes = $6,
+         product_refs = $7::jsonb,
+         avatar_refs = $8::jsonb,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1 AND project_id = $2
      RETURNING *`,
@@ -147,7 +165,24 @@ export async function updateOmniProduct(input: {
       hasDescription ? cleanText(input.description) || null : current.description,
       hasProductReferenceNotes ? cleanText(input.productReferenceNotes) || null : current.product_reference_notes,
       hasAvatarReferenceNotes ? cleanText(input.avatarReferenceNotes) || null : current.avatar_reference_notes,
+      JSON.stringify(hasProductRefs ? normalizeRefsForUpdate(input.productRefs, "productRefs") : current.product_refs),
+      JSON.stringify(hasAvatarRefs ? normalizeRefsForUpdate(input.avatarRefs, "avatarRefs") : current.avatar_refs),
     ]
+  );
+
+  if (!rows[0]) {
+    throw new Error("Product does not belong to this Omni client project");
+  }
+  return rows[0];
+}
+
+export async function deleteOmniProduct(input: { projectId: number; productId: number }) {
+  await ensureOmniSchema();
+  const { rows } = await pool.query<OmniProduct>(
+    `DELETE FROM omni_products
+     WHERE id = $1 AND project_id = $2
+     RETURNING *`,
+    [input.productId, input.projectId]
   );
 
   if (!rows[0]) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
-import { createOmniProduct, listOmniProducts, updateOmniProduct } from "@/lib/server/omni/products";
+import { createOmniProduct, deleteOmniProduct, listOmniProducts, updateOmniProduct } from "@/lib/server/omni/products";
 
 export async function GET(request: Request) {
   const auth = await requireOmniUser(request);
@@ -63,10 +63,30 @@ export async function PATCH(request: Request) {
         description: body.description,
         productReferenceNotes: body.productReferenceNotes,
         avatarReferenceNotes: body.avatarReferenceNotes,
+        productRefs: body.productRefs,
+        avatarRefs: body.avatarRefs,
       })
     );
   } catch (error) {
     console.error("Omni product update error:", error);
+    return jsonError(error instanceof Error ? error.message : "Internal Server Error", 500);
+  }
+}
+
+export async function DELETE(request: Request) {
+  const auth = await requireOmniUser(request);
+  if (auth.errorResponse) return auth.errorResponse;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const projectId = parsePositiveInt(searchParams.get("projectId"));
+    const productId = parsePositiveInt(searchParams.get("productId"));
+    if (!projectId) return jsonError("projectId is required");
+    if (!productId) return jsonError("productId is required");
+
+    return NextResponse.json({ deleted: await deleteOmniProduct({ projectId, productId }) });
+  } catch (error) {
+    console.error("Omni product delete error:", error);
     return jsonError(error instanceof Error ? error.message : "Internal Server Error", 500);
   }
 }
