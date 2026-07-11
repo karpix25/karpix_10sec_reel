@@ -70,7 +70,7 @@ export const navItems: Array<{
 }> = [
   { id: "dashboard", icon: LayoutDashboard, label: "Клиенты", group: "primary" },
   { id: "omni", icon: Sparkles, label: "Производство", group: "primary" },
-  { id: "references", icon: FolderOpen, label: "Legacy refs", group: "legacy" },
+  { id: "references", icon: FolderOpen, label: "Сценарии", group: "legacy" },
   { id: "settings", icon: Settings, label: "Настройки", group: "system" },
 ];
 

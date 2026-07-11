@@ -5,7 +5,7 @@ import { useWorkspaceData } from "@/hooks/useWorkspaceData";
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
 import { DashboardScreen } from "@/components/screens/DashboardScreen";
-import { LibraryScreen } from "@/components/screens/LibraryScreen";
+import { LegacyRefsScriptScreen } from "@/components/screens/LegacyRefsScriptScreen";
 import { ScenariosScreen } from "@/components/screens/ScenariosScreen";
 import { GeneratorScreen } from "@/components/screens/GeneratorScreen";
 import { SettingsScreen } from "@/components/screens/SettingsScreen";
@@ -667,29 +667,10 @@ export default function CuratorDashboard() {
           )}
 
           {screen === "references" && (
-            <LibraryScreen
-              references={references}
-              topicCards={topicCards}
-              structureCards={structureCards}
-              isLoading={references.length === 0 && !selectedClientId}
-              scenarioFilter={referenceStatusFilter}
-              setScenarioFilter={setReferenceStatusFilter}
-              searchQuery={referenceSearch}
-              setSearchQuery={setReferenceSearch}
-              onRefresh={() => {}}
-              onReferenceClick={handleReferenceClick}
-              onDeleteReference={handleDeleteReference}
-              onDeleteTopicCard={handleDeleteTopicCard}
-              onDeleteStructureCard={handleDeleteStructureCard}
-              canDeleteCards={Boolean(authUser?.isSuperAdmin)}
-              isDeletingReference={deleteReferenceMutation.isPending}
-              isDeletingTopicCard={deleteTopicCardMutation.isPending}
-              isDeletingStructureCard={deleteStructureCardMutation.isPending}
-              totalCount={totalReferences}
-              page={referencePage}
-              pageSize={referencePageSize}
-              onPageChange={setReferencePage}
-              onPageSizeChange={setReferencePageSize}
+            <LegacyRefsScriptScreen
+              selectedProjectId={selectedOmniProjectId}
+              selectedProductId={selectedOmniProductId}
+              onSelectProduct={setSelectedOmniProductId}
             />
           )}
 

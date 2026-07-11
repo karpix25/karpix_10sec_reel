@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import {
   OmniClientAvatar,
+  OmniGeneratedScript,
   OmniLegacyScenario,
   OmniLegacyLibrary,
   OmniLegacyLibraryLink,
@@ -75,6 +76,20 @@ export function useCreateOmniProject() {
     mutationFn: async (payload: CreateOmniProjectPayload) =>
       (await axios.post(`${API_BASE}/projects`, payload)).data as OmniProject,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["omni-projects"] }),
+  });
+}
+
+export function useOmniGeneratedScripts(projectId: number | null, productId: number | null) {
+  return useQuery<OmniGeneratedScript[]>({
+    queryKey: ["omni-generated-scripts", projectId, productId],
+    queryFn: async () =>
+      (
+        await axios.get(`${API_BASE}/generated-scripts`, {
+          params: { projectId, productId: productId || undefined },
+        })
+      ).data,
+    enabled: Boolean(projectId),
+    staleTime: 20_000,
   });
 }
 
@@ -197,6 +212,8 @@ export function useOmniStudio(
     staleTime: 15_000,
   });
 
+  const generatedScriptsQuery = useOmniGeneratedScripts(projectId, productId);
+
   const createProjectMutation = useCreateOmniProject();
 
   const createProductMutation = useCreateOmniProduct();
@@ -238,6 +255,15 @@ export function useOmniStudio(
     onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] }),
   });
 
+  const createGeneratedScriptMutation = useMutation({
+    mutationFn: async (payload: { projectId: number; productId: number }) =>
+      (await axios.post(`${API_BASE}/generated-scripts`, payload)).data as OmniGeneratedScript,
+    onSuccess: (_, variables) =>
+      queryClient.invalidateQueries({
+        queryKey: ["omni-generated-scripts", variables.projectId, variables.productId],
+      }),
+  });
+
   return {
     projectsQuery,
     productsQuery,
@@ -247,6 +273,7 @@ export function useOmniStudio(
     libraryLinksQuery,
     scenarioLinksQuery,
     reelsQuery,
+    generatedScriptsQuery,
     createProjectMutation,
     createProductMutation,
     createAvatarMutation,
@@ -254,5 +281,6 @@ export function useOmniStudio(
     unlinkLibraryMutation,
     linkScenarioMutation,
     createReelMutation,
+    createGeneratedScriptMutation,
   };
 }

@@ -97,6 +97,38 @@ export async function getLegacyScenario(legacyScenarioId: number) {
   return rowsResult.rows[0] ? normalizeLegacyScenario(rowsResult.rows[0]) : null;
 }
 
+export async function getRandomLegacyScenarioFromClients(legacyClientIds: number[]) {
+  const clientIds = Array.from(
+    new Set(legacyClientIds.filter((id) => Number.isFinite(id) && id > 0))
+  );
+  if (!clientIds.length) return null;
+
+  const legacyPool = getLegacyPool();
+  const rowsResult = await legacyPool.query<LegacyScenarioRow>(
+    `SELECT
+       gs.id,
+       gs.client_id,
+       gs.scenario_json,
+       gs.tts_script,
+       gs.topic,
+       gs.created_at,
+       gs.generation_source,
+       gs.source_content_id,
+       c.name AS legacy_client_name,
+       c.product_keyword AS legacy_product_keyword
+     FROM generated_scenarios gs
+     LEFT JOIN clients c ON c.id = gs.client_id
+     WHERE gs.client_id = ANY($1::bigint[])
+       AND COALESCE(TRIM(gs.scenario_json->>'script'), TRIM(gs.tts_script), '') <> ''
+       AND COALESCE(gs.scenario_json->>'script', gs.tts_script, '') NOT ILIKE 'Error %'
+     ORDER BY RANDOM()
+     LIMIT 1`,
+    [clientIds]
+  );
+
+  return rowsResult.rows[0] ? normalizeLegacyScenario(rowsResult.rows[0]) : null;
+}
+
 function normalizeLegacyScenario(row: LegacyScenarioRow): OmniLegacyScenario {
   const script = row.scenario_json?.script || row.tts_script || "";
   return {
