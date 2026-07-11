@@ -32,6 +32,7 @@ export type CreateOmniProjectPayload = {
 
 export type UpdateOmniProjectProfilePayload = {
   projectId: number;
+  name?: string;
   targetAudience?: string;
   brandVoice?: string;
 };
@@ -45,6 +46,15 @@ export type CreateOmniProductPayload = {
   targetDurationSeconds?: number;
   productRefs?: OmniProduct["product_refs"];
   avatarRefs?: unknown[];
+};
+
+export type UpdateOmniProductPayload = {
+  projectId: number;
+  productId: number;
+  name?: string;
+  description?: string;
+  productReferenceNotes?: string;
+  avatarReferenceNotes?: string;
 };
 
 export type UploadOmniProductImagesPayload = {
@@ -115,6 +125,22 @@ export function useCreateOmniProduct() {
     mutationFn: async (payload: CreateOmniProductPayload) =>
       (await axios.post(`${API_BASE}/products`, payload)).data as OmniProduct,
     onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-products", variables.projectId] }),
+  });
+}
+
+export function useUpdateOmniProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: UpdateOmniProductPayload) =>
+      (await axios.patch(`${API_BASE}/products`, payload)).data as OmniProduct,
+    onSuccess: (updatedProduct, variables) => {
+      queryClient.setQueryData<OmniProduct[]>(["omni-products", variables.projectId], (products) =>
+        products?.map((product) => (product.id === updatedProduct.id ? updatedProduct : product)) || products
+      );
+      queryClient.invalidateQueries({ queryKey: ["omni-products", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-scripts", variables.projectId, variables.productId] });
+    },
   });
 }
 

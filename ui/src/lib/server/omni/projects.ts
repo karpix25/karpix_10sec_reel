@@ -67,22 +67,37 @@ export async function createOmniProject(input: {
 
 export async function updateOmniProjectProfile(input: {
   projectId: number;
+  name?: unknown;
   targetAudience?: unknown;
   brandVoice?: unknown;
 }) {
   await ensureOmniSchema();
+  const current = await getOmniProject(input.projectId);
+  if (!current || current.status === "archived") {
+    throw new Error("Omni client project not found");
+  }
+
+  const hasName = input.name !== undefined;
+  const hasTargetAudience = input.targetAudience !== undefined;
+  const hasBrandVoice = input.brandVoice !== undefined;
+  const nextName = hasName ? normalizeText(input.name) : current.name;
+  if (!nextName) {
+    throw new Error("Project name is required");
+  }
 
   const { rows } = await pool.query<ProjectRow>(
     `UPDATE omni_projects
-     SET target_audience = $2,
-         brand_voice = $3,
+     SET name = $2,
+         target_audience = $3,
+         brand_voice = $4,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1 AND status <> 'archived'
      RETURNING *`,
     [
       input.projectId,
-      normalizeText(input.targetAudience) || null,
-      normalizeText(input.brandVoice) || null,
+      nextName,
+      hasTargetAudience ? normalizeText(input.targetAudience) || null : current.target_audience,
+      hasBrandVoice ? normalizeText(input.brandVoice) || null : current.brand_voice,
     ]
   );
 
