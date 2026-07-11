@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useOmniGeneratedScripts, useOmniProducts, useOmniProjects, useOmniStudio } from "@/hooks/useOmniStudio";
 import type { OmniGeneratedScript } from "@/lib/omni/types";
+import { GeneratedScriptPromptTabs } from "./GeneratedScriptPromptTabs";
 
 type LegacyRefsScriptScreenProps = {
   selectedProjectId: number | null;
@@ -116,7 +117,12 @@ export function LegacyRefsScriptScreen({
             </div>
           </div>
 
-          <GeneratedScriptsList scripts={generatedScripts} isLoading={scriptsQuery.isLoading} />
+          <GeneratedScriptsList
+            projectId={selectedProjectId}
+            productId={selectedProductId}
+            scripts={generatedScripts}
+            isLoading={scriptsQuery.isLoading}
+          />
         </div>
 
         <aside className="space-y-5">
@@ -171,7 +177,17 @@ function ReadinessCard({ done, title, value }: { done: boolean; title: string; v
   );
 }
 
-function GeneratedScriptsList({ scripts, isLoading }: { scripts: OmniGeneratedScript[]; isLoading: boolean }) {
+function GeneratedScriptsList({
+  projectId,
+  productId,
+  scripts,
+  isLoading,
+}: {
+  projectId: number | null;
+  productId: number | null;
+  scripts: OmniGeneratedScript[];
+  isLoading: boolean;
+}) {
   return (
     <div className="rounded-lg border border-border bg-card p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -203,6 +219,7 @@ function GeneratedScriptsList({ scripts, isLoading }: { scripts: OmniGeneratedSc
                 {script.caption}
               </p>
             ) : null}
+            <GeneratedScriptPromptTabs projectId={projectId} productId={productId} scriptId={script.id} />
           </article>
         ))}
         {!scripts.length && !isLoading ? (

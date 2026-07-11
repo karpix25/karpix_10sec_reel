@@ -96,6 +96,14 @@ export interface OmniGeneratedScript {
   updated_at: string;
 }
 
+export interface OmniPromptPreviewSegment {
+  segmentIndex: number;
+  durationSeconds: number;
+  role: string;
+  prompt: string;
+  referenceUrl: string | null;
+}
+
 export interface OmniClientAvatar {
   id: number;
   project_id: number;

@@ -1,6 +1,7 @@
 import pool from "@/lib/db";
-import { OmniClientAvatar, OmniReel, OmniReelSegment } from "@/lib/omni/types";
+import { OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
+import { getLatestOmniClientAvatar } from "./avatars";
 import { getGeneratedScript } from "./generated-scripts";
 import { getLegacyScenario } from "./legacy-scenarios";
 import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
@@ -74,7 +75,7 @@ export async function createOmniReel(input: {
     throw new Error("Generated script not found for this product");
   }
   const sourceScenario = input.sourceLegacyScenarioId ? await getLegacyScenario(input.sourceLegacyScenarioId) : null;
-  const latestAvatar = await getLatestAvatarDraft(input.projectId);
+  const latestAvatar = await getLatestOmniClientAvatar(input.projectId);
   const sourceSnapshot = generatedScript
     ? {
         source_kind: "generated_script",
@@ -193,16 +194,4 @@ export async function createOmniReel(input: {
   } finally {
     client.release();
   }
-}
-
-async function getLatestAvatarDraft(projectId: number) {
-  const { rows } = await pool.query<OmniClientAvatar>(
-    `SELECT *
-     FROM omni_client_avatars
-     WHERE project_id = $1
-     ORDER BY updated_at DESC, id DESC
-     LIMIT 1`,
-    [projectId]
-  );
-  return rows[0] || null;
 }
