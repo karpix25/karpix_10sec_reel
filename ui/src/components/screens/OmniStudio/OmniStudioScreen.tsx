@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Database, Link2 } from "lucide-react";
+import { Archive, Database } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useOmniProjects, useOmniStudio } from "@/hooks/useOmniStudio";
 import {
@@ -40,7 +40,7 @@ export function OmniStudioScreen({
   const studio = useOmniStudio(activeProjectId, null, legacySearch, activeLibraryId);
   const libraries = studio.legacyLibrariesQuery.data || [];
   const scenarios = studio.legacyScenariosQuery.data?.data || [];
-  const scenarioLinks = studio.scenarioLinksQuery.data || [];
+  const libraryLinks = studio.libraryLinksQuery.data || [];
 
   useEffect(() => {
     setActiveLibraryId(null);
@@ -66,9 +66,9 @@ export function OmniStudioScreen({
     );
   };
 
-  const handleLinkScenario = (legacyScenarioId: number) => {
+  const handleActivateBundle = (legacyClientId: number) => {
     if (!activeProjectId) return;
-    studio.linkScenarioMutation.mutate({ projectId: activeProjectId, legacyScenarioId });
+    studio.linkLibraryMutation.mutate({ projectId: activeProjectId, legacyClientId });
   };
 
   if (!activeProject) {
@@ -77,7 +77,7 @@ export function OmniStudioScreen({
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Производство</p>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Выберите клиента слева</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          После выбора клиента здесь можно активировать сценарии, которые будут доступны production-пайплайну проекта.
+          После выбора клиента здесь можно активировать legacy-бандлы, которые будут доступны production-пайплайну проекта.
         </p>
         {selectedClient ? (
           <div className="mt-4">
@@ -95,15 +95,15 @@ export function OmniStudioScreen({
     );
   }
 
-  const activatedScenarioCount = new Set(scenarioLinks.map((link) => link.legacy_scenario_id)).size;
+  const activatedBundleCount = new Set(libraryLinks.map((link) => link.legacy_client_id)).size;
 
   return (
     <div className="mx-auto max-w-[94rem] space-y-5">
       <header className="rounded-lg border border-border bg-card p-5">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <Badge variant="secondary" className="gap-1">
-            <Link2 className="h-3.5 w-3.5" />
-            project-level сценарии
+            <Archive className="h-3.5 w-3.5" />
+            project-level бандлы
           </Badge>
           <Badge variant="outline" className="gap-1">
             <Database className="h-3.5 w-3.5" />
@@ -114,16 +114,16 @@ export function OmniStudioScreen({
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Производство</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-              Активация сценариев для {activeProject.name}
+              Активация legacy-бандлов для {activeProject.name}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Выберите библиотеку как источник, затем активируйте один или несколько сценариев. Активные сценарии
-              сохраняются на уровне проекта клиента и не зависят от выбранного продукта.
+              Каждый бандл соответствует старому проекту/продукту и содержит набор оригинальных скриптов. Активируйте
+              один или несколько бандлов для текущего проекта.
             </p>
           </div>
           <div className="rounded-lg border border-border bg-muted/35 px-4 py-3 text-sm">
             <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Активно</div>
-            <div className="mt-1 text-2xl font-semibold text-foreground">{activatedScenarioCount}</div>
+            <div className="mt-1 text-2xl font-semibold text-foreground">{activatedBundleCount}</div>
           </div>
         </div>
       </header>
@@ -134,8 +134,8 @@ export function OmniStudioScreen({
 
       <LibraryScenarioPanel
         libraries={libraries}
+        libraryLinks={libraryLinks}
         scenarios={scenarios}
-        scenarioLinks={scenarioLinks}
         activeLibraryId={activeLibraryId}
         legacySearch={legacySearch}
         totalScenarios={studio.legacyScenariosQuery.data?.totalCount || 0}
@@ -143,10 +143,10 @@ export function OmniStudioScreen({
         isScenariosLoading={studio.legacyScenariosQuery.isLoading}
         isLibrariesError={studio.legacyLibrariesQuery.isError}
         isScenariosError={studio.legacyScenariosQuery.isError}
-        isLinkingScenario={studio.linkScenarioMutation.isPending}
+        isActivatingBundle={studio.linkLibraryMutation.isPending}
         onSearchChange={setLegacySearch}
         onSelectLibrary={setActiveLibraryId}
-        onLinkScenario={handleLinkScenario}
+        onActivateBundle={handleActivateBundle}
       />
     </div>
   );

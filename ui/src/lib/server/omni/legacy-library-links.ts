@@ -11,6 +11,8 @@ export async function listLegacyLibraryLinks(projectId: number, productId?: numb
   if (productId) {
     values.push(productId);
     clauses.push(`product_id = $${values.length}`);
+  } else {
+    clauses.push("product_id IS NULL");
   }
 
   const { rows } = await pool.query<OmniLegacyLibraryLink>(
@@ -32,6 +34,23 @@ export async function linkLegacyLibrary(input: {
   if (input.productId) {
     await requireOmniProductInProject(input.projectId, input.productId);
   }
+  if (!input.productId) {
+    const existing = await pool.query<OmniLegacyLibraryLink>(
+      `SELECT *
+       FROM omni_legacy_library_links
+       WHERE project_id = $1
+         AND product_id IS NULL
+         AND legacy_client_id = $2
+       ORDER BY id DESC
+       LIMIT 1`,
+      [input.projectId, input.legacyClientId]
+    );
+
+    if (existing.rows[0]) {
+      return existing.rows[0];
+    }
+  }
+
   const { rows } = await pool.query<OmniLegacyLibraryLink>(
     `INSERT INTO omni_legacy_library_links (
        project_id,
