@@ -1,8 +1,10 @@
 import pool from "@/lib/db";
-import type { OmniGeneratedScript, OmniLegacyScenario } from "@/lib/omni/types";
+import type { OmniGeneratedScript, OmniLegacyScenario, OmniPromptPreviewSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
+import { getLatestOmniClientAvatar } from "./avatars";
 import { getRandomLegacyScenarioFromClients } from "./legacy-scenarios";
 import { listLegacyLibraryLinks } from "./legacy-library-links";
+import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
 
@@ -61,6 +63,35 @@ export async function getGeneratedScript(input: { projectId: number; productId: 
     [input.scriptId, input.projectId, input.productId]
   );
   return rows[0] ? normalizeScript(rows[0]) : null;
+}
+
+export async function buildGeneratedScriptPromptPreview(input: {
+  projectId: number;
+  productId: number;
+  scriptId: number;
+}): Promise<OmniPromptPreviewSegment[]> {
+  const generatedScript = await getGeneratedScript(input);
+  if (!generatedScript) throw new Error("Generated script not found for this product");
+
+  const product = await requireOmniProductInProject(input.projectId, input.productId);
+  const avatar = await getLatestOmniClientAvatar(input.projectId);
+  const segmentCount = Math.ceil(product.target_duration_seconds / 10);
+
+  return buildOmniSegmentPrompts({
+    generatedScript,
+    legacyTranscript: null,
+    product,
+    avatar,
+    segmentCount,
+    segmentSeconds: 10,
+    brief: null,
+  }).map((segment) => ({
+    segmentIndex: segment.index,
+    durationSeconds: 10,
+    role: segment.role,
+    prompt: segment.prompt,
+    referenceUrl: segment.referenceUrl,
+  }));
 }
 
 export async function createGeneratedScriptFromLegacy(input: {

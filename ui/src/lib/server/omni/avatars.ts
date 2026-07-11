@@ -19,6 +19,19 @@ export async function listOmniClientAvatars(projectId: number) {
   return rows;
 }
 
+export async function getLatestOmniClientAvatar(projectId: number) {
+  await ensureOmniSchema();
+  const { rows } = await pool.query<OmniClientAvatar>(
+    `SELECT *
+     FROM omni_client_avatars
+     WHERE project_id = $1
+     ORDER BY updated_at DESC, id DESC
+     LIMIT 1`,
+    [projectId]
+  );
+  return rows[0] || null;
+}
+
 export async function createOmniClientAvatar(input: {
   projectId: number;
   prompt: unknown;

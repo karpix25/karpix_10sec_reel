@@ -7,6 +7,7 @@ import {
   OmniLegacyLibrary,
   OmniLegacyLibraryLink,
   OmniLegacyScenarioLink,
+  OmniPromptPreviewSegment,
   OmniProduct,
   OmniProject,
   OmniReel,
@@ -110,6 +111,24 @@ export function useOmniGeneratedScripts(projectId: number | null, productId: num
   });
 }
 
+export function useOmniGeneratedScriptPrompts(
+  projectId: number | null,
+  productId: number | null,
+  scriptId: number | null
+) {
+  return useQuery<OmniPromptPreviewSegment[]>({
+    queryKey: ["omni-generated-script-prompts", projectId, productId, scriptId],
+    queryFn: async () =>
+      (
+        await axios.get(`${API_BASE}/generated-scripts/${scriptId}/prompts`, {
+          params: { projectId, productId },
+        })
+      ).data,
+    enabled: Boolean(projectId && productId && scriptId),
+    staleTime: 20_000,
+  });
+}
+
 export function useUpdateOmniProjectProfile() {
   const queryClient = useQueryClient();
 
@@ -147,6 +166,7 @@ export function useUpdateOmniProduct() {
       );
       queryClient.invalidateQueries({ queryKey: ["omni-products", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ["omni-generated-scripts", variables.projectId, variables.productId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });
     },
   });
 }
@@ -273,7 +293,10 @@ export function useOmniStudio(
   const createAvatarMutation = useMutation({
     mutationFn: async (payload: { projectId: number; prompt: string; referenceUrl?: string }) =>
       (await axios.post(`${API_BASE}/avatars`, payload)).data as OmniClientAvatar,
-    onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-client-avatars", variables.projectId] }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["omni-client-avatars", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });
+    },
   });
 
   const linkLibraryMutation = useMutation({
