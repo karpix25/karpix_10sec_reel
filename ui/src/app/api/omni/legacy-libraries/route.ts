@@ -8,12 +8,17 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const limit = parsePositiveInt(searchParams.get("limit")) || 30;
+  const includeClientIds = (searchParams.get("includeClientIds") || "")
+    .split(",")
+    .map((value) => parsePositiveInt(value))
+    .filter((value): value is number => Boolean(value));
 
   try {
     return NextResponse.json(
       await listLegacyLibraries({
         query: searchParams.get("q"),
         limit: Math.min(limit, 100),
+        includeClientIds,
       })
     );
   } catch (error) {

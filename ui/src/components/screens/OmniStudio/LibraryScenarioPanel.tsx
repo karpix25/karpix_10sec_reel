@@ -53,8 +53,20 @@ export function LibraryScenarioPanel({
   onDeactivateBundle: (legacyClientId: number) => void;
 }) {
   const activeBundleIds = new Set(libraryLinks.map((link) => link.legacy_client_id));
+  const librariesById = new Map(libraries.map((library) => [library.client_id, library]));
   const selectedBundle = libraries.find((library) => library.client_id === activeLibraryId) || null;
-  const activeLibraries = libraries.filter((library) => activeBundleIds.has(library.client_id));
+  const activeLibraries = Array.from(activeBundleIds).map(
+    (clientId) =>
+      librariesById.get(clientId) || {
+        client_id: clientId,
+        name: `Legacy bundle #${clientId}`,
+        product_info: null,
+        product_keyword: null,
+        niche: null,
+        scenario_count: 0,
+        last_scenario_at: null,
+      }
+  );
   const inactiveLibraries = libraries.filter((library) => !activeBundleIds.has(library.client_id));
 
   return (
