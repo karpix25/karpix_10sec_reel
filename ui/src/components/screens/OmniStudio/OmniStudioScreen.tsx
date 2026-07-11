@@ -71,6 +71,11 @@ export function OmniStudioScreen({
     studio.linkLibraryMutation.mutate({ projectId: activeProjectId, legacyClientId });
   };
 
+  const handleDeactivateBundle = (legacyClientId: number) => {
+    if (!activeProjectId) return;
+    studio.unlinkLibraryMutation.mutate({ projectId: activeProjectId, legacyClientId });
+  };
+
   if (!activeProject) {
     return (
       <div className="mx-auto max-w-[94rem] rounded-lg border border-border bg-card p-6">
@@ -144,9 +149,11 @@ export function OmniStudioScreen({
         isLibrariesError={studio.legacyLibrariesQuery.isError}
         isScenariosError={studio.legacyScenariosQuery.isError}
         isActivatingBundle={studio.linkLibraryMutation.isPending}
+        isDeactivatingBundle={studio.unlinkLibraryMutation.isPending}
         onSearchChange={setLegacySearch}
         onSelectLibrary={setActiveLibraryId}
         onActivateBundle={handleActivateBundle}
+        onDeactivateBundle={handleDeactivateBundle}
       />
     </div>
   );
