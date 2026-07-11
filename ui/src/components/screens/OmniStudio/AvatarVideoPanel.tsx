@@ -142,6 +142,28 @@ export function AvatarVideoPanel({
               <div className="mt-3">
                 <SegmentDots segments={segments.filter((segment) => segment.reel_id === reel.id)} />
               </div>
+              <div className="mt-3 grid gap-2">
+                {segments
+                  .filter((segment) => segment.reel_id === reel.id)
+                  .map((segment) => (
+                    <div key={segment.id} className="rounded-lg border border-border bg-card p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+                            Segment {segment.segment_index} · {segment.slot_role || "body"}
+                          </p>
+                          {segment.reference_url ? (
+                            <p className="mt-1 truncate text-xs text-muted-foreground">{segment.reference_url}</p>
+                          ) : null}
+                        </div>
+                        <StatusBadge status={segment.status} />
+                      </div>
+                      <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-xs leading-5 text-foreground">
+                        {segment.prompt || "Prompt пока не подготовлен."}
+                      </pre>
+                    </div>
+                  ))}
+              </div>
             </div>
           ))}
           {!reels.length && (

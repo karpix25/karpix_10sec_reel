@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     const reel = await createOmniReel({
       projectId,
       productId,
+      sourceGeneratedScriptId: parsePositiveInt(body.sourceGeneratedScriptId),
       sourceLegacyScenarioId: parsePositiveInt(body.sourceLegacyScenarioId),
       targetDurationSeconds: body.targetDurationSeconds,
       brief: body.brief,

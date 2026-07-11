@@ -48,6 +48,21 @@ export async function listGeneratedScripts(projectId: number, productId?: number
   return rows.map(normalizeScript);
 }
 
+export async function getGeneratedScript(input: { projectId: number; productId: number; scriptId: number }) {
+  await ensureOmniSchema();
+  const { rows } = await pool.query<OmniGeneratedScript>(
+    `SELECT *
+     FROM omni_generated_scripts
+     WHERE id = $1
+       AND project_id = $2
+       AND product_id = $3
+       AND status <> 'archived'
+     LIMIT 1`,
+    [input.scriptId, input.projectId, input.productId]
+  );
+  return rows[0] ? normalizeScript(rows[0]) : null;
+}
+
 export async function createGeneratedScriptFromLegacy(input: {
   projectId: number;
   productId: number;

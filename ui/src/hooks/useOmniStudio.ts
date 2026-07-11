@@ -300,6 +300,7 @@ export function useOmniStudio(
     mutationFn: async (payload: {
       projectId: number;
       productId: number;
+      sourceGeneratedScriptId?: number | null;
       sourceLegacyScenarioId?: number | null;
       targetDurationSeconds: number;
       brief?: string;
