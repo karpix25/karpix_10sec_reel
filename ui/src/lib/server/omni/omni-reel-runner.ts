@@ -75,7 +75,6 @@ export async function submitOmniReel(reelId: number) {
           : null,
       ].filter((image): image is { url: string; fieldName: string; role: string } => Boolean(image))
     : [];
-  const selectedReferenceImages = selectReferenceImagesForComet(referenceImages, referenceImageTransport);
 
   await pool.query(
     `UPDATE omni_reels
@@ -89,6 +88,11 @@ export async function submitOmniReel(reelId: number) {
   for (const segment of segments) {
     if (segment.kie_task_id || RUNNING_STATUSES.has(segment.status) || segment.status === "completed") continue;
     if (!segment.prompt) throw new Error(`Segment ${segment.segment_index} has no prompt`);
+    const selectedReferenceImages = selectReferenceImagesForComet(
+      referenceImages,
+      referenceImageTransport,
+      segment.segment_index
+    );
 
     const requestPayload = {
       model: "omni-fast",
@@ -105,7 +109,7 @@ export async function submitOmniReel(reelId: number) {
       reference_images_skipped: selectedReferenceImages.skipped.map((image) => ({
         role: image.role,
         url: image.url,
-        reason: "url_transport_accepts_single_input_reference",
+        reason: "url_transport_accepts_single_input_reference_per_segment",
       })),
     };
 
