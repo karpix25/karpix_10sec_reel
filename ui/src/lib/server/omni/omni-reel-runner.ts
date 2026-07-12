@@ -5,6 +5,7 @@ import {
   retrieveCometOmniVideoTask,
   createCometOmniVideoTask,
   getCometReferenceImageFieldName,
+  getCometReferenceImageTransport,
   shouldSendCometReferenceImage,
 } from "./comet-video-client";
 import { ensureOmniSchema } from "./schema";
@@ -62,6 +63,7 @@ export async function submitOmniReel(reelId: number) {
   const avatarReferenceUrl = getAvatarReferenceUrl(reel);
   const productReferenceUrl = getProductReferenceUrl(reel);
   const referenceImageField = getCometReferenceImageFieldName();
+  const referenceImageTransport = getCometReferenceImageTransport();
   const referenceImages = shouldSendCometReferenceImage()
     ? [
         avatarReferenceUrl
@@ -114,6 +116,7 @@ export async function submitOmniReel(reelId: number) {
           resolution: "720p",
           reference_images_sent: referenceImages.length > 0,
           reference_image_field: referenceImages.length ? referenceImageField : null,
+          reference_image_transport: referenceImages.length ? referenceImageTransport : null,
           reference_images: referenceImages.map((image) => ({
             role: image.role,
             url: image.url,
