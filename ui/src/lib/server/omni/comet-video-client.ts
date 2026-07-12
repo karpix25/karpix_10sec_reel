@@ -20,6 +20,7 @@ export type CometReferenceImage = {
   url: string;
   fieldName?: string;
   fileName?: string;
+  role?: string;
 };
 
 function getApiKey() {
@@ -37,7 +38,9 @@ export function getCometReferenceImageFieldName() {
 }
 
 export function shouldSendCometReferenceImage() {
-  return ["1", "true", "yes"].includes(String(process.env.COMETAPI_SEND_REFERENCE_IMAGE || "").toLowerCase());
+  const value = String(process.env.COMETAPI_SEND_REFERENCE_IMAGE || "").toLowerCase();
+  if (!value) return true;
+  return !["0", "false", "no"].includes(value);
 }
 
 function normalizeTask(data: Record<string, unknown>): CometVideoTask {
@@ -77,6 +80,7 @@ export async function createCometOmniVideoTask(input: {
   aspectRatio?: string;
   resolution?: string;
   referenceImage?: CometReferenceImage | null;
+  referenceImages?: CometReferenceImage[];
 }) {
   const form = new FormData();
   form.append("model", DEFAULT_MODEL);
@@ -84,12 +88,17 @@ export async function createCometOmniVideoTask(input: {
   form.append("seconds", String(input.seconds));
   form.append("aspect_ratio", input.aspectRatio || "9:16");
   form.append("resolution", input.resolution || "720p");
-  if (input.referenceImage?.url) {
-    const image = await downloadReferenceImage(input.referenceImage.url);
+  const referenceImages = [
+    ...(input.referenceImages || []),
+    ...(input.referenceImage ? [input.referenceImage] : []),
+  ].filter((image) => image.url);
+
+  for (const referenceImage of referenceImages) {
+    const image = await downloadReferenceImage(referenceImage.url);
     form.append(
-      input.referenceImage.fieldName || getCometReferenceImageFieldName(),
+      referenceImage.fieldName || getCometReferenceImageFieldName(),
       new Blob([image.body], { type: image.contentType }),
-      input.referenceImage.fileName || image.fileName
+      referenceImage.fileName || buildRoleFileName(referenceImage.role, image.fileName)
     );
   }
 
@@ -134,6 +143,12 @@ function buildReferenceImageFileName(url: string, contentType: string) {
     // Keep the stable fallback below.
   }
   return `avatar-reference.${extension}`;
+}
+
+function buildRoleFileName(role: string | undefined, fallback: string) {
+  if (!role) return fallback;
+  const extension = fallback.split(".").pop() || "jpg";
+  return `${role}-reference.${extension}`;
 }
 
 export async function retrieveCometOmniVideoTask(taskId: string) {
