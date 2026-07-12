@@ -68,7 +68,7 @@ export function ClientProductNavigator({
   return (
     <div className="space-y-4">
       <section className="space-y-3">
-        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Клиент</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Бренд</p>
 
         <select
           value={clientSelectValue}
@@ -76,7 +76,7 @@ export function ClientProductNavigator({
           disabled={projectsQuery.isLoading}
           className="h-12 w-full rounded-lg border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <option value="">{projects.length ? "Выберите клиента" : "Клиенты еще не созданы"}</option>
+          <option value="">{projects.length ? "Выберите бренд" : "Бренды еще не созданы"}</option>
           {projects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.name}
@@ -91,20 +91,20 @@ export function ClientProductNavigator({
           className="min-h-11 w-full justify-center"
         >
           <FolderPlus className="h-4 w-4" />
-          Добавить клиента
+          Добавить бренд
         </Button>
 
         {isCreateOpen ? (
           <div className="rounded-lg border border-border bg-card p-3">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
               <FolderPlus className="h-4 w-4 text-primary" />
-              Новый клиент
+              Новый бренд
             </div>
             <div className="space-y-2">
               <Input
                 value={clientName}
                 onChange={(event) => setClientName(event.target.value)}
-                placeholder="Название клиента"
+                placeholder="Название бренда"
                 className="h-10"
               />
               <Button
@@ -114,7 +114,7 @@ export function ClientProductNavigator({
                 className="min-h-10 w-full"
               >
                 <Plus className="h-4 w-4" />
-                Создать клиента
+                Создать бренд
               </Button>
             </div>
           </div>

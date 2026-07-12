@@ -15,8 +15,10 @@ class TestOmniSmartLayer(unittest.TestCase):
         self.assertNotIn("...", prompts[0])
         self.assertNotIn("—", prompts[0])
         self.assertNotIn("-", prompts[0])
-        self.assertTrue(prompts[0].startswith('Персонаж в красной куртке смотрит в камеру'))
-        self.assertIn('К концу сцены камера плавно наезжает.', prompts[0])
+        self.assertIn("часть 1 из 1 одного непрерывного Reels", prompts[0])
+        self.assertIn("Один и тот же персонаж в красной куртке", prompts[0])
+        self.assertIn("нужно озвучить только этот точный текст", prompts[0])
+        self.assertIn("К концу сцены камера делает мягкий плавный наезд.", prompts[0])
 
     def test_process_scenario_chunking(self):
         # 40 words
@@ -25,7 +27,17 @@ class TestOmniSmartLayer(unittest.TestCase):
         
         # 40 / 18 = 2.22 -> 3 chunks
         self.assertEqual(len(prompts), 3)
-        self.assertTrue(prompts[0].startswith('Персонаж смотрит в камеру'))
+        self.assertIn("часть 1 из 3 одного непрерывного Reels", prompts[0])
+        self.assertIn("часть 2 из 3 одного непрерывного Reels", prompts[1])
+        self.assertIn("часть 3 из 3 одного непрерывного Reels", prompts[2])
+
+    def test_each_part_has_own_exact_voice_text(self):
+        script = " ".join([f"слово{i}" for i in range(20)])
+        prompts = process_scenario_for_omni(script)
+
+        self.assertIn('"слово0 слово1 слово2 слово3 слово4 слово5 слово6 слово7 слово8 слово9 слово10 слово11 слово12 слово13 слово14 слово15 слово16 слово17"', prompts[0])
+        self.assertIn('"слово18 слово19"', prompts[1])
+        self.assertIn("Не добавляй другие фразы", prompts[0])
 
 if __name__ == '__main__':
     unittest.main()

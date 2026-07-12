@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { RefreshCw, ArrowRight, ThumbsUp, ThumbsDown, MessageSquare, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Scenario, ScenarioKeywordSegment, ScenarioVideoPromptItem, WordTimestamp } from "@/types";
 import { formatUsd, getBrollGenerationUnitCostUsd, getGeneratedPromptCount, getScenarioActualDurationSeconds, getScenarioBrollGeneratorModel, getScenarioDurationSeconds, getScenarioGenerationCosts, HEYGEN_COST_PER_MINUTE_USD } from "@/lib/generation-costs";
 import { BACKGROUND_AUDIO_TAG_LABELS } from "@/lib/background-audio";
+import { formatScenarioScript, getScenarioScriptPreview } from "@/lib/scenario-text";
 import {
   Dialog,
   DialogContent,
@@ -837,7 +838,7 @@ export function ScenariosScreen({
     }
 
     return scenarios.filter((scenario) => {
-      const scriptText = String(scenario.scenario_json?.script || "");
+      const scriptText = formatScenarioScript(scenario.scenario_json?.script);
       const ttsText = String(scenario.tts_script || "");
       return (
         scriptText.toLowerCase().includes(normalizedScenarioSearchQuery) ||
@@ -914,7 +915,9 @@ export function ScenariosScreen({
                 {filteredScenarios.map((sc) => (
                   <TableRow key={sc.id}>
                     <TableCell className="max-w-[200px] font-medium text-foreground">
-                      <div className="line-clamp-2">{sc.topic || sc.scenario_json?.script?.slice(0, 50) + "..."}</div>
+                      <div className="line-clamp-2">
+                        {sc.topic || getScenarioScriptPreview(sc.scenario_json?.script) || "Скрипт отсутствует"}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
@@ -1359,7 +1362,7 @@ export function ScenariosScreen({
                   Оригинальный скрипт
                 </h3>
                 <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 bg-indigo-50/30 p-6 rounded-2xl border border-indigo-100/50 min-h-[200px]">
-                  {selectedScenario?.scenario_json?.script || "Скрипт отсутствует"}
+                  {formatScenarioScript(selectedScenario?.scenario_json?.script, "Скрипт отсутствует")}
                 </div>
                 <div className="space-y-3 rounded-2xl border border-rose-100 bg-rose-50/40 p-4">
                   <div className="flex items-center justify-between gap-3">

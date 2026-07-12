@@ -1,5 +1,6 @@
 import pool from "@/lib/db";
 import type { OmniGeneratedScript, OmniLegacyScenario, OmniPromptPreviewSegment } from "@/lib/omni/types";
+import { formatScenarioScript } from "@/lib/scenario-text";
 import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
 import { getRandomLegacyScenarioFromClients } from "./legacy-scenarios";
@@ -11,7 +12,7 @@ import { getOmniProject } from "./projects";
 type GeneratedScriptPayload = {
   title?: string;
   hook?: string;
-  script?: string;
+  script?: unknown;
   caption?: string;
   cta_keyword?: string;
   lead_magnet?: string;
@@ -91,6 +92,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     role: segment.role,
     prompt: segment.prompt,
     referenceUrl: segment.referenceUrl,
+    voiceoverText: segment.voiceoverText,
   }));
 }
 
@@ -233,7 +235,7 @@ async function generateScript(input: {
   const data = await response.json();
   const content = String(data?.choices?.[0]?.message?.content || "");
   const parsed = parseJsonPayload(content);
-  const script = String(parsed.script || "").trim();
+  const script = formatScenarioScript(parsed.script);
   if (!script) throw new Error("Script model returned empty script");
 
   return {
@@ -287,7 +289,7 @@ function buildPrompt(input: {
 8. Не добавляй emoji.
 9. Пиши бытовым русским языком. Одна мысль в одной строке.
 
-Клиент: ${input.projectName}
+Бренд: ${input.projectName}
 Целевая аудитория: ${input.targetAudience || "не указана"}
 Tone of voice: ${input.brandVoice || "не указан"}
 
@@ -302,7 +304,7 @@ ${input.sourceScenario.script}
 {
   "title": "короткий заголовок сценария",
   "hook": "кульминационный хук",
-  "script": "полный сценарий с пометками этапов и визуальными подсказками",
+  "script": "полный сценарий одной строкой или многострочным текстом; не массив и не объект",
   "caption": "описание поста",
   "cta_keyword": "кодовое слово капсом",
   "lead_magnet": "что человек получает в личку"

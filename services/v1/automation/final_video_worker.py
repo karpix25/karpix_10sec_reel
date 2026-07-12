@@ -9,6 +9,7 @@ load_dotenv(override=True)
 
 from services.v1.automation.final_video_automation import (
     handle_job_exception,
+    poll_waiting_omni_stage,
     process_omni_generate_stage,
     process_montage_stage,
     process_scenario_stage,
@@ -40,7 +41,7 @@ def main() -> None:
 
             job = claim_next_final_video_job(
                 worker_id,
-                allowed_stages=["scenario", "omni_generate", "montage"],
+                allowed_stages=["scenario", "omni_generate", "waiting_omni", "montage"],
                 lease_seconds=lease_seconds,
                 per_client_concurrency=per_client_concurrency,
             )
@@ -56,6 +57,8 @@ def main() -> None:
                 process_scenario_stage(job)
             elif stage == "omni_generate":
                 process_omni_generate_stage(job)
+            elif stage == "waiting_omni":
+                poll_waiting_omni_stage(job)
             elif stage == "montage":
                 process_montage_stage(job)
             else:

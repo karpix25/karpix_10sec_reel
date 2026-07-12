@@ -102,15 +102,18 @@ export interface OmniPromptPreviewSegment {
   role: string;
   prompt: string;
   referenceUrl: string | null;
+  voiceoverText?: string;
 }
 
 export interface OmniClientAvatar {
   id: number;
   project_id: number;
+  display_name: string | null;
   prompt: string;
   reference_url: string | null;
-  status: "draft" | "queued" | "generating" | "completed" | "failed";
+  status: "draft" | "queued" | "generating" | "completed" | "approved" | "failed";
   provider: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -129,6 +132,7 @@ export interface OmniReel {
   id: number;
   project_id: number;
   product_id: number;
+  source_generated_script_id: number | null;
   source_legacy_scenario_id: number | null;
   target_duration_seconds: number;
   segment_count: number;
@@ -139,6 +143,11 @@ export interface OmniReel {
   avatar_snapshot: Record<string, unknown> | null;
   stitch_status: "not_ready" | "ready" | "queued" | "stitching" | "completed" | "failed";
   final_video_url: string | null;
+  final_s3_url?: string | null;
+  yandex_disk_path?: string | null;
+  yandex_public_url?: string | null;
+  yandex_status?: "pending" | "completed" | "skipped" | "failed" | null;
+  yandex_error?: string | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;

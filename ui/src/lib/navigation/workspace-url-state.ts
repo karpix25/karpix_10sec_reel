@@ -1,6 +1,6 @@
 import type { Screen } from "@/types";
 
-const WORKSPACE_SCREENS = new Set<Screen>(["dashboard", "omni", "references", "settings"]);
+const WORKSPACE_SCREENS = new Set<Screen>(["dashboard", "omni", "references", "avatar", "settings"]);
 
 export type WorkspaceUrlState = {
   screen: Screen;

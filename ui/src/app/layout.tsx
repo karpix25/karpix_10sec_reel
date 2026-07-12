@@ -5,7 +5,7 @@ import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "Omni Reels | Client Production OS",
-  description: "Клиентская консоль для продуктов, сценариев и Omni/KIE reel production.",
+  description: "Брендовая консоль для продуктов, сценариев и Omni/KIE reel production.",
 };
 
 export default function RootLayout({

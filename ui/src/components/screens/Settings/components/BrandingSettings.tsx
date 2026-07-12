@@ -1,5 +1,4 @@
-import React, { ChangeEvent, KeyboardEvent, useMemo, useState } from "react";
-import { Plus, X } from "lucide-react";
+import React, { ChangeEvent } from "react";
 import { Settings } from "@/types";
 
 interface BrandingSettingsProps {
@@ -20,60 +19,6 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({
   handleRemoveProductAsset,
 }) => {
   const assets = draftSettings.product_media_assets || [];
-  const [productKeywordInput, setProductKeywordInput] = useState("");
-
-  const normalizeKeyword = (value: string) =>
-    value
-      .trim()
-      .replace(/\s+/g, " ")
-      .toLowerCase()
-      .replace(/ё/g, "е");
-
-  const splitKeywords = (value: string) =>
-    value
-      .split(/[,\n;]+/g)
-      .map((item) => item.trim().replace(/\s+/g, " "))
-      .filter(Boolean);
-
-  const keywordTags = useMemo(() => splitKeywords(draftSettings.product_keyword || ""), [draftSettings.product_keyword]);
-
-  const updateKeywordTags = (nextTags: string[]) => {
-    setDraftSettings((prev) => ({
-      ...prev,
-      product_keyword: nextTags.join(", "),
-    }));
-  };
-
-  const addKeywordTags = (rawValue: string) => {
-    const incoming = splitKeywords(rawValue);
-    if (!incoming.length) {
-      return;
-    }
-    const seen = new Set(keywordTags.map(normalizeKeyword));
-    const merged = [...keywordTags];
-    for (const item of incoming) {
-      const key = normalizeKeyword(item);
-      if (!key || seen.has(key)) {
-        continue;
-      }
-      seen.add(key);
-      merged.push(item);
-    }
-    updateKeywordTags(merged);
-    setProductKeywordInput("");
-  };
-
-  const removeKeywordTag = (tagToRemove: string) => {
-    const removeKey = normalizeKeyword(tagToRemove);
-    updateKeywordTags(keywordTags.filter((tag) => normalizeKeyword(tag) !== removeKey));
-  };
-
-  const handleKeywordInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter" || event.key === ",") {
-      event.preventDefault();
-      addKeywordTags(productKeywordInput);
-    }
-  };
 
   return (
     <div className="space-y-4 rounded-2xl border border-[#e5ebf0] bg-[#fbfcfd] p-6 shadow-sm">
@@ -82,7 +27,7 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({
           Продуктовые ассеты
         </div>
         <p className="text-sm text-muted-foreground">
-          Legacy-настройки product clip и медиапула. Tone of voice и целевая аудитория теперь редактируются во вкладке Клиенты.
+          Legacy-настройки product clip и медиапула. Tone of voice и целевая аудитория теперь редактируются во вкладке Бренды.
         </p>
       </div>
 
@@ -98,56 +43,6 @@ export const BrandingSettings: React.FC<BrandingSettingsProps> = ({
             className="w-full rounded-xl border-none bg-[#f0f4f7] px-4 py-3 text-sm leading-6 text-foreground outline-none focus:ring-2 focus:ring-primary/10 transition-shadow"
             placeholder="Опишите ваш продукт..."
           />
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            Product keywords
-          </label>
-          <div className="space-y-2 rounded-xl bg-[#f0f4f7] p-3">
-            <div className="flex flex-wrap gap-2">
-              {keywordTags.length > 0 ? (
-                keywordTags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-semibold text-foreground shadow-sm"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeKeywordTag(tag)}
-                      className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground hover:bg-[#f0f4f7] hover:text-foreground"
-                      aria-label={`Удалить keyword ${tag}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))
-              ) : (
-                <span className="text-xs text-muted-foreground">Теги еще не добавлены</span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                value={productKeywordInput}
-                onChange={(event) => setProductKeywordInput(event.target.value)}
-                onKeyDown={handleKeywordInputKeyDown}
-                className="w-full rounded-xl border-none bg-white px-4 py-2.5 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/10 transition-shadow"
-                placeholder="Введите слово или фразу и нажмите +"
-              />
-              <button
-                type="button"
-                onClick={() => addKeywordTags(productKeywordInput)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-foreground shadow-sm transition hover:bg-[#f8fafc]"
-                aria-label="Добавить keyword"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Можно добавить несколько слов или фраз. Если тег встречается в сценарии, будет использован готовый product clip.
-          </p>
         </div>
 
         <div className="space-y-4 rounded-2xl border border-white/70 bg-white p-5 shadow-inner">

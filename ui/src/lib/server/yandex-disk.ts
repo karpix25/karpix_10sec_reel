@@ -403,3 +403,42 @@ export async function uploadFinalVideoToYandexDisk(params: {
     publicUrl: meta.public_url || null,
   };
 }
+
+export async function uploadVideoFileToYandexFolder(params: {
+  localFilePath: string;
+  folderPath: string;
+  fileName: string;
+}) {
+  const folderPath = normalizeCustomFolderPath(params.folderPath);
+  if (!folderPath) {
+    throw new Error("Yandex Disk folder path is empty");
+  }
+
+  await ensureFolderTreeExists(folderPath);
+  const filePath = `${folderPath}/${sanitizeFileName(params.fileName)}`;
+  const uploadHref = await getUploadHref(filePath);
+  const fileBuffer = await readFile(params.localFilePath);
+  const uploadResponse = await fetch(uploadHref, {
+    method: "PUT",
+    body: fileBuffer,
+    headers: {
+      "Content-Type": "video/mp4",
+    },
+    cache: "no-store",
+  });
+
+  if (!uploadResponse.ok) {
+    const message = await uploadResponse.text();
+    throw new Error(`Yandex Disk file upload failed for ${filePath}: ${message}`);
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  await publishResource(filePath);
+  const meta = await getResourceMeta(filePath);
+
+  return {
+    folderPath,
+    filePath: meta.path || filePath,
+    publicUrl: meta.public_url || null,
+  };
+}

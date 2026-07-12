@@ -2,6 +2,7 @@ import { X, ExternalLink, FolderOpen, Palette, Grid3X3, Sparkles, LoaderCircle, 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Reference, Client } from "@/types";
+import { formatScenarioScript } from "@/lib/scenario-text";
 import { huntStageTagStyle, normalizePlaceholderText } from "@/lib/utils";
 
 const TRANSLATIONS: Record<string, string> = {
@@ -24,6 +25,7 @@ const TRANSLATIONS: Record<string, string> = {
 
 const t = (text: string) => TRANSLATIONS[text] || text;
 const HUNT_STAGE_FALLBACK = "Осознает проблему";
+const EMPTY_SCENARIO_TEXT = "Пока нет сценария. Нажми «Переписать» или запусти batch generation.";
 
 interface ReferenceModalProps {
   isOpen: boolean;
@@ -86,7 +88,7 @@ export function ReferenceModal({
                   {t(huntStage)}
                 </div>
               )}
-              {reference.scenario_json?.script && (
+              {formatScenarioScript(reference.scenario_json?.script) && (
                 <Badge className="border-none bg-emerald-100 text-emerald-700 uppercase tracking-widest text-[9px]">
                   сценарий готов
                 </Badge>
@@ -225,7 +227,7 @@ export function ReferenceModal({
               </div>
               <div className="rounded-lg border border-white/10 bg-white/5 p-5">
                 <p className="text-sm leading-relaxed text-white/80">
-                  {reference.scenario_json?.script || "Пока нет сценария. Нажми «Переписать» или запусти batch generation."}
+                  {formatScenarioScript(reference.scenario_json?.script, EMPTY_SCENARIO_TEXT)}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4">

@@ -3,7 +3,8 @@ import {
   LayoutDashboard, 
   FolderOpen, 
   Settings,
-  Sparkles
+  Sparkles,
+  Bot
 } from "lucide-react";
 import { ClientSettings, Screen } from "@/types";
 
@@ -68,9 +69,10 @@ export const navItems: Array<{
   label: string;
   group: "primary" | "legacy" | "system";
 }> = [
-  { id: "dashboard", icon: LayoutDashboard, label: "Клиенты", group: "primary" },
-  { id: "omni", icon: Sparkles, label: "Производство", group: "primary" },
+  { id: "dashboard", icon: LayoutDashboard, label: "Бренды", group: "primary" },
+  { id: "omni", icon: Sparkles, label: "Библиотека сценариев", group: "primary" },
   { id: "references", icon: FolderOpen, label: "Сценарии", group: "legacy" },
+  { id: "avatar", icon: Bot, label: "Аватар", group: "primary" },
   { id: "settings", icon: Settings, label: "Настройки", group: "system" },
 ];
 

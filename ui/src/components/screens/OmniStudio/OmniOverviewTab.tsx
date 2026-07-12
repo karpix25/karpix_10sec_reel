@@ -22,7 +22,7 @@ export function OmniOverviewTab({
   isCreatingProject: boolean;
   onCreateWorkspace: () => void;
 }) {
-  const clientName = activeProject?.name || selectedClient?.name || "Клиент не выбран";
+  const clientName = activeProject?.name || selectedClient?.name || "Бренд не выбран";
   const audience = selectedClient?.target_audience?.trim() || activeProject?.target_audience?.trim();
   const toneOfVoice = selectedClient?.brand_voice?.trim() || activeProject?.brand_voice?.trim();
   const clientContext = selectedClient?.product_info?.trim() || activeProject?.description?.trim();
@@ -30,8 +30,8 @@ export function OmniOverviewTab({
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <WorkbenchPanel
-        title="Карточка клиента"
-        description="Слева выбираем или создаём клиента. Здесь держим бриф клиента: ЦА, tone of voice и контекст бренда."
+        title="Карточка бренда"
+        description="Слева выбираем или создаём бренд. Здесь держим бриф бренда: ЦА, tone of voice и контекст."
         action={
           !activeProject && selectedClient ? (
             <Button size="sm" variant="outline" onClick={onCreateWorkspace} disabled={isCreatingProject}>
@@ -43,13 +43,13 @@ export function OmniOverviewTab({
       >
         <div className="space-y-4">
           <div className="rounded-lg border border-border bg-muted/30 p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Клиент</p>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">Бренд</p>
             <p className="mt-2 text-xl font-semibold text-foreground">{clientName}</p>
             {clientContext ? (
               <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{clientContext}</p>
             ) : (
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Выбери клиента слева или создай нового, чтобы собрать карточку клиента.
+                Выбери бренд слева или создай новый, чтобы собрать карточку бренда.
               </p>
             )}
           </div>
@@ -61,7 +61,7 @@ export function OmniOverviewTab({
                 Целевая аудитория
               </div>
               <p className="min-h-24 text-sm leading-6 text-muted-foreground">
-                {audience || "Для legacy-клиента ЦА подтянется из старой базы. Для нового клиента пока заполни контекст в описании."}
+                {audience || "Для legacy-бренда ЦА подтянется из старой базы. Для нового бренда пока заполни контекст в описании."}
               </p>
             </div>
             <div className="rounded-lg border border-border bg-background p-4">
@@ -70,7 +70,7 @@ export function OmniOverviewTab({
                 Tone of voice
               </div>
               <p className="min-h-24 text-sm leading-6 text-muted-foreground">
-                {toneOfVoice || "Tone of voice пока не задан. Он нужен, чтобы сценарии звучали в голосе конкретного клиента."}
+                {toneOfVoice || "Tone of voice пока не задан. Он нужен, чтобы сценарии звучали в голосе конкретного бренда."}
               </p>
             </div>
           </div>
@@ -86,7 +86,7 @@ export function OmniOverviewTab({
           ) : (
             <EmptyState
               title="Продукт ещё не выбран"
-              description="Перейди во вкладку «Продукт», создай продукт внутри клиента и добавь фото/ref."
+              description="Перейди во вкладку «Продукт», создай продукт внутри бренда и добавь фото/ref."
             />
           )}
         </div>

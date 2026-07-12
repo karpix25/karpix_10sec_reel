@@ -6,12 +6,6 @@ type WorkspaceTabsProps = {
   setScreen: (screen: Screen) => void;
 };
 
-const groupLabels = {
-  primary: "Работа",
-  legacy: "Legacy",
-  system: "Система",
-} as const;
-
 export function WorkspaceTabs({ screen, setScreen }: WorkspaceTabsProps) {
   return (
     <nav
@@ -31,16 +25,9 @@ export function WorkspaceTabs({ screen, setScreen }: WorkspaceTabsProps) {
                 ? "bg-card text-primary shadow-sm"
                 : "text-muted-foreground hover:bg-card/70 hover:text-foreground"
             }`}
-          >
-            <item.icon className="h-4 w-4" />
-            <span>{item.label}</span>
-            <span
-              className={`rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase ${
-                isActive ? "border-primary/20 text-primary" : "border-border text-muted-foreground"
-              }`}
             >
-              {groupLabels[item.group]}
-            </span>
+              <item.icon className="h-4 w-4" />
+              <span>{item.label}</span>
           </button>
         );
       })}

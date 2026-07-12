@@ -91,10 +91,10 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
   if (!activeProject) {
     return (
       <div className="mx-auto max-w-[94rem] rounded-lg border border-border bg-card p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Клиент</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Выберите клиента слева</h2>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Бренд</p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Выберите бренд слева</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          После выбора клиента здесь появятся tone of voice, целевая аудитория и продукты этого клиента.
+          После выбора бренда здесь появятся tone of voice, целевая аудитория и продукты этого бренда.
         </p>
       </div>
     );
@@ -121,7 +121,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Продукты</p>
-              <h3 className="mt-1 text-lg font-semibold text-foreground">Продукты клиента</h3>
+              <h3 className="mt-1 text-lg font-semibold text-foreground">Продукты бренда</h3>
             </div>
             <span className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
               {products.length} всего
@@ -303,7 +303,7 @@ function ClientProfileCard({
     <div className="rounded-lg border border-border bg-card p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Клиент</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Бренд</p>
           <div className="mt-2 flex items-center gap-2">
             {isEditingName ? (
               <Input
@@ -323,8 +323,8 @@ function ClientProfileCard({
                 setName(project.name);
                 setIsEditingName((value) => !value);
               }}
-              aria-label={isEditingName ? "Отменить редактирование имени клиента" : "Редактировать имя клиента"}
-              title={isEditingName ? "Отменить" : "Редактировать имя клиента"}
+              aria-label={isEditingName ? "Отменить редактирование имени бренда" : "Редактировать имя бренда"}
+              title={isEditingName ? "Отменить" : "Редактировать имя бренда"}
             >
               {isEditingName ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
             </Button>
