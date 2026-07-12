@@ -14,6 +14,7 @@ import { requireOmniProductInProject } from "./products";
 import { stitchOmniSegments } from "./omni-video-stitcher";
 import { uploadOmniFinalVideo, uploadOmniVideoBufferToS3 } from "./omni-video-storage";
 import { selectReferenceImagesForComet } from "./omni-reference-images";
+import { createOmniCompositeReference } from "./omni-composite-reference";
 
 type ReelBundle = {
   reel: OmniReel;
@@ -75,6 +76,18 @@ export async function submitOmniReel(reelId: number) {
           : null,
       ].filter((image): image is { url: string; fieldName: string; role: string } => Boolean(image))
     : [];
+  const compositeReferenceUrl =
+    shouldSendCometReferenceImage() && referenceImageTransport === "url" && avatarReferenceUrl && productReferenceUrl
+      ? await createOmniCompositeReference({
+          projectId: reel.project_id,
+          reelId: reel.id,
+          avatarUrl: avatarReferenceUrl,
+          productUrl: productReferenceUrl,
+        })
+      : null;
+  const cometReferenceImages = compositeReferenceUrl
+    ? [{ url: compositeReferenceUrl, fieldName: referenceImageField, role: "avatar_product_composite" }]
+    : referenceImages;
 
   await pool.query(
     `UPDATE omni_reels
@@ -89,7 +102,7 @@ export async function submitOmniReel(reelId: number) {
     if (segment.kie_task_id || RUNNING_STATUSES.has(segment.status) || segment.status === "completed") continue;
     if (!segment.prompt) throw new Error(`Segment ${segment.segment_index} has no prompt`);
     const selectedReferenceImages = selectReferenceImagesForComet(
-      referenceImages,
+      cometReferenceImages,
       referenceImageTransport,
       segment.segment_index
     );
@@ -109,8 +122,15 @@ export async function submitOmniReel(reelId: number) {
       reference_images_skipped: selectedReferenceImages.skipped.map((image) => ({
         role: image.role,
         url: image.url,
-        reason: "url_transport_accepts_single_input_reference_per_segment",
+        reason: compositeReferenceUrl
+          ? "composite_reference_sent_instead"
+          : "url_transport_accepts_single_input_reference",
       })),
+      reference_images_source: {
+        avatar_url: avatarReferenceUrl,
+        product_url: productReferenceUrl,
+        composite_url: compositeReferenceUrl,
+      },
     };
 
     let task: Awaited<ReturnType<typeof createCometOmniVideoTask>>;
