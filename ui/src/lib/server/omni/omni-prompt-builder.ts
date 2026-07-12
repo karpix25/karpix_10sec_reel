@@ -22,7 +22,7 @@ type BuildOmniPromptsInput = {
 export const OMNI_PROMPT_WRITER_SYSTEM_PROMPT = `
 You are an expert prompt writer for Google Omni video generation through KIE.
 Your job is to transform a Reels script into stitch-friendly 10-second vertical smartphone UGC prompts.
-Each prompt must preserve avatar identity, product identity, one lived-in home setting, and one continuous mobile-shot reel.
+Each prompt must preserve product identity, one lived-in home setting, one continuous mobile-shot reel, and a fictional presenter with a consistent general type.
 Write prompts as production-ready positive instructions for a photorealistic 9:16 phone video model.
 `.trim();
 
@@ -115,11 +115,13 @@ function buildSinglePrompt(input: {
     "",
     "AVATAR CONTEXT:",
     `Avatar prompt: ${input.avatar?.prompt || "not provided"}`,
-    `Avatar reference image: ${input.avatarReference ? "attached separately with the API request as a fictional UGC presenter reference" : "not provided"}`,
+    `Avatar reference image: ${input.avatarReference ? "attached separately with the API request as a loose moodboard for a privacy-safe fictional UGC presenter" : "not provided"}`,
     "",
     "VISUAL RULES:",
     "- Keep the exact product identity from product references when they are visible.",
-    "- Keep the same avatar identity, outfit, lighting, room, and phone-camera language across all segments.",
+    "- Keep a consistent fictional presenter type across segments: similar age range, hair color, outfit palette, mood, and speaking style.",
+    "- Treat the avatar reference as inspiration for a privacy-safe fictional presenter with a similar general vibe.",
+    "- Keep lighting, room, and phone-camera language consistent across all segments.",
     "- Use natural speech, natural face movement, realistic hands, and everyday product handling.",
     "- Keep action simple enough for a clean 10-second Omni generation.",
     "- Show the product naturally in frame or as the visual anchor when a product reference exists.",
