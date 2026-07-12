@@ -1,6 +1,7 @@
 const DEFAULT_BASE_URL = "https://api.cometapi.com";
 const DEFAULT_MODEL = "omni-fast";
-const DEFAULT_REFERENCE_IMAGE_FIELD = "image";
+const DEFAULT_REFERENCE_IMAGE_FIELD = "input_reference";
+const DEFAULT_REFERENCE_IMAGE_TRANSPORT = "url";
 const TERMINAL_STATUSES = new Set(["completed", "failed", "error"]);
 
 export type CometVideoTask = {
@@ -35,6 +36,11 @@ function getBaseUrl() {
 
 export function getCometReferenceImageFieldName() {
   return (process.env.COMETAPI_REFERENCE_IMAGE_FIELD || DEFAULT_REFERENCE_IMAGE_FIELD).trim() || DEFAULT_REFERENCE_IMAGE_FIELD;
+}
+
+export function getCometReferenceImageTransport() {
+  const value = (process.env.COMETAPI_REFERENCE_IMAGE_TRANSPORT || DEFAULT_REFERENCE_IMAGE_TRANSPORT).trim().toLowerCase();
+  return value === "file" ? "file" : "url";
 }
 
 export function shouldSendCometReferenceImage() {
@@ -94,12 +100,17 @@ export async function createCometOmniVideoTask(input: {
   ].filter((image) => image.url);
 
   for (const referenceImage of referenceImages) {
-    const image = await downloadReferenceImage(referenceImage.url);
-    form.append(
-      referenceImage.fieldName || getCometReferenceImageFieldName(),
-      new Blob([image.body], { type: image.contentType }),
-      referenceImage.fileName || buildRoleFileName(referenceImage.role, image.fileName)
-    );
+    const fieldName = referenceImage.fieldName || getCometReferenceImageFieldName();
+    if (getCometReferenceImageTransport() === "url") {
+      form.append(fieldName, referenceImage.url);
+    } else {
+      const image = await downloadReferenceImage(referenceImage.url);
+      form.append(
+        fieldName,
+        new Blob([image.body], { type: image.contentType }),
+        referenceImage.fileName || buildRoleFileName(referenceImage.role, image.fileName)
+      );
+    }
   }
 
   const response = await fetch(`${getBaseUrl()}/v1/videos`, {
