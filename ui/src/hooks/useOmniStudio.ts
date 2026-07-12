@@ -65,6 +65,11 @@ export type UploadOmniProductImagesPayload = {
   files: File[];
 };
 
+export type UploadOmniAvatarReferencePayload = {
+  projectId: number;
+  file: File;
+};
+
 export type DeleteOmniProductPayload = {
   projectId: number;
   productId: number;
@@ -203,6 +208,93 @@ export function useUploadOmniProductImages() {
   });
 }
 
+export function useUploadOmniAvatarReference() {
+  return useMutation({
+    mutationFn: async (payload: UploadOmniAvatarReferencePayload) => {
+      const formData = new FormData();
+      formData.append("projectId", String(payload.projectId));
+      formData.append("file", payload.file);
+      return (await axios.post(`${API_BASE}/avatar-reference`, formData)).data as {
+        ref: OmniProduct["avatar_refs"][number];
+      };
+    },
+  });
+}
+
+export function useOmniClientAvatars(projectId: number | null) {
+  return useQuery<OmniClientAvatar[]>({
+    queryKey: ["omni-client-avatars", projectId],
+    queryFn: async () => (await axios.get(`${API_BASE}/avatars`, { params: { projectId } })).data,
+    enabled: Boolean(projectId),
+    staleTime: 20_000,
+  });
+}
+
+export function useCreateOmniAvatar() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: { projectId: number; prompt: string; displayName?: string; referenceUrl?: string }) =>
+      (await axios.post(`${API_BASE}/avatars`, payload)).data as OmniClientAvatar,
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["omni-client-avatars", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });
+    },
+  });
+}
+
+export function useRenameOmniAvatar() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: { projectId: number; avatarId: number; displayName: string }) =>
+      (await axios.patch(`${API_BASE}/avatars`, payload)).data as OmniClientAvatar,
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["omni-client-avatars", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });
+    },
+  });
+}
+
+export function useApproveOmniAvatar() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: { projectId: number; avatarId: number }) =>
+      (await axios.patch(`${API_BASE}/avatars`, { ...payload, status: "approved" })).data as OmniClientAvatar,
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["omni-client-avatars", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });
+    },
+  });
+}
+
+export function useSetOmniAvatarActive() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: { projectId: number; avatarId: number; isActive: boolean }) =>
+      (await axios.patch(`${API_BASE}/avatars`, payload)).data as OmniClientAvatar,
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["omni-client-avatars", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });
+    },
+  });
+}
+
+export function useDeleteOmniAvatar() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: { projectId: number; avatarId: number }) =>
+      (await axios.delete(`${API_BASE}/avatars`, { params: payload })).data as { ok: true },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["omni-client-avatars", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });
+    },
+  });
+}
+
 export function useOmniStudio(
   projectId: number | null,
   productId: number | null,
@@ -265,12 +357,7 @@ export function useOmniStudio(
     staleTime: 20_000,
   });
 
-  const avatarsQuery = useQuery<OmniClientAvatar[]>({
-    queryKey: ["omni-client-avatars", projectId],
-    queryFn: async () => (await axios.get(`${API_BASE}/avatars`, { params: { projectId } })).data,
-    enabled: Boolean(projectId),
-    staleTime: 20_000,
-  });
+  const avatarsQuery = useOmniClientAvatars(projectId);
 
   const reelsQuery = useQuery<ReelsPayload>({
     queryKey: ["omni-reels", projectId, productId],
@@ -290,14 +377,7 @@ export function useOmniStudio(
 
   const createProductMutation = useCreateOmniProduct();
 
-  const createAvatarMutation = useMutation({
-    mutationFn: async (payload: { projectId: number; prompt: string; referenceUrl?: string }) =>
-      (await axios.post(`${API_BASE}/avatars`, payload)).data as OmniClientAvatar,
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["omni-client-avatars", variables.projectId] });
-      queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });
-    },
-  });
+  const createAvatarMutation = useCreateOmniAvatar();
 
   const linkLibraryMutation = useMutation({
     mutationFn: async (payload: { projectId: number; productId?: number | null; legacyClientId: number }) =>
@@ -327,7 +407,20 @@ export function useOmniStudio(
       sourceLegacyScenarioId?: number | null;
       targetDurationSeconds: number;
       brief?: string;
+      autoRun?: boolean;
     }) => (await axios.post(`${API_BASE}/reels`, payload)).data as OmniReel,
+    onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] }),
+  });
+
+  const runReelMutation = useMutation({
+    mutationFn: async (payload: { projectId: number; reelId: number }) =>
+      (await axios.post(`${API_BASE}/reels/${payload.reelId}/run`)).data as OmniReel,
+    onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] }),
+  });
+
+  const syncReelMutation = useMutation({
+    mutationFn: async (payload: { projectId: number; reelId: number }) =>
+      (await axios.post(`${API_BASE}/reels/${payload.reelId}/sync`)).data as ReelsPayload,
     onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] }),
   });
 
@@ -357,6 +450,8 @@ export function useOmniStudio(
     unlinkLibraryMutation,
     linkScenarioMutation,
     createReelMutation,
+    runReelMutation,
+    syncReelMutation,
     createGeneratedScriptMutation,
   };
 }

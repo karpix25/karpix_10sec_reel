@@ -35,10 +35,10 @@ export function OmniPipelineHeader({
               </Badge>
             </div>
             <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              Производство рилсов для клиента
+              Библиотека сценариев бренда
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Один клиент может иметь несколько продуктов. Для каждого продукта подключаем refs, reference-бандлы и
+              Один бренд может иметь несколько продуктов. Для каждого продукта подключаем refs, reference-бандлы и
               собираем 30-40 секунд из 10-секундных Omni-сегментов.
             </p>
           </div>
@@ -54,7 +54,7 @@ export function OmniPipelineHeader({
               />
             </div>
             <div className="mt-1 grid gap-1">
-              <span className="truncate">Клиент: {clientName}</span>
+              <span className="truncate">Бренд: {clientName}</span>
               <span className="truncate">Продукт: {productName}</span>
               <span className="truncate">Библиотека: {libraryLabel}</span>
             </div>
@@ -69,7 +69,7 @@ export function OmniPipelineHeader({
       </div>
 
       <div className="grid border-t border-border text-xs text-muted-foreground sm:grid-cols-3">
-        <PipelineStep icon={<PackageCheck className="h-4 w-4" />} label="Setup" value="Клиент, продукты, avatar" />
+        <PipelineStep icon={<PackageCheck className="h-4 w-4" />} label="Setup" value="Бренд, продукты, avatar" />
         <PipelineStep icon={<Database className="h-4 w-4" />} label="Library" value="Legacy reference transcripts" />
         <PipelineStep icon={<Video className="h-4 w-4" />} label="Reel" value="Plan -> 10s segments -> stitch" />
       </div>

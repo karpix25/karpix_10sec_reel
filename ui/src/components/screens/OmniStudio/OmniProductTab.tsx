@@ -53,12 +53,12 @@ export function OmniProductTab({
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <WorkbenchPanel
-        title="Продукты клиента"
-        description="Продукт создаётся внутри активного клиента и хранит описание, фото/ref и длительность ролика."
+        title="Продукты бренда"
+        description="Продукт создаётся внутри активного бренда и хранит описание, фото/ref и длительность ролика."
       >
         <QueryState
           isLoading={isProductsLoading}
-          loadingText="Загружаю продукты клиента"
+          loadingText="Загружаю продукты бренда"
           errorText="Не удалось загрузить продукты"
         />
         <div className="space-y-4">
@@ -68,7 +68,7 @@ export function OmniProductTab({
             disabled={!activeProject || isProductsLoading || !products.length}
             className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <option value="">{activeProject ? "Выберите продукт" : "Сначала выберите или создайте клиента"}</option>
+            <option value="">{activeProject ? "Выберите продукт" : "Сначала выберите или создайте бренд"}</option>
             {products.map((product) => (
               <option key={product.id} value={product.id}>
                 {product.name}
@@ -140,7 +140,7 @@ export function OmniProductTab({
               </Button>
               {!canSubmitProduct ? (
                 <p className="text-xs leading-5 text-muted-foreground">
-                  Для создания продукта нужны название, описание, картинки и выбранный клиент.
+                  Для создания продукта нужны название, описание, картинки и выбранный бренд.
                 </p>
               ) : null}
             </div>
@@ -196,7 +196,7 @@ export function OmniProductTab({
         ) : (
           <EmptyState
             title="Продукт не выбран"
-            description="Выбери существующий продукт или создай новый внутри активного клиента."
+            description="Выбери существующий продукт или создай новый внутри активного бренда."
           />
         )}
       </WorkbenchPanel>

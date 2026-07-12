@@ -949,6 +949,26 @@ def save_generated_scenario(job_id: str, **kwargs: Any) -> None:
     _upsert("generated_scenarios", "job_id", job_id=job_id, **kwargs)
 
 
+def update_generated_scenario(scenario_id: int, **kwargs: Any) -> None:
+    if not kwargs:
+        return
+    for key in ["scenario_json", "tts_word_timestamps", "video_keyword_segments", "video_generation_prompts"]:
+        if key in kwargs:
+            kwargs[key] = _json_dumps(kwargs[key])
+
+    assignments = ", ".join([f"{key} = %s" for key in kwargs.keys()])
+    values = list(kwargs.values()) + [scenario_id]
+    with DBConnection() as cursor:
+        cursor.execute(
+            f"""
+            UPDATE generated_scenarios
+            SET {assignments}
+            WHERE id = %s
+            """,
+            values,
+        )
+
+
 def get_generated_scenario_by_job_id(job_id: str) -> Optional[Dict[str, Any]]:
     with DBConnection(use_dict_cursor=True) as cursor:
         cursor.execute("SELECT * FROM generated_scenarios WHERE job_id = %s", (str(job_id),))

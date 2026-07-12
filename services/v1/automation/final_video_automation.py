@@ -29,12 +29,13 @@ from services.v1.database.db_service import (
 )
 
 from services.v1.automation.omni_smart_layer import process_scenario_for_omni
-from services.v1.providers.omni_kie_client import create_video_task
+from services.v1.providers.omni_kie_client import create_video_task, retrieve_video_task
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_INTERNAL_API_BASE_URL = "http://127.0.0.1:3000"
 DEFAULT_KIE_POLL_INTERVAL_SECONDS = 30
+DEFAULT_OMNI_POLL_INTERVAL_SECONDS = 30
 DEFAULT_HEYGEN_POLL_INTERVAL_SECONDS = 30
 
 
@@ -44,6 +45,10 @@ def get_internal_api_base_url() -> str:
 
 def get_kie_poll_interval_seconds() -> int:
     return max(10, int(os.getenv("FINAL_VIDEO_KIE_POLL_INTERVAL_SECONDS", str(DEFAULT_KIE_POLL_INTERVAL_SECONDS))))
+
+
+def get_omni_poll_interval_seconds() -> int:
+    return max(10, int(os.getenv("FINAL_VIDEO_OMNI_POLL_INTERVAL_SECONDS", str(DEFAULT_OMNI_POLL_INTERVAL_SECONDS))))
 
 
 def get_heygen_poll_interval_seconds() -> int:
@@ -388,8 +393,8 @@ def process_omni_generate_stage(job: Dict[str, Any]) -> None:
 
     if avatar:
         clothing = str(avatar.get("prompt") or clothing)
-        # Note: If KIE supports a specific character ID, we can fetch it, 
-        # but for now we'll pass the generated reference image
+        # The current CometAPI Omni endpoint accepts text prompts only, so the
+        # avatar image is kept for future provider routes.
         reference_image_url = avatar.get("image_url")
 
     # 2. Extract script
@@ -401,9 +406,9 @@ def process_omni_generate_stage(job: Dict[str, Any]) -> None:
     logger.info("Applying Omni Smart Layer for scenario_id=%s", scenario_id)
     prompts = process_scenario_for_omni(script, clothing=clothing)
 
-    # 4. Generate videos via KIE.ai
-    generated_urls = []
-    logger.info("Submitting %s scenes to Omni KIE.ai pipeline...", len(prompts))
+    # 4. Generate videos via Omni
+    task_ids = []
+    logger.info("Submitting %s scenes to Omni pipeline...", len(prompts))
     for i, prompt in enumerate(prompts):
         try:
             # We use a fixed seed for consistency
@@ -415,31 +420,111 @@ def process_omni_generate_stage(job: Dict[str, Any]) -> None:
                 reference_image_url=reference_image_url,
                 product_image_url=None
             )
-            task_id = res.get("data", {}).get("task_id")
+            task_id = res.get("task_id") or res.get("id")
             if not task_id:
-                raise RuntimeError(f"No task_id returned from KIE for scene {i+1}")
-            # Note: In a fully asynchronous system, we'd poll this task_id.
-            # Omni generator runs synchronously via create_video_task. 
-            # In actual production KIE it might be async, requiring polling.
-            # For now we simulate success or rely on KIE returning a final video if sync.
-            # If it's async, we'd save task_ids to DB and requeue to a waiting_omni stage.
-            generated_urls.append(task_id) # saving task_id instead of URL if async
+                raise RuntimeError(f"No task_id returned from Omni for scene {i+1}")
+            task_ids.append(res)
         except Exception as e:
             logger.error("Failed to generate scene %s: %s", i+1, e)
-            raise RuntimeError(f"Omni KIE error on scene {i+1}: {e}")
+            raise RuntimeError(f"Omni generation error on scene {i+1}: {e}")
 
     # 5. Save generated results to scenario
     prompts_payload = scenario.get("video_generation_prompts") or {"prompts": []}
     # Update prompts payload with Omni output task_ids
-    for i, task_id in enumerate(generated_urls):
+    for i, task in enumerate(task_ids):
+        task_id = task.get("task_id") or task.get("id")
+        task_fields = {
+            "omni_task_id": task_id,
+            "task_id": task_id,
+            "task_state": task.get("status"),
+            "task_progress": task.get("progress"),
+            "omni_model": task.get("model"),
+            "omni_object": task.get("object"),
+            "omni_created_at": task.get("created_at"),
+            "prompt_json": prompts[i],
+        }
         if len(prompts_payload["prompts"]) > i:
-            prompts_payload["prompts"][i]["omni_task_id"] = task_id
+            prompts_payload["prompts"][i].update(task_fields)
         else:
-            prompts_payload["prompts"].append({"omni_task_id": task_id, "prompt_json": prompts[i]})
+            prompts_payload["prompts"].append(task_fields)
     
     update_generated_scenario(int(scenario_id), video_generation_prompts=prompts_payload)
 
-    # Move to montage (or waiting stage if async)
+    # CometAPI Omni is asynchronous: wait for task completion before montage.
+    update_final_video_job(
+        int(job["id"]),
+        status="queued",
+        current_stage="waiting_omni",
+        scheduled_for=datetime.utcnow(),
+        lease_until=None,
+        worker_id=None,
+        last_error=None,
+    )
+
+
+def poll_waiting_omni_stage(job: Dict[str, Any]) -> None:
+    scenario_id = job.get("scenario_id")
+    if not scenario_id:
+        raise RuntimeError("Final video job has no scenario_id")
+
+    scenario = get_generated_scenario_by_id(int(scenario_id))
+    if not scenario:
+        raise RuntimeError(f"Scenario id={scenario_id} not found")
+
+    prompts_payload = scenario.get("video_generation_prompts") or {"prompts": []}
+    prompt_items = prompts_payload.get("prompts") or []
+    if not prompt_items:
+        raise RuntimeError("Scenario has no Omni prompt tasks to poll")
+
+    pending = 0
+    completed = 0
+    for item in prompt_items:
+        if item.get("video_url"):
+            completed += 1
+            continue
+
+        task_id = item.get("omni_task_id") or item.get("task_id")
+        if not task_id:
+            pending += 1
+            continue
+
+        task = retrieve_video_task(str(task_id))
+        status = str(task.get("status") or "").lower()
+        item["task_state"] = status
+        item["task_progress"] = task.get("progress")
+        item["omni_task_id"] = task_id
+        item["task_id"] = task_id
+        item["omni_model"] = task.get("model")
+        item["omni_object"] = task.get("object")
+        item["omni_created_at"] = task.get("created_at")
+        item["omni_completed_at"] = task.get("completed_at")
+        if task.get("error"):
+            item["task_error"] = task.get("error")
+
+        if status == "completed":
+            video_url = task.get("video_url")
+            if not video_url:
+                raise RuntimeError(f"Omni task {task_id} completed without video_url")
+            item["video_url"] = video_url
+            item["omni_content_path"] = f"/v1/videos/{task_id}/content"
+            completed += 1
+        elif status in {"failed", "error"}:
+            raise RuntimeError(f"Omni task {task_id} failed: {task.get('raw')}")
+        else:
+            pending += 1
+
+    update_generated_scenario(int(scenario_id), video_generation_prompts=prompts_payload)
+
+    if pending:
+        requeue_final_video_job(
+            int(job["id"]),
+            stage="waiting_omni",
+            delay_seconds=get_omni_poll_interval_seconds(),
+            error_message=None,
+        )
+        logger.info("Omni poll job id=%s: completed=%s pending=%s", job["id"], completed, pending)
+        return
+
     update_final_video_job(
         int(job["id"]),
         status="queued",

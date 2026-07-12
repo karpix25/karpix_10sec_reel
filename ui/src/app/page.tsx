@@ -10,6 +10,7 @@ import { ScenariosScreen } from "@/components/screens/ScenariosScreen";
 import { GeneratorScreen } from "@/components/screens/GeneratorScreen";
 import { SettingsScreen } from "@/components/screens/SettingsScreen";
 import { OmniStudioScreen } from "@/components/screens/OmniStudio";
+import { AvatarScreen } from "@/components/screens/AvatarScreen";
 import { useOmniProjects } from "@/hooks/useOmniStudio";
 import { buildWorkspaceUrl, readInitialWorkspaceUrlState } from "@/lib/navigation/workspace-url-state";
 
@@ -671,6 +672,14 @@ export default function CuratorDashboard() {
               selectedProjectId={selectedOmniProjectId}
               selectedProductId={selectedOmniProductId}
               onSelectProduct={setSelectedOmniProductId}
+            />
+          )}
+
+          {screen === "avatar" && (
+            <AvatarScreen
+              selectedClient={selectedClient || null}
+              selectedProjectId={selectedOmniProjectId}
+              onSelectProject={setSelectedOmniProjectId}
             />
           )}
 

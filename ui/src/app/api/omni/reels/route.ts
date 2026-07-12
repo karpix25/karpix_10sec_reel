@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createOmniReel, listOmniReels, listOmniReelSegments } from "@/lib/server/omni/reels";
+import { submitOmniReel } from "@/lib/server/omni/omni-reel-runner";
 import { jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
 
 export async function GET(request: Request) {
@@ -39,7 +40,8 @@ export async function POST(request: Request) {
       targetDurationSeconds: body.targetDurationSeconds,
       brief: body.brief,
     });
-    return NextResponse.json(reel, { status: 201 });
+    const result = body.autoRun ? await submitOmniReel(reel.id) : reel;
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error("Omni reel create error:", error);
     return jsonError(error instanceof Error ? error.message : "Internal Server Error", 500);

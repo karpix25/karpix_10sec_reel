@@ -1,10 +1,12 @@
 import type { OmniClientAvatar, OmniGeneratedScript, OmniProduct, OmniReferenceAsset } from "@/lib/omni/types";
+import { buildSegmentContinuityLine, buildSegmentStoryGoal, OMNI_MOBILE_UGC_STYLE } from "./omni-ugc-contract";
 
 export type OmniSegmentPrompt = {
   index: number;
   role: string;
   prompt: string;
   referenceUrl: string | null;
+  voiceoverText: string;
 };
 
 type BuildOmniPromptsInput = {
@@ -19,10 +21,9 @@ type BuildOmniPromptsInput = {
 
 export const OMNI_PROMPT_WRITER_SYSTEM_PROMPT = `
 You are an expert prompt writer for Google Omni video generation through KIE.
-Your job is to transform a Reels script into stitch-friendly 10-second vertical video prompts.
-Each prompt must preserve avatar identity, product identity, visual continuity, and the real UGC format of the source reference.
-Never invent a different product, package, logo, material, or avatar face when references are provided.
-Write prompts as production-ready instructions for a photorealistic 9:16 mobile video model.
+Your job is to transform a Reels script into stitch-friendly 10-second vertical smartphone UGC prompts.
+Each prompt must preserve avatar identity, product identity, one lived-in home setting, and one continuous mobile-shot reel.
+Write prompts as production-ready positive instructions for a photorealistic 9:16 phone video model.
 `.trim();
 
 export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegmentPrompt[] {
@@ -34,13 +35,14 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   return Array.from({ length: input.segmentCount }, (_, index) => {
     const segmentIndex = index + 1;
     const role = getSegmentRole(segmentIndex, input.segmentCount);
-    const scriptChunk = chunks[index] || chunks[chunks.length - 1] || scriptText;
+    const scriptChunk = chunks[index] || "";
     const referenceUrl = productReference?.url || avatarReference;
 
     return {
       index: segmentIndex,
       role,
       referenceUrl,
+      voiceoverText: scriptChunk,
       prompt: buildSinglePrompt({
         segmentIndex,
         segmentCount: input.segmentCount,
@@ -71,25 +73,39 @@ function buildSinglePrompt(input: {
   avatar: OmniClientAvatar | null;
   avatarReference: string | null;
 }) {
-  const continuity =
-    input.segmentIndex === 1
-      ? "Open with a strong first-frame hook. Leave motion direction easy to continue."
-      : "Continue visual identity from the previous segment. Avoid a hard reset unless the script clearly changes scene.";
+  const continuity = buildSegmentContinuityLine(input.segmentIndex, input.segmentCount);
+  const storyGoal = buildSegmentStoryGoal(input.segmentIndex, input.segmentCount);
   const ending =
     input.segmentIndex === input.segmentCount
-      ? "End with a clear visual payoff or CTA-friendly closing pose."
+      ? "End with a relaxed CTA-friendly closing pose in the same home scene."
       : "End mid-motion or with a natural beat that can stitch into the next 10-second segment.";
+  const voiceover = input.scriptChunk || "Use one short natural Russian sentence that fits this segment's story goal.";
 
   return [
     OMNI_PROMPT_WRITER_SYSTEM_PROMPT,
     "",
     `SEGMENT: ${input.segmentIndex}/${input.segmentCount}`,
     `DURATION: exactly ${input.segmentSeconds} seconds`,
-    "FORMAT: vertical 9:16, photorealistic high-end smartphone UGC video",
+    "FORMAT: vertical 9:16, photorealistic smartphone UGC video",
     `ROLE: ${input.role}`,
     "",
+    "MOBILE UGC STYLE:",
+    OMNI_MOBILE_UGC_STYLE,
+    "",
+    "CONTINUITY:",
+    continuity,
+    "",
+    "SEGMENT STORY GOAL:",
+    storyGoal,
+    "",
     "SCRIPT BEAT TO VISUALIZE:",
-    input.scriptChunk || input.fullScript || "No script text provided. Build a clear product-focused visual beat.",
+    voiceover,
+    "",
+    "SPOKEN AUDIO / VOICEOVER:",
+    `Say only this segment text in natural Russian speech: ${voiceover}`,
+    "",
+    "FULL REEL CONTEXT FOR CONTINUITY ONLY:",
+    input.fullScript || input.brief || "No full script context provided.",
     "",
     "PRODUCT CONTEXT:",
     `Product name: ${input.product.name}`,
@@ -102,37 +118,58 @@ function buildSinglePrompt(input: {
     `Avatar reference: ${input.avatarReference || "not provided"}`,
     "",
     "VISUAL RULES:",
-    "- Preserve the exact product identity from product references.",
-    "- Preserve the same avatar identity, wardrobe logic, lighting family, and camera language across all segments.",
-    "- Do not add text overlays, subtitles, captions, UI, logos, watermarks, or extra hands unless explicitly needed.",
+    "- Keep the exact product identity from product references when they are visible.",
+    "- Keep the same avatar identity, outfit, lighting, room, and phone-camera language across all segments.",
+    "- Use natural speech, natural face movement, realistic hands, and everyday product handling.",
     "- Keep action simple enough for a clean 10-second Omni generation.",
-    "- If product reference exists, show the product naturally in frame or as the visual anchor.",
-    "- If this is a talking-head beat, keep the avatar looking into camera with natural gestures.",
+    "- Show the product naturally in frame or as the visual anchor when a product reference exists.",
+    "- For talking-head beats, keep the avatar looking into camera with natural gestures.",
+    "- The spoken words in this segment belong only to this segment, while the visual identity stays part of one continuous reel.",
     `- Continuity: ${continuity}`,
     `- Ending: ${ending}`,
     input.brief ? `- Extra brief: ${input.brief}` : null,
-    "",
-    "NEGATIVE PROMPT:",
-    "cartoon, CGI, plastic skin, distorted hands, unreadable labels, wrong product packaging, duplicated product, extra fingers, warped face, flicker, subtitles, watermark, on-screen text, low resolution",
   ]
     .filter(Boolean)
     .join("\n");
 }
 
 function splitScriptIntoChunks(script: string, count: number) {
-  const lines = script
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const units = lines.length ? lines : script.match(/[^.!?]+[.!?]*/g)?.map((part) => part.trim()).filter(Boolean) || [];
+  const normalized = script.replace(/\s+/g, " ").trim();
+  const totalWords = countWords(normalized);
+  const targetWords = Math.max(8, Math.ceil(totalWords / count));
+  const sentenceUnits = normalized.match(/[^.!?]+[.!?]*/g)?.map((part) => part.trim()).filter(Boolean) || [];
+  const units = sentenceUnits.length >= count ? sentenceUnits : splitWordsIntoUnits(normalized, targetWords);
   if (!units.length) return [];
 
-  const chunks: string[] = [];
-  const perChunk = Math.max(1, Math.ceil(units.length / count));
-  for (let index = 0; index < count; index += 1) {
-    chunks.push(units.slice(index * perChunk, (index + 1) * perChunk).join("\n"));
+  const chunks = Array.from({ length: count }, () => [] as string[]);
+  let chunkIndex = 0;
+  let chunkWords = 0;
+
+  for (const unit of units) {
+    const unitWords = countWords(unit);
+    const hasRoom = chunkWords === 0 || chunkWords + unitWords <= targetWords || chunkIndex === count - 1;
+    if (!hasRoom) {
+      chunkIndex = Math.min(chunkIndex + 1, count - 1);
+      chunkWords = 0;
+    }
+    chunks[chunkIndex].push(unit);
+    chunkWords += unitWords;
   }
-  return chunks;
+
+  return chunks.map((chunk) => chunk.join(" ").trim()).filter(Boolean);
+}
+
+function countWords(text: string) {
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
+function splitWordsIntoUnits(text: string, targetWords: number) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const units: string[] = [];
+  for (let index = 0; index < words.length; index += targetWords) {
+    units.push(words.slice(index, index + targetWords).join(" "));
+  }
+  return units;
 }
 
 function getPrimaryReference(refs: OmniReferenceAsset[]) {

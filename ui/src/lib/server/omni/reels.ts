@@ -9,6 +9,16 @@ import { requireOmniProductInProject } from "./products";
 
 const SEGMENT_SECONDS = 10;
 
+function normalizeReel(row: OmniReel): OmniReel {
+  return {
+    ...row,
+    source_generated_script_id:
+      row.source_generated_script_id === null ? null : Number(row.source_generated_script_id),
+    source_legacy_scenario_id:
+      row.source_legacy_scenario_id === null ? null : Number(row.source_legacy_scenario_id),
+  };
+}
+
 function resolveTargetDuration(value: unknown) {
   const parsed = Number.parseInt(String(value || "30"), 10);
   return [30, 40].includes(parsed) ? parsed : 30;
@@ -35,7 +45,7 @@ export async function listOmniReels(projectId: number, productId?: number | null
      LIMIT 50`,
     values
   );
-  return rows;
+  return rows.map(normalizeReel);
 }
 
 export async function listOmniReelSegments(reelIds: number[]) {
@@ -124,9 +134,10 @@ export async function createOmniReel(input: {
     await client.query("BEGIN");
     const reelResult = await client.query<OmniReel>(
       `INSERT INTO omni_reels (
-         project_id,
-         product_id,
-         source_legacy_scenario_id,
+       project_id,
+       product_id,
+       source_generated_script_id,
+       source_legacy_scenario_id,
          target_duration_seconds,
          segment_count,
          status,
@@ -137,11 +148,12 @@ export async function createOmniReel(input: {
          stitch_status,
          updated_at
        )
-       VALUES ($1, $2, $3, $4, $5, 'draft', $6, $7::jsonb, $8::jsonb, $9::jsonb, 'not_ready', CURRENT_TIMESTAMP)
+       VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, $8::jsonb, $9::jsonb, $10::jsonb, 'not_ready', CURRENT_TIMESTAMP)
        RETURNING *`,
       [
         input.projectId,
         input.productId,
+        generatedScript?.id || input.sourceGeneratedScriptId || null,
         generatedScript?.source_legacy_scenario_id || input.sourceLegacyScenarioId || null,
         targetDuration,
         segmentCount,
@@ -187,7 +199,7 @@ export async function createOmniReel(input: {
     }
 
     await client.query("COMMIT");
-    return reel;
+    return normalizeReel(reel);
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

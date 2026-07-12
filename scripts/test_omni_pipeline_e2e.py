@@ -17,7 +17,7 @@ def main():
         print(f"\n--- Сцена {i+1} ---")
         print(p)
         
-    print("\n2. Отправка первой сцены в KIE.ai (gemini-omni-video)...")
+    print("\n2. Отправка первой сцены в CometAPI Omni...")
     
     CHARACTER_ID = "2eefe60357c743d3911f3f980fe8304a"
     AUDIO_ID = "4a786461922c4383a2010d9b8a4b4f33"
@@ -35,7 +35,7 @@ def main():
         print(f"\n✅ Задача успешно создана! Ответ API: {task_result}")
         print("Тест Omni Pipeline пройден успешно. Интеграция работает.")
     except Exception as e:
-        print(f"\n❌ Ошибка при отправке в KIE: {e}")
+        print(f"\n❌ Ошибка при отправке в Omni: {e}")
 
 if __name__ == "__main__":
     main()

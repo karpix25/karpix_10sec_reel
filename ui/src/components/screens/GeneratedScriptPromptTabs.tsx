@@ -3,6 +3,7 @@
 import { Loader2, WandSparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOmniGeneratedScriptPrompts } from "@/hooks/useOmniStudio";
+import { OmniSegmentPromptDetails } from "./OmniStudio/OmniSegmentPromptDetails";
 
 export function GeneratedScriptPromptTabs({
   projectId,
@@ -18,7 +19,7 @@ export function GeneratedScriptPromptTabs({
   const firstValue = prompts[0] ? String(prompts[0].segmentIndex) : "loading";
 
   return (
-    <div className="mt-3 rounded-lg border border-border bg-card">
+    <div className="mt-3 max-w-full overflow-hidden rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <WandSparkles className="h-4 w-4 shrink-0 text-primary" />
@@ -49,7 +50,7 @@ export function GeneratedScriptPromptTabs({
 
       {prompts.length ? (
         <Tabs defaultValue={firstValue} className="gap-0">
-          <div className="overflow-x-auto border-b border-border px-3 py-2">
+          <div className="max-w-full overflow-x-auto border-b border-border px-3 py-2">
             <TabsList className="h-9">
               {prompts.map((prompt) => (
                 <TabsTrigger
@@ -71,9 +72,10 @@ export function GeneratedScriptPromptTabs({
                   <span className="min-w-0 truncate rounded-md bg-muted px-2 py-1">{prompt.referenceUrl}</span>
                 ) : null}
               </div>
-              <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-xs leading-5 text-foreground">
+              <pre className="max-h-80 max-w-full overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 text-xs leading-5 text-foreground">
                 {prompt.prompt}
               </pre>
+              <OmniSegmentPromptDetails prompt={prompt.prompt} voiceoverText={prompt.voiceoverText} />
             </TabsContent>
           ))}
         </Tabs>
