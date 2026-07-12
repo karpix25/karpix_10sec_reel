@@ -47,12 +47,31 @@ function getAvatarReferenceUrl(reel: OmniReel) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function getProductReferenceUrl(reel: OmniReel) {
+  const snapshot = reel.product_snapshot || {};
+  const refs = (snapshot as { product_refs?: unknown }).product_refs;
+  if (!Array.isArray(refs)) return null;
+  const primary = refs.find((ref) => Boolean((ref as { is_primary?: unknown }).is_primary)) || refs[0];
+  const value = (primary as { url?: unknown } | undefined)?.url;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 export async function submitOmniReel(reelId: number) {
   const { reel, segments } = await getReelBundle(reelId);
   if (!segments.length) throw new Error("Omni reel has no segments");
   const avatarReferenceUrl = getAvatarReferenceUrl(reel);
+  const productReferenceUrl = getProductReferenceUrl(reel);
   const referenceImageField = getCometReferenceImageFieldName();
-  const sendReferenceImage = Boolean(avatarReferenceUrl && shouldSendCometReferenceImage());
+  const referenceImages = shouldSendCometReferenceImage()
+    ? [
+        avatarReferenceUrl
+          ? { url: avatarReferenceUrl, fieldName: referenceImageField, role: "avatar" }
+          : null,
+        productReferenceUrl
+          ? { url: productReferenceUrl, fieldName: referenceImageField, role: "product" }
+          : null,
+      ].filter((image): image is { url: string; fieldName: string; role: string } => Boolean(image))
+    : [];
 
   await pool.query(
     `UPDATE omni_reels
@@ -72,12 +91,7 @@ export async function submitOmniReel(reelId: number) {
       seconds: segment.duration_seconds || 10,
       aspectRatio: "9:16",
       resolution: "720p",
-      referenceImage: sendReferenceImage && avatarReferenceUrl
-        ? {
-            url: avatarReferenceUrl,
-            fieldName: referenceImageField,
-          }
-        : null,
+      referenceImages,
     });
     await pool.query(
       `UPDATE omni_reel_segments
@@ -98,10 +112,12 @@ export async function submitOmniReel(reelId: number) {
           seconds: segment.duration_seconds || 10,
           aspect_ratio: "9:16",
           resolution: "720p",
-          reference_image_sent: sendReferenceImage,
-          reference_image_field: sendReferenceImage ? referenceImageField : null,
-          reference_image_url: avatarReferenceUrl,
-          reference_image_role: avatarReferenceUrl ? "avatar" : null,
+          reference_images_sent: referenceImages.length > 0,
+          reference_image_field: referenceImages.length ? referenceImageField : null,
+          reference_images: referenceImages.map((image) => ({
+            role: image.role,
+            url: image.url,
+          })),
         }),
         JSON.stringify(task.raw),
       ]
