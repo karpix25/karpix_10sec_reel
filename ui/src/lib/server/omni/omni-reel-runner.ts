@@ -1,6 +1,11 @@
 import pool from "@/lib/db";
 import type { OmniReel, OmniReelSegment } from "@/lib/omni/types";
-import { downloadCometOmniVideo, retrieveCometOmniVideoTask, createCometOmniVideoTask } from "./comet-video-client";
+import {
+  downloadCometOmniVideo,
+  retrieveCometOmniVideoTask,
+  createCometOmniVideoTask,
+  getCometReferenceImageFieldName,
+} from "./comet-video-client";
 import { ensureOmniSchema } from "./schema";
 import { getOmniProject } from "./projects";
 import { requireOmniProductInProject } from "./products";
@@ -35,9 +40,17 @@ function hasRunningSegments(segments: OmniReelSegment[]) {
   return segments.some((segment) => RUNNING_STATUSES.has(String(segment.status || "").toLowerCase()));
 }
 
+function getAvatarReferenceUrl(reel: OmniReel) {
+  const snapshot = reel.avatar_snapshot || {};
+  const value = (snapshot as { reference_url?: unknown }).reference_url;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 export async function submitOmniReel(reelId: number) {
   const { reel, segments } = await getReelBundle(reelId);
   if (!segments.length) throw new Error("Omni reel has no segments");
+  const avatarReferenceUrl = getAvatarReferenceUrl(reel);
+  const referenceImageField = getCometReferenceImageFieldName();
 
   await pool.query(
     `UPDATE omni_reels
@@ -57,6 +70,12 @@ export async function submitOmniReel(reelId: number) {
       seconds: segment.duration_seconds || 10,
       aspectRatio: "9:16",
       resolution: "720p",
+      referenceImage: avatarReferenceUrl
+        ? {
+            url: avatarReferenceUrl,
+            fieldName: referenceImageField,
+          }
+        : null,
     });
     await pool.query(
       `UPDATE omni_reel_segments
@@ -72,7 +91,15 @@ export async function submitOmniReel(reelId: number) {
         segment.id,
         task.id,
         task.status === "queued" ? "submitted" : "processing",
-        JSON.stringify({ model: "omni-fast", seconds: segment.duration_seconds || 10, aspect_ratio: "9:16", resolution: "720p" }),
+        JSON.stringify({
+          model: "omni-fast",
+          seconds: segment.duration_seconds || 10,
+          aspect_ratio: "9:16",
+          resolution: "720p",
+          reference_image_field: avatarReferenceUrl ? referenceImageField : null,
+          reference_image_url: avatarReferenceUrl,
+          reference_image_role: avatarReferenceUrl ? "avatar" : null,
+        }),
         JSON.stringify(task.raw),
       ]
     );

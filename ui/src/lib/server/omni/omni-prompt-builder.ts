@@ -36,7 +36,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const segmentIndex = index + 1;
     const role = getSegmentRole(segmentIndex, input.segmentCount);
     const scriptChunk = chunks[index] || "";
-    const referenceUrl = productReference?.url || avatarReference;
+    const referenceUrl = avatarReference || productReference?.url || null;
 
     return {
       index: segmentIndex,

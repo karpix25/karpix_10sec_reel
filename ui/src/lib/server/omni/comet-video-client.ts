@@ -1,5 +1,6 @@
 const DEFAULT_BASE_URL = "https://api.cometapi.com";
 const DEFAULT_MODEL = "omni-fast";
+const DEFAULT_REFERENCE_IMAGE_FIELD = "image";
 const TERMINAL_STATUSES = new Set(["completed", "failed", "error"]);
 
 export type CometVideoTask = {
@@ -15,6 +16,12 @@ export type CometVideoTask = {
   raw: Record<string, unknown>;
 };
 
+export type CometReferenceImage = {
+  url: string;
+  fieldName?: string;
+  fileName?: string;
+};
+
 function getApiKey() {
   const key = process.env.COMETAPI_KEY || "";
   if (!key.trim()) throw new Error("COMETAPI_KEY is not configured");
@@ -23,6 +30,10 @@ function getApiKey() {
 
 function getBaseUrl() {
   return (process.env.COMETAPI_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, "");
+}
+
+export function getCometReferenceImageFieldName() {
+  return (process.env.COMETAPI_REFERENCE_IMAGE_FIELD || DEFAULT_REFERENCE_IMAGE_FIELD).trim() || DEFAULT_REFERENCE_IMAGE_FIELD;
 }
 
 function normalizeTask(data: Record<string, unknown>): CometVideoTask {
@@ -61,6 +72,7 @@ export async function createCometOmniVideoTask(input: {
   seconds: number;
   aspectRatio?: string;
   resolution?: string;
+  referenceImage?: CometReferenceImage | null;
 }) {
   const form = new FormData();
   form.append("model", DEFAULT_MODEL);
@@ -68,6 +80,14 @@ export async function createCometOmniVideoTask(input: {
   form.append("seconds", String(input.seconds));
   form.append("aspect_ratio", input.aspectRatio || "9:16");
   form.append("resolution", input.resolution || "720p");
+  if (input.referenceImage?.url) {
+    const image = await downloadReferenceImage(input.referenceImage.url);
+    form.append(
+      input.referenceImage.fieldName || getCometReferenceImageFieldName(),
+      new Blob([image.body], { type: image.contentType }),
+      input.referenceImage.fileName || image.fileName
+    );
+  }
 
   const response = await fetch(`${getBaseUrl()}/v1/videos`, {
     method: "POST",
@@ -80,6 +100,36 @@ export async function createCometOmniVideoTask(input: {
   }
 
   return normalizeTask((await response.json()) as Record<string, unknown>);
+}
+
+async function downloadReferenceImage(url: string) {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`CometAPI Omni reference image download failed: ${response.status} ${url}`);
+  }
+
+  const contentType = response.headers.get("content-type") || "image/jpeg";
+  if (!contentType.toLowerCase().startsWith("image/")) {
+    throw new Error(`CometAPI Omni reference URL is not an image: ${contentType}`);
+  }
+
+  return {
+    body: await response.arrayBuffer(),
+    contentType,
+    fileName: buildReferenceImageFileName(url, contentType),
+  };
+}
+
+function buildReferenceImageFileName(url: string, contentType: string) {
+  const extension = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+  try {
+    const parsed = new URL(url);
+    const last = parsed.pathname.split("/").filter(Boolean).pop();
+    if (last && /\.[a-z0-9]{2,5}$/i.test(last)) return last;
+  } catch {
+    // Keep the stable fallback below.
+  }
+  return `avatar-reference.${extension}`;
 }
 
 export async function retrieveCometOmniVideoTask(taskId: string) {
