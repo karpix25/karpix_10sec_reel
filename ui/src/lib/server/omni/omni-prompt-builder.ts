@@ -1,5 +1,10 @@
 import type { OmniClientAvatar, OmniGeneratedScript, OmniProduct, OmniReferenceAsset } from "@/lib/omni/types";
-import { buildSegmentContinuityLine, buildSegmentStoryGoal, OMNI_MOBILE_UGC_STYLE } from "./omni-ugc-contract";
+import {
+  buildSegmentContinuityLine,
+  buildSegmentShotPlan,
+  buildSegmentStoryGoal,
+  OMNI_MOBILE_UGC_STYLE,
+} from "./omni-ugc-contract";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -75,6 +80,7 @@ function buildSinglePrompt(input: {
 }) {
   const continuity = buildSegmentContinuityLine(input.segmentIndex, input.segmentCount);
   const storyGoal = buildSegmentStoryGoal(input.segmentIndex, input.segmentCount);
+  const shotPlan = buildSegmentShotPlan(input.segmentIndex, input.segmentCount);
   const ending =
     input.segmentIndex === input.segmentCount
       ? "End with a relaxed CTA-friendly closing pose in the same home scene."
@@ -97,6 +103,9 @@ function buildSinglePrompt(input: {
     "",
     "SEGMENT STORY GOAL:",
     storyGoal,
+    "",
+    "SHOT PLAN:",
+    shotPlan,
     "",
     "SCRIPT BEAT TO VISUALIZE:",
     voiceover,
@@ -122,11 +131,14 @@ function buildSinglePrompt(input: {
     "- Keep a consistent fictional presenter type across segments: similar age range, hair color, outfit palette, mood, and speaking style.",
     "- Treat the avatar reference as inspiration for a privacy-safe fictional presenter with a similar general vibe.",
     "- Keep lighting, room, and phone-camera language consistent across all segments.",
+    "- Use 2-3 natural shot changes inside this 10-second segment: selfie, hands, product insert, countertop, mirror, or over-the-shoulder phone angle.",
+    "- Make the first 3 seconds visually specific and curiosity-driven, with movement or an unusual close-up that feels like real phone footage.",
     "- Use natural speech, natural face movement, realistic hands, and everyday product handling.",
     "- Keep action simple enough for a clean 10-second Omni generation.",
-    "- Show the product naturally in frame or as the visual anchor when a product reference exists.",
+    "- Show the product naturally in frame or as the visual anchor when a product reference exists, especially in middle and final segments.",
     "- For talking-head beats, keep the avatar looking into camera with natural gestures.",
     "- The spoken words in this segment belong only to this segment, while the visual identity stays part of one continuous reel.",
+    `- Shot plan: ${shotPlan}`,
     `- Continuity: ${continuity}`,
     `- Ending: ${ending}`,
     input.brief ? `- Extra brief: ${input.brief}` : null,

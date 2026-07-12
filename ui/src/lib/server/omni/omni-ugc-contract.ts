@@ -5,22 +5,46 @@ export const OMNI_MOBILE_UGC_STYLE = [
   "A fictional UGC presenter with a similar general age, hair color, and everyday style appears throughout the reel.",
   "Use the avatar reference as a loose character moodboard for a privacy-safe fictional presenter.",
   "Keep the presenter's general type, outfit color palette, mood, and speaking style consistent in every segment.",
-  "The background stays consistent, as if filmed in one continuous home session.",
-  "She speaks naturally to the camera, like sharing a personal routine with a friend.",
+  "Use one continuous home session with dynamic phone-shot coverage: selfie, close-up hands, product insert, mirror or countertop angle.",
+  "She speaks naturally to the camera, like sharing a personal routine with a friend, while the camera changes angle inside the same home.",
   "The product is shown through simple real actions: taking it, pouring it into a glass, stirring, tasting.",
   "The mood is calm, honest, everyday, and personal.",
 ].join("\n");
 
 export function buildSegmentContinuityLine(segmentIndex: number, segmentCount: number) {
-  return `This is part ${segmentIndex}/${segmentCount} of one continuous UGC video. Keep a similar fictional presenter type, the same outfit palette, same room, same lighting, same phone-camera style, and continue the same lived-in scene.`;
+  return `This is part ${segmentIndex}/${segmentCount} of one continuous UGC video. Keep a similar fictional presenter type, same outfit palette, same home, same lighting family, same phone-camera style, and continue the same lived-in routine with fresh shot angles.`;
 }
 
 export function buildSegmentStoryGoal(segmentIndex: number, segmentCount: number) {
   if (segmentIndex === 1) {
-    return "Open with a natural everyday hook: the person starts a simple home routine and gives the viewer a reason to keep watching.";
+    return "Open with a visually unusual everyday hook in the first 3 seconds, then reveal the home routine and give the viewer a reason to keep watching.";
   }
   if (segmentIndex === segmentCount) {
-    return "Close with a calm personal takeaway and a soft CTA that feels like a friendly recommendation.";
+    return "Close with the product visible in hand or on the counter, a calm personal takeaway, and a soft CTA that feels like a friendly recommendation.";
   }
-  return "Show the product in use through one simple realistic action that continues the same home routine.";
+  return "Show the product clearly in use through one simple realistic action that continues the same home routine.";
+}
+
+export function buildSegmentShotPlan(segmentIndex: number, segmentCount: number) {
+  if (segmentIndex === 1) {
+    return [
+      "0-3s: visual pattern interrupt hook, such as the presenter holding an empty glass close to the phone lens, a quick countertop reveal, or opening a cabinet/fridge with the product just out of focus.",
+      "3-7s: switch to casual selfie angle; the presenter starts the line naturally while moving through the home.",
+      "7-10s: quick cut to hands or countertop, preparing the viewer for the product reveal in the next segment.",
+    ].join("\n");
+  }
+
+  if (segmentIndex === segmentCount) {
+    return [
+      "0-3s: close-up product insert in hand or on the counter, label facing camera.",
+      "3-7s: switch to the presenter reacting naturally after using or preparing the product.",
+      "7-10s: end with product still visible and a relaxed phone-camera closing beat.",
+    ].join("\n");
+  }
+
+  return [
+    "0-3s: product appears clearly as the visual anchor, label or package visible.",
+    "3-7s: hands prepare or use the product: pour, stir, hold, taste, or place it beside a glass.",
+    "7-10s: switch back to a natural selfie reaction while the product remains in frame.",
+  ].join("\n");
 }
