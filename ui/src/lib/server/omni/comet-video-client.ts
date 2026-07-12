@@ -36,6 +36,10 @@ export function getCometReferenceImageFieldName() {
   return (process.env.COMETAPI_REFERENCE_IMAGE_FIELD || DEFAULT_REFERENCE_IMAGE_FIELD).trim() || DEFAULT_REFERENCE_IMAGE_FIELD;
 }
 
+export function shouldSendCometReferenceImage() {
+  return ["1", "true", "yes"].includes(String(process.env.COMETAPI_SEND_REFERENCE_IMAGE || "").toLowerCase());
+}
+
 function normalizeTask(data: Record<string, unknown>): CometVideoTask {
   const id = String(data.id || data.task_id || "").trim();
   if (!id) throw new Error(`CometAPI Omni did not return task id: ${JSON.stringify(data)}`);

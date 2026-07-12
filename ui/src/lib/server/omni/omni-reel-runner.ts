@@ -5,6 +5,7 @@ import {
   retrieveCometOmniVideoTask,
   createCometOmniVideoTask,
   getCometReferenceImageFieldName,
+  shouldSendCometReferenceImage,
 } from "./comet-video-client";
 import { ensureOmniSchema } from "./schema";
 import { getOmniProject } from "./projects";
@@ -51,6 +52,7 @@ export async function submitOmniReel(reelId: number) {
   if (!segments.length) throw new Error("Omni reel has no segments");
   const avatarReferenceUrl = getAvatarReferenceUrl(reel);
   const referenceImageField = getCometReferenceImageFieldName();
+  const sendReferenceImage = Boolean(avatarReferenceUrl && shouldSendCometReferenceImage());
 
   await pool.query(
     `UPDATE omni_reels
@@ -70,7 +72,7 @@ export async function submitOmniReel(reelId: number) {
       seconds: segment.duration_seconds || 10,
       aspectRatio: "9:16",
       resolution: "720p",
-      referenceImage: avatarReferenceUrl
+      referenceImage: sendReferenceImage && avatarReferenceUrl
         ? {
             url: avatarReferenceUrl,
             fieldName: referenceImageField,
@@ -96,7 +98,8 @@ export async function submitOmniReel(reelId: number) {
           seconds: segment.duration_seconds || 10,
           aspect_ratio: "9:16",
           resolution: "720p",
-          reference_image_field: avatarReferenceUrl ? referenceImageField : null,
+          reference_image_sent: sendReferenceImage,
+          reference_image_field: sendReferenceImage ? referenceImageField : null,
           reference_image_url: avatarReferenceUrl,
           reference_image_role: avatarReferenceUrl ? "avatar" : null,
         }),
