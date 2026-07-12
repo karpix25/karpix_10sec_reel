@@ -13,6 +13,7 @@ import { getOmniProject } from "./projects";
 import { requireOmniProductInProject } from "./products";
 import { stitchOmniSegments } from "./omni-video-stitcher";
 import { uploadOmniFinalVideo, uploadOmniVideoBufferToS3 } from "./omni-video-storage";
+import { selectReferenceImagesForComet } from "./omni-reference-images";
 
 type ReelBundle = {
   reel: OmniReel;
@@ -74,6 +75,7 @@ export async function submitOmniReel(reelId: number) {
           : null,
       ].filter((image): image is { url: string; fieldName: string; role: string } => Boolean(image))
     : [];
+  const selectedReferenceImages = selectReferenceImagesForComet(referenceImages, referenceImageTransport);
 
   await pool.query(
     `UPDATE omni_reels
@@ -88,13 +90,52 @@ export async function submitOmniReel(reelId: number) {
     if (segment.kie_task_id || RUNNING_STATUSES.has(segment.status) || segment.status === "completed") continue;
     if (!segment.prompt) throw new Error(`Segment ${segment.segment_index} has no prompt`);
 
-    const task = await createCometOmniVideoTask({
-      prompt: segment.prompt,
+    const requestPayload = {
+      model: "omni-fast",
       seconds: segment.duration_seconds || 10,
-      aspectRatio: "9:16",
+      aspect_ratio: "9:16",
       resolution: "720p",
-      referenceImages,
-    });
+      reference_images_sent: selectedReferenceImages.sent.length > 0,
+      reference_image_field: selectedReferenceImages.sent.length ? referenceImageField : null,
+      reference_image_transport: selectedReferenceImages.sent.length ? referenceImageTransport : null,
+      reference_images: selectedReferenceImages.sent.map((image) => ({
+        role: image.role,
+        url: image.url,
+      })),
+      reference_images_skipped: selectedReferenceImages.skipped.map((image) => ({
+        role: image.role,
+        url: image.url,
+        reason: "url_transport_accepts_single_input_reference",
+      })),
+    };
+
+    let task: Awaited<ReturnType<typeof createCometOmniVideoTask>>;
+    try {
+      task = await createCometOmniVideoTask({
+        prompt: segment.prompt,
+        seconds: segment.duration_seconds || 10,
+        aspectRatio: "9:16",
+        resolution: "720p",
+        referenceImages: selectedReferenceImages.sent,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await pool.query(
+        `UPDATE omni_reel_segments
+         SET status = 'failed',
+             request_payload = $2::jsonb,
+             error_message = $3,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [segment.id, JSON.stringify(requestPayload), message]
+      );
+      await pool.query(
+        "UPDATE omni_reels SET status = 'failed', error_message = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+        [reel.id, message]
+      );
+      throw error;
+    }
+
     await pool.query(
       `UPDATE omni_reel_segments
        SET kie_task_id = $2,
@@ -109,19 +150,7 @@ export async function submitOmniReel(reelId: number) {
         segment.id,
         task.id,
         task.status === "queued" ? "submitted" : "processing",
-        JSON.stringify({
-          model: "omni-fast",
-          seconds: segment.duration_seconds || 10,
-          aspect_ratio: "9:16",
-          resolution: "720p",
-          reference_images_sent: referenceImages.length > 0,
-          reference_image_field: referenceImages.length ? referenceImageField : null,
-          reference_image_transport: referenceImages.length ? referenceImageTransport : null,
-          reference_images: referenceImages.map((image) => ({
-            role: image.role,
-            url: image.url,
-          })),
-        }),
+        JSON.stringify(requestPayload),
         JSON.stringify(task.raw),
       ]
     );
