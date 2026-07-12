@@ -7,10 +7,14 @@ export type ReelReferenceImage = {
 export function selectReferenceImagesForComet(
   images: ReelReferenceImage[],
   transport: string,
-  _segmentIndex?: number
+  segmentIndex?: number
 ) {
+  void segmentIndex;
   if (transport !== "url") return { sent: images, skipped: [] as ReelReferenceImage[] };
-  const selected = images.find((image) => image.role === "avatar") || images[0];
+  const selected =
+    images.find((image) => image.role === "avatar_product_composite") ||
+    images.find((image) => image.role === "avatar") ||
+    images[0];
   if (!selected) return { sent: [], skipped: [] as ReelReferenceImage[] };
 
   return {
