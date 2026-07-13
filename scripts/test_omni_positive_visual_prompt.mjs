@@ -97,6 +97,7 @@ try {
   assert.equal(prompts[2].referenceUrl, "https://example.com/product.png");
   assert.ok(joinedPrompt.includes("ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА:"), "positive visual style must be rendered");
   assert.ok(joinedPrompt.includes("КАМЕРА И СВЕТ:"), "camera and light must be rendered");
+  assert.ok(joinedPrompt.includes("Чистый полноэкранный кадр"), "clean-frame provider contract must be rendered");
   assert.ok(joinedPrompt.includes("ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ"), "talking-head cutaway format must be rendered");
   assert.ok(joinedPrompt.includes("ТРИ КАДРА ОДНОЙ ЧАСТИ:"), "talking-head prompt must use shot-based structure");
   assert.ok(joinedPrompt.includes("во время короткой перебивки речь продолжает звучать как voiceover"), "cutaway voiceover rule must be rendered");
@@ -107,6 +108,7 @@ try {
   assert.ok(joinedPrompt.includes("бежевом свитере"), "specific clothing notes must reach provider prompt");
   assert.ok(joinedPrompt.includes("image_urls задают продукт, а не одежду героя"), "product images must not define hero clothing");
   assert.ok(!joinedPrompt.includes("НЕ ИСПОЛЬЗОВАТЬ КАК ДЕФОЛТ"), "internal anti-default guard must not reach provider prompt");
+  assert.ok(!/\b(?:Reels?|Instagram|TikTok|Shorts)\b/u.test(joinedPrompt), "platform names must not reach provider prompt");
   assert.ok(!/спокойный коридор как универсальная сцена|связка ключей как обязательный реквизит/u.test(joinedPrompt));
   assert.ok(!/полотенц|сумк|ключ|органайзер|шоппер/u.test(joinedPrompt), "talking-head prompts must not use old default props");
 

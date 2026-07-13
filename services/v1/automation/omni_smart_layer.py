@@ -7,6 +7,9 @@ from services.v1.automation.omni_script_segmentation import normalize_script_tex
 
 
 TARGET_WORDS_PER_PART = 18
+CLEAN_FRAME_CONTRACT = (
+    "Чистый полноэкранный кадр без экранной графики, рамок и декоративных элементов поверх изображения."
+)
 
 FORMAT_STATE_ARCS = {
     "habit_replacement": (
@@ -127,7 +130,10 @@ def _build_omni_part_prompt(
     clothing_text = f" в {clothing}" if clothing else ""
     prompt = "\n".join(
         (
-            f"Вертикальное реалистичное UGC-видео 9:16, часть {part_number} из {total_parts} одного непрерывного Reels.",
+            (
+                f"Вертикальное реалистичное UGC-видео 9:16, часть {part_number} из {total_parts} "
+                f"одного непрерывного вертикального видео. {CLEAN_FRAME_CONTRACT}"
+            ),
             f"ЖИЗНЕННАЯ СИТУАЦИЯ: {life_format.provider_description}. Локация: {life_format.setting}.",
             f"ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: {' | '.join(continuity_props)}.",
             f"ПЕРСОНАЖ: один и тот же человек{clothing_text}; одинаковые внешность, одежда, свет, фон и темп речи.",

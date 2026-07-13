@@ -4,11 +4,16 @@ import type {
   OmniSegmentCreativePlan,
   ProductRole,
 } from "@/lib/omni/creative-contract";
+import { OMNI_CLEAN_FRAME_PROMPT } from "./omni-provider-prompt-contract";
 
 export const TALKING_HEAD_CUTAWAY_FORMAT_ID: LifeFormatId = "talking_head_cutaways";
 
 export const OMNI_TALKING_HEAD_SYSTEM_PROMPT =
-  "Сделай живой короткий Reels в формате говорящая голова с простыми перебивками. Главный кадр - лицо в камеру, перебивки короткие и статичные.";
+  [
+    "Сделай живое короткое вертикальное видео 9:16: говорящая голова с простыми перебивками.",
+    OMNI_CLEAN_FRAME_PROMPT,
+    "Главный кадр - лицо в камеру, перебивки короткие и статичные.",
+  ].join(" ");
 
 export function isTalkingHeadCutawayFormat(formatId: LifeFormatId) {
   return formatId === TALKING_HEAD_CUTAWAY_FORMAT_ID;

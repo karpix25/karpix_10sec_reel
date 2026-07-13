@@ -4,6 +4,7 @@ import type {
 } from "@/lib/omni/creative-contract";
 import { getOmniSegmentWordBudget } from "./omni-duration-planner";
 import { hasForbiddenOmniScriptSymbols } from "./omni-script-text-contract";
+import { getProviderPromptImprintMatches } from "./omni-provider-prompt-contract";
 
 const FORBIDDEN_ACTION_PATTERNS = [
   /(?:у|через|перед)\s+зеркал/iu,
@@ -53,6 +54,9 @@ export function validateOmniSegmentPrompt(input: {
   }
   if (!input.prompt.includes("ИСТОЧНИКИ ОБРАЗА:")) {
     errors.push("character_source_contract_required");
+  }
+  if (getProviderPromptImprintMatches(input.prompt).length > 0) {
+    errors.push("provider_prompt_contains_platform_imprint");
   }
   for (const item of input.plan.continuityProps) {
     if (!input.prompt.includes(item.name) || !input.prompt.includes(item.appearance)) {

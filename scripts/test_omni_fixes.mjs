@@ -17,6 +17,7 @@ try {
     [
       "src/lib/server/omni/omni-reference-images.ts",
       "src/lib/server/omni/omni-continuity-prompt.ts",
+      "src/lib/server/omni/omni-provider-prompt-contract.ts",
       "--outDir", output,
       "--module", "commonjs",
       "--target", "es2022",
@@ -30,6 +31,10 @@ try {
     appendContinuityPromptContract,
     appendKieReferenceOrderPrompt,
   } = require(join(output, "omni-continuity-prompt.js"));
+  const {
+    prepareProviderVideoPrompt,
+    getProviderPromptImprintMatches,
+  } = require(join(output, "omni-provider-prompt-contract.js"));
 
   const imgAvatar = { url: "avatar.png", fieldName: "ref", role: "avatar" };
   const imgProduct = { url: "product.png", fieldName: "ref", role: "product" };
@@ -110,6 +115,18 @@ try {
     assert.match(prompt, /Image 2: product reference/);
     assert.match(prompt, /standalone product reference/);
     assert.match(prompt, /table, counter, shelf/);
+  }
+
+  {
+    const legacyPrompt = [
+      "Сделай живой короткий Reels одним непрерывным телефонным кадром.",
+      'ТОЧНАЯ РЕПЛИКА: "Я говорю слово Reels как часть точной речи"',
+    ].join("\n");
+    const prompt = prepareProviderVideoPrompt(legacyPrompt);
+    assert.doesNotMatch(prompt.split("\n", 1)[0], /Reels/u);
+    assert.match(prompt, /вертикальное видео/u);
+    assert.match(prompt, /слово Reels как часть точной речи/u);
+    assert.deepEqual(getProviderPromptImprintMatches(prompt), []);
   }
 
   console.log("Omni reference image priority reliability checks passed");
