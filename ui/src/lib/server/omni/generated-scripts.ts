@@ -12,6 +12,7 @@ import { listRecentLifeFormatIds } from "./omni-creative-history";
 import type { CtaMode } from "@/lib/omni/creative-contract";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
 import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
+import { ensureOmniScriptCta } from "./omni-cta-contract";
 
 type GeneratedScriptPayload = {
   title?: string;
@@ -79,14 +80,18 @@ export async function buildGeneratedScriptPromptPreview(input: {
   if (!generatedScript) throw new Error("Generated script not found for this product");
 
   const product = await requireOmniProductInProject(input.projectId, input.productId);
+  const resolvedGeneratedScript = {
+    ...generatedScript,
+    script: ensureOmniScriptCta(generatedScript.script, product.cta_mode, product.cta_value),
+  };
   const avatar = await getLatestOmniClientAvatar(input.projectId);
   const project = await getOmniProject(input.projectId);
   if (!project) throw new Error("Omni client project not found");
-  const segmentPlan = planOmniReelSegments(generatedScript.script);
+  const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script);
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
 
   return buildOmniSegmentPrompts({
-    generatedScript,
+    generatedScript: resolvedGeneratedScript,
     legacyTranscript: null,
     product,
     avatar,
@@ -253,8 +258,9 @@ async function generateScript(input: {
   const data = await response.json();
   const content = String(data?.choices?.[0]?.message?.content || "");
   const parsed = parseJsonPayload(content);
-  const script = sanitizeOmniScriptText(formatScenarioScript(parsed.script));
-  if (!script) throw new Error("Script model returned empty script");
+  const rawScript = sanitizeOmniScriptText(formatScenarioScript(parsed.script));
+  if (!rawScript) throw new Error("Script model returned empty script");
+  const script = ensureOmniScriptCta(rawScript, input.ctaMode, input.ctaValue);
   assertOmniScriptTextContract(script);
 
   const clean = (value: unknown) => sanitizeOmniScriptText(String(value || ""));

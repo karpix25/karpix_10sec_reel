@@ -1,5 +1,6 @@
 "use client";
 
+import axios from "axios";
 import { Loader2, WandSparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOmniGeneratedScriptPrompts } from "@/hooks/useOmniStudio";
@@ -17,6 +18,7 @@ export function GeneratedScriptPromptTabs({
   const promptsQuery = useOmniGeneratedScriptPrompts(projectId, productId, scriptId);
   const prompts = promptsQuery.data || [];
   const firstValue = prompts[0] ? String(prompts[0].segmentIndex) : "loading";
+  const errorMessage = getPromptErrorMessage(promptsQuery.error);
 
   return (
     <div className="mt-3 max-w-full overflow-hidden rounded-lg border border-border bg-card">
@@ -44,7 +46,8 @@ export function GeneratedScriptPromptTabs({
 
       {promptsQuery.isError ? (
         <div className="px-3 py-4 text-xs leading-5 text-destructive">
-          Не удалось собрать prompt preview для этого сценария.
+          <p className="font-semibold">Не удалось собрать prompt preview для этого сценария.</p>
+          {errorMessage ? <p className="mt-1 text-destructive/80">{errorMessage}</p> : null}
         </div>
       ) : null}
 
@@ -88,4 +91,12 @@ export function GeneratedScriptPromptTabs({
       ) : null}
     </div>
   );
+}
+
+function getPromptErrorMessage(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    const message = error.response?.data?.error;
+    return typeof message === "string" ? message : error.message;
+  }
+  return error instanceof Error ? error.message : null;
 }

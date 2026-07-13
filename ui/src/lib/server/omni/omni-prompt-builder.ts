@@ -13,6 +13,7 @@ import { splitScriptIntoVoiceSegments } from "./omni-script-segmentation";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
 import { validateOmniSegmentPrompt, validateVoiceoverSequence } from "./omni-prompt-validator";
 import { getOmniSegmentWordBudget } from "./omni-duration-planner";
+import { assertOmniCtaContract } from "./omni-cta-contract";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -67,7 +68,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     ctaValue: input.ctaValue,
     recentFormatIds: input.recentFormatIds,
   });
-  assertCtaContract(scriptText, strategy);
+  assertOmniCtaContract(scriptText, strategy);
   const prompts: OmniSegmentPrompt[] = [];
 
   for (let index = 0; index < voiceSegments.length; index += 1) {
@@ -244,39 +245,6 @@ function lowerFirst(value: string) {
 
 function countWords(value: string) {
   return value.split(/\s+/).filter(Boolean).length;
-}
-
-function assertCtaContract(script: string, strategy: OmniCreativeStrategy) {
-  const normalized = script.toLowerCase().replace(/ё/g, "е");
-  const asksForComment = /напиш|коммент|кодово.*слов/iu.test(normalized);
-  const mentionsProfileLink = /ссылк.*(?:профил|био)/iu.test(normalized);
-  const mentionsArticle = /артикул|описани/iu.test(normalized);
-  if (strategy.ctaMode === "keyword_in_comments" && (mentionsProfileLink || mentionsArticle)) {
-    throw new Error("Script CTA conflicts with keyword_in_comments product contract");
-  }
-  if (strategy.ctaMode === "keyword_in_comments" && strategy.ctaValue && asksForComment &&
-      !normalized.includes(strategy.ctaValue.toLowerCase())) {
-    throw new Error("Script CTA uses a different comment keyword");
-  }
-  if (strategy.ctaMode === "keyword_in_comments" &&
-      (!asksForComment || !strategy.ctaValue || !normalized.includes(strategy.ctaValue.toLowerCase()))) {
-    throw new Error("Script is missing the required comment keyword CTA");
-  }
-  if (strategy.ctaMode === "link_in_profile" && (asksForComment || mentionsArticle)) {
-    throw new Error("Script CTA conflicts with link_in_profile product contract");
-  }
-  if (strategy.ctaMode === "link_in_profile" && !mentionsProfileLink) {
-    throw new Error("Script is missing the required profile link CTA");
-  }
-  if (strategy.ctaMode === "article_in_description" && (asksForComment || mentionsProfileLink)) {
-    throw new Error("Script CTA conflicts with article_in_description product contract");
-  }
-  if (strategy.ctaMode === "article_in_description" && !mentionsArticle) {
-    throw new Error("Script is missing the required article-in-description CTA");
-  }
-  if (strategy.ctaMode === "no_explicit_cta" && (asksForComment || mentionsProfileLink || mentionsArticle)) {
-    throw new Error("Script has an explicit CTA while product contract disables it");
-  }
 }
 
 function getPrimaryReference(refs: OmniReferenceAsset[]) {
