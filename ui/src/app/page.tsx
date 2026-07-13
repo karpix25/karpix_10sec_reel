@@ -13,6 +13,7 @@ import { OmniStudioScreen } from "@/components/screens/OmniStudio";
 import { AvatarScreen } from "@/components/screens/AvatarScreen";
 import { useOmniProjects } from "@/hooks/useOmniStudio";
 import { useOmniProviderPreference } from "@/hooks/useOmniProviderPreference";
+import { useAppVersionReload } from "@/hooks/useAppVersionReload";
 import { buildWorkspaceUrl, readInitialWorkspaceUrlState } from "@/lib/navigation/workspace-url-state";
 
 import { ReferenceModal } from "@/components/ReferenceModal";
@@ -140,6 +141,8 @@ const normalizeDeepgramVocabularyRules = (value: unknown): DeepgramVocabularyRul
 };
 
 export default function CuratorDashboard() {
+  useAppVersionReload();
+
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [authUser, setAuthUser] = useState<TelegramSessionUser | null>(null);
   const [authError, setAuthError] = useState("");
