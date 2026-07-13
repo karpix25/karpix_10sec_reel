@@ -54,11 +54,27 @@ try {
       name: "Коллаген",
       description: "Добавка для красоты кожи и волос",
       product_reference_notes: null,
+      avatar_reference_notes: "Героиня в мягком бежевом свитере и светлых джинсах, без логотипов.",
       product_refs: [],
+      avatar_refs: [],
       cta_mode: "article_in_description",
       cta_value: null,
     },
-    avatar: null,
+    avatar: {
+      id: 1,
+      project_id: 1,
+      display_name: "Анна",
+      prompt: "Доброжелательная женщина 30 лет, домашний живой образ.",
+      reference_url: "https://example.com/avatar.png",
+      status: "approved",
+      provider: "kie-omni",
+      kie_character_id: "char_123",
+      kie_character_status: "completed",
+      kie_character_payload: null,
+      is_active: true,
+      created_at: "2026-07-13T00:00:00.000Z",
+      updated_at: "2026-07-13T00:00:00.000Z",
+    },
     segmentCount: 3,
     segmentSeconds: 10,
     brief: null,
@@ -71,6 +87,10 @@ try {
   const joinedPrompt = prompts.map((item) => item.prompt).join("\n");
   assert.ok(joinedPrompt.includes("ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА:"), "positive visual style must be rendered");
   assert.ok(joinedPrompt.includes("КАМЕРА И СВЕТ:"), "camera and light must be rendered");
+  assert.ok(joinedPrompt.includes("ГЛАВНЫЙ ПЕРСОНАЖ:"), "main character contract must be rendered");
+  assert.ok(joinedPrompt.includes("ОДЕЖДА:"), "clothing contract must be rendered");
+  assert.ok(joinedPrompt.includes("бежевом свитере"), "specific clothing notes must reach provider prompt");
+  assert.ok(joinedPrompt.includes("image_urls задают продукт, а не одежду героя"), "product images must not define hero clothing");
   assert.ok(!joinedPrompt.includes("НЕ ИСПОЛЬЗОВАТЬ КАК ДЕФОЛТ"), "internal anti-default guard must not reach provider prompt");
   assert.ok(!/спокойный коридор как универсальная сцена|связка ключей как обязательный реквизит/u.test(joinedPrompt));
 

@@ -14,6 +14,7 @@ import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-scr
 import { validateOmniSegmentPrompt, validateVoiceoverSequence } from "./omni-prompt-validator";
 import { getOmniSegmentWordBudget } from "./omni-duration-planner";
 import { assertOmniCtaContract } from "./omni-cta-contract";
+import { buildOmniCharacterContract, type OmniCharacterContract } from "./omni-character-contract";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -57,6 +58,10 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
 
   const productReference = getPrimaryReference(input.product.product_refs);
   const avatarReference = input.avatar?.reference_url || null;
+  const characterContract = buildOmniCharacterContract({
+    product: input.product,
+    avatar: input.avatar,
+  });
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,
     firstSpokenLine: voiceSegments[0]?.text,
@@ -88,7 +93,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentCount: input.segmentCount,
       segmentSeconds: input.segmentSeconds,
     });
-    const prompt = renderSegmentPrompt(plan, strategy, segmentIndex, input.segmentCount);
+    const prompt = renderSegmentPrompt(plan, strategy, characterContract, segmentIndex, input.segmentCount);
     const validation = validateOmniSegmentPrompt({ prompt, plan });
     if (!validation.valid) {
       throw new Error(`Invalid Omni segment ${segmentIndex}: ${validation.errors.join(", ")}`);
@@ -169,6 +174,7 @@ function buildHookOpening(strategy: OmniCreativeStrategy, baseAction: string) {
 function renderSegmentPrompt(
   plan: OmniSegmentCreativePlan,
   strategy: OmniCreativeStrategy,
+  characterContract: OmniCharacterContract,
   segmentIndex: number,
   segmentCount: number
 ) {
@@ -182,6 +188,9 @@ function renderSegmentPrompt(
     OMNI_PROMPT_WRITER_SYSTEM_PROMPT,
     `Часть ${segmentIndex} из ${segmentCount}.`,
     `ЖИЗНЕННАЯ СИТУАЦИЯ: ${strategy.providerFormatDescription}. Место: ${strategy.setting}.`,
+    `ГЛАВНЫЙ ПЕРСОНАЖ: ${characterContract.identityLine}.`,
+    `ОДЕЖДА: ${characterContract.clothingLine}.`,
+    `ИСТОЧНИКИ ОБРАЗА: ${characterContract.sourceRuleLine}.`,
     ...(strategy.visualStyle ? [
       `ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА: ${strategy.visualStyle.label}; ${strategy.visualStyle.visualTone}.`,
       `КАМЕРА И СВЕТ: ${strategy.visualStyle.cameraLanguage}; ${strategy.visualStyle.lighting}.`,
