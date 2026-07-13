@@ -1,9 +1,27 @@
 import pool from "@/lib/db";
 import { OmniProduct, OmniReferenceAsset } from "@/lib/omni/types";
+import type { CtaMode } from "@/lib/omni/creative-contract";
 import { ensureOmniSchema } from "./schema";
 
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+const CTA_MODES = new Set<CtaMode>([
+  "article_in_description",
+  "keyword_in_comments",
+  "link_in_profile",
+  "no_explicit_cta",
+]);
+
+function normalizeCtaMode(value: unknown): CtaMode {
+  return CTA_MODES.has(value as CtaMode) ? value as CtaMode : "article_in_description";
+}
+
+function assertValidCta(mode: CtaMode, value: string) {
+  if ((mode === "keyword_in_comments" || mode === "link_in_profile") && !value) {
+    throw new Error("Selected CTA mode requires a value");
+  }
 }
 
 function normalizeRefs(value: unknown): OmniReferenceAsset[] {
@@ -89,6 +107,8 @@ export async function createOmniProduct(input: {
   targetDurationSeconds?: unknown;
   productRefs?: unknown;
   avatarRefs?: unknown;
+  ctaMode?: unknown;
+  ctaValue?: unknown;
 }) {
   await ensureOmniSchema();
   const name = cleanText(input.name);
@@ -96,6 +116,9 @@ export async function createOmniProduct(input: {
 
   const duration = Number.parseInt(String(input.targetDurationSeconds || "30"), 10);
   const targetDuration = [30, 40].includes(duration) ? duration : 30;
+  const ctaMode = normalizeCtaMode(input.ctaMode);
+  const ctaValue = cleanText(input.ctaValue);
+  assertValidCta(ctaMode, ctaValue);
 
   const { rows } = await pool.query<OmniProduct>(
     `INSERT INTO omni_products (
@@ -105,11 +128,13 @@ export async function createOmniProduct(input: {
        product_reference_notes,
        avatar_reference_notes,
        target_duration_seconds,
+       cta_mode,
+       cta_value,
        product_refs,
        avatar_refs,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, CURRENT_TIMESTAMP)
      RETURNING *`,
     [
       input.projectId,
@@ -118,6 +143,8 @@ export async function createOmniProduct(input: {
       cleanText(input.productReferenceNotes) || null,
       cleanText(input.avatarReferenceNotes) || null,
       targetDuration,
+      ctaMode,
+      ctaValue || null,
       JSON.stringify(normalizeRefs(input.productRefs)),
       JSON.stringify(normalizeRefs(input.avatarRefs)),
     ]
@@ -135,6 +162,8 @@ export async function updateOmniProduct(input: {
   avatarReferenceNotes?: unknown;
   productRefs?: unknown;
   avatarRefs?: unknown;
+  ctaMode?: unknown;
+  ctaValue?: unknown;
 }) {
   await ensureOmniSchema();
   const current = await requireOmniProductInProject(input.projectId, input.productId);
@@ -144,8 +173,13 @@ export async function updateOmniProduct(input: {
   const hasAvatarReferenceNotes = input.avatarReferenceNotes !== undefined;
   const hasProductRefs = input.productRefs !== undefined;
   const hasAvatarRefs = input.avatarRefs !== undefined;
+  const hasCtaMode = input.ctaMode !== undefined;
+  const hasCtaValue = input.ctaValue !== undefined;
   const nextName = hasName ? cleanText(input.name) : current.name;
+  const nextCtaMode = hasCtaMode ? normalizeCtaMode(input.ctaMode) : current.cta_mode;
+  const nextCtaValue = hasCtaValue ? cleanText(input.ctaValue) : current.cta_value || "";
   if (!nextName) throw new Error("Product name is required");
+  assertValidCta(nextCtaMode, nextCtaValue);
 
   const { rows } = await pool.query<OmniProduct>(
     `UPDATE omni_products
@@ -153,8 +187,10 @@ export async function updateOmniProduct(input: {
          description = $4,
          product_reference_notes = $5,
          avatar_reference_notes = $6,
-         product_refs = $7::jsonb,
-         avatar_refs = $8::jsonb,
+         cta_mode = $7,
+         cta_value = $8,
+         product_refs = $9::jsonb,
+         avatar_refs = $10::jsonb,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1 AND project_id = $2
      RETURNING *`,
@@ -165,6 +201,8 @@ export async function updateOmniProduct(input: {
       hasDescription ? cleanText(input.description) || null : current.description,
       hasProductReferenceNotes ? cleanText(input.productReferenceNotes) || null : current.product_reference_notes,
       hasAvatarReferenceNotes ? cleanText(input.avatarReferenceNotes) || null : current.avatar_reference_notes,
+      nextCtaMode,
+      nextCtaValue || null,
       JSON.stringify(hasProductRefs ? normalizeRefsForUpdate(input.productRefs, "productRefs") : current.product_refs),
       JSON.stringify(hasAvatarRefs ? normalizeRefsForUpdate(input.avatarRefs, "avatarRefs") : current.avatar_refs),
     ]

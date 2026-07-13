@@ -14,11 +14,11 @@ class TestOmniSmartLayer(unittest.TestCase):
         self.assertEqual(len(prompts), 1)
         self.assertNotIn("...", prompts[0])
         self.assertNotIn("—", prompts[0])
-        self.assertNotIn("-", prompts[0])
+        self.assertNotIn("работу-функции", prompts[0])
         self.assertIn("часть 1 из 1 одного непрерывного Reels", prompts[0])
-        self.assertIn("Один и тот же персонаж в красной куртке", prompts[0])
-        self.assertIn("нужно озвучить только этот точный текст", prompts[0])
-        self.assertIn("К концу сцены камера делает мягкий плавный наезд.", prompts[0])
+        self.assertIn("один и тот же человек в красной куртке", prompts[0])
+        self.assertIn("ТОЧНАЯ РЕПЛИКА", prompts[0])
+        self.assertIn("ЖИЗНЕННАЯ СИТУАЦИЯ", prompts[0])
 
     def test_process_scenario_chunking(self):
         # 40 words
@@ -35,9 +35,47 @@ class TestOmniSmartLayer(unittest.TestCase):
         script = " ".join([f"слово{i}" for i in range(20)])
         prompts = process_scenario_for_omni(script)
 
-        self.assertIn('"слово0 слово1 слово2 слово3 слово4 слово5 слово6 слово7 слово8 слово9 слово10 слово11 слово12 слово13 слово14 слово15 слово16 слово17"', prompts[0])
-        self.assertIn('"слово18 слово19"', prompts[1])
-        self.assertIn("Не добавляй другие фразы", prompts[0])
+        self.assertIn('ТОЧНАЯ РЕПЛИКА: "слово0', prompts[0])
+        self.assertIn('слово19"', prompts[1])
+        self.assertEqual(sum(prompt.count("ТОЧНАЯ РЕПЛИКА:") for prompt in prompts), 2)
+        self.assertIn("не добавлять и не повторять слова", prompts[0])
+
+    def test_first_part_gets_visual_hook_direction(self):
+        script = "Коллаген после тренировки помогает суставам и коже. Я беру стакан воды утром и объясняю почему это удобно."
+        prompts = process_scenario_for_omni(script)
+
+        self.assertIn("первое слово точной реплики звучит в первом кадре на 0.0 секунде", prompts[0])
+        self.assertIn("0.0-3.0 сек", prompts[0])
+        self.assertIn("нет паузы", prompts[0])
+        self.assertNotIn("говорит у зеркала", prompts[0])
+
+    def test_parts_have_different_directed_actions(self):
+        script = " ".join([f"тренировка суставы спорт движение слово{i}" for i in range(12)])
+        prompts = process_scenario_for_omni(script)
+
+        self.assertGreaterEqual(len(prompts), 3)
+        self.assertIn("ТРИ СОСТОЯНИЯ ОДНОГО ДЕЙСТВИЯ", prompts[0])
+        self.assertIn("без сброса сцены продолжает", prompts[1])
+        self.assertIn("без дополнительного CTA", prompts[-1])
+
+    def test_hidden_product_never_introduces_compact_replacement(self):
+        script = "Я ношу с собой слишком много вещей. Теперь собираюсь быстрее и ничего не забываю."
+        prompts = process_scenario_for_omni(script)
+        positive_beats = "\n".join(
+            line for prompt in prompts for line in prompt.splitlines() if "сек:" in line
+        ).lower()
+
+        self.assertNotIn("компактный предмет", positive_beats)
+        self.assertNotIn("компактный продукт", positive_beats)
+        self.assertNotIn("более удобный предмет", positive_beats)
+
+    def test_cta_is_not_split_or_rewritten(self):
+        script = "После тренировки я стала добавлять коллаген в воду. Суставы меньше беспокоят. Артикул оставлю в описании."
+        prompts = process_scenario_for_omni(script)
+
+        self.assertIn("Артикул оставлю в описании.", prompts[-1])
+        self.assertNotIn('ТОЧНАЯ РЕПЛИКА: "описании.', prompts[-1])
+        self.assertEqual(sum(prompt.count("Артикул оставлю в описании.") for prompt in prompts), 1)
 
 if __name__ == '__main__':
     unittest.main()

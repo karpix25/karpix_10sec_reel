@@ -6,6 +6,8 @@ import { getGeneratedScript } from "./generated-scripts";
 import { getLegacyScenario } from "./legacy-scenarios";
 import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
 import { requireOmniProductInProject } from "./products";
+import { getOmniProject } from "./projects";
+import { listRecentLifeFormatIds } from "./omni-creative-history";
 
 const SEGMENT_SECONDS = 10;
 
@@ -74,6 +76,8 @@ export async function createOmniReel(input: {
   const segmentCount = segmentCountForDuration(targetDuration);
   const brief = typeof input.brief === "string" && input.brief.trim() ? input.brief.trim() : null;
   const product = await requireOmniProductInProject(input.projectId, input.productId);
+  const project = await getOmniProject(input.projectId);
+  if (!project) throw new Error("Omni project not found");
   const generatedScript = input.sourceGeneratedScriptId
     ? await getGeneratedScript({
         projectId: input.projectId,
@@ -117,6 +121,8 @@ export async function createOmniReel(input: {
     description: product.description,
     product_reference_notes: product.product_reference_notes,
     target_duration_seconds: product.target_duration_seconds,
+    cta_mode: product.cta_mode,
+    cta_value: product.cta_value,
     product_refs: product.product_refs,
   };
   const avatarSnapshot = latestAvatar
@@ -130,6 +136,21 @@ export async function createOmniReel(input: {
         kie_character_status: latestAvatar.kie_character_status,
       }
     : null;
+  const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
+  const promptPlan = buildOmniSegmentPrompts({
+    generatedScript,
+    legacyTranscript: sourceScenario?.script || null,
+    product,
+    avatar: latestAvatar,
+    segmentCount,
+    segmentSeconds: SEGMENT_SECONDS,
+    brief,
+    targetAudience: project.target_audience,
+    ctaMode: product.cta_mode,
+    ctaValue: product.cta_value,
+    recentFormatIds,
+  });
+  const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
 
   const client = await pool.connect();
   try {
@@ -147,10 +168,12 @@ export async function createOmniReel(input: {
          source_snapshot,
          product_snapshot,
          avatar_snapshot,
+         creative_strategy,
+         prompt_contract_version,
          stitch_status,
          updated_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, $8::jsonb, $9::jsonb, $10::jsonb, 'not_ready', CURRENT_TIMESTAMP)
+       VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, 'not_ready', CURRENT_TIMESTAMP)
        RETURNING *`,
       [
         input.projectId,
@@ -163,18 +186,11 @@ export async function createOmniReel(input: {
         JSON.stringify(sourceSnapshot),
         JSON.stringify(productSnapshot),
         JSON.stringify(avatarSnapshot),
+        JSON.stringify(creativeStrategy),
+        creativeStrategy?.version || null,
       ]
     );
     const reel = reelResult.rows[0];
-    const promptPlan = buildOmniSegmentPrompts({
-      generatedScript,
-      legacyTranscript: sourceScenario?.script || null,
-      product,
-      avatar: latestAvatar,
-      segmentCount,
-      segmentSeconds: SEGMENT_SECONDS,
-      brief,
-    });
 
     for (let index = 0; index < segmentCount; index += 1) {
       const segmentPrompt = promptPlan[index];
@@ -186,9 +202,12 @@ export async function createOmniReel(input: {
            slot_role,
            status,
            prompt,
-           reference_url
+           reference_url,
+           voiceover_text,
+           creative_plan,
+           prompt_validation
          )
-         VALUES ($1, $2, $3, $4, 'draft', $5, $6)`,
+         VALUES ($1, $2, $3, $4, 'draft', $5, $6, $7, $8::jsonb, $9::jsonb)`,
         [
           reel.id,
           index + 1,
@@ -196,6 +215,9 @@ export async function createOmniReel(input: {
           segmentPrompt.role,
           segmentPrompt.prompt,
           segmentPrompt.referenceUrl,
+          segmentPrompt.voiceoverText,
+          JSON.stringify(segmentPrompt.creativePlan),
+          JSON.stringify(segmentPrompt.validation),
         ]
       );
     }

@@ -1,5 +1,16 @@
 import type { OmniClientAvatar, OmniGeneratedScript, OmniProduct, OmniReferenceAsset } from "@/lib/omni/types";
-import { buildReelVisualWorld, pickVisualIdea, VisualWorld } from "./omni-ugc-contract";
+import type {
+  CtaMode,
+  LifeFormatId,
+  OmniCreativeStrategy,
+  OmniPromptValidationResult,
+  OmniSegmentCreativePlan,
+  ProductRole,
+} from "@/lib/omni/creative-contract";
+import { getOmniLifeFormat } from "./omni-life-formats";
+import { selectOmniCreativeStrategy } from "./omni-format-selector";
+import { splitScriptIntoVoiceSegments } from "./omni-script-segmentation";
+import { validateOmniSegmentPrompt, validateVoiceoverSequence } from "./omni-prompt-validator";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -7,6 +18,9 @@ export type OmniSegmentPrompt = {
   prompt: string;
   referenceUrl: string | null;
   voiceoverText: string;
+  creativeStrategy: OmniCreativeStrategy;
+  creativePlan: OmniSegmentCreativePlan;
+  validation: OmniPromptValidationResult;
 };
 
 type BuildOmniPromptsInput = {
@@ -17,204 +31,240 @@ type BuildOmniPromptsInput = {
   segmentCount: number;
   segmentSeconds: number;
   brief: string | null;
+  targetAudience?: string | null;
+  ctaMode?: CtaMode;
+  ctaValue?: string | null;
+  recentFormatIds?: readonly LifeFormatId[];
 };
 
-export const OMNI_PROMPT_WRITER_SYSTEM_PROMPT = "Сделай живой короткий Reels-ролик. Описывай только то, что видно и слышно в кадре.";
-
-type PromptPartInput = {
-  segmentIndex: number;
-  segmentCount: number;
-  segmentSeconds: number;
-  role: string;
-  scriptChunk: string;
-  fullScript: string;
-  brief: string | null;
-  product: OmniProduct;
-  productReference: OmniReferenceAsset | null;
-  avatar: OmniClientAvatar | null;
-  avatarReference: string | null;
-  visualWorld: VisualWorld;
-};
+export const OMNI_PROMPT_WRITER_SYSTEM_PROMPT =
+  "Сделай живой короткий Reels одним непрерывным телефонным кадром. Описывай только физически выполнимые действия и точную речь.";
 
 export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegmentPrompt[] {
   const scriptText = input.generatedScript?.script || input.legacyTranscript || input.brief || "";
-  const chunks = splitScriptIntoChunks(scriptText, input.segmentCount);
+  const voiceSegments = splitScriptIntoVoiceSegments(scriptText, input.segmentCount);
+  if (voiceSegments.length !== input.segmentCount) {
+    throw new Error(`Script is too short for ${input.segmentCount} exact-speech Omni segments`);
+  }
+
   const productReference = getPrimaryReference(input.product.product_refs);
   const avatarReference = input.avatar?.reference_url || null;
-  const visualWorld = buildReelVisualWorld(scriptText || input.brief || "", input.product);
-
-  return Array.from({ length: input.segmentCount }, (_, index) => {
-    const segmentIndex = index + 1;
-    const role = getSegmentRole(segmentIndex, input.segmentCount);
-    const scriptChunk = chunks[index] || "";
-    const referenceUrl = segmentIndex === 1 ? avatarReference : productReference?.url || avatarReference || null;
-
-    return {
-      index: segmentIndex,
-      role,
-      referenceUrl,
-      voiceoverText: scriptChunk,
-      prompt: buildSinglePrompt({
-        segmentIndex,
-        segmentCount: input.segmentCount,
-        segmentSeconds: input.segmentSeconds,
-        role,
-        scriptChunk,
-        fullScript: scriptText,
-        brief: input.brief,
-        product: input.product,
-        productReference,
-        avatar: input.avatar,
-        avatarReference,
-        visualWorld,
-      }),
-    };
+  const strategy = selectOmniCreativeStrategy({
+    script: scriptText,
+    firstSpokenLine: voiceSegments[0]?.text,
+    productName: input.product.name,
+    productDescription: input.product.description,
+    targetAudience: input.targetAudience,
+    hasProductReference: Boolean(productReference),
+    ctaMode: input.ctaMode,
+    ctaValue: input.ctaValue,
+    recentFormatIds: input.recentFormatIds,
   });
+  assertCtaContract(scriptText, strategy);
+  const prompts: OmniSegmentPrompt[] = [];
+
+  for (let index = 0; index < voiceSegments.length; index += 1) {
+    const segmentIndex = index + 1;
+    const segmentRole = getSegmentRole(segmentIndex, input.segmentCount);
+    const productRole = getSegmentProductRole(
+      strategy.productRole,
+      segmentIndex,
+      input.segmentCount,
+      voiceSegments[index].text
+    );
+    const plan = buildSegmentCreativePlan({
+      segmentIndex,
+      voiceoverText: voiceSegments[index].text,
+      strategy,
+      productRole,
+      segmentCount: input.segmentCount,
+      segmentSeconds: input.segmentSeconds,
+    });
+    const prompt = renderSegmentPrompt(plan, strategy, segmentIndex, input.segmentCount);
+    const validation = validateOmniSegmentPrompt({ prompt, plan });
+    if (!validation.valid) {
+      throw new Error(`Invalid Omni segment ${segmentIndex}: ${validation.errors.join(", ")}`);
+    }
+    prompts.push({
+      index: segmentIndex,
+      role: segmentRole,
+      prompt,
+      referenceUrl: selectReferenceUrl(segmentIndex, productRole, avatarReference, productReference),
+      voiceoverText: plan.voiceoverText,
+      creativeStrategy: strategy,
+      creativePlan: plan,
+      validation,
+    });
+  }
+
+  if (!validateVoiceoverSequence(scriptText, prompts.map((item) => item.creativePlan))) {
+    throw new Error("Omni voiceover segmentation changed the source script");
+  }
+  return prompts;
 }
 
-function buildSinglePrompt(input: PromptPartInput) {
-  const baseSeed = `${input.fullScript} ${input.product.name} ${input.visualWorld.name}`;
-  const sceneSeed = `${baseSeed} ${input.segmentIndex}`;
-  const voiceover = input.scriptChunk || "Скажи одну короткую естественную фразу по смыслу этого момента.";
-  const previousAngle = input.segmentIndex > 1 ? transitionAngle(input.visualWorld, baseSeed, input.segmentIndex - 1) : null;
-  const nextAngle =
-    input.segmentIndex < input.segmentCount ? transitionAngle(input.visualWorld, baseSeed, input.segmentIndex) : null;
-  const timeline = buildTimeline(input, voiceover, previousAngle, nextAngle, sceneSeed);
+function buildSegmentCreativePlan(input: {
+  segmentIndex: number;
+  voiceoverText: string;
+  strategy: OmniCreativeStrategy;
+  productRole: ProductRole;
+  segmentCount: number;
+  segmentSeconds: number;
+}): OmniSegmentCreativePlan {
+  const format = getOmniLifeFormat(input.strategy.lifeFormatId);
+  const sceneArc = format.sceneArcs.find((candidate) => candidate.setting === input.strategy.setting) || format.sceneArcs[0];
+  if (!sceneArc) throw new Error(`Omni life format ${format.id} has no scene arc`);
+  const stateIndexes = getSceneStateIndexes(input.segmentIndex, input.segmentCount);
+  const [opening, middle, closing] = stateIndexes.map((stateIndex) => sceneArc.states[stateIndex]);
+  const hookOpening = input.segmentIndex === 1
+    ? buildHookOpening(input.strategy, opening)
+    : `без сброса сцены продолжает из предыдущего положения: ${lowerFirst(opening)}`;
+  const safeClosing = productClosingAction(closing, input.productRole);
 
+  return {
+    segmentIndex: input.segmentIndex,
+    lifeFormatId: input.strategy.lifeFormatId,
+    speechStartsAtSeconds: 0,
+    voiceoverText: input.voiceoverText,
+    productRole: input.productRole,
+    beats: [
+      { startSeconds: 0, endSeconds: 3, action: hookOpening },
+      { startSeconds: 3, endSeconds: 7, action: middle },
+      { startSeconds: 7, endSeconds: input.segmentSeconds, action: safeClosing },
+    ],
+  };
+}
+
+function buildHookOpening(strategy: OmniCreativeStrategy, baseAction: string) {
+  const action = lowerFirst(baseAction);
+  if (strategy.hookType === "problem_in_action") {
+    return `${action}, причем неудобство из первых слов уже заметно в этом движении`;
+  }
+  if (strategy.hookType === "result_first") {
+    return `${action}, а результат из первых слов уже виден в состоянии героя и не требует отдельной демонстрации`;
+  }
+  if (strategy.hookType === "contrast") {
+    return `${action}, начиная со старого состояния, прямо названного в первых словах`;
+  }
+  if (strategy.hookType === "broken_expectation") {
+    return `${action}, но ожидаемый ход этого действия сразу нарушается по смыслу первых слов`;
+  }
+  if (strategy.hookType === "unexpected_object") {
+    return `${action} с единственным неожиданным предметом, прямо названным в первых словах`;
+  }
+  return `${action}, и это одно движение руками физически подтверждает первые слова`;
+}
+
+function renderSegmentPrompt(
+  plan: OmniSegmentCreativePlan,
+  strategy: OmniCreativeStrategy,
+  segmentIndex: number,
+  segmentCount: number
+) {
+  const continuity = segmentIndex < segmentCount
+    ? "Закончить в устойчивом положении, с которого следующая часть продолжит эту же ситуацию."
+    : "Завершить точную реплику без дополнительной фразы или нового CTA.";
   return [
     OMNI_PROMPT_WRITER_SYSTEM_PROMPT,
-    "",
-    `Часть ${input.segmentIndex} из ${input.segmentCount}.`,
-    `Место: ${input.visualWorld.setting}.`,
-    buildCharacterLine(input),
-    "",
-    "Сцена по секундам:",
-    timeline,
-    "",
-    `Реплика в этой части: "${voiceover}"`,
-    "",
-    buildContinuityLine(input, previousAngle, nextAngle),
-    buildProductLine(input),
-    buildCtaLine(input),
-    "Действия простые и физически понятные: один предмет в одной руке, смешивание или показ продукта идет по шагам, без одновременных невозможных движений.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+    `Часть ${segmentIndex} из ${segmentCount}.`,
+    `ЖИЗНЕННАЯ СИТУАЦИЯ: ${strategy.providerFormatDescription}. Место: ${strategy.setting}.`,
+    `ТИП ХУКА: ${strategy.hookType}. ${strategy.hookRule}`,
+    "СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде одновременно с уже начавшимся действием. До него нет паузы, улыбки, вдоха, приветствия или подготовки.",
+    `ТОЧНАЯ РЕПЛИКА: "${plan.voiceoverText}"`,
+    "ТРИ СОСТОЯНИЯ ОДНОГО МИНИ-ДЕЙСТВИЯ:",
+    ...plan.beats.map((beat) => `${beat.startSeconds.toFixed(1)}-${beat.endSeconds.toFixed(1)} сек: ${beat.action}.`),
+    `РОЛЬ ПРОДУКТА: ${productRoleInstruction(plan.productRole)}`,
+    "РЕЧЬ: произнести только точную реплику один раз, без добавлений, повторов и субтитров; речь продолжается между состояниями действия.",
+    `НЕПРЕРЫВНОСТЬ: тот же человек, одежда, свет и бытовая локация. Один телефонный кадр без перебивок и рекламных крупных планов. ${continuity}`,
+    `ЗАПРЕЩЕНО: ${[...strategy.forbiddenMotifs, ...strategy.safetyRules].join("; ")}.`,
+  ].join("\n");
 }
 
-function buildTimeline(
-  input: PromptPartInput,
-  voiceover: string,
-  previousAngle: string | null,
-  nextAngle: string | null,
-  seed: string
+function getSegmentProductRole(
+  role: ProductRole,
+  segmentIndex: number,
+  segmentCount: number,
+  voiceoverText: string
+): ProductRole {
+  if (role === "hidden") return role;
+  if (role === "background_prop") return segmentIndex === 1 ? "hidden" : role;
+  if (segmentIndex !== segmentCount) return "hidden";
+  return countWords(voiceoverText) > 18 ? "background_prop" : role;
+}
+
+function productRoleInstruction(role: ProductRole) {
+  if (role === "hidden") return "продукт и упаковка не появляются; интерес создают история и результат.";
+  if (role === "background_prop") return "продукт естественно лежит в сцене без акцента на логотипе и без позирования.";
+  if (role === "brief_demo") return "один короткий показ по смыслу реплики, без рекламного крупного плана.";
+  return "после последнего слова один раз взять продукт или убрать его; не открывать, не есть, не пить и не наносить в этом сегменте.";
+}
+
+function productClosingAction(action: string, role: ProductRole) {
+  if (role === "hidden" || role === "background_prop") return action;
+  if (role === "brief_demo") return "только после последнего слова берет продукт с поверхности и один раз показывает без крупного плана";
+  return "только после последнего слова берет продукт с поверхности и оставляет в руке, не открывая и не употребляя";
+}
+
+function selectReferenceUrl(
+  segmentIndex: number,
+  role: ProductRole,
+  avatarReference: string | null,
+  productReference: OmniReferenceAsset | null
 ) {
-  if (input.segmentIndex === 1) {
-    const hook = pickVisualIdea(input.visualWorld.hookIdeas, seed);
-    return [
-      `0-3 сек: ${hook}. Начало сразу цепляет внимание, без приветствия.`,
-      `3-7 сек: герой остается в том же месте и говорит первую мысль: "${voiceover}".`,
-      `7-${input.segmentSeconds} сек: перейти в ракурс для следующей части: ${nextAngle}. Закончить ровно этим кадром.`,
-    ].join("\n");
-  }
-
-  if (input.segmentIndex === input.segmentCount) {
-    const beat = pickVisualIdea(input.visualWorld.finalBeats, seed, input.segmentIndex);
-    return [
-      `0-2 сек: начать в том же ракурсе, которым закончилась предыдущая часть: ${previousAngle}.`,
-      `2-7 сек: ${beat}. Герой говорит: "${voiceover}".`,
-      `7-${input.segmentSeconds} сек: спокойный финальный кадр в том же месте, без резкой смены фона.`,
-    ].join("\n");
-  }
-
-  const beat = pickVisualIdea(input.visualWorld.middleBeats, seed, input.segmentIndex);
-  return [
-    `0-2 сек: начать в том же ракурсе, которым закончилась предыдущая часть: ${previousAngle}.`,
-    `2-7 сек: ${beat}. Герой говорит: "${voiceover}".`,
-    `7-${input.segmentSeconds} сек: перейти в ракурс для следующей части: ${nextAngle}. Закончить ровно этим кадром.`,
-  ].join("\n");
+  if (segmentIndex === 1 || role === "hidden") return avatarReference;
+  return productReference?.url || avatarReference;
 }
 
-function buildCharacterLine(input: PromptPartInput) {
-  if (!input.avatarReference && !input.avatar?.prompt) return "Герой выглядит как обычный живой человек, не рекламная модель.";
-  return "Герой сохраняет один и тот же внешний тип, возраст, настроение и одежду во всех частях ролика.";
+function getSceneStateIndexes(segmentIndex: number, segmentCount: number): [number, number, number] {
+  if (segmentCount <= 3) {
+    const start = (segmentIndex - 1) * 3;
+    return [start, start + 1, start + 2];
+  }
+  const first = Math.round(((segmentIndex - 1) * 8) / segmentCount);
+  const last = Math.round((segmentIndex * 8) / segmentCount);
+  const middle = Math.round((first + last) / 2);
+  return [first, middle, last];
 }
 
-function buildProductLine(input: PromptPartInput) {
-  if (!input.productReference) return "";
-  if (input.segmentIndex === 1) {
-    return "В первой части продукт не показывать: только подготовить интерес к тому, что появится дальше.";
-  }
-  if (input.segmentIndex === input.segmentCount) {
-    return "В финальной части продукт виден естественно в кадре, как часть обычной рутины.";
-  }
-  return "В этой части впервые естественно показать продукт в кадре и не превращать сцену в рекламу.";
+function lowerFirst(value: string) {
+  return value ? value[0].toLowerCase() + value.slice(1) : value;
 }
 
-function buildCtaLine(input: PromptPartInput) {
-  if (input.segmentIndex !== input.segmentCount) return "";
-  return [
-    "CTA в финале звучит бытово и под Reels-аудиторию: без продажного тона, как личная подсказка подруге.",
-    "Скажи разными живыми словами, что артикул или код можно найти в описании: например «артикул оставлю в описании», «код будет в описании», «кому надо — гляньте артикул под видео».",
-    "Если в тексте сценария уже есть конкретный артикул или код, произнеси именно его естественно; если нет, не выдумывай номер.",
-  ].join("\n");
+function countWords(value: string) {
+  return value.split(/\s+/).filter(Boolean).length;
 }
 
-function buildContinuityLine(input: PromptPartInput, previousAngle: string | null, nextAngle: string | null) {
-  if (input.segmentCount <= 1) return "Весь ролик выглядит как одна цельная сцена.";
-  if (previousAngle && nextAngle) {
-    return `Склейка: начать с ракурса "${previousAngle}", закончить ракурсом "${nextAngle}". Следующая часть должна начаться с него же.`;
+function assertCtaContract(script: string, strategy: OmniCreativeStrategy) {
+  const normalized = script.toLowerCase().replace(/ё/g, "е");
+  const asksForComment = /напиш|коммент|кодово.*слов/iu.test(normalized);
+  const mentionsProfileLink = /ссылк.*(?:профил|био)/iu.test(normalized);
+  const mentionsArticle = /артикул|описани/iu.test(normalized);
+  if (strategy.ctaMode === "keyword_in_comments" && (mentionsProfileLink || mentionsArticle)) {
+    throw new Error("Script CTA conflicts with keyword_in_comments product contract");
   }
-  if (nextAngle) {
-    return `Склейка: закончить ракурсом "${nextAngle}". Следующая часть должна начаться с него же.`;
+  if (strategy.ctaMode === "keyword_in_comments" && strategy.ctaValue && asksForComment &&
+      !normalized.includes(strategy.ctaValue.toLowerCase())) {
+    throw new Error("Script CTA uses a different comment keyword");
   }
-  if (previousAngle) {
-    return `Склейка: начать с того же ракурса, которым закончилась предыдущая часть: "${previousAngle}".`;
+  if (strategy.ctaMode === "keyword_in_comments" &&
+      (!asksForComment || !strategy.ctaValue || !normalized.includes(strategy.ctaValue.toLowerCase()))) {
+    throw new Error("Script is missing the required comment keyword CTA");
   }
-  return "";
-}
-
-function transitionAngle(visualWorld: VisualWorld, seed: string, boundaryIndex: number) {
-  return pickVisualIdea(visualWorld.transitionAngles, seed, boundaryIndex);
-}
-
-function splitScriptIntoChunks(script: string, count: number) {
-  const normalized = script.replace(/\s+/g, " ").trim();
-  const totalWords = countWords(normalized);
-  const targetWords = Math.max(8, Math.ceil(totalWords / count));
-  const sentenceUnits = normalized.match(/[^.!?]+[.!?]*/g)?.map((part) => part.trim()).filter(Boolean) || [];
-  const units = sentenceUnits.length >= count ? sentenceUnits : splitWordsIntoUnits(normalized, targetWords);
-  if (!units.length) return [];
-
-  const chunks = Array.from({ length: count }, () => [] as string[]);
-  let chunkIndex = 0;
-  let chunkWords = 0;
-
-  for (const unit of units) {
-    const unitWords = countWords(unit);
-    const hasRoom = chunkWords === 0 || chunkWords + unitWords <= targetWords || chunkIndex === count - 1;
-    if (!hasRoom) {
-      chunkIndex = Math.min(chunkIndex + 1, count - 1);
-      chunkWords = 0;
-    }
-    chunks[chunkIndex].push(unit);
-    chunkWords += unitWords;
+  if (strategy.ctaMode === "link_in_profile" && (asksForComment || mentionsArticle)) {
+    throw new Error("Script CTA conflicts with link_in_profile product contract");
   }
-
-  return chunks.map((chunk) => chunk.join(" ").trim()).filter(Boolean);
-}
-
-function countWords(text: string) {
-  return text.split(/\s+/).filter(Boolean).length;
-}
-
-function splitWordsIntoUnits(text: string, targetWords: number) {
-  const words = text.split(/\s+/).filter(Boolean);
-  const units: string[] = [];
-  for (let index = 0; index < words.length; index += targetWords) {
-    units.push(words.slice(index, index + targetWords).join(" "));
+  if (strategy.ctaMode === "link_in_profile" && !mentionsProfileLink) {
+    throw new Error("Script is missing the required profile link CTA");
   }
-  return units;
+  if (strategy.ctaMode === "article_in_description" && (asksForComment || mentionsProfileLink)) {
+    throw new Error("Script CTA conflicts with article_in_description product contract");
+  }
+  if (strategy.ctaMode === "article_in_description" && !mentionsArticle) {
+    throw new Error("Script is missing the required article-in-description CTA");
+  }
+  if (strategy.ctaMode === "no_explicit_cta" && (asksForComment || mentionsProfileLink || mentionsArticle)) {
+    throw new Error("Script has an explicit CTA while product contract disables it");
+  }
 }
 
 function getPrimaryReference(refs: OmniReferenceAsset[]) {

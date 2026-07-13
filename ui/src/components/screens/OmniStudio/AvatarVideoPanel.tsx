@@ -269,7 +269,13 @@ export function AvatarVideoPanel({
                       <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-xs leading-5 text-foreground">
                         {segment.prompt || "Prompt пока не подготовлен."}
                       </pre>
-                      <OmniSegmentPromptDetails prompt={segment.prompt} />
+                      <OmniSegmentPromptDetails
+                        prompt={segment.prompt}
+                        voiceoverText={segment.voiceover_text}
+                        creativeStrategy={reel.creative_strategy}
+                        creativePlan={segment.creative_plan}
+                        validation={segment.prompt_validation}
+                      />
                     </div>
                   ))}
               </div>

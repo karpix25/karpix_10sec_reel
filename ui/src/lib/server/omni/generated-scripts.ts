@@ -8,6 +8,8 @@ import { listLegacyLibraryLinks } from "./legacy-library-links";
 import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
+import { listRecentLifeFormatIds } from "./omni-creative-history";
+import type { CtaMode } from "@/lib/omni/creative-contract";
 
 type GeneratedScriptPayload = {
   title?: string;
@@ -76,7 +78,10 @@ export async function buildGeneratedScriptPromptPreview(input: {
 
   const product = await requireOmniProductInProject(input.projectId, input.productId);
   const avatar = await getLatestOmniClientAvatar(input.projectId);
+  const project = await getOmniProject(input.projectId);
+  if (!project) throw new Error("Omni client project not found");
   const segmentCount = Math.ceil(product.target_duration_seconds / 10);
+  const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
 
   return buildOmniSegmentPrompts({
     generatedScript,
@@ -86,6 +91,10 @@ export async function buildGeneratedScriptPromptPreview(input: {
     segmentCount,
     segmentSeconds: 10,
     brief: null,
+    targetAudience: project.target_audience,
+    ctaMode: product.cta_mode,
+    ctaValue: product.cta_value,
+    recentFormatIds,
   }).map((segment) => ({
     segmentIndex: segment.index,
     durationSeconds: 10,
@@ -93,6 +102,9 @@ export async function buildGeneratedScriptPromptPreview(input: {
     prompt: segment.prompt,
     referenceUrl: segment.referenceUrl,
     voiceoverText: segment.voiceoverText,
+    creativeStrategy: segment.creativeStrategy,
+    creativePlan: segment.creativePlan,
+    validation: segment.validation,
   }));
 }
 
@@ -125,6 +137,8 @@ export async function createGeneratedScriptFromLegacy(input: {
     productName: product.name,
     productDescription: product.description,
     productReferenceNotes: product.product_reference_notes,
+    ctaMode: product.cta_mode,
+    ctaValue: product.cta_value,
     sourceScenario,
   });
 
@@ -197,6 +211,8 @@ async function generateScript(input: {
   productName: string;
   productDescription: string | null;
   productReferenceNotes: string | null;
+  ctaMode: CtaMode;
+  ctaValue: string | null;
   sourceScenario: OmniLegacyScenario;
 }): Promise<Required<GeneratedScriptPayload>> {
   const apiKey = process.env.OPENROUTER_API_KEY || "";
@@ -273,6 +289,8 @@ function buildPrompt(input: {
   productName: string;
   productDescription: string | null;
   productReferenceNotes: string | null;
+  ctaMode: CtaMode;
+  ctaValue: string | null;
   sourceScenario: OmniLegacyScenario;
 }) {
   return `
@@ -283,8 +301,8 @@ function buildPrompt(input: {
 2. Новый сценарий должен продвигать выбранный продукт.
 3. Формат: говорящая голова.
 4. Структура: кульминационный хук 0-3 сек, 2-3 плотных бита, один CTA.
-5. CTA: в финале мягко скажи, что артикул или код можно найти в описании. Примеры тона: "артикул оставлю в описании", "код будет под видео", "кому надо - гляньте артикул в описании".
-6. Если в исходном сценарии или описании продукта уже есть конкретный артикул/код, используй его естественно. Если нет - не выдумывай номер и не проси писать комментарии или кодовое слово.
+5. CTA: ${buildCtaInstruction(input.ctaMode, input.ctaValue)}
+6. Не добавляй второй CTA и не меняй выбранное действие. Если для CTA нужны конкретные данные и их нет, не выдумывай их.
 7. Не используй дешевый кликбейт: "СТОП", "не листай", "99% людей", "секрет, который скрывают", "досмотри до конца".
 8. Не используй длинное тире, слова "является", "в современном мире", "стоит отметить", "важно понимать".
 9. Не добавляй emoji.
@@ -306,9 +324,20 @@ ${input.sourceScenario.script}
   "title": "короткий заголовок сценария",
   "hook": "кульминационный хук",
   "script": "полный сценарий одной строкой или многострочным текстом; не массив и не объект",
-  "caption": "описание поста с артикулом/кодом, если он есть в данных; без выдуманных номеров",
-  "cta_keyword": "артикул или код из данных, если он есть; иначе пустая строка",
+  "caption": "описание поста в соответствии с выбранным CTA; без выдуманных номеров и ссылок",
+  "cta_keyword": "кодовое слово только для CTA через комментарии; иначе пустая строка",
   "lead_magnet": "пустая строка, если отдельного подарка нет"
 }
 `;
+}
+
+function buildCtaInstruction(mode: CtaMode, value: string | null) {
+  if (mode === "keyword_in_comments") {
+    return `в финале естественно попроси написать кодовое слово «${value}» в комментариях; произнеси его точно`;
+  }
+  if (mode === "link_in_profile") {
+    return `в финале мягко направь к ссылке в профиле${value ? `; назначение ссылки: ${value}` : ""}`;
+  }
+  if (mode === "no_explicit_cta") return "не добавляй явный призыв; закончи личным выводом";
+  return "в финале мягко скажи, что артикул или код можно найти в описании; если номера нет в данных, не выдумывай его";
 }

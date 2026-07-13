@@ -294,7 +294,7 @@ function LibraryScenarioCard({
             />
           </TabsContent>
           <TabsContent value="prompts" className="px-3 pb-3">
-            <SegmentPromptPanel segments={latestSegments} />
+            <SegmentPromptPanel segments={latestSegments} strategy={latestReel?.creative_strategy} />
           </TabsContent>
         </Tabs>
       )}
@@ -389,7 +389,13 @@ function LibraryVideoPanel({
   );
 }
 
-function SegmentPromptPanel({ segments }: { segments: OmniReelSegment[] }) {
+function SegmentPromptPanel({
+  segments,
+  strategy,
+}: {
+  segments: OmniReelSegment[];
+  strategy?: OmniReel["creative_strategy"];
+}) {
   if (!segments.length) {
     return <div className="rounded-lg border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">Prompts появятся после создания reel.</div>;
   }
@@ -406,7 +412,13 @@ function SegmentPromptPanel({ segments }: { segments: OmniReelSegment[] }) {
           <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
             {segment.prompt || "Prompt пока не подготовлен."}
           </pre>
-          <OmniSegmentPromptDetails prompt={segment.prompt} />
+          <OmniSegmentPromptDetails
+            prompt={segment.prompt}
+            voiceoverText={segment.voiceover_text}
+            creativeStrategy={strategy}
+            creativePlan={segment.creative_plan}
+            validation={segment.prompt_validation}
+          />
         </div>
       ))}
     </div>

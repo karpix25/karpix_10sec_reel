@@ -5,6 +5,7 @@ import { Image as ImageIcon, Package, PackagePlus, Pencil, Save, X } from "lucid
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DashboardProductDetailsCard } from "@/components/screens/DashboardProductDetailsCard";
+import { ProductCtaFields } from "@/components/screens/ProductCtaFields";
 import {
   useCreateOmniProduct,
   useDeleteOmniProduct,
@@ -15,6 +16,7 @@ import {
   useUpdateOmniProjectProfile,
 } from "@/hooks/useOmniStudio";
 import type { OmniReferenceAsset } from "@/lib/omni/types";
+import type { CtaMode } from "@/lib/omni/creative-contract";
 
 type DashboardScreenProps = {
   selectedProjectId: number | null;
@@ -26,12 +28,16 @@ type ProductDraft = {
   name: string;
   description: string;
   productRefs: OmniReferenceAsset[];
+  ctaMode: CtaMode;
+  ctaValue: string;
 };
 
 const emptyProductDraft: ProductDraft = {
   name: "",
   description: "",
   productRefs: [],
+  ctaMode: "article_in_description",
+  ctaValue: "",
 };
 
 export function DashboardScreen({ selectedProjectId, selectedProductId, onSelectProduct }: DashboardScreenProps) {
@@ -60,6 +66,8 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
     Boolean(productDraft.name.trim()) &&
     Boolean(productDraft.description.trim()) &&
     Boolean(productDraft.productRefs.length) &&
+    (!(["keyword_in_comments", "link_in_profile"] as CtaMode[]).includes(productDraft.ctaMode) ||
+      Boolean(productDraft.ctaValue.trim())) &&
     !uploadImagesMutation.isPending &&
     !createProductMutation.isPending;
 
@@ -83,6 +91,8 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
       description: productDraft.description,
       targetDurationSeconds: 30,
       productRefs: productDraft.productRefs,
+      ctaMode: productDraft.ctaMode,
+      ctaValue: productDraft.ctaValue,
     });
     onSelectProduct(product.id);
     setProductDraft(emptyProductDraft);
@@ -196,6 +206,11 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
               placeholder="Описание продукта"
               className="min-h-28 w-full resize-y rounded-lg border border-input bg-background px-3 py-2 text-sm leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
+            <ProductCtaFields
+              mode={productDraft.ctaMode}
+              value={productDraft.ctaValue}
+              onChange={(cta) => setProductDraft({ ...productDraft, ctaMode: cta.mode, ctaValue: cta.value })}
+            />
             <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Картинки продукта
               <Input
@@ -251,6 +266,8 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
               name: draft.name,
               description: draft.description,
               productRefs: draft.productRefs,
+              ctaMode: draft.ctaMode,
+              ctaValue: draft.ctaValue,
             });
           }}
           onUploadImages={async (files) => {
