@@ -36,6 +36,8 @@ export async function POST(request: Request) {
       targetDurationSeconds: body.targetDurationSeconds,
       productRefs: body.productRefs,
       avatarRefs: body.avatarRefs,
+      ctaMode: body.ctaMode,
+      ctaValue: body.ctaValue,
     });
     return NextResponse.json(product, { status: 201 });
   } catch (error) {
@@ -65,6 +67,8 @@ export async function PATCH(request: Request) {
         avatarReferenceNotes: body.avatarReferenceNotes,
         productRefs: body.productRefs,
         avatarRefs: body.avatarRefs,
+        ctaMode: body.ctaMode,
+        ctaValue: body.ctaValue,
       })
     );
   } catch (error) {

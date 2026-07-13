@@ -5,11 +5,15 @@ import { Check, ImagePlus, Pencil, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { OmniProduct, OmniReferenceAsset } from "@/lib/omni/types";
+import type { CtaMode } from "@/lib/omni/creative-contract";
+import { ProductCtaFields, getCtaModeLabel } from "@/components/screens/ProductCtaFields";
 
 export type ProductProfileDraft = {
   name: string;
   description: string;
   productRefs: OmniReferenceAsset[];
+  ctaMode: CtaMode;
+  ctaValue: string;
 };
 
 type DashboardProductDetailsCardProps = {
@@ -27,6 +31,8 @@ function getProductDraft(product: OmniProduct | null): ProductProfileDraft {
     name: product?.name || "",
     description: product?.description || "",
     productRefs: product?.product_refs || [],
+    ctaMode: product?.cta_mode || "article_in_description",
+    ctaValue: product?.cta_value || "",
   };
 }
 
@@ -59,8 +65,12 @@ export function DashboardProductDetailsCard({
   const hasChanges =
     draft.name.trim() !== savedDraft.name ||
     draft.description.trim() !== savedDraft.description ||
+    draft.ctaMode !== savedDraft.ctaMode ||
+    draft.ctaValue.trim() !== savedDraft.ctaValue ||
     !areRefsEqual(draft.productRefs, savedDraft.productRefs);
-  const canSave = Boolean(product && onSave && draft.name.trim() && hasChanges && !isBusy);
+  const ctaReady = !(["keyword_in_comments", "link_in_profile"] as CtaMode[]).includes(draft.ctaMode) ||
+    Boolean(draft.ctaValue.trim());
+  const canSave = Boolean(product && onSave && draft.name.trim() && ctaReady && hasChanges && !isBusy);
 
   const handleCancel = () => {
     setDraft(savedDraft);
@@ -73,6 +83,8 @@ export function DashboardProductDetailsCard({
       name: draft.name.trim(),
       description: draft.description.trim(),
       productRefs: markPrimaryRefs(draft.productRefs),
+      ctaMode: draft.ctaMode,
+      ctaValue: draft.ctaValue.trim(),
     });
     setIsEditing(false);
   };
@@ -152,6 +164,12 @@ export function DashboardProductDetailsCard({
                   className="h-11 normal-case tracking-normal"
                 />
               </label>
+              <ProductCtaFields
+                mode={draft.ctaMode}
+                value={draft.ctaValue}
+                onChange={(cta) => setDraft((current) => ({ ...current, ctaMode: cta.mode, ctaValue: cta.value }))}
+                disabled={isSaving}
+              />
               <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 Описание продукта
                 <textarea
@@ -236,6 +254,9 @@ export function DashboardProductDetailsCard({
               <h4 className="text-lg font-semibold text-foreground">{product.name}</h4>
               <p className="text-sm leading-6 text-muted-foreground">
                 {product.description || "Описание продукта пока не заполнено."}
+              </p>
+              <p className="rounded-md bg-muted px-2.5 py-2 text-xs font-semibold text-muted-foreground">
+                CTA: {getCtaModeLabel(product.cta_mode)}{product.cta_value ? ` · ${product.cta_value}` : ""}
               </p>
             </>
           )}

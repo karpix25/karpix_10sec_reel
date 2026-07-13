@@ -75,7 +75,13 @@ export function GeneratedScriptPromptTabs({
               <pre className="max-h-80 max-w-full overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/40 p-3 text-xs leading-5 text-foreground">
                 {prompt.prompt}
               </pre>
-              <OmniSegmentPromptDetails prompt={prompt.prompt} voiceoverText={prompt.voiceoverText} />
+              <OmniSegmentPromptDetails
+                prompt={prompt.prompt}
+                voiceoverText={prompt.voiceoverText}
+                creativeStrategy={prompt.creativeStrategy}
+                creativePlan={prompt.creativePlan}
+                validation={prompt.validation}
+              />
             </TabsContent>
           ))}
         </Tabs>

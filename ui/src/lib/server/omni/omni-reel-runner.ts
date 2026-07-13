@@ -114,8 +114,12 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     });
     throw new Error("KIE.ai Omni requires an approved avatar with saved character id");
   }
+  const hasVisibleProductSegment = segments.some(
+    (segment) => segment.creative_plan?.productRole !== "hidden"
+  );
   const compositeReferenceUrl =
-    shouldSendCometReferenceImage() && referenceImageTransport === "url" && avatarReferenceUrl && productReferenceUrl
+    provider === "cometapi" && hasVisibleProductSegment && shouldSendCometReferenceImage() &&
+    referenceImageTransport === "url" && avatarReferenceUrl && productReferenceUrl
       ? await createOmniCompositeReference({
           projectId: reel.project_id,
           reelId: reel.id,
@@ -144,10 +148,21 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
   for (const segment of segments) {
     if (segment.kie_task_id || RUNNING_STATUSES.has(segment.status) || segment.status === "completed") continue;
     if (!segment.prompt) throw new Error(`Segment ${segment.segment_index} has no prompt`);
-    const selectedReferenceImages =
-      provider === "kie-ai"
-        ? { sent: kieReferenceImages, skipped: [] }
-        : selectReferenceImagesForComet(cometReferenceImages, referenceImageTransport, segment.segment_index);
+    const productIsVisible = segment.creative_plan?.productRole !== "hidden";
+    const segmentCometReferences = productIsVisible
+      ? cometReferenceImages
+      : cometReferenceImages.filter((image) => image.role === "avatar");
+    const hiddenCometReferences = productIsVisible
+      ? []
+      : cometReferenceImages.filter((image) => image.role !== "avatar");
+    const cometSelection = selectReferenceImagesForComet(
+      segmentCometReferences,
+      referenceImageTransport,
+      segment.segment_index
+    );
+    const selectedReferenceImages = provider === "kie-ai"
+      ? { sent: productIsVisible ? kieReferenceImages : [], skipped: productIsVisible ? [] : kieReferenceImages }
+      : { ...cometSelection, skipped: [...cometSelection.skipped, ...hiddenCometReferences] };
 
     const requestPayload = {
       generation_provider: provider,
@@ -168,13 +183,17 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       reference_images_skipped: selectedReferenceImages.skipped.map((image) => ({
         role: image.role,
         url: image.url,
-        reason: getSkippedReferenceReason(image.role, segment.segment_index, Boolean(compositeReferenceUrl)),
+        reason: productIsVisible
+          ? getSkippedReferenceReason(image.role, segment.segment_index, Boolean(compositeReferenceUrl))
+          : "product_hidden_by_creative_strategy",
       })),
       reference_images_source: {
         avatar_url: avatarReferenceUrl,
         product_url: productReferenceUrl,
         composite_url: compositeReferenceUrl,
       },
+      creative_plan: segment.creative_plan,
+      prompt_validation: segment.prompt_validation,
     };
 
     let task: ProviderTask;

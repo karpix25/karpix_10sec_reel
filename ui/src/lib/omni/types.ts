@@ -24,6 +24,8 @@ export interface OmniProduct {
   product_reference_notes: string | null;
   avatar_reference_notes: string | null;
   target_duration_seconds: number;
+  cta_mode: CtaMode;
+  cta_value: string | null;
   product_refs: OmniReferenceAsset[];
   avatar_refs: OmniReferenceAsset[];
   created_at: string;
@@ -103,6 +105,9 @@ export interface OmniPromptPreviewSegment {
   prompt: string;
   referenceUrl: string | null;
   voiceoverText?: string;
+  creativeStrategy?: OmniCreativeStrategy;
+  creativePlan?: OmniSegmentCreativePlan;
+  validation?: OmniPromptValidationResult;
 }
 
 export interface OmniClientAvatar {
@@ -144,6 +149,8 @@ export interface OmniReel {
   source_snapshot: Record<string, unknown> | null;
   product_snapshot: Record<string, unknown> | null;
   avatar_snapshot: Record<string, unknown> | null;
+  creative_strategy: OmniCreativeStrategy | null;
+  prompt_contract_version: string | null;
   stitch_status: "not_ready" | "ready" | "queued" | "stitching" | "completed" | "failed";
   final_video_url: string | null;
   final_s3_url?: string | null;
@@ -163,6 +170,9 @@ export interface OmniReelSegment {
   duration_seconds: number;
   slot_role: string | null;
   prompt: string | null;
+  voiceover_text: string | null;
+  creative_plan: OmniSegmentCreativePlan | null;
+  prompt_validation: OmniPromptValidationResult | null;
   reference_url: string | null;
   kie_task_id: string | null;
   generation_provider: string;
@@ -174,3 +184,9 @@ export interface OmniReelSegment {
   created_at: string;
   updated_at: string;
 }
+import type {
+  CtaMode,
+  OmniCreativeStrategy,
+  OmniPromptValidationResult,
+  OmniSegmentCreativePlan,
+} from "@/lib/omni/creative-contract";

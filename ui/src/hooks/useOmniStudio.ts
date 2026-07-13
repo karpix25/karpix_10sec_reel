@@ -14,6 +14,7 @@ import {
   OmniReelSegment,
 } from "@/lib/omni/types";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
+import type { CtaMode } from "@/lib/omni/creative-contract";
 
 type ReelsPayload = {
   reels: OmniReel[];
@@ -48,6 +49,8 @@ export type CreateOmniProductPayload = {
   targetDurationSeconds?: number;
   productRefs?: OmniProduct["product_refs"];
   avatarRefs?: unknown[];
+  ctaMode?: CtaMode;
+  ctaValue?: string;
 };
 
 export type UpdateOmniProductPayload = {
@@ -59,6 +62,8 @@ export type UpdateOmniProductPayload = {
   avatarReferenceNotes?: string;
   productRefs?: OmniProduct["product_refs"];
   avatarRefs?: OmniProduct["avatar_refs"];
+  ctaMode?: CtaMode;
+  ctaValue?: string;
 };
 
 export type UploadOmniProductImagesPayload = {
