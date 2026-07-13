@@ -13,3 +13,4 @@ Write code as a professional modular system, not as large monolithic files.
 - KIE Omni character creation must persist `data.characterId`; never treat `taskId` or `recordId` as a usable video `character_id`.
 - KIE Omni character approval must retry failed character tasks until a real `characterId` is received or the configured retry budget is exhausted.
 - KIE Omni requests should omit optional empty fields instead of sending empty arrays or blank strings.
+- KIE Omni character creation must use `/api/v1/omni/character/create`, not the generic `/api/v1/jobs/createTask` marketplace endpoint.
