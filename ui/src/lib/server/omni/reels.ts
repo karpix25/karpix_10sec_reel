@@ -9,6 +9,7 @@ import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
 import { listRecentLifeFormatIds } from "./omni-creative-history";
 import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
+import { ensureOmniScriptCta } from "./omni-cta-contract";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -76,22 +77,28 @@ export async function createOmniReel(input: {
   if (input.sourceGeneratedScriptId && !generatedScript) {
     throw new Error("Generated script not found for this product");
   }
+  const resolvedGeneratedScript = generatedScript
+    ? {
+        ...generatedScript,
+        script: ensureOmniScriptCta(generatedScript.script, product.cta_mode, product.cta_value),
+      }
+    : null;
   const sourceScenario = input.sourceLegacyScenarioId ? await getLegacyScenario(input.sourceLegacyScenarioId) : null;
-  const scriptText = generatedScript?.script || sourceScenario?.script || brief || "";
+  const scriptText = resolvedGeneratedScript?.script || sourceScenario?.script || brief || "";
   const segmentPlan = planOmniReelSegments(scriptText);
   const targetDuration = segmentPlan.durationSeconds;
   const segmentCount = segmentPlan.segmentCount;
   const latestAvatar = await getLatestOmniClientAvatar(input.projectId);
-  const sourceSnapshot = generatedScript
+  const sourceSnapshot = resolvedGeneratedScript
     ? {
         source_kind: "generated_script",
-        id: generatedScript.id,
-        source_legacy_scenario_id: generatedScript.source_legacy_scenario_id,
-        source_legacy_client_id: generatedScript.source_legacy_client_id,
-        title: generatedScript.title,
-        hook: generatedScript.hook,
-        script: generatedScript.script,
-        source_snapshot: generatedScript.source_snapshot,
+        id: resolvedGeneratedScript.id,
+        source_legacy_scenario_id: resolvedGeneratedScript.source_legacy_scenario_id,
+        source_legacy_client_id: resolvedGeneratedScript.source_legacy_client_id,
+        title: resolvedGeneratedScript.title,
+        hook: resolvedGeneratedScript.hook,
+        script: resolvedGeneratedScript.script,
+        source_snapshot: resolvedGeneratedScript.source_snapshot,
       }
     : sourceScenario
       ? {
@@ -130,7 +137,7 @@ export async function createOmniReel(input: {
     : null;
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
   const promptPlan = buildOmniSegmentPrompts({
-    generatedScript,
+    generatedScript: resolvedGeneratedScript,
     legacyTranscript: sourceScenario?.script || null,
     product,
     avatar: latestAvatar,
