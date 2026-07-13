@@ -64,9 +64,11 @@ try {
     states: strategy.visualStyle?.sceneArc.states,
   });
   assert.equal(strategy.version, "visual-style-writer-v1");
+  assert.equal(strategy.lifeFormatId, "talking_head_cutaways");
   assert.ok(strategy.visualStyle, "visual style writer must attach a visual style plan");
   assert.ok(!/коридор|ключи|дверь/u.test(scenePayload), "beauty script must not fall back to corridor, keys, or door");
-  assert.equal(strategy.visualStyle.id, "beauty_daylight");
+  assert.equal(strategy.visualStyle.id, "talking_head_home");
+  assert.ok(strategy.visualStyle.label.includes("говорящая голова"));
 
   const generic = selectOmniCreativeStrategy({
     script: "Я долго думала, почему обычные привычки не держатся. Потом оставила только один простой шаг. Артикул можно найти в описании.",
@@ -77,7 +79,7 @@ try {
     hasProductReference: false,
     ctaMode: "article_in_description",
   });
-  assert.notEqual(generic.lifeFormatId, "moving_vlog", "generic scripts must not default to moving corridor vlog");
+  assert.equal(generic.lifeFormatId, "talking_head_cutaways", "generic scripts should default to stable talking-head cutaways");
   assert.ok(generic.visualStyle?.forbiddenDefaults.some((item) => item.includes("коридор")));
 
   console.log("Omni visual style writer regression checks passed");

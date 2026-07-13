@@ -55,7 +55,13 @@ try {
       description: "Добавка для красоты кожи и волос",
       product_reference_notes: null,
       avatar_reference_notes: "Героиня в мягком бежевом свитере и светлых джинсах, без логотипов.",
-      product_refs: [],
+      product_refs: [{
+        id: "product-1",
+        url: "https://example.com/product.png",
+        kind: "image",
+        role: "product_primary",
+        is_primary: true,
+      }],
       avatar_refs: [],
       cta_mode: "article_in_description",
       cta_value: null,
@@ -85,8 +91,17 @@ try {
   });
 
   const joinedPrompt = prompts.map((item) => item.prompt).join("\n");
+  assert.ok(prompts.every((item) => item.creativeStrategy.lifeFormatId === "talking_head_cutaways"));
+  assert.equal(prompts[0].referenceUrl, "https://example.com/avatar.png");
+  assert.equal(prompts[1].referenceUrl, "https://example.com/product.png");
+  assert.equal(prompts[2].referenceUrl, "https://example.com/product.png");
   assert.ok(joinedPrompt.includes("ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА:"), "positive visual style must be rendered");
   assert.ok(joinedPrompt.includes("КАМЕРА И СВЕТ:"), "camera and light must be rendered");
+  assert.ok(joinedPrompt.includes("ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ"), "talking-head cutaway format must be rendered");
+  assert.ok(joinedPrompt.includes("ТРИ КАДРА ОДНОЙ ЧАСТИ:"), "talking-head prompt must use shot-based structure");
+  assert.ok(joinedPrompt.includes("во время короткой перебивки речь продолжает звучать как voiceover"), "cutaway voiceover rule must be rendered");
+  assert.ok(!joinedPrompt.includes("Один телефонный кадр без перебивок"), "old no-cutaway contract must not reach talking-head prompt");
+  assert.ok(!joinedPrompt.includes("ТРИ СОСТОЯНИЯ ОДНОГО МИНИ-ДЕЙСТВИЯ"), "old action-state label must not reach talking-head prompt");
   assert.ok(joinedPrompt.includes("ГЛАВНЫЙ ПЕРСОНАЖ:"), "main character contract must be rendered");
   assert.ok(joinedPrompt.includes("ОДЕЖДА:"), "clothing contract must be rendered");
   assert.ok(joinedPrompt.includes("бежевом свитере"), "specific clothing notes must reach provider prompt");

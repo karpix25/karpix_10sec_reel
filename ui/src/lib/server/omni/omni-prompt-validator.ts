@@ -65,6 +65,17 @@ export function validateOmniSegmentPrompt(input: {
   if (input.plan.productRole !== "brief_demo" && /(?:этикетк|логотип).*(?:камер|центр)/iu.test(joinedActions)) {
     errors.push("advertising_product_display");
   }
+  if (input.plan.lifeFormatId === "talking_head_cutaways") {
+    if (!input.prompt.includes("ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ")) {
+      errors.push("talking_head_cutaway_format_required");
+    }
+    if (!input.prompt.includes("перебив")) {
+      errors.push("cutaway_instruction_required");
+    }
+    if (/Один телефонный кадр без перебивок|ТРИ СОСТОЯНИЯ ОДНОГО МИНИ-ДЕЙСТВИЯ/u.test(input.prompt)) {
+      errors.push("continuous_action_contract_forbidden_for_talking_head");
+    }
+  }
 
   const words = input.plan.voiceoverText.split(/\s+/).filter(Boolean);
   const firstSentenceWords = getFirstSentenceWordCount(input.plan.voiceoverText);

@@ -19,6 +19,7 @@ export const OMNI_ACTION_SAFETY_RULES = [
 ] as const;
 
 export type LifeFormatId =
+  | "talking_head_cutaways"
   | "grwm"
   | "moving_vlog"
   | "morning_routine"
@@ -47,6 +48,7 @@ export type HookType =
 export type ActionComplexity = "low" | "medium";
 
 export type VisualStyleId =
+  | "talking_head_home"
   | "beauty_daylight"
   | "kitchen_counter"
   | "worktable_focus"
