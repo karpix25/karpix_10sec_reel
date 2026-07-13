@@ -15,7 +15,8 @@ class TestOmniSmartLayer(unittest.TestCase):
         self.assertNotIn("...", prompts[0])
         self.assertNotIn("—", prompts[0])
         self.assertNotIn("работу-функции", prompts[0])
-        self.assertIn("часть 1 из 1 одного непрерывного Reels", prompts[0])
+        self.assertIn("часть 1 из 1 одного непрерывного вертикального видео", prompts[0])
+        self.assertNotIn("Reels", prompts[0])
         self.assertIn("один и тот же человек в красной куртке", prompts[0])
         self.assertIn("ТОЧНАЯ РЕПЛИКА", prompts[0])
         self.assertIn("ЖИЗНЕННАЯ СИТУАЦИЯ", prompts[0])
@@ -27,9 +28,10 @@ class TestOmniSmartLayer(unittest.TestCase):
         
         # 40 / 18 = 2.22 -> 3 chunks
         self.assertEqual(len(prompts), 3)
-        self.assertIn("часть 1 из 3 одного непрерывного Reels", prompts[0])
-        self.assertIn("часть 2 из 3 одного непрерывного Reels", prompts[1])
-        self.assertIn("часть 3 из 3 одного непрерывного Reels", prompts[2])
+        self.assertIn("часть 1 из 3 одного непрерывного вертикального видео", prompts[0])
+        self.assertIn("часть 2 из 3 одного непрерывного вертикального видео", prompts[1])
+        self.assertIn("часть 3 из 3 одного непрерывного вертикального видео", prompts[2])
+        self.assertTrue(all("Reels" not in prompt for prompt in prompts))
 
     def test_each_part_has_own_exact_voice_text(self):
         script = " ".join([f"слово{i}" for i in range(20)])

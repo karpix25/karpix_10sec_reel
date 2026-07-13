@@ -20,6 +20,7 @@ import {
   isTalkingHeadCutawayFormat,
   OMNI_TALKING_HEAD_SYSTEM_PROMPT,
 } from "./omni-talking-head-format";
+import { OMNI_PROVIDER_CONTINUOUS_SYSTEM_PROMPT } from "./omni-provider-prompt-contract";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -47,7 +48,7 @@ type BuildOmniPromptsInput = {
 };
 
 export const OMNI_PROMPT_WRITER_SYSTEM_PROMPT =
-  "Сделай живой короткий Reels одним непрерывным телефонным кадром. Описывай только физически выполнимые действия и точную речь.";
+  OMNI_PROVIDER_CONTINUOUS_SYSTEM_PROMPT;
 
 export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegmentPrompt[] {
   const scriptText = sanitizeOmniScriptText(input.generatedScript?.script || input.legacyTranscript || input.brief || "");

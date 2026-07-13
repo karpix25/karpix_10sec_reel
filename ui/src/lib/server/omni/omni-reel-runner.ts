@@ -14,6 +14,7 @@ import {
   appendContinuityPromptContract,
   appendKieReferenceOrderPrompt,
 } from "./omni-continuity-prompt";
+import { prepareProviderVideoPrompt } from "./omni-provider-prompt-contract";
 import {
   isOmniContinuityChainEnabled,
   isSegmentBlockedByContinuityChain,
@@ -197,10 +198,11 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     const continuityPrompt = continuity.image
       ? appendContinuityPromptContract(segment.prompt)
       : segment.prompt;
-    const providerPrompt =
+    const rawProviderPrompt =
       provider === "kie-ai"
         ? appendKieReferenceOrderPrompt(continuityPrompt, selectedReferenceImages.sent)
         : continuityPrompt;
+    const providerPrompt = prepareProviderVideoPrompt(rawProviderPrompt);
     const continuitySourceSegmentId =
       typeof continuity.metadata.sourceSegmentId === "number"
         ? continuity.metadata.sourceSegmentId
@@ -247,7 +249,9 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
             : null,
       },
       continuity: continuity.metadata,
+      provider_prompt_sanitized: providerPrompt !== rawProviderPrompt,
       prompt_contracts: [
+        "provider_platform_imprint_guard_v1",
         ...(continuity.image ? ["previous_frame_continuity_v1"] : []),
         ...(provider === "kie-ai" && selectedReferenceImages.sent.length > 1
           ? ["kie_reference_order_v1"]
