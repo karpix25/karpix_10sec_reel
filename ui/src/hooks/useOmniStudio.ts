@@ -13,6 +13,7 @@ import {
   OmniReel,
   OmniReelSegment,
 } from "@/lib/omni/types";
+import type { OmniGenerationProvider } from "@/lib/omni/provider";
 
 type ReelsPayload = {
   reels: OmniReel[];
@@ -413,8 +414,8 @@ export function useOmniStudio(
   });
 
   const runReelMutation = useMutation({
-    mutationFn: async (payload: { projectId: number; reelId: number }) =>
-      (await axios.post(`${API_BASE}/reels/${payload.reelId}/run`)).data as OmniReel,
+    mutationFn: async (payload: { projectId: number; reelId: number; provider: OmniGenerationProvider }) =>
+      (await axios.post(`${API_BASE}/reels/${payload.reelId}/run`, { provider: payload.provider })).data as OmniReel,
     onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] }),
   });
 

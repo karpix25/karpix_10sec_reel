@@ -12,6 +12,7 @@ import { SettingsScreen } from "@/components/screens/SettingsScreen";
 import { OmniStudioScreen } from "@/components/screens/OmniStudio";
 import { AvatarScreen } from "@/components/screens/AvatarScreen";
 import { useOmniProjects } from "@/hooks/useOmniStudio";
+import { useOmniProviderPreference } from "@/hooks/useOmniProviderPreference";
 import { buildWorkspaceUrl, readInitialWorkspaceUrlState } from "@/lib/navigation/workspace-url-state";
 
 import { ReferenceModal } from "@/components/ReferenceModal";
@@ -156,6 +157,7 @@ export default function CuratorDashboard() {
   const [selectedOmniProductId, setSelectedOmniProductId] = useState<number | null>(
     () => readInitialWorkspaceUrlState().productId
   );
+  const [omniGenerationProvider, setOmniGenerationProvider] = useOmniProviderPreference();
   
   // Selection state for generator and modal
   const [selectedReferenceId, setSelectedReferenceId] = useState<number | null>(null);
@@ -636,6 +638,8 @@ export default function CuratorDashboard() {
         setSelectedProjectId={setSelectedOmniProjectId}
         setSelectedProductId={setSelectedOmniProductId}
         onOpenClientWorkspace={() => setScreen("dashboard")}
+        omniGenerationProvider={omniGenerationProvider}
+        onOmniGenerationProviderChange={setOmniGenerationProvider}
       />
 
       <div className="flex-1 xl:pl-72">
@@ -664,6 +668,7 @@ export default function CuratorDashboard() {
               selectedProductId={selectedOmniProductId}
               onSelectProject={setSelectedOmniProjectId}
               onSelectProduct={setSelectedOmniProductId}
+              omniGenerationProvider={omniGenerationProvider}
             />
           )}
 
@@ -672,6 +677,7 @@ export default function CuratorDashboard() {
               selectedProjectId={selectedOmniProjectId}
               selectedProductId={selectedOmniProductId}
               onSelectProduct={setSelectedOmniProductId}
+              omniGenerationProvider={omniGenerationProvider}
             />
           )}
 

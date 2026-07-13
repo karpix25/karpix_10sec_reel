@@ -2,6 +2,8 @@ import {
   Sparkles
 } from "lucide-react";
 import { ClientProductNavigator } from "@/components/ClientProductNavigator";
+import { OmniProviderSwitch } from "@/components/OmniProviderSwitch";
+import type { OmniGenerationProvider } from "@/lib/omni/provider";
 
 interface SidebarProps {
   setSelectedClientId: (id: string) => void;
@@ -9,6 +11,8 @@ interface SidebarProps {
   setSelectedProjectId: (id: number | null) => void;
   setSelectedProductId: (id: number | null) => void;
   onOpenClientWorkspace: () => void;
+  omniGenerationProvider: OmniGenerationProvider;
+  onOmniGenerationProviderChange: (provider: OmniGenerationProvider) => void;
 }
 
 export function Sidebar({
@@ -16,7 +20,9 @@ export function Sidebar({
   selectedProjectId,
   setSelectedProjectId,
   setSelectedProductId,
-  onOpenClientWorkspace
+  onOpenClientWorkspace,
+  omniGenerationProvider,
+  onOmniGenerationProviderChange
 }: SidebarProps) {
   return (
     <>
@@ -44,6 +50,11 @@ export function Sidebar({
             onOpenClientWorkspace={onOpenClientWorkspace}
           />
         </div>
+
+        <OmniProviderSwitch
+          provider={omniGenerationProvider}
+          onProviderChange={onOmniGenerationProviderChange}
+        />
       </aside>
     </>
   );

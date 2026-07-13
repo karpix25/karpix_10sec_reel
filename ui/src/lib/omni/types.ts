@@ -113,6 +113,9 @@ export interface OmniClientAvatar {
   reference_url: string | null;
   status: "draft" | "queued" | "generating" | "completed" | "approved" | "failed";
   provider: string;
+  kie_character_id: string | null;
+  kie_character_status: string | null;
+  kie_character_payload: Record<string, unknown> | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -162,6 +165,7 @@ export interface OmniReelSegment {
   prompt: string | null;
   reference_url: string | null;
   kie_task_id: string | null;
+  generation_provider: string;
   status: OmniSegmentStatus;
   video_url: string | null;
   error_message: string | null;

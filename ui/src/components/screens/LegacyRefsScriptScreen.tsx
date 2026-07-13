@@ -8,17 +8,20 @@ import { useOmniGeneratedScripts, useOmniProducts, useOmniProjects, useOmniStudi
 import { usePersistentGenerationPending } from "@/hooks/usePersistentGenerationPending";
 import { useOmniReelAutoSync } from "@/hooks/useOmniReelAutoSync";
 import { GeneratedScriptsList } from "./GeneratedScriptsList";
+import type { OmniGenerationProvider } from "@/lib/omni/provider";
 
 type LegacyRefsScriptScreenProps = {
   selectedProjectId: number | null;
   selectedProductId: number | null;
   onSelectProduct: (productId: number | null) => void;
+  omniGenerationProvider: OmniGenerationProvider;
 };
 
 export function LegacyRefsScriptScreen({
   selectedProjectId,
   selectedProductId,
   onSelectProduct,
+  omniGenerationProvider,
 }: LegacyRefsScriptScreenProps) {
   const projectsQuery = useOmniProjects();
   const productsQuery = useOmniProducts(selectedProjectId);
@@ -81,7 +84,7 @@ export function LegacyRefsScriptScreen({
 
   const handleRunReel = (reelId: number) => {
     if (!selectedProjectId) return;
-    studio.runReelMutation.mutate({ projectId: selectedProjectId, reelId });
+    studio.runReelMutation.mutate({ projectId: selectedProjectId, reelId, provider: omniGenerationProvider });
   };
 
   const handleSyncReel = (reelId: number) => {
