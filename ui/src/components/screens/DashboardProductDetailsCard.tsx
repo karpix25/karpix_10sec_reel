@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { OmniProduct, OmniReferenceAsset } from "@/lib/omni/types";
 import type { CtaMode } from "@/lib/omni/creative-contract";
+import { AUTO_SEGMENT_MODE_LABEL } from "@/lib/omni/workspace";
 import { ProductCtaFields, getCtaModeLabel } from "@/components/screens/ProductCtaFields";
 
 export type ProductProfileDraft = {
@@ -251,7 +252,12 @@ export function DashboardProductDetailsCard({
             </div>
           ) : (
             <>
-              <h4 className="text-lg font-semibold text-foreground">{product.name}</h4>
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="text-lg font-semibold text-foreground">{product.name}</h4>
+                <span className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
+                  {AUTO_SEGMENT_MODE_LABEL}
+                </span>
+              </div>
               <p className="text-sm leading-6 text-muted-foreground">
                 {product.description || "Описание продукта пока не заполнено."}
               </p>

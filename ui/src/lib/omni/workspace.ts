@@ -9,6 +9,9 @@ export type OmniReadinessItem = {
   done: boolean;
 };
 
+export const AUTO_SEGMENT_MODE_LABEL = "Авто: 2–4 части";
+export const AUTO_SEGMENT_FALLBACK_DURATION_SECONDS = 30;
+
 export function getClientWorkspaceDescription(client: Pick<Client, "id">) {
   return `legacy-client:${client.id}`;
 }
@@ -27,10 +30,12 @@ export function findClientWorkspaceProject(projects: OmniProject[], client: Clie
 }
 
 export function getSegmentPlan(targetDurationSeconds: number) {
-  const normalizedDuration = targetDurationSeconds >= 40 ? 40 : 30;
+  const normalizedDuration = [20, 30, 40].includes(targetDurationSeconds)
+    ? targetDurationSeconds
+    : AUTO_SEGMENT_FALLBACK_DURATION_SECONDS;
   return {
     durationSeconds: normalizedDuration,
-    segmentCount: Math.max(1, Math.ceil(normalizedDuration / 10)),
+    segmentCount: normalizedDuration / 10,
   };
 }
 
