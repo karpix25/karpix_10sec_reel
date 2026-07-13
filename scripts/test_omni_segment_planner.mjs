@@ -25,7 +25,7 @@ try {
   );
 
   const { planOmniReelSegments } = require(join(output, "omni-duration-planner.js"));
-  const { reconstructVoiceSegments } = require(join(output, "omni-script-segmentation.js"));
+  const { reconstructVoiceSegments, splitScriptIntoVoiceSegments } = require(join(output, "omni-script-segmentation.js"));
 
   for (const [wordCount, expectedSegments] of [[40, 2], [60, 3], [80, 4]]) {
     const script = makeScript(wordCount);
@@ -47,6 +47,17 @@ try {
     "the protected CTA must remain inside one segment"
   );
   assert.equal(reconstructVoiceSegments(ctaPlan.segments), cta);
+
+  // Test fallback when a protected CTA cannot fit the strict segment word constraints
+  // Total words = 7 + 8 + 9 = 24 words. count = 3. maxWordsPerSegment = 8.
+  // The only valid split of 24 words into 3 segments with max 8 words per segment is [8, 8, 8].
+  // But the CTA matches "Напишите раз два три четыре пять в комментариях" (8 words) starting at index 7,
+  // which protects boundary 8. So the solver fails, and our fallback kicks in.
+  const longCtaText = Array(7).fill("Слово").join(" ") + " Напишите раз два три четыре пять в комментариях " + Array(9).fill("Слово").join(" ");
+  const fallbackSegments = splitScriptIntoVoiceSegments(longCtaText, 3, 8);
+  assert.equal(fallbackSegments.length, 3);
+  assert.equal(reconstructVoiceSegments(fallbackSegments), reconstructVoiceSegments(splitScriptIntoVoiceSegments(longCtaText, 1)));
+  assert.ok(fallbackSegments.every(seg => seg.wordCount > 0), "no segment should be empty");
 
   assert.throws(
     () => planOmniReelSegments(makeScript(97)),

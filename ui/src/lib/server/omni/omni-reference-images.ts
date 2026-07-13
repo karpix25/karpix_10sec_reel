@@ -21,13 +21,18 @@ export function selectReferenceImagesForComet(
 
 function selectUrlReferenceImage(images: ReelReferenceImage[], segmentIndex?: number) {
   if (segmentIndex === 1) {
-    return images.find((image) => image.role === "avatar") || images[0];
+    return (
+      images.find((image) => image.role === "avatar") ||
+      images.find((image) => image.role === "avatar_product_composite") ||
+      images.find((image) => image.role === "product") ||
+      images[0]
+    );
   }
 
   return (
     images.find((image) => image.role === "avatar_product_composite") ||
-    images.find((image) => image.role === "product") ||
     images.find((image) => image.role === "avatar") ||
+    images.find((image) => image.role === "product") ||
     images[0]
   );
 }

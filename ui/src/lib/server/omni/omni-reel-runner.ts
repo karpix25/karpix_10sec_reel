@@ -1,4 +1,5 @@
 import pool from "@/lib/db";
+import { rm } from "fs/promises";
 import type { OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
 import {
@@ -374,36 +375,42 @@ async function stitchAndStoreReel(reelId: number) {
 
   const segmentBuffers = await Promise.all(segments.map(loadSegmentBuffer));
   const stitched = await stitchOmniSegments({ reelId, segmentBuffers });
-  const stored = await uploadOmniFinalVideo({
-    project,
-    product,
-    reelId,
-    localFilePath: stitched.outputPath,
-  });
-
-  await pool.query(
-    `UPDATE omni_reels
-     SET status = $2,
-         stitch_status = 'completed',
-         final_video_url = $3,
-         final_s3_url = $3,
-         yandex_disk_path = $4,
-         yandex_public_url = $5,
-         yandex_status = $6,
-         yandex_error = $7,
-         error_message = NULL,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $1`,
-    [
+  try {
+    const stored = await uploadOmniFinalVideo({
+      project,
+      product,
       reelId,
-      "completed",
-      stored.s3Url,
-      stored.yandexPath,
-      stored.yandexPublicUrl,
-      stored.yandexStatus,
-      stored.yandexError,
-    ]
-  );
+      localFilePath: stitched.outputPath,
+    });
+
+    await pool.query(
+      `UPDATE omni_reels
+       SET status = $2,
+           stitch_status = 'completed',
+           final_video_url = $3,
+           final_s3_url = $3,
+           yandex_disk_path = $4,
+           yandex_public_url = $5,
+           yandex_status = $6,
+           yandex_error = $7,
+           error_message = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [
+        reelId,
+        "completed",
+        stored.s3Url,
+        stored.yandexPath,
+        stored.yandexPublicUrl,
+        stored.yandexStatus,
+        stored.yandexError,
+      ]
+    );
+  } finally {
+    if (stitched?.workdir) {
+      await rm(stitched.workdir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
 }
 
 export async function syncOmniReel(reelId: number) {

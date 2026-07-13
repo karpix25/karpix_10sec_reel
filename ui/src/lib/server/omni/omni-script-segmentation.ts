@@ -112,16 +112,29 @@ function findProtectedBoundaries(text: string, tokens: Token[]) {
   return protectedBoundaries;
 }
 
+/**
+ * Finds the best segment boundaries for splitting the script.
+ * If the solver cannot find a solution without breaking protected CTA phrases,
+ * it falls back to a deterministic split that keeps all words and segment budgets.
+ */
 function findBestBoundaries(
   tokens: Token[],
   count: number,
-  protectedBoundaries: Set<number>,
+пу  protectedBoundaries: Set<number>,
   maxWordsPerSegment?: number
 ) {
   if (count === 1) return [0, tokens.length];
   const target = tokens.length / count;
-  const boundaries = solveBoundaries(tokens, count, target, protectedBoundaries, maxWordsPerSegment);
-  if (!boundaries) throw new Error("Script cannot be split without breaking a protected CTA phrase");
+
+  // Attempt 1: respect CTA protected boundaries and the segment word budget.
+  let boundaries = solveBoundaries(tokens, count, target, protectedBoundaries, maxWordsPerSegment);
+
+  if (!boundaries) {
+    // Fallback: keep the word budget, but allow a split inside protected CTA text.
+    boundaries = solveBoundaries(tokens, count, target, new Set<number>(), maxWordsPerSegment);
+  }
+
+  if (!boundaries) throw new Error("Script cannot be split into non-empty segments");
   return [0, ...boundaries];
 }
 

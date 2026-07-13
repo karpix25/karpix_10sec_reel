@@ -1,247 +1,199 @@
-# 🌐 Контент машина (Content Machine)
+# OMNI REELS ANTON
 
-[![Version](https://img.shields.io/badge/version-1.3.4-blue.svg)](https://github.com/vibetram/pay-world)
-[![Stack](https://img.shields.io/badge/stack-Next.js%20|%20FastAPI%20|%20PostgreSQL-green.svg)](#-технологический-стек)
+Админ-консоль и автоматизация для производства AI short-form роликов. Проект хранит брифы продуктов, референсы, сценарии, аватары, задачи провайдеров, состояние очередей и готовые видео в одном PostgreSQL-backed workspace.
 
-**Контент машина** — это высокоавтоматизированная платформа для генерации рекламного видеоконтента с использованием ИИ аватаров и динамических B-roll перебивок. Система автоматизирует полный цикл: от анализа референсов и написания сценариев до генерации аватаров и финального монтажа.
+Текущий runtime: Next.js full-stack app плюс Python workers. Отдельного FastAPI-сервиса в активном стеке нет.
 
----
+## Текущий стек
 
-## 🎯 Ключевые возможности
+| Слой | Технологии | Основные файлы |
+| --- | --- | --- |
+| Web app и API | Next.js 16, React 19, TypeScript, App Router route handlers | `ui/src/app`, `ui/src/app/api` |
+| UI state и компоненты | TanStack React Query, Tailwind CSS 4, shadcn/Radix UI, lucide-react | `ui/src/hooks`, `ui/src/components` |
+| Server data access | `pg` из Next.js, прямой SQL | `ui/src/lib/db.ts`, `ui/src/lib/server` |
+| Automation workers | Python 3, `requests`, `psycopg2`, provider SDKs | `services/v1` |
+| Database | PostgreSQL 16 | `docker-compose.production.yml`, `services/v1/database/db_service.py` |
+| Media runtime | FFmpeg внутри Docker image | `Dockerfile`, `ui/src/lib/server/omni/omni-video-stitcher.ts` |
+| Deploy shape | Docker Compose: `web`, `postgres`, workers, poller, scheduler, Telegram bot | `docker-compose.production.yml` |
 
-- **AI Scenario Generation**: Создание сценариев на основе Tone of Voice клиента и паттернов успешных референсов.
-- **AI Evolution (Самообучение)**: Промпты автоматически улучшаются на основе обратной связи пользователей (Learned Rules).
-- **Multi-Provider TTS**: Поддержка ElevenLabs и MiniMax (оптимизировано для русского языка).
-- **Automated Video Assembly**: Автоматический монтаж в Remotion/FFmpeg: аватар + перебивки + субтитры + динамический зум.
-- **Multi-Avatar System**: Управление базой аватаров и их закрепление за конкретными офферами.
+## Что делает проект
 
----
+- Управляет клиентами, проектами, продуктами, референсами, аватарами, сценариями и сгенерированными роликами.
+- Собирает Omni/KIE reel plan из контекста продукта, legacy-сценариев, reference assets, CTA-правил и avatar contracts.
+- Отправляет задачи генерации видео в CometAPI Omni или KIE Gemini Omni, в зависимости от выбранного провайдера.
+- Поддерживает legacy final-video pipeline: сценарий, TTS, STT timing, polling провайдеров, montage и storage.
+- Загружает готовые видео в S3-compatible storage или Yandex Disk, в зависимости от env-настроек.
+- Дает Telegram bot для ingestion и операционного управления.
 
-## 🏗 Архитектура системы
-
-Система построена на модульном принципе: UI на Next.js и бэкенд-сервисы на FastAPI работают с общей базой данных PostgreSQL.
+## Архитектура
 
 ```mermaid
-C4Container
-    title Схема контейнеров системы Pay World
-
-    Person(user, "Администратор/Контент-мейкер", "Управляет клиентами, оценивает сценарии, запускает генерацию.")
-
-    System_Boundary(c1, "Pay World Platform") {
-        Container(ui, "Next.js App", "Next.js 14, React", "Dashboard, управление настройками AI Evolution и мониторинг.")
-        Container(api, "Internal API (FastAPI)", "Python, FastAPI", "Координация сервисов и управление задачами.")
-        Container(worker, "Final Video Worker", "Python, Asyncio", "State-machine пайплайна: от сценария до рендера.")
-        ContainerDb(db, "Database", "PostgreSQL", "Хранит данные клиентов, сценарии, историю AI Evolution и промпты.")
-    }
-
-    System_Ext(openrouter, "OpenRouter (LLM)", "Gemini 2.5 / Claude 3.5. Генерирует сценарии и промпты.")
-    System_Ext(kie, "KIE.ai (Veo-3)", "Генерация B-roll видео по промптам.")
-    System_Ext(heygen, "HeyGen", "Генерация цифрового аватара (Lipsync).")
-    System_Ext(minimax, "MiniMax / ElevenLabs", "Голосовая озвучка (TTS).")
-
-    Rel(user, ui, "Использует", "HTTPS")
-    Rel(ui, db, "Чтение/Запись", "Prisma/SQL")
-    Rel(ui, api, "Вызывает", "HTTP/JSON")
-    Rel(worker, db, "Чтение/Запись", "SQL")
+flowchart LR
+    admin[Admin user] --> web[Next.js web app]
+    web --> api[Next.js API routes]
+    api --> db[(PostgreSQL)]
+    api --> providers[AI and media providers]
+    scheduler[Python scheduler] --> db
+    worker[Python worker] --> db
+    worker --> providers
+    poller[Python poller] --> db
+    poller --> providers
+    bot[Telegram bot] --> db
+    bot --> api
+    providers --> storage[S3 or Yandex Disk]
 ```
 
-### Основные компоненты:
-1. **Web UI**: `/ui` — Интерфейс управления, расчет покрытия перебивок и Rollback промптов.
-2. **Automation Engine**: `/services/v1/automation` — Логика этапов `scenario`, `waiting_kie`, `avatar_submit`.
-3. **AI Evolution**: Динамическое обучение на основе дизлайков (автогенерация "Learned Rules").
-4. **Post-production**: `/services/v1/post_production` — Наложение субтитров, зум-эффекты и чистка аудио.
+Next.js process отвечает за web UI, API routes, auth, большую часть Omni Studio, прямой PostgreSQL access и server-side provider adapters. Python workers отвечают за долгие automation tasks, которые нельзя держать внутри web request.
 
----
+## Основные директории
 
-## 🔄 Пайплайн генерации (Workflow)
+| Путь | Ответственность |
+| --- | --- |
+| `ui/src/app` | Next.js pages, layout, global styles и API route handlers |
+| `ui/src/components` | Dashboard, Omni Studio, settings, library, avatar и shared UI components |
+| `ui/src/hooks` | React Query hooks и reusable client-side state |
+| `ui/src/lib/omni` | Shared Omni types, provider names, prompt contracts и workspace helpers |
+| `ui/src/lib/server/omni` | Server-side Omni domain logic, SQL access, prompt building, provider clients, stitching и storage |
+| `ui/src/lib/server` | Auth, rate limiting, notifications, S3, Yandex Disk, subtitles, temp cleanup и provider helpers |
+| `services/v1/automation` | Python pipeline stages, final-video queue worker, scheduler, poller, prompt и TTS services |
+| `services/v1/providers` | Python provider clients для CometAPI, KIE, HeyGen, MiniMax, ElevenLabs и OpenAI image generation |
+| `services/v1/ingestion` | Telegram bot и Instagram/RapidAPI ingestion |
+| `services/v1/reels_factory` | Side-effect-free skeleton для будущего provider-neutral reel planning |
+| `scripts` | Migration, cleanup и targeted smoke-test scripts |
 
-Процесс создания ролика управляется `final_video_worker.py` через систему состояний (State Machine):
+## Generation flows
 
-1. **Scenario**: LLM пишет сценарий → TTS генерирует аудио → Deepgram дает тайминги → LLM выделяет ключевые слова.
-2. **Waiting KIE**: Генерация B-roll видео (Veo-3) на основе промптов с логикой ретраев (до 3 попыток).
-3. **Avatar Submit**: Отправка аудио в HeyGen для создания аватара.
-4. **Waiting HeyGen**: Ожидание готовности аватара (Polling).
-5. **Montage**: Сборка в FFmpeg → Субтитры → Кадрирование → Загрузка в Yandex Disk.
+### Omni Studio flow
 
-## 🚦 Очередь Финальных Роликов И Нагрузка
+1. Пользователь выбирает Omni project и product в Next.js UI.
+2. App связывает legacy scenarios, library references, product images, avatar references, CTA settings и creative strategy.
+3. `ui/src/lib/server/omni/reels.ts` создает `omni_reels` и планирует `omni_reel_segments`.
+4. `ui/src/lib/server/omni/omni-prompt-builder.ts` рендерит по одному prompt на segment: spoken text, product context, character contract, clothing contract, CTA rules и selected visual format.
+5. `ui/src/lib/server/omni/omni-reel-runner.ts` отправляет segments выбранному провайдеру:
+   - CometAPI использует `omni-fast`.
+   - KIE использует `gemini-omni-video` и требует сохраненный `character_id`.
+6. Готовые segment videos скачиваются, склеиваются через FFmpeg и загружаются в configured storage.
 
-Контур финальной генерации работает через таблицу `final_video_jobs` и три независимых процесса:
+### Legacy final-video flow
 
-1. `final_video_scheduler.py` — ставит новые job в очередь.
-2. `final_video_worker.py` — обрабатывает активные стадии (`scenario`, `avatar_submit`, `montage`).
-3. `final_video_poller.py` — опрашивает ожидания (`waiting_kie`, `waiting_heygen`).
+Старый automation flow работает через таблицу `final_video_jobs` и Python workers:
 
-### Модель Job И Стадии
+1. `final_video_scheduler.py` создает queue jobs для eligible clients.
+2. `final_video_worker.py` забирает active work и обрабатывает stages `scenario`, `omni_generate`, `waiting_omni`, `montage`.
+3. `final_video_poller.py` обрабатывает waiting states `waiting_kie` и `waiting_heygen`.
+4. `final_video_automation.py` координирует retries, backoff, requeue logic, provider status checks и финальные status updates.
 
-У job есть ключевые поля:
-- `status`: `queued` → `processing` → `completed|failed`
-- `current_stage`: `scenario` → `waiting_kie` → `avatar_submit` → `waiting_heygen` → `montage`
-- `attempt_count` / `max_attempts` (по умолчанию `6`)
-- `scheduled_for` (отложенный запуск), `lease_until`, `worker_id`, `last_error`
+Этот flow все еще важен для scheduled generation, legacy scenarios, HeyGen avatar work и montage/storage automation.
 
-### Как Ограничивается Нагрузка
+## Провайдеры и env
 
-Scheduler ставит job в очередь только при соблюдении всех гейтов:
-- включена автогенерация: `clients.auto_generate_final_videos = true`
-- дневной и месячный лимиты клиента (`daily_final_video_limit`, `monthly_final_video_limit`)
-- лимит бэклога очереди на клиента (`FINAL_VIDEO_QUEUE_BACKLOG_PER_CLIENT`)
-- лимит добавления за цикл (`FINAL_VIDEO_SCHEDULER_BATCH_PER_CLIENT`)
+Source of truth для переменных окружения: `.env.example`.
 
-Важно: используются **strict gates по уже созданным job** (`final_video_jobs`), а не только по успешно завершенным роликам. Это защищает от бесконечного донасыщения очереди при внешних сбоях (KIE/HeyGen).
+| Provider | Роль | Переменные |
+| --- | --- | --- |
+| OpenRouter | Script, visual и prompt generation | `OPENROUTER_API_KEY`, `SCENARIO_MODEL` |
+| CometAPI | Omni video generation и avatar image generation | `COMETAPI_KEY`, `COMETAPI_BASE_URL` |
+| KIE.ai | Gemini Omni video, character creation, legacy B-roll | `KIE_API_KEY` или `KIE_AI_API_KEY` |
+| HeyGen | Avatar video generation | `HEYGEN_API_KEY` |
+| MiniMax | Russian TTS | `MINIMAX_API_KEY`, `MINIMAX_GROUP_ID`, `MINIMAX_BASE_URL` |
+| ElevenLabs | Alternate TTS и cloned voices | `ELEVENLABS_API_KEY` |
+| Deepgram | Word timings и transcription support | `DEEPGRAM_API_KEY` |
+| RapidAPI | Instagram/Reels ingestion | `RAPIDAPI_KEY`, `RAPIDAPI_INSTAGRAM_HOST`, `RAPIDAPI_INSTAGRAM_ENDPOINT` |
+| Telegram | Bot, auth и notifications | `TELEGRAM_BOT_TOKEN`, admin IDs, `WEBAPP_BASE_URL` |
+| Yandex Disk | Legacy/final video storage | `YANDEX_DISK_OAUTH_TOKEN` или fallback token vars |
+| S3-compatible storage | Uploaded references и generated Omni videos | `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_BASE_URL` |
 
-### Параллелизм И Fair Scheduling
+Database settings: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`. Legacy bridge reads могут использовать `OLD_DB_*` или `LEGACY_DB_*`, если текущий workspace должен читать старые scenario или library data.
 
-Выбор следующей job идет через SQL `FOR UPDATE SKIP LOCKED` и сортировку:
-- сначала клиенты с меньшим числом активных `processing` job
-- затем `priority DESC`, потом `scheduled_for ASC`
+## Local development
 
-Параллелизм ограничивается параметром:
-- `FINAL_VIDEO_PER_CLIENT_CONCURRENCY` (по умолчанию `1`)
-
-Это предотвращает ситуацию, когда один клиент выедает весь пул воркеров.
-
-### Lease, Recovery И Ретраи
-
-Для каждой взятой job ставится lease:
-- worker lease: `FINAL_VIDEO_WORKER_LEASE_SECONDS` (по умолчанию `3600`)
-- poller lease: `FINAL_VIDEO_POLLER_LEASE_SECONDS` (по умолчанию `600`)
-
-Если воркер падает или зависает, job автоматически возвращается в очередь:
-- `requeue_stale_final_video_jobs()` переводит `processing` с истекшим `lease_until` обратно в `queued`
-
-Ошибки обрабатываются через backoff:
-- задержка ретрая = `min(FINAL_VIDEO_RETRY_BASE_SECONDS * attempt_count, FINAL_VIDEO_RETRY_MAX_SECONDS)`
-- non-retryable ошибки (например payment issues) завершают job сразу в `failed`
-
-### Manual Run И Защита От Дублирования
-
-Ручной запуск (`/api/automation/final-videos/manual-run`) защищен advisory-lock на проект:
-- одновременно только один manual batch на клиента
-- при расчете batch учитывается месячный лимит и текущие `queued/processing`
-
-### Параметры Для Тюнинга Пропускной Способности
-
-Ключевые `.env` параметры:
-- `FINAL_VIDEO_SCHEDULER_INTERVAL_SECONDS` — частота циклов scheduler
-- `FINAL_VIDEO_SCHEDULER_BATCH_PER_CLIENT` — сколько job максимум добавить клиенту за цикл
-- `FINAL_VIDEO_QUEUE_BACKLOG_PER_CLIENT` — максимальный backlog (`queued+processing`) на клиента
-- `FINAL_VIDEO_PER_CLIENT_CONCURRENCY` — одновременно обрабатываемые job на клиента
-- `FINAL_VIDEO_WORKER_IDLE_SECONDS`, `FINAL_VIDEO_POLLER_IDLE_SECONDS` — пауза при пустой очереди
-- `FINAL_VIDEO_KIE_POLL_INTERVAL_SECONDS`, `FINAL_VIDEO_HEYGEN_POLL_INTERVAL_SECONDS` — частота опроса внешних провайдеров
-- `FINAL_VIDEO_RETRY_BASE_SECONDS`, `FINAL_VIDEO_RETRY_MAX_SECONDS` — окно экспоненциального backoff
-
-Счётчики day/month в контуре лимитов считаются в таймзоне `Europe/Moscow`, чтобы лимиты клиента были стабильны для операционной команды.
-
-### 🎬 Тайминг и смысл перебивок (B-roll)
-
-Чтобы short-form ролик быстрее цеплял внимание, в пайплайне есть жесткие правила раннего входа в перебивки:
-
-- **Аватар-хук**: первые `2.8s` всегда остаются на лице аватара.
-- **Первая перебивка**: стартует не позже `3.5s` (финальный guard применяется дважды: до и после пост-обработки сегментов).
-- **Источник ранней фразы**: первая фраза/ключ берутся из речи до `3.0s`.
-- **Смысловой selector ключа**:
-  - `v1` — базовый эвристический выбор (длина слова, позиция, стоп-слова).
-  - `v2` — тематический выбор с учетом контекста всего сценария/tts (частотность темы, гео-маркеры и т.д.).
-
-Это уменьшает случаи, когда первая перебивка появляется поздно или попадает в менее релевантное слово.
-
----
-
-## 📥 Сбор данных и Парсинг (Ingestion)
-
-Система наполняется референсами через автоматизированные инструменты сбора данных:
-
-### 1. Telegram Scraper (Telethon)
-Используется для мониторинга целевых Telegram-каналов и извлечения видео-постов.
-- **Действие**: Извлекает метаданные поста и загружает видеофайл для последующей транскрибации.
-- **Библиотека**: `Telethon` (Telegram Client Library).
-
-### 2. Instagram Reels Downloader (RapidAPI)
-Интегрированный парсер для обработки ссылок на Reels, отправляемых пользователями в бот.
-- **Технология**: Использует `RapidAPI` для обхода ограничений и получения прямых ссылок на MP4.
-- **Логика**: При получении ссылки бот автоматически загружает ролик, извлекает текст через Whisper/Deepgram и создает «Карточку референса» в БД.
-
-### 3. Telegram Management Bot
-Служит интерфейсом для оперативного управления: привязка клиентов к топикам, настройка офферов и запуск пайплайна вручную.
-
----
-
-## 🛰 Интеграции
-
-| Сервис | Роль в системе | Переменная .env |
-| :--- | :--- | :--- |
-| **OpenRouter** | Генерация текстов (Gemini 2.5 Flash) | `OPENROUTER_API_KEY` |
-| **KIE.ai** | Генерация видео (Veo-3) | `KIE_API_KEY` |
-| **HeyGen** | Цифровой аватар | `HEYGEN_API_KEY` |
-| **MiniMax** | TTS (Лучшая для RU) | `MINIMAX_API_KEY` |
-| **ElevenLabs** | TTS (Клонирование голоса) | `ELEVENLABS_API_KEY` |
-| **Deepgram** | Тайминги слов (STT) | `DEEPGRAM_API_KEY` |
-| **RapidAPI** | Парсинг Instagram Reels | `RAPIDAPI_KEY` |
-| **Yandex Disk** | Хранилище готовых видео | `YANDEX_DISK_OAUTH_TOKEN` (fallback: `YANDEX_DISK_TOKEN`, `YANDEX_TOKEN`) |
-
----
-
-## 🔐 API & Безопасность
-
-Все внешние запросы проходят валидацию через `validateApiRequest`.
-
-- **Auth**: Требуется валидная кука `tg_session` (Telegram Auth).
-- **Rate Limit**: 100 запросов в минуту на пользователя.
-- **Security**: Прямой доступ к API бэкенда закрыт извне.
-
-### Ключевые эндпоинты:
-- `POST /api/scenarios/feedback` — Сохранение оценки и запуск AI Evolution.
-- `POST /api/scenarios/assemble` — Ручной запуск финальной сборки.
-- `GET /api/clients` — Управление настройками офферов.
-
----
-
-## ⚙️ Быстрый старт (.env)
-
-Скопируйте `.env.example` в `.env` и заполните ключи:
+Установить Node dependencies нужно в UI workspace:
 
 ```bash
-# AI & Core
-OPENROUTER_API_KEY=sk-or-...
-SCENARIO_MODEL=google/gemini-2.5-flash
-VISUAL_SEGMENTS_TEMPERATURE=0.1
-
-# Video & Audio
-KIE_API_KEY=...
-HEYGEN_API_KEY=...
-MINIMAX_API_KEY=...
-MINIMAX_GROUP_ID=...
-ELEVENLABS_API_KEY=...
-DEEPGRAM_API_KEY=...
-
-# B-roll semantic selector
-# true  -> использовать selector v2 (рекомендуется)
-# false -> откат на selector v1
-BROLL_USE_SEMANTIC_KEYWORD_SELECTOR_V2=true
-
-# Telegram notifications
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
-TELEGRAM_SUPER_ADMIN_IDS=123,456
-
-# Database
-DB_HOST=localhost
-DB_NAME=postgres
-DB_USER=...
-DB_PASS=...
+cd ui
+npm install
 ```
 
-Полный и актуальный список всех переменных (включая `TTS_*`, `FINAL_VIDEO_*`, `KIE_*`, `INTERNAL_API_BASE_URL`, legacy fallback-переменные Telegram) находится в [`.env.example`](/Users/nadaraya/Desktop/Плати_по_миру/.env.example).  
-`README` описывает основные переменные, а `.env.example` является source of truth.
+Создайте локальный `.env` из `.env.example`, затем настройте `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` и `DB_PASS` на доступный PostgreSQL instance.
 
----
+Запуск dev server:
 
-## 🎙 Оптимизация озвучки (MiniMax)
+```bash
+cd ui
+npm run dev
+```
 
-Для лучшего качества на русском языке:
-- Используйте модель `speech-2.8-hd`.
-- Параметр `language_boost` всегда установлен в `"Russian"`.
-- Для исправления ударений используйте словарь: `"атлас/атл+ас"`.
-- **Важно**: Мы не используем автоматические вздохи/теги эмоций, чтобы сохранить чистоту речи.
+По умолчанию app доступен на `http://localhost:3000`. API routes отдаются тем же Next.js process.
 
+## Docker runtime
 
+Production Docker image использует `node:20-bookworm-slim`, ставит Python dependencies в virtual environment, ставит FFmpeg, собирает `ui`, инициализирует базу и запускает Next.js:
+
+```bash
+docker compose -f docker-compose.production.yml up --build
+```
+
+`docker-compose.production.yml` определяет services:
+
+- `postgres`
+- `web`
+- `final-video-worker`
+- `final-video-poller`
+- `final-video-scheduler`
+- `telegram-bot`
+
+Compose exposes `web:3000` внутри Docker networks. Для публичного доступа нужен reverse proxy или отдельный `ports` mapping.
+
+`docker-compose.override.yml` deployment-specific: он подключает app к внешним Easypanel и legacy networks и может убирать legacy workers за Compose profile.
+
+## Useful commands
+
+Запускайте команды из repository root, если команда явно не переходит в `ui`.
+
+```bash
+cd ui
+npm run build
+npm run lint
+```
+
+Targeted Python smoke tests лежат в `scripts`:
+
+```bash
+python3 -m unittest scripts.test_omni_smart_layer
+python3 -m unittest scripts.test_omni_life_formats
+python3 -m unittest scripts.test_omni_comet_client
+python3 -m unittest scripts.test_omni_pipeline_e2e
+```
+
+Targeted TypeScript smoke tests запускаются через Node scripts, которые сами компилируют нужные TypeScript modules через project compiler:
+
+```bash
+node scripts/test_omni_cta_contract.mjs
+node scripts/test_omni_segment_planner.mjs
+node scripts/test_omni_visual_style_writer.mjs
+```
+
+## API и auth
+
+Большинство protected API routes вызывает `validateApiRequest` из `ui/src/lib/server/telegram-auth.ts`.
+
+- User sessions используют cookie `tg_session`.
+- Staging access может использовать cookie `staging_auth`.
+- Rate limit по умолчанию: 100 requests per minute на user или IP.
+- `/api/health` проверяет database connectivity.
+
+Основные route groups:
+
+- `/api/omni/*` - Omni projects, products, avatars, scripts, references, reels и legacy links.
+- `/api/scenarios/*` - legacy scenario generation, feedback, timestamps, montage и assembly.
+- `/api/kie/*` - legacy KIE submit и poll helpers.
+- `/api/automation/final-videos/manual-run` - manual final-video queue creation.
+- `/api/yandex-disk/*` - storage folder helpers.
+
+## Notes for maintainers
+
+- Новую Omni logic по возможности держите в `ui/src/lib/server/omni` и `ui/src/lib/omni`.
+- Python provider work держите в `services/v1/providers`, а queue orchestration - в `services/v1/automation`.
+- Не добавляйте существенную новую логику в oversized route handlers или screen components. Сначала выделяйте focused modules.
+- Для runtime facts доверяйте `.env.example`, `docker-compose.production.yml` и реальным provider clients, а не старым README claims.
+- Перед изменением provider endpoints или payload shape сверяйтесь с документацией провайдера.
