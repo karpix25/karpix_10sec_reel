@@ -79,6 +79,7 @@ export function LegacyRefsScriptScreen({
       sourceGeneratedScriptId: scriptId,
       targetDurationSeconds: activeProduct.target_duration_seconds || 30,
       autoRun: true,
+      provider: omniGenerationProvider,
     });
   };
 

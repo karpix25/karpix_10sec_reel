@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createOmniReel, listOmniReels, listOmniReelSegments } from "@/lib/server/omni/reels";
 import { submitOmniReel } from "@/lib/server/omni/omni-reel-runner";
 import { jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
+import { normalizeOmniGenerationProvider } from "@/lib/omni/provider";
 
 export async function GET(request: Request) {
   const auth = await requireOmniUser(request);
@@ -40,7 +41,8 @@ export async function POST(request: Request) {
       targetDurationSeconds: body.targetDurationSeconds,
       brief: body.brief,
     });
-    const result = body.autoRun ? await submitOmniReel(reel.id) : reel;
+    const provider = normalizeOmniGenerationProvider(body.provider);
+    const result = body.autoRun ? await submitOmniReel(reel.id, provider) : reel;
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     console.error("Omni reel create error:", error);
