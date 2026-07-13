@@ -2,9 +2,7 @@ import { uploadKieFileFromUrl } from "./kie-file-upload-client";
 
 const DEFAULT_BASE_URL = "https://api.kie.ai";
 const DEFAULT_VIDEO_MODEL = "gemini-omni-video";
-const DEFAULT_CHARACTER_MODEL = "gemini-omni-character";
 const CHARACTER_POLL_INTERVAL_MS = 5_000;
-const CHARACTER_POLL_ATTEMPTS = 18;
 const CHARACTER_CREATE_ATTEMPTS = 8;
 const TERMINAL_STATUSES = new Set(["completed", "success", "done", "failed", "error", "fail"]);
 
@@ -38,10 +36,6 @@ function getBaseUrl() {
 
 function getVideoModel() {
   return (process.env.KIE_GEMINI_OMNI_VIDEO_MODEL || DEFAULT_VIDEO_MODEL).trim() || DEFAULT_VIDEO_MODEL;
-}
-
-function getCharacterModel() {
-  return (process.env.KIE_GEMINI_OMNI_CHARACTER_MODEL || DEFAULT_CHARACTER_MODEL).trim() || DEFAULT_CHARACTER_MODEL;
 }
 
 function getCharacterCreateAttempts() {
@@ -89,14 +83,8 @@ export async function createKieOmniCharacter(input: {
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const task = await postCreateTask(buildCharacterCreatePayload(characterInput), "character create");
-      if (task.character_id) return withCharacterImageUpload(task, input.imageUrl, uploadedImage.url, uploadedImage.raw);
-      return withCharacterImageUpload(
-        await waitForKieOmniCharacter(task.id),
-        input.imageUrl,
-        uploadedImage.url,
-        uploadedImage.raw
-      );
+      const task = await postCreateCharacter(buildCharacterCreatePayload(characterInput));
+      return withCharacterImageUpload(task, input.imageUrl, uploadedImage.url, uploadedImage.raw);
     } catch (error) {
       lastError = error;
       if (attempt >= attempts) break;
@@ -109,9 +97,24 @@ export async function createKieOmniCharacter(input: {
     }
   }
 
-  throw new Error(
-    `KIE Gemini Omni character create did not return characterId after ${attempts} attempts: ${formatKieError(lastError)}`
-  );
+  throw new Error(`KIE Gemini Omni character create did not return characterId after ${attempts} attempts: ${formatKieError(lastError)}`);
+}
+
+async function postCreateCharacter(payload: Record<string, unknown>) {
+  const response = await fetch(`${getBaseUrl()}/api/v1/omni/character/create`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getApiKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`KIE Gemini Omni character create failed: ${response.status} ${await parseError(response)}`);
+  }
+
+  return normalizeCharacter((await response.json()) as Record<string, unknown>);
 }
 
 export async function createKieOmniVideoTask(input: KieOmniVideoInput) {
@@ -164,15 +167,12 @@ function buildCharacterCreatePayload(input: {
   description: string;
   audioIds?: string[];
 }) {
-  return {
-    model: getCharacterModel(),
-    input: omitEmptyFields({
-      character_name: input.characterName || undefined,
-      image_urls: [input.imageUrl],
-      descriptions: input.description,
-      audio_ids: input.audioIds,
-    }),
-  };
+  return omitEmptyFields({
+    character_name: input.characterName || undefined,
+    image_urls: [input.imageUrl],
+    description: input.description,
+    audio_ids: input.audioIds,
+  });
 }
 
 function withCharacterImageUpload(
@@ -199,20 +199,6 @@ function omitEmptyFields(input: Record<string, unknown>) {
   );
 }
 
-async function waitForKieOmniCharacter(taskId: string) {
-  let lastTask = await retrieveKieOmniTask(taskId);
-  for (let attempt = 0; attempt < CHARACTER_POLL_ATTEMPTS; attempt += 1) {
-    if (lastTask.character_id) return lastTask;
-    if (lastTask.status === "failed") {
-      throw new Error(`KIE Gemini Omni character create failed: ${formatKieError(lastTask.error)}`);
-    }
-    await sleep(CHARACTER_POLL_INTERVAL_MS);
-    lastTask = await retrieveKieOmniTask(taskId);
-  }
-
-  throw new Error(`KIE Gemini Omni character create timed out for task ${taskId}`);
-}
-
 function normalizeTask(payload: Record<string, unknown>): KieOmniTask {
   const data = isRecord(payload.data) ? payload.data : payload;
   const characterId = extractCharacterId(data) || undefined;
@@ -228,6 +214,19 @@ function normalizeTask(payload: Record<string, unknown>): KieOmniTask {
     video_url: extractVideoUrl(data) || undefined,
     character_id: characterId,
     error: data.error || data.failMsg || data.message || payload.error,
+    raw: payload,
+  };
+}
+
+function normalizeCharacter(payload: Record<string, unknown>): KieOmniTask {
+  const data = isRecord(payload.data) ? payload.data : payload;
+  const characterId = extractCharacterId(data);
+  if (!characterId) throw new Error(`KIE Gemini Omni did not return characterId: ${JSON.stringify(payload)}`);
+
+  return {
+    id: characterId,
+    status: "completed",
+    character_id: characterId,
     raw: payload,
   };
 }
