@@ -3,6 +3,7 @@ const DEFAULT_VIDEO_MODEL = "gemini-omni-video";
 const DEFAULT_CHARACTER_MODEL = "gemini-omni-character";
 const CHARACTER_POLL_INTERVAL_MS = 5_000;
 const CHARACTER_POLL_ATTEMPTS = 18;
+const CHARACTER_CREATE_ATTEMPTS = 8;
 const TERMINAL_STATUSES = new Set(["completed", "success", "done", "failed", "error", "fail"]);
 
 export type KieOmniTask = {
@@ -41,6 +42,11 @@ function getCharacterModel() {
   return (process.env.KIE_GEMINI_OMNI_CHARACTER_MODEL || DEFAULT_CHARACTER_MODEL).trim() || DEFAULT_CHARACTER_MODEL;
 }
 
+function getCharacterCreateAttempts() {
+  const parsed = Number.parseInt(process.env.KIE_CHARACTER_CREATE_ATTEMPTS || "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : CHARACTER_CREATE_ATTEMPTS;
+}
+
 async function parseError(response: Response) {
   const text = await response.text().catch(() => "");
   try {
@@ -74,21 +80,29 @@ export async function createKieOmniCharacter(input: {
   description: string;
   audioIds?: string[];
 }) {
-  const task = await postCreateTask(
-    {
-      model: getCharacterModel(),
-      input: {
-        character_name: input.characterName || undefined,
-        image_urls: [input.imageUrl],
-        descriptions: input.description,
-        audio_ids: input.audioIds || [],
-      },
-    },
-    "character create"
-  );
+  const attempts = getCharacterCreateAttempts();
+  let lastError: unknown = null;
 
-  if (task.character_id) return task;
-  return waitForKieOmniCharacter(task.id);
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const task = await postCreateTask(buildCharacterCreatePayload(input), "character create");
+      if (task.character_id) return task;
+      return await waitForKieOmniCharacter(task.id);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= attempts) break;
+      console.warn("KIE Gemini Omni character create retry:", {
+        attempt,
+        attempts,
+        error: formatKieError(error),
+      });
+      await sleep(CHARACTER_POLL_INTERVAL_MS);
+    }
+  }
+
+  throw new Error(
+    `KIE Gemini Omni character create did not return characterId after ${attempts} attempts: ${formatKieError(lastError)}`
+  );
 }
 
 export async function createKieOmniVideoTask(input: KieOmniVideoInput) {
@@ -135,6 +149,23 @@ export async function downloadKieOmniVideo(taskId: string) {
 
 export function isKieTerminalStatus(status: string) {
   return TERMINAL_STATUSES.has(status.toLowerCase());
+}
+
+function buildCharacterCreatePayload(input: {
+  characterName?: string | null;
+  imageUrl: string;
+  description: string;
+  audioIds?: string[];
+}) {
+  return {
+    model: getCharacterModel(),
+    input: {
+      character_name: input.characterName || undefined,
+      image_urls: [input.imageUrl],
+      descriptions: input.description,
+      audio_ids: input.audioIds || [],
+    },
+  };
 }
 
 async function waitForKieOmniCharacter(taskId: string) {

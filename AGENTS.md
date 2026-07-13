@@ -11,3 +11,4 @@ Write code as a professional modular system, not as large monolithic files.
 - Reel auto-run creation must pass the active generation provider, not rely on the default provider used by manual run fallbacks.
 - After frontend deploys, account for already-open browser tabs still running old JavaScript before declaring provider-flow fixes verified.
 - KIE Omni character creation must persist `data.characterId`; never treat `taskId` or `recordId` as a usable video `character_id`.
+- KIE Omni character approval must retry failed character tasks until a real `characterId` is received or the configured retry budget is exhausted.
