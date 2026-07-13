@@ -8,8 +8,7 @@ import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
 import { listRecentLifeFormatIds } from "./omni-creative-history";
-
-const SEGMENT_SECONDS = 10;
+import { OMNI_SEGMENT_SECONDS, planOmniReelDuration } from "./omni-duration-planner";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -21,13 +20,8 @@ function normalizeReel(row: OmniReel): OmniReel {
   };
 }
 
-function resolveTargetDuration(value: unknown) {
-  const parsed = Number.parseInt(String(value || "30"), 10);
-  return [30, 40].includes(parsed) ? parsed : 30;
-}
-
 function segmentCountForDuration(durationSeconds: number) {
-  return Math.ceil(durationSeconds / SEGMENT_SECONDS);
+  return Math.ceil(durationSeconds / OMNI_SEGMENT_SECONDS);
 }
 
 export async function listOmniReels(projectId: number, productId?: number | null) {
@@ -72,8 +66,6 @@ export async function createOmniReel(input: {
   brief?: unknown;
 }) {
   await ensureOmniSchema();
-  const targetDuration = resolveTargetDuration(input.targetDurationSeconds);
-  const segmentCount = segmentCountForDuration(targetDuration);
   const brief = typeof input.brief === "string" && input.brief.trim() ? input.brief.trim() : null;
   const product = await requireOmniProductInProject(input.projectId, input.productId);
   const project = await getOmniProject(input.projectId);
@@ -89,6 +81,9 @@ export async function createOmniReel(input: {
     throw new Error("Generated script not found for this product");
   }
   const sourceScenario = input.sourceLegacyScenarioId ? await getLegacyScenario(input.sourceLegacyScenarioId) : null;
+  const scriptText = generatedScript?.script || sourceScenario?.script || brief || "";
+  const targetDuration = planOmniReelDuration(scriptText, input.targetDurationSeconds);
+  const segmentCount = segmentCountForDuration(targetDuration);
   const latestAvatar = await getLatestOmniClientAvatar(input.projectId);
   const sourceSnapshot = generatedScript
     ? {
@@ -143,7 +138,7 @@ export async function createOmniReel(input: {
     product,
     avatar: latestAvatar,
     segmentCount,
-    segmentSeconds: SEGMENT_SECONDS,
+    segmentSeconds: OMNI_SEGMENT_SECONDS,
     brief,
     targetAudience: project.target_audience,
     ctaMode: product.cta_mode,
@@ -211,7 +206,7 @@ export async function createOmniReel(input: {
         [
           reel.id,
           index + 1,
-          SEGMENT_SECONDS,
+          OMNI_SEGMENT_SECONDS,
           segmentPrompt.role,
           segmentPrompt.prompt,
           segmentPrompt.referenceUrl,

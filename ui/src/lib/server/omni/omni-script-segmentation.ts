@@ -45,7 +45,11 @@ type Token = {
   end: number;
 };
 
-export function splitScriptIntoVoiceSegments(script: string, segmentCount: number): VoiceSegment[] {
+export function splitScriptIntoVoiceSegments(
+  script: string,
+  segmentCount: number,
+  maxWordsPerSegment?: number
+): VoiceSegment[] {
   const normalized = normalizeScriptText(script);
   if (!normalized || segmentCount <= 0) return [];
 
@@ -53,7 +57,12 @@ export function splitScriptIntoVoiceSegments(script: string, segmentCount: numbe
   if (!tokens.length) return [];
   const count = Math.min(segmentCount, tokens.length);
   const protectedBoundaries = findProtectedBoundaries(normalized, tokens);
-  const boundaries = findBestBoundaries(tokens, count, protectedBoundaries);
+  if (maxWordsPerSegment && tokens.length > count * maxWordsPerSegment) {
+    throw new Error(
+      `Script has ${tokens.length} words, but ${count} segments can fit at most ${count * maxWordsPerSegment}`
+    );
+  }
+  const boundaries = findBestBoundaries(tokens, count, protectedBoundaries, maxWordsPerSegment);
   const chunks: VoiceSegment[] = [];
 
   for (let index = 0; index < boundaries.length - 1; index += 1) {
@@ -103,9 +112,27 @@ function findProtectedBoundaries(text: string, tokens: Token[]) {
   return protectedBoundaries;
 }
 
-function findBestBoundaries(tokens: Token[], count: number, protectedBoundaries: Set<number>) {
+function findBestBoundaries(
+  tokens: Token[],
+  count: number,
+  protectedBoundaries: Set<number>,
+  maxWordsPerSegment?: number
+) {
   if (count === 1) return [0, tokens.length];
   const target = tokens.length / count;
+  const preferred = solveBoundaries(tokens, count, target, protectedBoundaries, maxWordsPerSegment);
+  const relaxed = preferred || solveBoundaries(tokens, count, target, new Set<number>(), maxWordsPerSegment);
+  if (!relaxed) throw new Error("Script cannot be split into speakable Omni segments");
+  return [0, ...relaxed];
+}
+
+function solveBoundaries(
+  tokens: Token[],
+  count: number,
+  target: number,
+  protectedBoundaries: Set<number>,
+  maxWordsPerSegment?: number
+) {
   const memo = new Map<string, { score: number; boundaries: number[] } | null>();
 
   function solve(start: number, remaining: number): { score: number; boundaries: number[] } | null {
@@ -113,7 +140,10 @@ function findBestBoundaries(tokens: Token[], count: number, protectedBoundaries:
     if (memo.has(key)) return memo.get(key) || null;
     if (remaining === 1) {
       const length = tokens.length - start;
-      const result = length > 0 ? { score: segmentPenalty(tokens, start, tokens.length, target), boundaries: [tokens.length] } : null;
+      const fits = !maxWordsPerSegment || length <= maxWordsPerSegment;
+      const result = length > 0 && fits
+        ? { score: segmentPenalty(tokens, start, tokens.length, target), boundaries: [tokens.length] }
+        : null;
       memo.set(key, result);
       return result;
     }
@@ -123,6 +153,7 @@ function findBestBoundaries(tokens: Token[], count: number, protectedBoundaries:
     const maxEnd = tokens.length - (remaining - 1);
     for (let end = minEnd; end <= maxEnd; end += 1) {
       if (protectedBoundaries.has(end)) continue;
+      if (maxWordsPerSegment && end - start > maxWordsPerSegment) break;
       const tail = solve(end, remaining - 1);
       if (!tail) continue;
       const score = segmentPenalty(tokens, start, end, target) + boundaryPenalty(tokens[end - 1].value) + tail.score;
@@ -132,7 +163,7 @@ function findBestBoundaries(tokens: Token[], count: number, protectedBoundaries:
     return best;
   }
 
-  return [0, ...(solve(0, count)?.boundaries || balancedBoundaries(tokens.length, count))];
+  return solve(0, count)?.boundaries || null;
 }
 
 function segmentPenalty(tokens: Token[], start: number, end: number, target: number) {
@@ -149,8 +180,4 @@ function boundaryPenalty(value: string) {
   if (/[.!?][»"]?$/.test(value)) return -20;
   if (/[,;:][»"]?$/.test(value)) return -7;
   return 0;
-}
-
-function balancedBoundaries(length: number, count: number) {
-  return Array.from({ length: count }, (_, index) => Math.round(((index + 1) * length) / count));
 }

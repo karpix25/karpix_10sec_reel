@@ -12,6 +12,7 @@ import { selectOmniCreativeStrategy } from "./omni-format-selector";
 import { splitScriptIntoVoiceSegments } from "./omni-script-segmentation";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
 import { validateOmniSegmentPrompt, validateVoiceoverSequence } from "./omni-prompt-validator";
+import { getOmniSegmentWordBudget } from "./omni-duration-planner";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -44,7 +45,11 @@ export const OMNI_PROMPT_WRITER_SYSTEM_PROMPT =
 export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegmentPrompt[] {
   const scriptText = sanitizeOmniScriptText(input.generatedScript?.script || input.legacyTranscript || input.brief || "");
   assertOmniScriptTextContract(scriptText);
-  const voiceSegments = splitScriptIntoVoiceSegments(scriptText, input.segmentCount);
+  const voiceSegments = splitScriptIntoVoiceSegments(
+    scriptText,
+    input.segmentCount,
+    getOmniSegmentWordBudget(input.segmentSeconds)
+  );
   if (voiceSegments.length !== input.segmentCount) {
     throw new Error(`Script is too short for ${input.segmentCount} exact-speech Omni segments`);
   }
