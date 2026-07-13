@@ -120,7 +120,7 @@ function findProtectedBoundaries(text: string, tokens: Token[]) {
 function findBestBoundaries(
   tokens: Token[],
   count: number,
-пу  protectedBoundaries: Set<number>,
+  protectedBoundaries: Set<number>,
   maxWordsPerSegment?: number
 ) {
   if (count === 1) return [0, tokens.length];
