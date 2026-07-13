@@ -46,9 +46,16 @@ export type HookType =
 
 export type ActionComplexity = "low" | "medium";
 
+export interface OmniContinuityProp {
+  name: string;
+  appearance: string;
+  initialPosition: string;
+}
+
 export interface OmniLifeSceneArc {
   id: string;
   setting: string;
+  fixedProps: readonly OmniContinuityProp[];
   states: readonly [string, string, string, string, string, string, string, string, string];
 }
 
@@ -84,6 +91,7 @@ export interface OmniCreativeStrategy {
   lifeFormatId: LifeFormatId;
   providerFormatDescription: string;
   setting: string;
+  continuityProps: readonly OmniContinuityProp[];
   hookType: HookType;
   hookRule: string;
   productRole: ProductRole;
@@ -108,6 +116,7 @@ export interface OmniSegmentCreativePlan {
   speechStartsAtSeconds: 0;
   voiceoverText: string;
   productRole: ProductRole;
+  continuityProps: readonly OmniContinuityProp[];
   beats: readonly [OmniCreativeBeat, OmniCreativeBeat, OmniCreativeBeat];
 }
 

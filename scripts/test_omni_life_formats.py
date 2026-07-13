@@ -72,6 +72,19 @@ class TestOmniLifeFormats(unittest.TestCase):
         self.assertFalse(result.valid)
         self.assertIn("forbidden_visual_motif", result.errors)
 
+    def test_validator_rejects_long_dash_and_emoji_in_voiceover(self):
+        voiceover = "Никаких тире — и emoji 😊"
+        prompt = f'Первое слово звучит на 0.0 секунде. "{voiceover}"'
+        result = validate_omni_prompt(
+            prompt=prompt,
+            exact_voiceover=voiceover,
+            beat_actions=("открывает сумку", "кладет ключи", "закрывает сумку"),
+            product_role="hidden",
+        )
+
+        self.assertFalse(result.valid)
+        self.assertIn("voiceover_contains_long_dash_or_emoji", result.errors)
+
 
 if __name__ == "__main__":
     unittest.main()

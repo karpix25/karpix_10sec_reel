@@ -2,6 +2,7 @@ import type {
   OmniPromptValidationResult,
   OmniSegmentCreativePlan,
 } from "@/lib/omni/creative-contract";
+import { hasForbiddenOmniScriptSymbols } from "./omni-script-text-contract";
 
 const FORBIDDEN_ACTION_PATTERNS = [
   /(?:у|через|перед)\s+зеркал/iu,
@@ -30,6 +31,18 @@ export function validateOmniSegmentPrompt(input: {
   }
   if (input.prompt.split(exactQuote).length - 1 !== 1) {
     errors.push("exact_voiceover_must_appear_once");
+  }
+  if (hasForbiddenOmniScriptSymbols(input.plan.voiceoverText)) {
+    errors.push("voiceover_contains_long_dash_or_emoji");
+  }
+  if (!input.prompt.includes("ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ:")) {
+    errors.push("continuity_prop_passport_required");
+  }
+  for (const item of input.plan.continuityProps) {
+    if (!input.prompt.includes(item.name) || !input.prompt.includes(item.appearance)) {
+      errors.push("continuity_prop_details_missing");
+      break;
+    }
   }
   if (input.plan.beats.length !== 3 || actions.some((action) => !action.trim())) {
     errors.push("three_complete_beats_required");

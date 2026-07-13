@@ -75,6 +75,12 @@ function CreativePlanSummary({
         ) : null}
       </div>
       <div className="mt-2 grid gap-1 text-muted-foreground">
+        {(plan.continuityProps || []).length ? (
+          <p>
+            <span className="font-semibold text-foreground">Постоянные предметы:</span>{" "}
+            {(plan.continuityProps || []).map((item) => `${item.name}: ${item.appearance}`).join("; ")}
+          </p>
+        ) : null}
         {plan.beats.map((beat) => (
           <p key={`${beat.startSeconds}-${beat.endSeconds}`}>
             <span className="font-semibold text-foreground">{beat.startSeconds}-{beat.endSeconds}:</span> {beat.action}
