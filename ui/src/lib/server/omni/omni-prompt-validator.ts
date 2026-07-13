@@ -2,6 +2,7 @@ import type {
   OmniPromptValidationResult,
   OmniSegmentCreativePlan,
 } from "@/lib/omni/creative-contract";
+import { getOmniSegmentWordBudget } from "./omni-duration-planner";
 import { hasForbiddenOmniScriptSymbols } from "./omni-script-text-contract";
 
 const FORBIDDEN_ACTION_PATTERNS = [
@@ -59,7 +60,7 @@ export function validateOmniSegmentPrompt(input: {
   const words = input.plan.voiceoverText.split(/\s+/).filter(Boolean);
   const firstSentenceWords = getFirstSentenceWordCount(input.plan.voiceoverText);
   const segmentSeconds = input.plan.beats[2].endSeconds;
-  const maxWords = Math.floor(segmentSeconds * 2.4);
+  const maxWords = getOmniSegmentWordBudget(segmentSeconds);
   if (words.length > maxWords) errors.push("voiceover_exceeds_segment_word_budget");
   if (firstSentenceWords > 15) warnings.push("spoken_hook_may_exceed_four_seconds");
   if (new Set(actions.map(normalize)).size !== actions.length) warnings.push("repeated_beat_action");
