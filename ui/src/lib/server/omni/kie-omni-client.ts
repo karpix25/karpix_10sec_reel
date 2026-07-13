@@ -1,6 +1,8 @@
 const DEFAULT_BASE_URL = "https://api.kie.ai";
 const DEFAULT_VIDEO_MODEL = "gemini-omni-video";
 const DEFAULT_CHARACTER_MODEL = "gemini-omni-character";
+const CHARACTER_POLL_INTERVAL_MS = 5_000;
+const CHARACTER_POLL_ATTEMPTS = 18;
 const TERMINAL_STATUSES = new Set(["completed", "success", "done", "failed", "error", "fail"]);
 
 export type KieOmniTask = {
@@ -72,7 +74,7 @@ export async function createKieOmniCharacter(input: {
   description: string;
   audioIds?: string[];
 }) {
-  return postCreateTask(
+  const task = await postCreateTask(
     {
       model: getCharacterModel(),
       input: {
@@ -84,6 +86,9 @@ export async function createKieOmniCharacter(input: {
     },
     "character create"
   );
+
+  if (task.character_id) return task;
+  return waitForKieOmniCharacter(task.id);
 }
 
 export async function createKieOmniVideoTask(input: KieOmniVideoInput) {
@@ -132,9 +137,23 @@ export function isKieTerminalStatus(status: string) {
   return TERMINAL_STATUSES.has(status.toLowerCase());
 }
 
+async function waitForKieOmniCharacter(taskId: string) {
+  let lastTask = await retrieveKieOmniTask(taskId);
+  for (let attempt = 0; attempt < CHARACTER_POLL_ATTEMPTS; attempt += 1) {
+    if (lastTask.character_id) return lastTask;
+    if (lastTask.status === "failed") {
+      throw new Error(`KIE Gemini Omni character create failed: ${formatKieError(lastTask.error)}`);
+    }
+    await sleep(CHARACTER_POLL_INTERVAL_MS);
+    lastTask = await retrieveKieOmniTask(taskId);
+  }
+
+  throw new Error(`KIE Gemini Omni character create timed out for task ${taskId}`);
+}
+
 function normalizeTask(payload: Record<string, unknown>): KieOmniTask {
   const data = isRecord(payload.data) ? payload.data : payload;
-  const characterId = pickString(data, ["characterId", "character_id"]) || undefined;
+  const characterId = extractCharacterId(data) || undefined;
   const id =
     pickString(data, ["taskId", "task_id", "id"]) ||
     pickString(payload, ["taskId", "task_id", "id"]) ||
@@ -172,6 +191,33 @@ function extractVideoUrl(data: Record<string, unknown>) {
   } catch {
     return direct || undefined;
   }
+}
+
+function extractCharacterId(data: Record<string, unknown>) {
+  const direct = pickString(data, ["characterId", "character_id"]);
+  if (direct) return direct;
+
+  const resultJson = pickString(data, ["resultJson", "response"]);
+  if (!resultJson) return null;
+  try {
+    const parsed = JSON.parse(resultJson) as Record<string, unknown>;
+    return pickString(parsed, ["characterId", "character_id"]);
+  } catch {
+    return null;
+  }
+}
+
+function formatKieError(error: unknown) {
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function pickString(data: Record<string, unknown>, keys: string[]) {
