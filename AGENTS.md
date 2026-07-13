@@ -8,3 +8,4 @@ Write code as a professional modular system, not as large monolithic files.
 - For KIE Gemini Omni video, do not put the avatar reference into `image_urls`; send only product references there and send the avatar via `character_ids`.
 - Apply CTA wording contracts at the script-generation seam, not only at downstream video prompt seams.
 - Provider-facing UI copy must use the active or persisted generation provider label, never hardcoded "Omni" status text.
+- Reel auto-run creation must pass the active generation provider, not rely on the default provider used by manual run fallbacks.

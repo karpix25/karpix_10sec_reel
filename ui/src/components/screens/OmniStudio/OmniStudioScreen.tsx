@@ -87,6 +87,7 @@ export function OmniStudioScreen({
       sourceLegacyScenarioId: scenarioId,
       targetDurationSeconds: activeProduct?.target_duration_seconds || 30,
       autoRun: true,
+      provider: omniGenerationProvider,
     });
   };
 
