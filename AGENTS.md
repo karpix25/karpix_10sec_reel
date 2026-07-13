@@ -11,6 +11,7 @@ Write code as a professional modular system, not as large monolithic files.
 - Keep internal anti-default guards out of provider prompts; render the chosen positive visual plan instead.
 - Count the staged file list from Git output before reporting the number of files in a commit.
 - Never use the VPS host localhost port as app health evidence until its owning process is verified; check inside the target container and through the public host.
+- After staging code, run a repository build or inspect the exact staged file before pushing/deploying to catch stray typed characters.
 
 - For KIE Gemini Omni generation, preserve and pass `image_urls` separately from saved avatar `character_ids`.
 - For KIE Gemini Omni video, do not put the avatar reference into `image_urls`; send only product references there and send the avatar via `character_ids`.
