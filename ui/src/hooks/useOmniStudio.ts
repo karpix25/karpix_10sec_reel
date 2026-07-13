@@ -321,11 +321,11 @@ export function useOmniStudio(
   });
 
   const libraryLinksQuery = useQuery<OmniLegacyLibraryLink[]>({
-    queryKey: ["omni-legacy-library-links", projectId, productId],
+    queryKey: ["omni-legacy-library-links", projectId],
     queryFn: async () =>
       (
         await axios.get(`${API_BASE}/legacy-library-links`, {
-          params: { projectId, productId: productId || undefined },
+          params: { projectId },
         })
       ).data,
     enabled: Boolean(projectId),
