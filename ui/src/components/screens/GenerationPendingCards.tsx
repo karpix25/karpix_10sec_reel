@@ -1,6 +1,8 @@
 "use client";
 
 import { CheckCircle2, Loader2 } from "lucide-react";
+import type { OmniGenerationProvider } from "@/lib/omni/provider";
+import { getOmniGenerationProviderLabel } from "@/lib/omni/provider";
 
 export type PendingScriptDraft = {
   id: string;
@@ -40,20 +42,22 @@ export function PendingGeneratedScriptCard({ draft }: { draft: PendingScriptDraf
   );
 }
 
-export function PendingVideoCard() {
+export function PendingVideoCard({ provider }: { provider: OmniGenerationProvider }) {
+  const providerLabel = getOmniGenerationProviderLabel(provider);
+
   return (
     <div className="mt-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Видео создается</p>
-          <p className="mt-1 text-xs text-muted-foreground">Готовлю Omni job для этого сценария</p>
+          <p className="mt-1 text-xs text-muted-foreground">Готовлю {providerLabel} job для этого сценария</p>
         </div>
         <PendingIcon />
       </div>
       <PendingSteps
         steps={[
           { label: "Собираю план сегментов", active: true },
-          { label: "Отправлю сегменты в Omni" },
+          { label: `Отправлю сегменты в ${providerLabel}` },
           { label: "Сохраню результат в S3 и Яндекс" },
         ]}
       />

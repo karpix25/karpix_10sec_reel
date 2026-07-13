@@ -174,6 +174,7 @@ export function LegacyRefsScriptScreen({
             isLoading={scriptsQuery.isLoading}
             pendingDraft={pendingDraft}
             pendingVideo={pendingVideo}
+            omniGenerationProvider={omniGenerationProvider}
             canCreateVideo={Boolean(selectedProjectId && selectedProductId && activeProduct && latestAvatar)}
             isCreatingReel={studio.createReelMutation.isPending}
             isRunningReel={studio.runReelMutation.isPending}
