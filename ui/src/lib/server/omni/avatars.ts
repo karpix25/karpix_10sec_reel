@@ -7,6 +7,21 @@ function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function getReadyKieCharacterId(avatar: Pick<OmniClientAvatar, "kie_character_id" | "kie_character_payload">) {
+  const payload = avatar.kie_character_payload;
+  const data =
+    payload && typeof payload === "object" && !Array.isArray(payload) && "data" in payload
+      ? (payload as { data?: unknown }).data
+      : null;
+  const characterId =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? (data as { characterId?: unknown; character_id?: unknown }).characterId ||
+        (data as { characterId?: unknown; character_id?: unknown }).character_id
+      : null;
+  if (typeof characterId === "string" && characterId.trim()) return characterId.trim();
+  return cleanText(avatar.kie_character_id);
+}
+
 export async function listOmniClientAvatars(projectId: number) {
   await ensureOmniSchema();
   const { rows } = await pool.query<OmniClientAvatar>(
@@ -100,11 +115,12 @@ async function approveOmniClientAvatar(projectId: number, avatarId: number) {
   const current = await getOmniClientAvatar(projectId, avatarId);
   if (!current.reference_url) throw new Error("Avatar reference image is required before approval");
 
-  if (current.kie_character_id) {
+  const readyCharacterId = getReadyKieCharacterId(current);
+  if (readyCharacterId && current.kie_character_status !== "queued") {
     return updateAvatarApproval({
       projectId,
       avatarId,
-      kieCharacterId: current.kie_character_id,
+      kieCharacterId: readyCharacterId,
       kieCharacterStatus: current.kie_character_status || "ready",
       kieCharacterPayload: current.kie_character_payload,
     });
@@ -119,7 +135,7 @@ async function approveOmniClientAvatar(projectId: number, avatarId: number) {
   return updateAvatarApproval({
     projectId,
     avatarId,
-    kieCharacterId: character.character_id || character.id,
+    kieCharacterId: character.character_id || "",
     kieCharacterStatus: character.status,
     kieCharacterPayload: character.raw,
   });
@@ -147,6 +163,8 @@ async function updateAvatarApproval(input: {
   kieCharacterStatus: string;
   kieCharacterPayload: Record<string, unknown> | null;
 }) {
+  if (!input.kieCharacterId) throw new Error("KIE.ai character create did not return characterId");
+
   const { rows } = await pool.query<OmniClientAvatar>(
     `UPDATE omni_client_avatars
      SET status = 'approved',
