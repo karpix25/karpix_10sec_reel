@@ -1,29 +1,28 @@
 import pool from "@/lib/db";
-import { rm } from "fs/promises";
 import type { OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
 import {
-  downloadCometOmniVideo,
-  retrieveCometOmniVideoTask,
-  createCometOmniVideoTask,
   getCometReferenceImageFieldName,
   getCometReferenceImageTransport,
   shouldSendCometReferenceImage,
 } from "./comet-video-client";
-import {
-  createKieOmniVideoTask,
-  downloadKieOmniVideo,
-  retrieveKieOmniTask,
-  type KieOmniTask,
-} from "./kie-omni-client";
 import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
-import { getOmniProject } from "./projects";
-import { requireOmniProductInProject } from "./products";
-import { stitchOmniSegments } from "./omni-video-stitcher";
-import { uploadOmniFinalVideo, uploadOmniVideoBufferToS3 } from "./omni-video-storage";
 import { selectReferenceImagesForComet } from "./omni-reference-images";
 import { createOmniCompositeReference } from "./omni-composite-reference";
+import { appendContinuityPromptContract } from "./omni-continuity-prompt";
+import {
+  isOmniContinuityChainEnabled,
+  isSegmentBlockedByContinuityChain,
+  resolveContinuityReference,
+} from "./omni-continuity-reference";
+import {
+  createProviderVideoTask,
+  getProviderDuration,
+  retrieveProviderVideoTask,
+  type ProviderTask,
+} from "./omni-provider-tasks";
+import { storeCompletedSegment, stitchAndStoreReel } from "./omni-segment-completion";
 
 type ReelBundle = {
   reel: OmniReel;
@@ -31,7 +30,6 @@ type ReelBundle = {
 };
 
 type ReferenceImage = { url: string; fieldName: string; role: string };
-type ProviderTask = Awaited<ReturnType<typeof createCometOmniVideoTask>> | KieOmniTask;
 
 const RUNNING_STATUSES = new Set(["queued", "submitted", "processing"]);
 
@@ -85,9 +83,16 @@ async function resolveAvatarCharacterId(reel: OmniReel) {
   return latestAvatar?.kie_character_id || null;
 }
 
+function getReelGenerationProvider(segments: OmniReelSegment[]) {
+  return normalizeOmniGenerationProvider(
+    segments.find((segment) => segment.generation_provider)?.generation_provider
+  );
+}
+
 export async function submitOmniReel(reelId: number, providerInput?: unknown) {
   const { reel, segments } = await getReelBundle(reelId);
   const provider = normalizeOmniGenerationProvider(providerInput);
+  const continuityChainEnabled = isOmniContinuityChainEnabled();
   if (!segments.length) throw new Error("Omni reel has no segments");
   const avatarReferenceUrl = getAvatarReferenceUrl(reel);
   const productReferenceUrl = getProductReferenceUrl(reel);
@@ -145,14 +150,32 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
      WHERE id = $1`,
     [reel.id]
   );
+  await pool.query(
+    `UPDATE omni_reel_segments
+     SET generation_provider = $2,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE reel_id = $1
+       AND status = 'draft'`,
+    [reel.id, provider]
+  );
 
   for (const segment of segments) {
     if (segment.kie_task_id || RUNNING_STATUSES.has(segment.status) || segment.status === "completed") continue;
+    if (isSegmentBlockedByContinuityChain(segment, segments)) break;
     if (!segment.prompt) throw new Error(`Segment ${segment.segment_index} has no prompt`);
+
+    const continuity = await resolveContinuityReference({
+      provider,
+      segment,
+      segments,
+      fieldName: referenceImageField,
+    });
+    const continuityImages = continuity.image ? [continuity.image] : [];
     const productIsVisible = segment.creative_plan?.productRole !== "hidden";
-    const segmentCometReferences = productIsVisible
+    const visibleCometReferences = productIsVisible
       ? cometReferenceImages
       : cometReferenceImages.filter((image) => image.role === "avatar");
+    const segmentCometReferences = [...continuityImages, ...visibleCometReferences];
     const hiddenCometReferences = productIsVisible
       ? []
       : cometReferenceImages.filter((image) => image.role !== "avatar");
@@ -161,9 +184,21 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       referenceImageTransport,
       segment.segment_index
     );
+    const kieSegmentReferences = [
+      ...continuityImages,
+      ...(productIsVisible ? kieReferenceImages : []),
+    ];
     const selectedReferenceImages = provider === "kie-ai"
-      ? { sent: productIsVisible ? kieReferenceImages : [], skipped: productIsVisible ? [] : kieReferenceImages }
+      ? { sent: kieSegmentReferences, skipped: productIsVisible ? [] : kieReferenceImages }
       : { ...cometSelection, skipped: [...cometSelection.skipped, ...hiddenCometReferences] };
+    const providerPrompt = continuity.image
+      ? appendContinuityPromptContract(segment.prompt)
+      : segment.prompt;
+    const continuitySourceSegmentId =
+      typeof continuity.metadata.sourceSegmentId === "number"
+        ? continuity.metadata.sourceSegmentId
+        : null;
+    const continuityApplied = Boolean(continuity.metadata.applied);
 
     const requestPayload = {
       generation_provider: provider,
@@ -184,15 +219,28 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       reference_images_skipped: selectedReferenceImages.skipped.map((image) => ({
         role: image.role,
         url: image.url,
-        reason: productIsVisible
-          ? getSkippedReferenceReason(image.role, segment.segment_index, Boolean(compositeReferenceUrl))
-          : "product_hidden_by_creative_strategy",
+        reason: getSkippedReferenceReason({
+          role: image.role,
+          segmentIndex: segment.segment_index,
+          hasCompositeReference: Boolean(compositeReferenceUrl),
+          productIsVisible,
+        }),
       })),
       reference_images_source: {
         avatar_url: avatarReferenceUrl,
         product_url: productReferenceUrl,
         composite_url: compositeReferenceUrl,
+        continuity_frame_url:
+          typeof continuity.metadata.sourceFrameUrl === "string"
+            ? continuity.metadata.sourceFrameUrl
+            : null,
+        continuity_provider_frame_url:
+          typeof continuity.metadata.providerFrameUrl === "string"
+            ? continuity.metadata.providerFrameUrl
+            : null,
       },
+      continuity: continuity.metadata,
+      prompt_contracts: continuity.image ? ["previous_frame_continuity_v1"] : [],
       creative_plan: segment.creative_plan,
       prompt_validation: segment.prompt_validation,
     };
@@ -201,7 +249,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     try {
       task = await createProviderVideoTask({
         provider,
-        prompt: segment.prompt,
+        prompt: providerPrompt,
         seconds: segment.duration_seconds || 10,
         resolution: "720p",
         referenceImages: selectedReferenceImages.sent,
@@ -228,11 +276,13 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
 
     await pool.query(
       `UPDATE omni_reel_segments
-       SET kie_task_id = $2,
+         SET kie_task_id = $2,
            status = $3,
            request_payload = $4::jsonb,
            response_payload = $5::jsonb,
            generation_provider = $6,
+           continuity_source_segment_id = $7,
+           continuity_applied = $8,
            submitted_at = CURRENT_TIMESTAMP,
            error_message = NULL,
            updated_at = CURRENT_TIMESTAMP
@@ -244,8 +294,11 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
         JSON.stringify(requestPayload),
         JSON.stringify(task.raw),
         provider,
+        continuitySourceSegmentId,
+        continuityApplied,
       ]
     );
+    if (continuityChainEnabled) break;
   }
 
   const updated = await getReelBundle(reelId);
@@ -277,140 +330,25 @@ async function markOmniReelPreflightFailure(input: {
   );
 }
 
-async function createProviderVideoTask(input: {
-  provider: OmniGenerationProvider;
-  prompt: string;
-  seconds: number;
-  resolution: string;
-  referenceImages: ReferenceImage[];
-  characterId: string | null;
+function getSkippedReferenceReason(input: {
+  role: string;
+  segmentIndex: number;
+  hasCompositeReference: boolean;
+  productIsVisible: boolean;
 }) {
-  if (input.provider === "kie-ai") {
-    if (!input.characterId) throw new Error("KIE.ai Omni requires character id");
-    return createKieOmniVideoTask({
-      prompt: input.prompt,
-      duration: getProviderDuration(input.provider, input.seconds),
-      aspectRatio: "9:16",
-      resolution: input.resolution,
-      imageUrls: input.referenceImages.map((image) => image.url),
-      characterIds: [input.characterId],
-    });
+  if (
+    !input.productIsVisible &&
+    (input.role === "product" || input.role === "avatar_product_composite")
+  ) {
+    return "product_hidden_by_creative_strategy";
   }
-
-  return createCometOmniVideoTask({
-    prompt: input.prompt,
-    seconds: input.seconds,
-    aspectRatio: "9:16",
-    resolution: input.resolution,
-    referenceImages: input.referenceImages,
-  });
-}
-
-function getProviderDuration(provider: OmniGenerationProvider, seconds: number): 8 | 10 {
-  if (provider === "kie-ai") return seconds <= 8 ? 8 : 10;
-  return seconds <= 8 ? 8 : 10;
-}
-
-function getSkippedReferenceReason(role: string, segmentIndex: number, hasCompositeReference: boolean) {
-  if (segmentIndex === 1 && role === "avatar_product_composite") {
+  if (input.segmentIndex === 1 && input.role === "avatar_product_composite") {
     return "product_reveal_reserved_for_later_segments";
   }
-  if (hasCompositeReference && role === "avatar") {
+  if (input.hasCompositeReference && input.role === "avatar") {
     return "composite_reference_sent_instead";
   }
   return "url_transport_accepts_single_input_reference";
-}
-
-async function storeCompletedSegment(
-  projectId: number,
-  segment: OmniReelSegment,
-  task: ProviderTask
-) {
-  if (!segment.kie_task_id) throw new Error(`Segment ${segment.segment_index} has no Omni task id`);
-  const provider = normalizeOmniGenerationProvider(segment.generation_provider);
-  const videoBuffer =
-    provider === "kie-ai"
-      ? await downloadKieOmniVideo(segment.kie_task_id)
-      : await downloadCometOmniVideo(segment.kie_task_id);
-  const videoUrl = await uploadOmniVideoBufferToS3({
-    projectId,
-    reelId: segment.reel_id,
-    fileName: `segment_${String(segment.segment_index).padStart(2, "0")}.mp4`,
-    body: videoBuffer,
-    segmentIndex: segment.segment_index,
-  });
-
-  await pool.query(
-    `UPDATE omni_reel_segments
-     SET status = 'completed',
-         video_url = $2,
-         response_payload = $3::jsonb,
-         completed_at = CURRENT_TIMESTAMP,
-         error_message = NULL,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $1`,
-    [segment.id, videoUrl, JSON.stringify(task.raw)]
-  );
-}
-
-async function loadSegmentBuffer(segment: OmniReelSegment) {
-  if (!segment.video_url) throw new Error(`Segment ${segment.segment_index} video is missing`);
-  const response = await fetch(segment.video_url, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Failed to load segment ${segment.segment_index} from S3: ${response.status}`);
-  }
-  return Buffer.from(await response.arrayBuffer());
-}
-
-async function stitchAndStoreReel(reelId: number) {
-  const { reel, segments } = await getReelBundle(reelId);
-  const project = await getOmniProject(reel.project_id);
-  if (!project) throw new Error("Omni project not found");
-  const product = await requireOmniProductInProject(reel.project_id, reel.product_id);
-
-  await pool.query(
-    "UPDATE omni_reels SET status = 'stitching', stitch_status = 'stitching', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
-    [reelId]
-  );
-
-  const segmentBuffers = await Promise.all(segments.map(loadSegmentBuffer));
-  const stitched = await stitchOmniSegments({ reelId, segmentBuffers });
-  try {
-    const stored = await uploadOmniFinalVideo({
-      project,
-      product,
-      reelId,
-      localFilePath: stitched.outputPath,
-    });
-
-    await pool.query(
-      `UPDATE omni_reels
-       SET status = $2,
-           stitch_status = 'completed',
-           final_video_url = $3,
-           final_s3_url = $3,
-           yandex_disk_path = $4,
-           yandex_public_url = $5,
-           yandex_status = $6,
-           yandex_error = $7,
-           error_message = NULL,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      [
-        reelId,
-        "completed",
-        stored.s3Url,
-        stored.yandexPath,
-        stored.yandexPublicUrl,
-        stored.yandexStatus,
-        stored.yandexError,
-      ]
-    );
-  } finally {
-    if (stitched?.workdir) {
-      await rm(stitched.workdir, { recursive: true, force: true }).catch(() => {});
-    }
-  }
 }
 
 export async function syncOmniReel(reelId: number) {
@@ -419,14 +357,14 @@ export async function syncOmniReel(reelId: number) {
     if (!segment.kie_task_id || segment.status === "completed") continue;
 
     try {
-      const provider = normalizeOmniGenerationProvider(segment.generation_provider);
-      const task =
-        provider === "kie-ai"
-          ? await retrieveKieOmniTask(segment.kie_task_id)
-          : await retrieveCometOmniVideoTask(segment.kie_task_id);
+      const task = await retrieveProviderVideoTask(segment.generation_provider, segment.kie_task_id);
       const status = task.status.toLowerCase();
       if (status === "completed") {
-        await storeCompletedSegment(reel.project_id, segment, task);
+        await storeCompletedSegment({
+          projectId: reel.project_id,
+          segment,
+          task,
+        });
       } else if (status === "failed" || status === "error") {
         await pool.query(
           `UPDATE omni_reel_segments
@@ -458,6 +396,9 @@ export async function syncOmniReel(reelId: number) {
   const updated = await getReelBundle(reelId);
   const hasFailed = updated.segments.some((segment) => segment.status === "failed");
   const allCompleted = updated.segments.length > 0 && updated.segments.every((segment) => segment.status === "completed");
+  const hasPendingDraft = updated.segments.some(
+    (segment) => !segment.kie_task_id && segment.status !== "completed" && segment.status !== "failed"
+  );
 
   if (hasFailed) {
     await pool.query(
@@ -465,12 +406,14 @@ export async function syncOmniReel(reelId: number) {
       [reelId]
     );
   } else if (allCompleted && updated.reel.stitch_status !== "completed") {
-    await stitchAndStoreReel(reelId);
+    await stitchAndStoreReel({ reel: updated.reel, segments: updated.segments });
   } else if (hasRunningSegments(updated.segments)) {
     await pool.query(
       "UPDATE omni_reels SET status = 'generating', stitch_status = 'not_ready', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
       [reelId]
     );
+  } else if (isOmniContinuityChainEnabled() && hasPendingDraft) {
+    await submitOmniReel(reelId, getReelGenerationProvider(updated.segments));
   }
 
   return getReelBundle(reelId);

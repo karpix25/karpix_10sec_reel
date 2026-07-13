@@ -42,6 +42,23 @@ export async function uploadOmniVideoBufferToS3(input: {
   return putObjectToS3(config, key, input.body, "video/mp4");
 }
 
+export async function uploadOmniImageBufferToS3(input: {
+  projectId: number;
+  reelId: number;
+  fileName: string;
+  body: Buffer;
+  contentType?: string;
+  segmentIndex?: number;
+}) {
+  const config = getS3Config();
+  const section =
+    typeof input.segmentIndex === "number"
+      ? `frames/${String(input.segmentIndex).padStart(2, "0")}_${input.fileName}`
+      : `frames/${input.fileName}`;
+  const key = `omni-videos/project-${input.projectId}/reel-${input.reelId}/${section}`;
+  return putObjectToS3(config, key, input.body, input.contentType || "image/jpeg");
+}
+
 export async function resolveOmniYandexFolder(input: { project: OmniProject; product: OmniProduct }) {
   if (!input.project.legacy_client_id) {
     return buildDefaultOmniYandexFolder(input);

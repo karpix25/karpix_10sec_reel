@@ -32,6 +32,7 @@ Write code as a professional modular system, not as large monolithic files.
 - Main-character and clothing contracts must be rendered explicitly in Omni prompts even when character_id and image_urls are already provided.
 - Prefer talking-head with simple cutaways over continuous choreographed actions when Omni scene actions reduce visual stability.
 - Do not leave forbidden default props in selectable Omni prompt paths after switching to a safer visual format.
+- For KIE continuity screenshots or generated frame references, upload the image through KIE File Upload before passing it in `image_urls`.
 
 # Project Skills
 

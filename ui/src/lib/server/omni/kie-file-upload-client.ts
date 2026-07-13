@@ -44,6 +44,39 @@ export async function uploadKieFileFromUrl(fileUrl: string): Promise<KieUploaded
   return { url: uploadedUrl, raw: payload };
 }
 
+export async function uploadKieImageBuffer(input: {
+  body: Buffer;
+  fileName: string;
+  mimeType?: string;
+  uploadPath?: string;
+}): Promise<KieUploadedFile> {
+  const mimeType = input.mimeType || "image/jpeg";
+  const response = await fetch(`${getFileUploadBaseUrl()}/api/file-base64-upload`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getApiKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      base64Data: `data:${mimeType};base64,${input.body.toString("base64")}`,
+      uploadPath: input.uploadPath || "omni/continuity-frames",
+      fileName: input.fileName,
+    }),
+    cache: "no-store",
+  });
+
+  const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!response.ok || !payload) {
+    throw new Error(`KIE file upload failed: ${response.status} ${formatUploadError(payload)}`);
+  }
+
+  const data = isRecord(payload.data) ? payload.data : {};
+  const uploadedUrl = pickString(data, ["downloadUrl", "fileUrl"]);
+  if (!uploadedUrl) throw new Error(`KIE file upload did not return file URL: ${JSON.stringify(payload)}`);
+
+  return { url: uploadedUrl, raw: payload };
+}
+
 function formatUploadError(payload: Record<string, unknown> | null) {
   if (!payload) return "empty response";
   return pickString(payload, ["msg", "message", "error"]) || JSON.stringify(payload);
