@@ -17,6 +17,9 @@ const FORBIDDEN_ACTION_PATTERNS = [
 const CONSUMPTION_DURING_SPEECH =
   /(?:ест|жует|жуёт|кусает|пьет|пьёт|глотает|наносит\s+на\s+(?:лицо|губы)).*(?:говорит|продолжает\s+речь)/iu;
 
+const TALKING_HEAD_FORBIDDEN_DEFAULT_PROPS =
+  /полотенц|сумк|ключ|органайзер|шоппер|комод|скамь|лавк|чехол/iu;
+
 export function validateOmniSegmentPrompt(input: {
   prompt: string;
   plan: OmniSegmentCreativePlan;
@@ -25,6 +28,9 @@ export function validateOmniSegmentPrompt(input: {
   const warnings: string[] = [];
   const actions = input.plan.beats.map((beat) => beat.action);
   const joinedActions = actions.join(" ");
+  const propContract = input.plan.continuityProps
+    .map((item) => `${item.name} ${item.appearance} ${item.initialPosition}`)
+    .join(" ");
   const exactQuote = `"${input.plan.voiceoverText}"`;
 
   if (input.plan.speechStartsAtSeconds !== 0 || !input.prompt.includes("0.0 секунде")) {
@@ -74,6 +80,9 @@ export function validateOmniSegmentPrompt(input: {
     }
     if (/Один телефонный кадр без перебивок|ТРИ СОСТОЯНИЯ ОДНОГО МИНИ-ДЕЙСТВИЯ/u.test(input.prompt)) {
       errors.push("continuous_action_contract_forbidden_for_talking_head");
+    }
+    if (TALKING_HEAD_FORBIDDEN_DEFAULT_PROPS.test(`${propContract} ${joinedActions}`)) {
+      errors.push("talking_head_forbidden_default_prop");
     }
   }
 

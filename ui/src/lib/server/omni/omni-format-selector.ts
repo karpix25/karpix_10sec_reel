@@ -45,11 +45,9 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
   const audience = normalize(input.targetAudience || "");
   const recent = input.recentFormatIds || [];
   const eligibleFormats = OMNI_LIFE_FORMATS.filter(
-    (format) => format.id !== "habit_replacement" || REPLACEMENT_PATTERN.test(story)
+    (format) => format.id === STABLE_TALKING_HEAD_FORMAT
   );
-  const hasFormatSignal = eligibleFormats.some((format) => countPhraseHits(story, format.semanticKeywords) > 0);
-  const defaultFormats = eligibleFormats.filter((format) => !["moving_vlog", "whats_in_my_bag"].includes(format.id));
-  const ranked = (hasFormatSignal ? eligibleFormats : defaultFormats)
+  const ranked = eligibleFormats
     .map((format) => scoreFormat(format, story, firstLine, normalized, audience, recent))
     .sort(compareScores);
   const bestScore = ranked[0]?.score.total ?? 0;
