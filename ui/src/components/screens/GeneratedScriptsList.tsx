@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import type { OmniGeneratedScript, OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { GeneratedScriptPromptTabs } from "./GeneratedScriptPromptTabs";
 import {
@@ -55,6 +56,7 @@ export function GeneratedScriptsList({
   isLoading,
   pendingDraft,
   pendingVideo,
+  omniGenerationProvider,
   canCreateVideo,
   isCreatingReel,
   isRunningReel,
@@ -71,6 +73,7 @@ export function GeneratedScriptsList({
   isLoading: boolean;
   pendingDraft: PendingScriptDraft | null;
   pendingVideo: PendingVideoDraft | null;
+  omniGenerationProvider: OmniGenerationProvider;
   canCreateVideo: boolean;
   isCreatingReel: boolean;
   isRunningReel: boolean;
@@ -87,6 +90,7 @@ export function GeneratedScriptsList({
   const [filter, setFilter] = useState<VideoFilter>("all");
 
   useEffect(() => {
+    let isMounted = true;
     try {
       const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}") as {
         expandedScriptId?: number;
@@ -94,13 +98,19 @@ export function GeneratedScriptsList({
         viewMode?: ViewMode;
         filter?: VideoFilter;
       };
-      setExpandedScriptId(saved.expandedScriptId || null);
-      if (saved.activeTab) setActiveTab(saved.activeTab);
-      if (saved.viewMode) setViewMode(saved.viewMode);
-      if (saved.filter) setFilter(saved.filter);
+      window.setTimeout(() => {
+        if (!isMounted) return;
+        setExpandedScriptId(saved.expandedScriptId || null);
+        if (saved.activeTab) setActiveTab(saved.activeTab);
+        if (saved.viewMode) setViewMode(saved.viewMode);
+        if (saved.filter) setFilter(saved.filter);
+      }, 0);
     } catch {
       // Keep defaults when localStorage contains stale data.
     }
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -174,6 +184,7 @@ export function GeneratedScriptsList({
             projectId={projectId}
             productId={productId}
             pendingVideo={pendingVideo}
+            omniGenerationProvider={omniGenerationProvider}
             canCreateVideo={canCreateVideo}
             isCreatingReel={isCreatingReel}
             isRunningReel={isRunningReel}
@@ -207,6 +218,7 @@ function GeneratedScriptCard({
   projectId,
   productId,
   pendingVideo,
+  omniGenerationProvider,
   canCreateVideo,
   isCreatingReel,
   isRunningReel,
@@ -223,6 +235,7 @@ function GeneratedScriptCard({
   projectId: number | null;
   productId: number | null;
   pendingVideo: PendingVideoDraft | null;
+  omniGenerationProvider: OmniGenerationProvider;
   canCreateVideo: boolean;
   isCreatingReel: boolean;
   isRunningReel: boolean;
@@ -330,6 +343,7 @@ function GeneratedScriptCard({
               reel={latestReel}
               segments={latestSegments}
               pendingVideo={pendingVideo?.scriptId === script.id}
+              omniGenerationProvider={omniGenerationProvider}
             />
           </TabsContent>
           <TabsContent value="prompts" className="px-4 pb-4">
@@ -349,12 +363,14 @@ function VideoPanel({
   reel,
   segments,
   pendingVideo,
+  omniGenerationProvider,
 }: {
   reel: OmniReel | null;
   segments: OmniReelSegment[];
   pendingVideo: boolean;
+  omniGenerationProvider: OmniGenerationProvider;
 }) {
-  if (!reel) return pendingVideo ? <PendingVideoCard /> : <EmptyVideoPanel />;
+  if (!reel) return pendingVideo ? <PendingVideoCard provider={omniGenerationProvider} /> : <EmptyVideoPanel />;
 
   return (
     <div className="rounded-lg border border-border bg-card p-3">

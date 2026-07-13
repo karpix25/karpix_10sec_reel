@@ -1,12 +1,14 @@
 "use client";
 
 import type { OmniReel, OmniReelSegment } from "@/lib/omni/types";
+import { getOmniGenerationProviderLabel, normalizeOmniGenerationProvider } from "@/lib/omni/provider";
 
 export function VideoProgressSteps({ reel, segments }: { reel: OmniReel; segments: OmniReelSegment[] }) {
   const submittedCount = segments.filter((segment) => segment.kie_task_id).length;
   const completedCount = segments.filter((segment) => segment.status === "completed").length;
   const allCompleted = segments.length > 0 && completedCount === segments.length;
   const finalReady = reel.status === "completed" && Boolean(reel.final_video_url);
+  const providerLabel = getReelProviderLabel(segments);
 
   return (
     <div className="grid gap-2 rounded-lg bg-muted/30 p-3">
@@ -14,7 +16,7 @@ export function VideoProgressSteps({ reel, segments }: { reel: OmniReel; segment
       <VideoStep
         done={submittedCount === segments.length && segments.length > 0}
         active={submittedCount > 0 && submittedCount < segments.length}
-        label={`Отправка в Omni: ${submittedCount}/${segments.length}`}
+        label={`Отправка в ${providerLabel}: ${submittedCount}/${segments.length}`}
       />
       <VideoStep
         done={allCompleted}
@@ -31,12 +33,18 @@ export function getVideoStageLabel(reel: OmniReel, segments: OmniReelSegment[]) 
   if (reel.status === "failed") return "Ошибка создания видео";
   if (reel.status === "stitching" || reel.stitch_status === "stitching") return "Склеиваю финальное видео";
 
+  const providerLabel = getReelProviderLabel(segments);
   const completedCount = segments.filter((segment) => segment.status === "completed").length;
   const submittedCount = segments.filter((segment) => segment.kie_task_id).length;
   if (segments.length && completedCount === segments.length) return "Сегменты готовы, сохраняю и склеиваю";
-  if (segments.length && submittedCount > 0) return `Omni генерирует сегменты: ${completedCount}/${segments.length} готово`;
-  if (segments.length) return "План сегментов создан, готовлю отправку в Omni";
+  if (segments.length && submittedCount > 0) return `${providerLabel} генерирует сегменты: ${completedCount}/${segments.length} готово`;
+  if (segments.length) return `План сегментов создан, готовлю отправку в ${providerLabel}`;
   return "Готовлю video job";
+}
+
+function getReelProviderLabel(segments: OmniReelSegment[]) {
+  const provider = segments.find((segment) => segment.generation_provider)?.generation_provider;
+  return getOmniGenerationProviderLabel(normalizeOmniGenerationProvider(provider));
 }
 
 function VideoStep({ label, done, active }: { label: string; done?: boolean; active?: boolean }) {
