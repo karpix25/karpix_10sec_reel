@@ -11,6 +11,7 @@ export function buildPrompt(input: {
   ctaMode: CtaMode;
   ctaValue: string | null;
   sourceScenario: OmniLegacyScenario;
+  retryFeedback?: string | null;
 }) {
   return `
 Создай 1 новый сценарий для Instagram Reels по методологии reels-script-writer.
@@ -38,6 +39,7 @@ Tone of voice: ${input.brandVoice || "не указан"}
 
 Оригинальная транскрибация reference-видео:
 ${input.sourceScenario.script}
+${input.retryFeedback ? `\nПовторная попытка:\n${input.retryFeedback}` : ""}
 
 Верни JSON строго такого вида:
 {

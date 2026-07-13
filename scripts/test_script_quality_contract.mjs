@@ -35,6 +35,7 @@ try {
     [
       "src/lib/server/omni/script-quality-contract.ts",
       "src/lib/server/omni/script-json-repair.ts",
+      "src/lib/server/omni/script-generation-retry.ts",
       "--outDir", output,
       "--module", "commonjs",
       "--target", "es2022",
@@ -45,12 +46,18 @@ try {
 
   const repairJsPath = findFile(output, "script-json-repair.js");
   const qualityJsPath = findFile(output, "script-quality-contract.js");
+  const retryJsPath = findFile(output, "script-generation-retry.js");
 
   const { parseAndRepairJson } = require(repairJsPath);
   const {
     assertGeneratedScriptSymbolContract,
     validateViralScriptContract,
   } = require(qualityJsPath);
+  const {
+    buildScriptRetryFeedback,
+    isRetryableScriptGenerationError,
+    MAX_SCRIPT_GENERATION_ATTEMPTS,
+  } = require(retryJsPath);
 
   // --- Test JSON Repair ---
   console.log("Running JSON Repair checks...");
@@ -202,6 +209,20 @@ And this is line 2."
       '{"title":"Быстрый старт 😊","script":"Этот инструмент помогает проверить идею без сложной подготовки и лишних шагов."}'
     ),
     /emoji или длинное тире/u
+  );
+
+  assert.equal(MAX_SCRIPT_GENERATION_ATTEMPTS, 3);
+  assert.equal(
+    isRetryableScriptGenerationError(new Error("Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.")),
+    true
+  );
+  assert.equal(
+    isRetryableScriptGenerationError(new Error("Script model request failed: 429 rate limit")),
+    false
+  );
+  assert.match(
+    buildScriptRetryFeedback(new Error("Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.")),
+    /обычный дефис/u
   );
 
   // F. Minor slop / clickbaits and warnings (checks score reductions)
