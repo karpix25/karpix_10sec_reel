@@ -10,7 +10,10 @@ import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
 import { selectReferenceImagesForComet } from "./omni-reference-images";
 import { createOmniCompositeReference } from "./omni-composite-reference";
-import { appendContinuityPromptContract } from "./omni-continuity-prompt";
+import {
+  appendContinuityPromptContract,
+  appendKieReferenceOrderPrompt,
+} from "./omni-continuity-prompt";
 import {
   isOmniContinuityChainEnabled,
   isSegmentBlockedByContinuityChain,
@@ -170,8 +173,8 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       segments,
       fieldName: referenceImageField,
     });
-    const continuityImages = continuity.image ? [continuity.image] : [];
     const productIsVisible = segment.creative_plan?.productRole !== "hidden";
+    const continuityImages = continuity.image ? [continuity.image] : [];
     const visibleCometReferences = productIsVisible
       ? cometReferenceImages
       : cometReferenceImages.filter((image) => image.role === "avatar");
@@ -191,9 +194,13 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     const selectedReferenceImages = provider === "kie-ai"
       ? { sent: kieSegmentReferences, skipped: productIsVisible ? [] : kieReferenceImages }
       : { ...cometSelection, skipped: [...cometSelection.skipped, ...hiddenCometReferences] };
-    const providerPrompt = continuity.image
+    const continuityPrompt = continuity.image
       ? appendContinuityPromptContract(segment.prompt)
       : segment.prompt;
+    const providerPrompt =
+      provider === "kie-ai"
+        ? appendKieReferenceOrderPrompt(continuityPrompt, selectedReferenceImages.sent)
+        : continuityPrompt;
     const continuitySourceSegmentId =
       typeof continuity.metadata.sourceSegmentId === "number"
         ? continuity.metadata.sourceSegmentId
@@ -240,7 +247,12 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
             : null,
       },
       continuity: continuity.metadata,
-      prompt_contracts: continuity.image ? ["previous_frame_continuity_v1"] : [],
+      prompt_contracts: [
+        ...(continuity.image ? ["previous_frame_continuity_v1"] : []),
+        ...(provider === "kie-ai" && selectedReferenceImages.sent.length > 1
+          ? ["kie_reference_order_v1"]
+          : []),
+      ],
       creative_plan: segment.creative_plan,
       prompt_validation: segment.prompt_validation,
     };
