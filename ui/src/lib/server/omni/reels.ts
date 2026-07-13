@@ -8,7 +8,7 @@ import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
 import { listRecentLifeFormatIds } from "./omni-creative-history";
-import { OMNI_SEGMENT_SECONDS, planOmniReelDuration } from "./omni-duration-planner";
+import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -18,10 +18,6 @@ function normalizeReel(row: OmniReel): OmniReel {
     source_legacy_scenario_id:
       row.source_legacy_scenario_id === null ? null : Number(row.source_legacy_scenario_id),
   };
-}
-
-function segmentCountForDuration(durationSeconds: number) {
-  return Math.ceil(durationSeconds / OMNI_SEGMENT_SECONDS);
 }
 
 export async function listOmniReels(projectId: number, productId?: number | null) {
@@ -82,8 +78,9 @@ export async function createOmniReel(input: {
   }
   const sourceScenario = input.sourceLegacyScenarioId ? await getLegacyScenario(input.sourceLegacyScenarioId) : null;
   const scriptText = generatedScript?.script || sourceScenario?.script || brief || "";
-  const targetDuration = planOmniReelDuration(scriptText, input.targetDurationSeconds);
-  const segmentCount = segmentCountForDuration(targetDuration);
+  const segmentPlan = planOmniReelSegments(scriptText);
+  const targetDuration = segmentPlan.durationSeconds;
+  const segmentCount = segmentPlan.segmentCount;
   const latestAvatar = await getLatestOmniClientAvatar(input.projectId);
   const sourceSnapshot = generatedScript
     ? {

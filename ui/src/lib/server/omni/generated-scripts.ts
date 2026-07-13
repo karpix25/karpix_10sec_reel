@@ -11,6 +11,7 @@ import { getOmniProject } from "./projects";
 import { listRecentLifeFormatIds } from "./omni-creative-history";
 import type { CtaMode } from "@/lib/omni/creative-contract";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
+import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
 
 type GeneratedScriptPayload = {
   title?: string;
@@ -81,7 +82,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
   const avatar = await getLatestOmniClientAvatar(input.projectId);
   const project = await getOmniProject(input.projectId);
   if (!project) throw new Error("Omni client project not found");
-  const segmentCount = Math.ceil(product.target_duration_seconds / 10);
+  const segmentPlan = planOmniReelSegments(generatedScript.script);
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
 
   return buildOmniSegmentPrompts({
@@ -89,8 +90,8 @@ export async function buildGeneratedScriptPromptPreview(input: {
     legacyTranscript: null,
     product,
     avatar,
-    segmentCount,
-    segmentSeconds: 10,
+    segmentCount: segmentPlan.segmentCount,
+    segmentSeconds: OMNI_SEGMENT_SECONDS,
     brief: null,
     targetAudience: project.target_audience,
     ctaMode: product.cta_mode,
@@ -98,7 +99,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     recentFormatIds,
   }).map((segment) => ({
     segmentIndex: segment.index,
-    durationSeconds: 10,
+    durationSeconds: OMNI_SEGMENT_SECONDS,
     role: segment.role,
     prompt: segment.prompt,
     referenceUrl: segment.referenceUrl,

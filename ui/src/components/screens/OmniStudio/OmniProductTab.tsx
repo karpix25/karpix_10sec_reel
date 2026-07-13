@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { OmniProduct, OmniProject, OmniReferenceAsset } from "@/lib/omni/types";
+import { AUTO_SEGMENT_MODE_LABEL } from "@/lib/omni/workspace";
 import { EmptyState, QueryState, WorkbenchPanel } from "./ui";
 
 export type ProductDraft = {
@@ -54,7 +55,7 @@ export function OmniProductTab({
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
       <WorkbenchPanel
         title="Продукты бренда"
-        description="Продукт создаётся внутри активного бренда и хранит описание, фото/ref и длительность ролика."
+        description="Продукт создаётся внутри активного бренда и хранит описание и фото/ref. Количество частей система выбирает по сценарию."
       >
         <QueryState
           isLoading={isProductsLoading}
@@ -155,7 +156,7 @@ export function OmniProductTab({
         {activeProduct ? (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{activeProduct.target_duration_seconds} сек</Badge>
+              <Badge variant="secondary">{AUTO_SEGMENT_MODE_LABEL}</Badge>
               <Badge variant={activeProduct.product_refs.length ? "success" : "outline"}>
                 {activeProduct.product_refs.length} product refs
               </Badge>

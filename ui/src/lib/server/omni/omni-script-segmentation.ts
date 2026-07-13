@@ -120,10 +120,9 @@ function findBestBoundaries(
 ) {
   if (count === 1) return [0, tokens.length];
   const target = tokens.length / count;
-  const preferred = solveBoundaries(tokens, count, target, protectedBoundaries, maxWordsPerSegment);
-  const relaxed = preferred || solveBoundaries(tokens, count, target, new Set<number>(), maxWordsPerSegment);
-  if (!relaxed) throw new Error("Script cannot be split into speakable Omni segments");
-  return [0, ...relaxed];
+  const boundaries = solveBoundaries(tokens, count, target, protectedBoundaries, maxWordsPerSegment);
+  if (!boundaries) throw new Error("Script cannot be split without breaking a protected CTA phrase");
+  return [0, ...boundaries];
 }
 
 function solveBoundaries(

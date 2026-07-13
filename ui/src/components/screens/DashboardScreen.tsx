@@ -17,6 +17,10 @@ import {
 } from "@/hooks/useOmniStudio";
 import type { OmniReferenceAsset } from "@/lib/omni/types";
 import type { CtaMode } from "@/lib/omni/creative-contract";
+import {
+  AUTO_SEGMENT_FALLBACK_DURATION_SECONDS,
+  AUTO_SEGMENT_MODE_LABEL,
+} from "@/lib/omni/workspace";
 
 type DashboardScreenProps = {
   selectedProjectId: number | null;
@@ -89,7 +93,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
       projectId: activeProject.id,
       name: productDraft.name,
       description: productDraft.description,
-      targetDurationSeconds: 30,
+      targetDurationSeconds: AUTO_SEGMENT_FALLBACK_DURATION_SECONDS,
       productRefs: productDraft.productRefs,
       ctaMode: productDraft.ctaMode,
       ctaValue: productDraft.ctaValue,
@@ -166,7 +170,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
                       </p>
                     </div>
                     <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
-                      {product.target_duration_seconds} сек
+                      {AUTO_SEGMENT_MODE_LABEL}
                     </span>
                   </div>
                   {product.product_refs.length ? (
