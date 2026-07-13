@@ -8,7 +8,8 @@ from services.v1.automation.omni_script_segmentation import normalize_script_tex
 
 TARGET_WORDS_PER_PART = 18
 CLEAN_FRAME_CONTRACT = (
-    "Чистый полноэкранный кадр без экранной графики, рамок и декоративных элементов поверх изображения."
+    "Кадр выглядит как обычное сырое видео с камеры: полный экран, реальная сцена, человек, локация, "
+    "предметы и естественный свет."
 )
 
 FORMAT_STATE_ARCS = {

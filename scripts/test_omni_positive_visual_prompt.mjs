@@ -97,7 +97,7 @@ try {
   assert.equal(prompts[2].referenceUrl, "https://example.com/product.png");
   assert.ok(joinedPrompt.includes("ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА:"), "positive visual style must be rendered");
   assert.ok(joinedPrompt.includes("КАМЕРА И СВЕТ:"), "camera and light must be rendered");
-  assert.ok(joinedPrompt.includes("Чистый полноэкранный кадр"), "clean-frame provider contract must be rendered");
+  assert.ok(joinedPrompt.includes("обычное сырое видео с камеры"), "clean-frame provider contract must be rendered");
   assert.ok(joinedPrompt.includes("ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ"), "talking-head cutaway format must be rendered");
   assert.ok(joinedPrompt.includes("ТРИ КАДРА ОДНОЙ ЧАСТИ:"), "talking-head prompt must use shot-based structure");
   assert.ok(joinedPrompt.includes("во время короткой перебивки речь продолжает звучать как voiceover"), "cutaway voiceover rule must be rendered");
