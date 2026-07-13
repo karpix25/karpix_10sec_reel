@@ -10,6 +10,7 @@ import {
   type ProductRole,
 } from "@/lib/omni/creative-contract";
 import { OMNI_LIFE_FORMATS } from "./omni-life-formats";
+import { writeOmniVisualStyle } from "./omni-visual-style-writer";
 
 export interface SelectOmniFormatInput {
   script: string;
@@ -46,12 +47,10 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
     (format) => format.id !== "habit_replacement" || REPLACEMENT_PATTERN.test(story)
   );
   const hasFormatSignal = eligibleFormats.some((format) => countPhraseHits(story, format.semanticKeywords) > 0);
-  const ranked = (hasFormatSignal
-    ? eligibleFormats.map((format) => scoreFormat(format, story, firstLine, normalized, audience, recent))
-    : eligibleFormats
-        .filter((format) => format.id === "moving_vlog")
-        .map((format) => scoreFormat(format, story, firstLine, normalized, audience, recent))
-  ).sort(compareScores);
+  const defaultFormats = eligibleFormats.filter((format) => !["moving_vlog", "whats_in_my_bag"].includes(format.id));
+  const ranked = (hasFormatSignal ? eligibleFormats : defaultFormats)
+    .map((format) => scoreFormat(format, story, firstLine, normalized, audience, recent))
+    .sort(compareScores);
   const bestScore = ranked[0]?.score.total ?? 0;
   const finalists = ranked.filter((candidate, index) => index < 3 && candidate.score.total >= bestScore - 0.75);
   const selected = finalists[stableHash(`${normalized}|${audience}`) % finalists.length] || ranked[0];
@@ -59,22 +58,29 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
 
   const productRole = selectProductRole(selected.format, normalized, input.hasProductReference);
   const hookType = selectHookType(selected.format, firstLine, productRole);
-  const sceneArc = pickStable(selected.format.sceneArcs, `${normalized}|${selected.format.id}`);
+  const visualStyle = writeOmniVisualStyle({
+    script: input.script,
+    productName: input.productName,
+    productDescription: input.productDescription,
+    targetAudience: input.targetAudience,
+    lifeFormat: selected.format,
+  });
 
   return {
-    version: "life-formats-v1",
+    version: "visual-style-writer-v1",
     scope: "reel",
     lifeFormatId: selected.format.id,
     providerFormatDescription: selected.format.providerDescription,
-    setting: sceneArc.setting,
-    continuityProps: sceneArc.fixedProps,
+    setting: visualStyle.sceneArc.setting,
+    continuityProps: visualStyle.sceneArc.fixedProps,
+    visualStyle,
     hookType,
     hookRule: buildHookRule(hookType),
     productRole,
     productActionRule: buildProductActionRule(productRole),
     ctaMode: input.ctaMode || "article_in_description",
     ctaValue: normalizeOptional(input.ctaValue),
-    selectionReason: buildSelectionReason(selected),
+    selectionReason: `${buildSelectionReason(selected)}; ${visualStyle.selectionReason}`,
     score: selected.score,
     forbiddenMotifs: [...new Set([...OMNI_FORBIDDEN_MOTIFS, ...selected.format.forbiddenMotifs])],
     safetyRules: [...new Set([...OMNI_ACTION_SAFETY_RULES, ...selected.format.safetyRules])],

@@ -120,7 +120,9 @@ function buildSegmentCreativePlan(input: {
   segmentSeconds: number;
 }): OmniSegmentCreativePlan {
   const format = getOmniLifeFormat(input.strategy.lifeFormatId);
-  const sceneArc = format.sceneArcs.find((candidate) => candidate.setting === input.strategy.setting) || format.sceneArcs[0];
+  const sceneArc = input.strategy.visualStyle?.sceneArc ||
+    format.sceneArcs.find((candidate) => candidate.setting === input.strategy.setting) ||
+    format.sceneArcs[0];
   if (!sceneArc) throw new Error(`Omni life format ${format.id} has no scene arc`);
   const stateIndexes = getSceneStateIndexes(input.segmentIndex, input.segmentCount);
   const [opening, middle, closing] = stateIndexes.map((stateIndex) => sceneArc.states[stateIndex]);
@@ -180,6 +182,11 @@ function renderSegmentPrompt(
     OMNI_PROMPT_WRITER_SYSTEM_PROMPT,
     `Часть ${segmentIndex} из ${segmentCount}.`,
     `ЖИЗНЕННАЯ СИТУАЦИЯ: ${strategy.providerFormatDescription}. Место: ${strategy.setting}.`,
+    ...(strategy.visualStyle ? [
+      `ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА: ${strategy.visualStyle.label}; ${strategy.visualStyle.visualTone}.`,
+      `КАМЕРА И СВЕТ: ${strategy.visualStyle.cameraLanguage}; ${strategy.visualStyle.lighting}.`,
+      `НЕ ИСПОЛЬЗОВАТЬ КАК ДЕФОЛТ: ${strategy.visualStyle.forbiddenDefaults.join("; ")}.`,
+    ] : []),
     `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     `ТИП ХУКА: ${strategy.hookType}. ${strategy.hookRule}`,
     "СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде одновременно с уже начавшимся действием. До него нет паузы, улыбки, вдоха, приветствия или подготовки.",
