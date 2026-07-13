@@ -4,6 +4,14 @@ Write code as a professional modular system, not as large monolithic files.
 
 #Lessons
 
+- Run repository-level scripts from the repository root or use a path relative to the command working directory.
+- Preserve persisted 20, 30, and 40 second reel durations when deriving their 2, 3, or 4 segment plans.
+- Run TypeScript smoke tests with the project compiler or a resolver that supports extensionless imports, not direct Node ESM imports.
+- Re-read edited TypeScript expressions around changed parentheses before running validation.
+- Keep internal anti-default guards out of provider prompts; render the chosen positive visual plan instead.
+- Count the staged file list from Git output before reporting the number of files in a commit.
+- Never use the VPS host localhost port as app health evidence until its owning process is verified; check inside the target container and through the public host.
+
 - For KIE Gemini Omni generation, preserve and pass `image_urls` separately from saved avatar `character_ids`.
 - For KIE Gemini Omni video, do not put the avatar reference into `image_urls`; send only product references there and send the avatar via `character_ids`.
 - Apply CTA wording contracts at the script-generation seam, not only at downstream video prompt seams.
@@ -14,3 +22,13 @@ Write code as a professional modular system, not as large monolithic files.
 - KIE Omni character approval must retry failed character tasks until a real `characterId` is received or the configured retry budget is exhausted.
 - KIE Omni requests should omit optional empty fields instead of sending empty arrays or blank strings.
 - KIE Omni character creation must use `/api/v1/omni/character/create`, not the generic `/api/v1/jobs/createTask` marketplace endpoint.
+- When the user provides provider documentation links, verify the exact endpoint, payload shape, and success response before implementing the integration.
+- When running remote Docker commands with container environment variables, prevent local shell expansion before executing the command.
+- Run production Node diagnostics from `/app/ui` when they require packages installed by the UI workspace.
+- Persist exact prop colors, materials, shapes, and positions across every segment of one generated reel.
+- Reject long dash characters and emoji at the script-generation boundary instead of relying only on prompt wording.
+- Main-character and clothing contracts must be rendered explicitly in Omni prompts even when character_id and image_urls are already provided.
+
+# Project Skills
+
+- For Omni Reels UI/UX work, follow `skills/omni-reels-product-ux/SKILL.md`.

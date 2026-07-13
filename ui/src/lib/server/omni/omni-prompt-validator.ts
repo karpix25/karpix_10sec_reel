@@ -39,6 +39,15 @@ export function validateOmniSegmentPrompt(input: {
   if (!input.prompt.includes("ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ:")) {
     errors.push("continuity_prop_passport_required");
   }
+  if (!input.prompt.includes("ГЛАВНЫЙ ПЕРСОНАЖ:")) {
+    errors.push("main_character_contract_required");
+  }
+  if (!input.prompt.includes("ОДЕЖДА:")) {
+    errors.push("clothing_contract_required");
+  }
+  if (!input.prompt.includes("ИСТОЧНИКИ ОБРАЗА:")) {
+    errors.push("character_source_contract_required");
+  }
   for (const item of input.plan.continuityProps) {
     if (!input.prompt.includes(item.name) || !input.prompt.includes(item.appearance)) {
       errors.push("continuity_prop_details_missing");
