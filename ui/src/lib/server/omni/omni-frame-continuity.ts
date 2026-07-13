@@ -2,10 +2,12 @@ import { spawn } from "child_process";
 import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
+import sharp from "sharp";
 import { uploadKieImageBuffer } from "./kie-file-upload-client";
 import { uploadOmniImageBufferToS3 } from "./omni-video-storage";
 
 const FRAME_CONTENT_TYPE = "image/jpeg";
+const DARK_FRAME_AVERAGE_THRESHOLD = 12;
 
 export type ContinuityFrameAsset = {
   sourceSegmentId: number;
@@ -89,25 +91,61 @@ async function extractLastFrame(videoBuffer: Buffer, reelId: number, segmentInde
 
   try {
     await writeFile(videoPath, videoBuffer);
-    await runFfmpeg([
-      "-y",
-      "-sseof",
-      "-0.15",
-      "-i",
-      videoPath,
-      "-frames:v",
-      "1",
-      "-q:v",
-      "2",
-      outputPath,
-    ]);
-    return await readFile(outputPath);
+    return await extractUsableEndFrame(videoPath, outputPath);
   } catch {
-    await runFfmpeg(["-y", "-i", videoPath, "-frames:v", "1", "-q:v", "2", outputPath]);
-    return await readFile(outputPath);
+    return extractFirstFrame(videoPath, outputPath);
   } finally {
     await rm(workdir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+async function extractUsableEndFrame(videoPath: string, outputPath: string) {
+  let lastFrame: Buffer | null = null;
+  let lastError: unknown = null;
+
+  for (const offset of ["-0.15", "-0.35", "-0.75"]) {
+    try {
+      await runFfmpeg([
+        "-y",
+        "-sseof",
+        offset,
+        "-i",
+        videoPath,
+        "-frames:v",
+        "1",
+        "-q:v",
+        "2",
+        outputPath,
+      ]);
+      lastFrame = await readFile(outputPath);
+      if (await isUsableContinuityFrame(lastFrame)) return lastFrame;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  try {
+    return await extractFirstFrame(videoPath, outputPath);
+  } catch {
+    if (lastFrame) return lastFrame;
+    if (lastError instanceof Error) throw lastError;
+    throw new Error("Could not extract a usable continuity frame");
+  }
+}
+
+async function extractFirstFrame(videoPath: string, outputPath: string) {
+  await runFfmpeg(["-y", "-i", videoPath, "-frames:v", "1", "-q:v", "2", outputPath]);
+  return readFile(outputPath);
+}
+
+async function isUsableContinuityFrame(frame: Buffer) {
+  const pixels = await sharp(frame)
+    .resize(32, 32, { fit: "fill" })
+    .greyscale()
+    .raw()
+    .toBuffer();
+  const average = pixels.reduce((sum, value) => sum + value, 0) / Math.max(1, pixels.length);
+  return average >= DARK_FRAME_AVERAGE_THRESHOLD;
 }
 
 async function runFfmpeg(args: string[]) {

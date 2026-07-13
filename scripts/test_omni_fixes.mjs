@@ -26,7 +26,10 @@ try {
   );
 
   const { selectReferenceImagesForComet } = require(join(output, "omni-reference-images.js"));
-  const { appendContinuityPromptContract } = require(join(output, "omni-continuity-prompt.js"));
+  const {
+    appendContinuityPromptContract,
+    appendKieReferenceOrderPrompt,
+  } = require(join(output, "omni-continuity-prompt.js"));
 
   const imgAvatar = { url: "avatar.png", fieldName: "ref", role: "avatar" };
   const imgProduct = { url: "product.png", fieldName: "ref", role: "product" };
@@ -96,6 +99,17 @@ try {
     assert.match(prompt, /Original segment prompt\./);
     assert.match(prompt, /final pose and layout/);
     assert.match(prompt, /Do not create a sudden camera cut/);
+  }
+
+  {
+    const prompt = appendKieReferenceOrderPrompt("Original segment prompt.", [
+      { role: "previous_last_frame" },
+      { role: "product" },
+    ]);
+    assert.match(prompt, /Image 1: previous segment final frame/);
+    assert.match(prompt, /Image 2: product reference/);
+    assert.match(prompt, /standalone product reference/);
+    assert.match(prompt, /table, counter, shelf/);
   }
 
   console.log("Omni reference image priority reliability checks passed");
