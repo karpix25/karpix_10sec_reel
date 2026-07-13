@@ -28,6 +28,7 @@ Write code as a professional modular system, not as large monolithic files.
 - Persist exact prop colors, materials, shapes, and positions across every segment of one generated reel.
 - Reject long dash characters and emoji at the script-generation boundary instead of relying only on prompt wording.
 - Main-character and clothing contracts must be rendered explicitly in Omni prompts even when character_id and image_urls are already provided.
+- Prefer talking-head with simple cutaways over continuous choreographed actions when Omni scene actions reduce visual stability.
 
 # Project Skills
 

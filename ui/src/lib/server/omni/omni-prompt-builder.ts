@@ -15,6 +15,11 @@ import { validateOmniSegmentPrompt, validateVoiceoverSequence } from "./omni-pro
 import { getOmniSegmentWordBudget } from "./omni-duration-planner";
 import { assertOmniCtaContract } from "./omni-cta-contract";
 import { buildOmniCharacterContract, type OmniCharacterContract } from "./omni-character-contract";
+import {
+  buildTalkingHeadCreativePlan,
+  isTalkingHeadCutawayFormat,
+  OMNI_TALKING_HEAD_SYSTEM_PROMPT,
+} from "./omni-talking-head-format";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -131,6 +136,9 @@ function buildSegmentCreativePlan(input: {
   if (!sceneArc) throw new Error(`Omni life format ${format.id} has no scene arc`);
   const stateIndexes = getSceneStateIndexes(input.segmentIndex, input.segmentCount);
   const [opening, middle, closing] = stateIndexes.map((stateIndex) => sceneArc.states[stateIndex]);
+  if (isTalkingHeadCutawayFormat(input.strategy.lifeFormatId)) {
+    return buildTalkingHeadCreativePlan({ ...input, opening, closing });
+  }
   const hookOpening = input.segmentIndex === 1
     ? buildHookOpening(input.strategy, opening)
     : `без сброса сцены продолжает из предыдущего положения: ${lowerFirst(opening)}`;
@@ -178,15 +186,21 @@ function renderSegmentPrompt(
   segmentIndex: number,
   segmentCount: number
 ) {
+  const talkingHead = isTalkingHeadCutawayFormat(strategy.lifeFormatId);
   const continuity = segmentIndex < segmentCount
-    ? "Закончить в устойчивом положении, с которого следующая часть продолжит эту же ситуацию."
+    ? talkingHead
+      ? "Следующая часть может начаться новым монтажным кадром без продолжения позы или движения."
+      : "Закончить в устойчивом положении, с которого следующая часть продолжит эту же ситуацию."
     : "Завершить точную реплику без дополнительной фразы или нового CTA.";
   const props = plan.continuityProps
     .map((item) => `${item.name}: ${item.appearance}; начальная позиция: ${item.initialPosition}`)
     .join(" | ");
   return [
-    OMNI_PROMPT_WRITER_SYSTEM_PROMPT,
+    talkingHead ? OMNI_TALKING_HEAD_SYSTEM_PROMPT : OMNI_PROMPT_WRITER_SYSTEM_PROMPT,
     `Часть ${segmentIndex} из ${segmentCount}.`,
+    ...(talkingHead ? [
+      "ФОРМАТ: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Основной кадр - лицо героя в камеру; перебивка - короткий спокойный insert без хореографии руками.",
+    ] : []),
     `ЖИЗНЕННАЯ СИТУАЦИЯ: ${strategy.providerFormatDescription}. Место: ${strategy.setting}.`,
     `ГЛАВНЫЙ ПЕРСОНАЖ: ${characterContract.identityLine}.`,
     `ОДЕЖДА: ${characterContract.clothingLine}.`,
@@ -197,13 +211,19 @@ function renderSegmentPrompt(
     ] : []),
     `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     `ТИП ХУКА: ${strategy.hookType}. ${strategy.hookRule}`,
-    "СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде одновременно с уже начавшимся действием. До него нет паузы, улыбки, вдоха, приветствия или подготовки.",
+    talkingHead
+      ? "СТАРТ РЕЧИ: первое слово точной реплики звучит на 0.0 секунде в кадре говорящей головы; лицо уже видно, герой смотрит в камеру. До него нет паузы, улыбки, вдоха, приветствия или подготовки."
+      : "СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде одновременно с уже начавшимся действием. До него нет паузы, улыбки, вдоха, приветствия или подготовки.",
     `ТОЧНАЯ РЕПЛИКА: "${plan.voiceoverText}"`,
-    "ТРИ СОСТОЯНИЯ ОДНОГО МИНИ-ДЕЙСТВИЯ:",
+    talkingHead ? "ТРИ КАДРА ОДНОЙ ЧАСТИ:" : "ТРИ СОСТОЯНИЯ ОДНОГО МИНИ-ДЕЙСТВИЯ:",
     ...plan.beats.map((beat) => `${beat.startSeconds.toFixed(1)}-${beat.endSeconds.toFixed(1)} сек: ${beat.action}.`),
     `РОЛЬ ПРОДУКТА: ${productRoleInstruction(plan.productRole)}`,
-    "РЕЧЬ: произнести только точную реплику один раз, без добавлений, повторов и субтитров; речь продолжается между состояниями действия.",
-    `НЕПРЕРЫВНОСТЬ: тот же человек, одежда, свет, локация и все предметы из паспорта. Цвет, материал, форма, размер, детали и количество каждого предмета неизменны. Нельзя заменять, перекрашивать, дублировать или самовольно убирать предметы. Их положение меняется только по перечисленным действиям. Первый кадр этой части точно продолжает финальные позиции предыдущей части. Один телефонный кадр без перебивок и рекламных крупных планов. ${continuity}`,
+    talkingHead
+      ? "РЕЧЬ: произнести только точную реплику один раз, без добавлений, повторов и субтитров; во время короткой перебивки речь продолжает звучать как voiceover, без попытки синхронизировать губы вне кадра лица."
+      : "РЕЧЬ: произнести только точную реплику один раз, без добавлений, повторов и субтитров; речь продолжается между состояниями действия.",
+    talkingHead
+      ? `МОНТАЖНАЯ НЕПРЕРЫВНОСТЬ: тот же человек, одежда, свет и локация. Перебивки короткие, спокойные, без новых персонажей и без сложных действий руками. Предметы из паспорта не меняют цвет, материал, форму, размер, детали и количество. Нельзя заменять, перекрашивать, дублировать или самовольно убирать предметы. Разрешены монтажные склейки между лицом и insert-кадром; не строить одно непрерывное бытовое действие. ${continuity}`
+      : `НЕПРЕРЫВНОСТЬ: тот же человек, одежда, свет, локация и все предметы из паспорта. Цвет, материал, форма, размер, детали и количество каждого предмета неизменны. Нельзя заменять, перекрашивать, дублировать или самовольно убирать предметы. Их положение меняется только по перечисленным действиям. Первый кадр этой части точно продолжает финальные позиции предыдущей части. Один телефонный кадр без перебивок и рекламных крупных планов. ${continuity}`,
     `ЗАПРЕЩЕНО: ${[...strategy.forbiddenMotifs, ...strategy.safetyRules].join("; ")}.`,
   ].join("\n");
 }
