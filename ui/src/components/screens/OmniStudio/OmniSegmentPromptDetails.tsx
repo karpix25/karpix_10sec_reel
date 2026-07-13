@@ -61,6 +61,9 @@ function CreativePlanSummary({
     <div className="rounded-md border border-border bg-background p-2">
       <div className="flex flex-wrap gap-1.5">
         <span className="rounded bg-primary/10 px-2 py-1 font-semibold text-primary">{strategy?.lifeFormatId || plan.lifeFormatId}</span>
+        {strategy?.visualStyle ? (
+          <span className="rounded bg-primary/10 px-2 py-1 font-semibold text-primary">{strategy.visualStyle.label}</span>
+        ) : null}
         <span className="rounded bg-muted px-2 py-1 text-muted-foreground">Речь с {plan.speechStartsAtSeconds.toFixed(1)} сек</span>
         <span className="rounded bg-muted px-2 py-1 text-muted-foreground">Продукт: {plan.productRole}</span>
         {strategy ? (
@@ -79,6 +82,12 @@ function CreativePlanSummary({
           <p>
             <span className="font-semibold text-foreground">Постоянные предметы:</span>{" "}
             {(plan.continuityProps || []).map((item) => `${item.name}: ${item.appearance}`).join("; ")}
+          </p>
+        ) : null}
+        {strategy?.visualStyle ? (
+          <p>
+            <span className="font-semibold text-foreground">Визуальный стиль:</span>{" "}
+            {strategy.visualStyle.visualTone}
           </p>
         ) : null}
         {plan.beats.map((beat) => (

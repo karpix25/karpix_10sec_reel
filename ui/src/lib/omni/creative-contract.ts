@@ -46,6 +46,15 @@ export type HookType =
 
 export type ActionComplexity = "low" | "medium";
 
+export type VisualStyleId =
+  | "beauty_daylight"
+  | "kitchen_counter"
+  | "worktable_focus"
+  | "fitness_locker"
+  | "sofa_confession"
+  | "clean_product_table"
+  | "city_window";
+
 export interface OmniContinuityProp {
   name: string;
   appearance: string;
@@ -76,6 +85,17 @@ export interface OmniLifeFormat {
   safetyRules: readonly string[];
 }
 
+export interface OmniVisualStylePlan {
+  id: VisualStyleId;
+  label: string;
+  visualTone: string;
+  cameraLanguage: string;
+  lighting: string;
+  sceneArc: OmniLifeSceneArc;
+  forbiddenDefaults: readonly string[];
+  selectionReason: string;
+}
+
 export interface CreativeScoreBreakdown {
   semanticFit: number;
   productNaturalness: number;
@@ -86,12 +106,13 @@ export interface CreativeScoreBreakdown {
 }
 
 export interface OmniCreativeStrategy {
-  version: "life-formats-v1";
+  version: "life-formats-v1" | "visual-style-writer-v1";
   scope: "reel";
   lifeFormatId: LifeFormatId;
   providerFormatDescription: string;
   setting: string;
   continuityProps: readonly OmniContinuityProp[];
+  visualStyle?: OmniVisualStylePlan;
   hookType: HookType;
   hookRule: string;
   productRole: ProductRole;
