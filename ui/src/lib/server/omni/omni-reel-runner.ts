@@ -86,7 +86,12 @@ export async function submitOmniReel(reelId: number) {
         })
       : null;
   const cometReferenceImages = compositeReferenceUrl
-    ? [{ url: compositeReferenceUrl, fieldName: referenceImageField, role: "avatar_product_composite" }]
+    ? [
+        avatarReferenceUrl
+          ? { url: avatarReferenceUrl, fieldName: referenceImageField, role: "avatar" }
+          : null,
+        { url: compositeReferenceUrl, fieldName: referenceImageField, role: "avatar_product_composite" },
+      ].filter((image): image is { url: string; fieldName: string; role: string } => Boolean(image))
     : referenceImages;
 
   await pool.query(
@@ -122,9 +127,7 @@ export async function submitOmniReel(reelId: number) {
       reference_images_skipped: selectedReferenceImages.skipped.map((image) => ({
         role: image.role,
         url: image.url,
-        reason: compositeReferenceUrl
-          ? "composite_reference_sent_instead"
-          : "url_transport_accepts_single_input_reference",
+        reason: getSkippedReferenceReason(image.role, segment.segment_index, Boolean(compositeReferenceUrl)),
       })),
       reference_images_source: {
         avatar_url: avatarReferenceUrl,
@@ -182,6 +185,16 @@ export async function submitOmniReel(reelId: number) {
 
   const updated = await getReelBundle(reelId);
   return updated.reel;
+}
+
+function getSkippedReferenceReason(role: string, segmentIndex: number, hasCompositeReference: boolean) {
+  if (segmentIndex === 1 && role === "avatar_product_composite") {
+    return "product_reveal_reserved_for_later_segments";
+  }
+  if (hasCompositeReference && role === "avatar") {
+    return "composite_reference_sent_instead";
+  }
+  return "url_transport_accepts_single_input_reference";
 }
 
 async function storeCompletedSegment(
