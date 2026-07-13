@@ -126,6 +126,8 @@ export async function createOmniReel(input: {
         reference_url: latestAvatar.reference_url,
         status: latestAvatar.status,
         provider: latestAvatar.provider,
+        kie_character_id: latestAvatar.kie_character_id,
+        kie_character_status: latestAvatar.kie_character_status,
       }
     : null;
 

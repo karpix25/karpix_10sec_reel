@@ -1,5 +1,6 @@
 import pool from "@/lib/db";
 import type { OmniReel, OmniReelSegment } from "@/lib/omni/types";
+import { normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
 import {
   downloadCometOmniVideo,
   retrieveCometOmniVideoTask,
@@ -8,7 +9,14 @@ import {
   getCometReferenceImageTransport,
   shouldSendCometReferenceImage,
 } from "./comet-video-client";
+import {
+  createKieOmniVideoTask,
+  downloadKieOmniVideo,
+  retrieveKieOmniTask,
+  type KieOmniTask,
+} from "./kie-omni-client";
 import { ensureOmniSchema } from "./schema";
+import { getLatestOmniClientAvatar } from "./avatars";
 import { getOmniProject } from "./projects";
 import { requireOmniProductInProject } from "./products";
 import { stitchOmniSegments } from "./omni-video-stitcher";
@@ -20,6 +28,9 @@ type ReelBundle = {
   reel: OmniReel;
   segments: OmniReelSegment[];
 };
+
+type ReferenceImage = { url: string; fieldName: string; role: string };
+type ProviderTask = Awaited<ReturnType<typeof createCometOmniVideoTask>> | KieOmniTask;
 
 const RUNNING_STATUSES = new Set(["queued", "submitted", "processing"]);
 
@@ -59,14 +70,30 @@ function getProductReferenceUrl(reel: OmniReel) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-export async function submitOmniReel(reelId: number) {
+function getAvatarCharacterId(reel: OmniReel) {
+  const snapshot = reel.avatar_snapshot || {};
+  const value = (snapshot as { kie_character_id?: unknown }).kie_character_id;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+async function resolveAvatarCharacterId(reel: OmniReel) {
+  const snapshotCharacterId = getAvatarCharacterId(reel);
+  if (snapshotCharacterId) return snapshotCharacterId;
+
+  const latestAvatar = await getLatestOmniClientAvatar(reel.project_id);
+  return latestAvatar?.kie_character_id || null;
+}
+
+export async function submitOmniReel(reelId: number, providerInput?: unknown) {
   const { reel, segments } = await getReelBundle(reelId);
+  const provider = normalizeOmniGenerationProvider(providerInput);
   if (!segments.length) throw new Error("Omni reel has no segments");
   const avatarReferenceUrl = getAvatarReferenceUrl(reel);
   const productReferenceUrl = getProductReferenceUrl(reel);
+  const avatarCharacterId = await resolveAvatarCharacterId(reel);
   const referenceImageField = getCometReferenceImageFieldName();
   const referenceImageTransport = getCometReferenceImageTransport();
-  const referenceImages = shouldSendCometReferenceImage()
+  const baseReferenceImages = shouldSendCometReferenceImage()
     ? [
         avatarReferenceUrl
           ? { url: avatarReferenceUrl, fieldName: referenceImageField, role: "avatar" }
@@ -74,8 +101,11 @@ export async function submitOmniReel(reelId: number) {
         productReferenceUrl
           ? { url: productReferenceUrl, fieldName: referenceImageField, role: "product" }
           : null,
-      ].filter((image): image is { url: string; fieldName: string; role: string } => Boolean(image))
+      ].filter((image): image is ReferenceImage => Boolean(image))
     : [];
+  if (provider === "kie-ai" && !avatarCharacterId) {
+    throw new Error("KIE.ai Omni requires an approved avatar with saved character id");
+  }
   const compositeReferenceUrl =
     shouldSendCometReferenceImage() && referenceImageTransport === "url" && avatarReferenceUrl && productReferenceUrl
       ? await createOmniCompositeReference({
@@ -91,8 +121,8 @@ export async function submitOmniReel(reelId: number) {
           ? { url: avatarReferenceUrl, fieldName: referenceImageField, role: "avatar" }
           : null,
         { url: compositeReferenceUrl, fieldName: referenceImageField, role: "avatar_product_composite" },
-      ].filter((image): image is { url: string; fieldName: string; role: string } => Boolean(image))
-    : referenceImages;
+      ].filter((image): image is ReferenceImage => Boolean(image))
+    : baseReferenceImages;
 
   await pool.query(
     `UPDATE omni_reels
@@ -106,20 +136,23 @@ export async function submitOmniReel(reelId: number) {
   for (const segment of segments) {
     if (segment.kie_task_id || RUNNING_STATUSES.has(segment.status) || segment.status === "completed") continue;
     if (!segment.prompt) throw new Error(`Segment ${segment.segment_index} has no prompt`);
-    const selectedReferenceImages = selectReferenceImagesForComet(
-      cometReferenceImages,
-      referenceImageTransport,
-      segment.segment_index
-    );
+    const selectedReferenceImages =
+      provider === "kie-ai"
+        ? { sent: baseReferenceImages, skipped: [] }
+        : selectReferenceImagesForComet(cometReferenceImages, referenceImageTransport, segment.segment_index);
 
     const requestPayload = {
-      model: "omni-fast",
-      seconds: segment.duration_seconds || 10,
+      generation_provider: provider,
+      model: provider === "kie-ai" ? "gemini-omni-video" : "omni-fast",
+      seconds: getProviderDuration(provider, segment.duration_seconds || 10),
       aspect_ratio: "9:16",
       resolution: "720p",
+      image_urls: selectedReferenceImages.sent.map((image) => image.url),
+      character_ids: provider === "kie-ai" && avatarCharacterId ? [avatarCharacterId] : [],
       reference_images_sent: selectedReferenceImages.sent.length > 0,
       reference_image_field: selectedReferenceImages.sent.length ? referenceImageField : null,
-      reference_image_transport: selectedReferenceImages.sent.length ? referenceImageTransport : null,
+      reference_image_transport:
+        selectedReferenceImages.sent.length && provider === "cometapi" ? referenceImageTransport : "url",
       reference_images: selectedReferenceImages.sent.map((image) => ({
         role: image.role,
         url: image.url,
@@ -136,14 +169,15 @@ export async function submitOmniReel(reelId: number) {
       },
     };
 
-    let task: Awaited<ReturnType<typeof createCometOmniVideoTask>>;
+    let task: ProviderTask;
     try {
-      task = await createCometOmniVideoTask({
+      task = await createProviderVideoTask({
+        provider,
         prompt: segment.prompt,
         seconds: segment.duration_seconds || 10,
-        aspectRatio: "9:16",
         resolution: "720p",
         referenceImages: selectedReferenceImages.sent,
+        characterId: avatarCharacterId,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -151,10 +185,11 @@ export async function submitOmniReel(reelId: number) {
         `UPDATE omni_reel_segments
          SET status = 'failed',
              request_payload = $2::jsonb,
+             generation_provider = $4,
              error_message = $3,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $1`,
-        [segment.id, JSON.stringify(requestPayload), message]
+        [segment.id, JSON.stringify(requestPayload), message, provider]
       );
       await pool.query(
         "UPDATE omni_reels SET status = 'failed', error_message = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
@@ -169,6 +204,7 @@ export async function submitOmniReel(reelId: number) {
            status = $3,
            request_payload = $4::jsonb,
            response_payload = $5::jsonb,
+           generation_provider = $6,
            submitted_at = CURRENT_TIMESTAMP,
            error_message = NULL,
            updated_at = CURRENT_TIMESTAMP
@@ -179,12 +215,47 @@ export async function submitOmniReel(reelId: number) {
         task.status === "queued" ? "submitted" : "processing",
         JSON.stringify(requestPayload),
         JSON.stringify(task.raw),
+        provider,
       ]
     );
   }
 
   const updated = await getReelBundle(reelId);
   return updated.reel;
+}
+
+async function createProviderVideoTask(input: {
+  provider: OmniGenerationProvider;
+  prompt: string;
+  seconds: number;
+  resolution: string;
+  referenceImages: ReferenceImage[];
+  characterId: string | null;
+}) {
+  if (input.provider === "kie-ai") {
+    if (!input.characterId) throw new Error("KIE.ai Omni requires character id");
+    return createKieOmniVideoTask({
+      prompt: input.prompt,
+      duration: getProviderDuration(input.provider, input.seconds),
+      aspectRatio: "9:16",
+      resolution: input.resolution,
+      imageUrls: input.referenceImages.map((image) => image.url),
+      characterIds: [input.characterId],
+    });
+  }
+
+  return createCometOmniVideoTask({
+    prompt: input.prompt,
+    seconds: input.seconds,
+    aspectRatio: "9:16",
+    resolution: input.resolution,
+    referenceImages: input.referenceImages,
+  });
+}
+
+function getProviderDuration(provider: OmniGenerationProvider, seconds: number): 8 | 10 {
+  if (provider === "kie-ai") return seconds <= 8 ? 8 : 10;
+  return seconds <= 8 ? 8 : 10;
 }
 
 function getSkippedReferenceReason(role: string, segmentIndex: number, hasCompositeReference: boolean) {
@@ -200,10 +271,14 @@ function getSkippedReferenceReason(role: string, segmentIndex: number, hasCompos
 async function storeCompletedSegment(
   projectId: number,
   segment: OmniReelSegment,
-  task: Awaited<ReturnType<typeof retrieveCometOmniVideoTask>>
+  task: ProviderTask
 ) {
-  if (!segment.kie_task_id) throw new Error(`Segment ${segment.segment_index} has no CometAPI task id`);
-  const videoBuffer = await downloadCometOmniVideo(segment.kie_task_id);
+  if (!segment.kie_task_id) throw new Error(`Segment ${segment.segment_index} has no Omni task id`);
+  const provider = normalizeOmniGenerationProvider(segment.generation_provider);
+  const videoBuffer =
+    provider === "kie-ai"
+      ? await downloadKieOmniVideo(segment.kie_task_id)
+      : await downloadCometOmniVideo(segment.kie_task_id);
   const videoUrl = await uploadOmniVideoBufferToS3({
     projectId,
     reelId: segment.reel_id,
@@ -285,7 +360,11 @@ export async function syncOmniReel(reelId: number) {
     if (!segment.kie_task_id || segment.status === "completed") continue;
 
     try {
-      const task = await retrieveCometOmniVideoTask(segment.kie_task_id);
+      const provider = normalizeOmniGenerationProvider(segment.generation_provider);
+      const task =
+        provider === "kie-ai"
+          ? await retrieveKieOmniTask(segment.kie_task_id)
+          : await retrieveCometOmniVideoTask(segment.kie_task_id);
       const status = task.status.toLowerCase();
       if (status === "completed") {
         await storeCompletedSegment(reel.project_id, segment, task);

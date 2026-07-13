@@ -101,6 +101,12 @@ export function AvatarPreviewPanel({
             <span className="text-muted-foreground">Модель</span>
             <span className="font-semibold text-foreground">{selectedAvatar.provider}</span>
           </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">KIE character</span>
+            <span className="max-w-40 truncate font-semibold text-foreground">
+              {selectedAvatar.kie_character_id || "не создан"}
+            </span>
+          </div>
         </div>
       ) : null}
 
@@ -149,7 +155,10 @@ export function AvatarPreviewPanel({
                       {avatar.is_active ? "on" : "off"}
                     </span>
                   </div>
-                  <p className="truncate text-xs text-muted-foreground">{avatar.provider} · {avatar.status}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {avatar.provider} · {avatar.status}
+                    {avatar.kie_character_id ? " · KIE ready" : ""}
+                  </p>
                 </div>
                 <button
                   type="button"

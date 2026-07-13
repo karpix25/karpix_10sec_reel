@@ -95,6 +95,7 @@ function buildSinglePrompt(input: PromptPartInput) {
     "",
     buildContinuityLine(input, previousAngle, nextAngle),
     buildProductLine(input),
+    buildCtaLine(input),
     "Действия простые и физически понятные: один предмет в одной руке, смешивание или показ продукта идет по шагам, без одновременных невозможных движений.",
   ]
     .filter(Boolean)
@@ -148,6 +149,15 @@ function buildProductLine(input: PromptPartInput) {
     return "В финальной части продукт виден естественно в кадре, как часть обычной рутины.";
   }
   return "В этой части впервые естественно показать продукт в кадре и не превращать сцену в рекламу.";
+}
+
+function buildCtaLine(input: PromptPartInput) {
+  if (input.segmentIndex !== input.segmentCount) return "";
+  return [
+    "CTA в финале звучит бытово и под Reels-аудиторию: без продажного тона, как личная подсказка подруге.",
+    "Скажи разными живыми словами, что артикул или код можно найти в описании: например «артикул оставлю в описании», «код будет в описании», «кому надо — гляньте артикул под видео».",
+    "Если в тексте сценария уже есть конкретный артикул или код, произнеси именно его естественно; если нет, не выдумывай номер.",
+  ].join("\n");
 }
 
 function buildContinuityLine(input: PromptPartInput, previousAngle: string | null, nextAngle: string | null) {
