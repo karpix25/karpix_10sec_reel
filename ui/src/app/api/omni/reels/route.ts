@@ -42,6 +42,7 @@ export async function POST(request: Request) {
       brief: body.brief,
     });
     const provider = normalizeOmniGenerationProvider(body.provider);
+    console.info("Omni reel create:", { reelId: reel.id, autoRun: Boolean(body.autoRun), provider });
     const result = body.autoRun ? await submitOmniReel(reel.id, provider) : reel;
     return NextResponse.json(result, { status: 201 });
   } catch (error) {

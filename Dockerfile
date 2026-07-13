@@ -1,12 +1,16 @@
 FROM node:20-bookworm-slim
 
+ARG APP_VERSION=local
+
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
-    PORT=3000
+    PORT=3000 \
+    APP_VERSION=$APP_VERSION \
+    NEXT_PUBLIC_APP_VERSION=$APP_VERSION
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 python3-pip python3-venv ffmpeg ca-certificates \
