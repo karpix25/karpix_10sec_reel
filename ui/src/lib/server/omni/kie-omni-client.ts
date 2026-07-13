@@ -1,3 +1,5 @@
+import { uploadKieFileFromUrl } from "./kie-file-upload-client";
+
 const DEFAULT_BASE_URL = "https://api.kie.ai";
 const DEFAULT_VIDEO_MODEL = "gemini-omni-video";
 const DEFAULT_CHARACTER_MODEL = "gemini-omni-character";
@@ -81,13 +83,20 @@ export async function createKieOmniCharacter(input: {
   audioIds?: string[];
 }) {
   const attempts = getCharacterCreateAttempts();
+  const uploadedImage = await uploadKieFileFromUrl(input.imageUrl);
+  const characterInput = { ...input, imageUrl: uploadedImage.url };
   let lastError: unknown = null;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const task = await postCreateTask(buildCharacterCreatePayload(input), "character create");
-      if (task.character_id) return task;
-      return await waitForKieOmniCharacter(task.id);
+      const task = await postCreateTask(buildCharacterCreatePayload(characterInput), "character create");
+      if (task.character_id) return withCharacterImageUpload(task, input.imageUrl, uploadedImage.url, uploadedImage.raw);
+      return withCharacterImageUpload(
+        await waitForKieOmniCharacter(task.id),
+        input.imageUrl,
+        uploadedImage.url,
+        uploadedImage.raw
+      );
     } catch (error) {
       lastError = error;
       if (attempt >= attempts) break;
@@ -163,6 +172,19 @@ function buildCharacterCreatePayload(input: {
       descriptions: input.description,
       audio_ids: input.audioIds,
     }),
+  };
+}
+
+function withCharacterImageUpload(
+  task: KieOmniTask,
+  sourceImageUrl: string,
+  uploadedImageUrl: string,
+  uploadPayload: Record<string, unknown>
+) {
+  const kieFileUpload = { sourceImageUrl, uploadedImageUrl, payload: uploadPayload };
+  return {
+    ...task,
+    raw: { ...task.raw, kieFileUpload },
   };
 }
 
