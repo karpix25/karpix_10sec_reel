@@ -137,6 +137,10 @@ const statements = [
     error_message TEXT,
     submitted_at TIMESTAMP,
     completed_at TIMESTAMP,
+    continuity_frame_url TEXT,
+    continuity_kie_file_url TEXT,
+    continuity_source_segment_id BIGINT,
+    continuity_applied BOOLEAN NOT NULL DEFAULT FALSE,
     request_payload JSONB,
     response_payload JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -173,6 +177,10 @@ const statements = [
   "ALTER TABLE omni_reel_segments ADD COLUMN IF NOT EXISTS generation_provider TEXT NOT NULL DEFAULT 'cometapi'",
   "ALTER TABLE omni_reel_segments ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP",
   "ALTER TABLE omni_reel_segments ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP",
+  "ALTER TABLE omni_reel_segments ADD COLUMN IF NOT EXISTS continuity_frame_url TEXT",
+  "ALTER TABLE omni_reel_segments ADD COLUMN IF NOT EXISTS continuity_kie_file_url TEXT",
+  "ALTER TABLE omni_reel_segments ADD COLUMN IF NOT EXISTS continuity_source_segment_id BIGINT",
+  "ALTER TABLE omni_reel_segments ADD COLUMN IF NOT EXISTS continuity_applied BOOLEAN NOT NULL DEFAULT FALSE",
   `UPDATE omni_projects
    SET legacy_client_id = substring(description from 'legacy-client:([0-9]+)')::bigint
    WHERE legacy_client_id IS NULL

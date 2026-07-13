@@ -20,6 +20,11 @@ export function selectReferenceImagesForComet(
 }
 
 function selectUrlReferenceImage(images: ReelReferenceImage[], segmentIndex?: number) {
+  if (typeof segmentIndex === "number" && segmentIndex > 1) {
+    const previousFrame = images.find((image) => image.role === "previous_last_frame");
+    if (previousFrame) return previousFrame;
+  }
+
   if (segmentIndex === 1) {
     return (
       images.find((image) => image.role === "avatar") ||

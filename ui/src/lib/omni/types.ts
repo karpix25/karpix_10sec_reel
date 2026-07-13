@@ -181,6 +181,12 @@ export interface OmniReelSegment {
   error_message: string | null;
   submitted_at: string | null;
   completed_at: string | null;
+  continuity_frame_url: string | null;
+  continuity_kie_file_url: string | null;
+  continuity_source_segment_id: number | null;
+  continuity_applied: boolean;
+  request_payload?: Record<string, unknown> | null;
+  response_payload?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
