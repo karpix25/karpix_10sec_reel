@@ -134,14 +134,18 @@ export function isKieTerminalStatus(status: string) {
 
 function normalizeTask(payload: Record<string, unknown>): KieOmniTask {
   const data = isRecord(payload.data) ? payload.data : payload;
-  const id = pickString(data, ["taskId", "task_id", "id"]) || pickString(payload, ["taskId", "task_id", "id"]);
+  const characterId = pickString(data, ["characterId", "character_id"]) || undefined;
+  const id =
+    pickString(data, ["taskId", "task_id", "id"]) ||
+    pickString(payload, ["taskId", "task_id", "id"]) ||
+    characterId;
   if (!id) throw new Error(`KIE Gemini Omni did not return task id: ${JSON.stringify(payload)}`);
 
   return {
     id,
-    status: normalizeStatus(pickString(data, ["status", "state", "taskStatus"]) || "queued"),
+    status: normalizeStatus(pickString(data, ["status", "state", "taskStatus"]) || (characterId ? "completed" : "queued")),
     video_url: extractVideoUrl(data) || undefined,
-    character_id: pickString(data, ["character_id", "characterId", "id"]) || undefined,
+    character_id: characterId,
     error: data.error || data.failMsg || data.message || payload.error,
     raw: payload,
   };
