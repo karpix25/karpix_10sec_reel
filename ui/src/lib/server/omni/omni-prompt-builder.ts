@@ -185,7 +185,6 @@ function renderSegmentPrompt(
     ...(strategy.visualStyle ? [
       `ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА: ${strategy.visualStyle.label}; ${strategy.visualStyle.visualTone}.`,
       `КАМЕРА И СВЕТ: ${strategy.visualStyle.cameraLanguage}; ${strategy.visualStyle.lighting}.`,
-      `НЕ ИСПОЛЬЗОВАТЬ КАК ДЕФОЛТ: ${strategy.visualStyle.forbiddenDefaults.join("; ")}.`,
     ] : []),
     `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     `ТИП ХУКА: ${strategy.hookType}. ${strategy.hookRule}`,
