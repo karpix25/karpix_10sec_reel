@@ -67,6 +67,7 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
     lifeFormatId: selected.format.id,
     providerFormatDescription: selected.format.providerDescription,
     setting: sceneArc.setting,
+    continuityProps: sceneArc.fixedProps,
     hookType,
     hookRule: buildHookRule(hookType),
     productRole,

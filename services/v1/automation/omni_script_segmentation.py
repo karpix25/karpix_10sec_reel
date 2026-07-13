@@ -16,6 +16,17 @@ PROTECTED_PHRASES = (
     re.compile(r"кодовое\s+слово\s+[«\"]?\S+[»\"]?", re.IGNORECASE),
 )
 
+LONG_DASH_RE = re.compile(r"[\u2012\u2013\u2014\u2015\u2212]")
+EMOJI_RE = re.compile(
+    "["
+    "\U0001F1E6-\U0001F1FF"
+    "\U0001F300-\U0001FAFF"
+    "\u2300-\u23FF"
+    "\u2600-\u27BF"
+    "]",
+    flags=re.UNICODE,
+)
+
 
 @dataclass(frozen=True)
 class Token:
@@ -25,8 +36,10 @@ class Token:
 
 
 def normalize_script_text(script: str) -> str:
-    cleaned = script.replace("—", " ").replace("–", " ").replace("-", " ")
+    cleaned = LONG_DASH_RE.sub(", ", script).replace("-", " ")
+    cleaned = EMOJI_RE.sub("", cleaned).replace("\ufe0f", "").replace("\u20e3", "")
     cleaned = re.sub(r"\.{2,}", ".", cleaned)
+    cleaned = re.sub(r"\s+([,.!?;:])", r"\1", cleaned)
     return re.sub(r"\s+", " ", cleaned).strip()
 
 

@@ -10,6 +10,7 @@ import type {
 import { getOmniLifeFormat } from "./omni-life-formats";
 import { selectOmniCreativeStrategy } from "./omni-format-selector";
 import { splitScriptIntoVoiceSegments } from "./omni-script-segmentation";
+import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
 import { validateOmniSegmentPrompt, validateVoiceoverSequence } from "./omni-prompt-validator";
 
 export type OmniSegmentPrompt = {
@@ -41,7 +42,8 @@ export const OMNI_PROMPT_WRITER_SYSTEM_PROMPT =
   "Сделай живой короткий Reels одним непрерывным телефонным кадром. Описывай только физически выполнимые действия и точную речь.";
 
 export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegmentPrompt[] {
-  const scriptText = input.generatedScript?.script || input.legacyTranscript || input.brief || "";
+  const scriptText = sanitizeOmniScriptText(input.generatedScript?.script || input.legacyTranscript || input.brief || "");
+  assertOmniScriptTextContract(scriptText);
   const voiceSegments = splitScriptIntoVoiceSegments(scriptText, input.segmentCount);
   if (voiceSegments.length !== input.segmentCount) {
     throw new Error(`Script is too short for ${input.segmentCount} exact-speech Omni segments`);
@@ -127,6 +129,7 @@ function buildSegmentCreativePlan(input: {
     speechStartsAtSeconds: 0,
     voiceoverText: input.voiceoverText,
     productRole: input.productRole,
+    continuityProps: input.strategy.continuityProps,
     beats: [
       { startSeconds: 0, endSeconds: 3, action: hookOpening },
       { startSeconds: 3, endSeconds: 7, action: middle },
@@ -164,10 +167,14 @@ function renderSegmentPrompt(
   const continuity = segmentIndex < segmentCount
     ? "Закончить в устойчивом положении, с которого следующая часть продолжит эту же ситуацию."
     : "Завершить точную реплику без дополнительной фразы или нового CTA.";
+  const props = plan.continuityProps
+    .map((item) => `${item.name}: ${item.appearance}; начальная позиция: ${item.initialPosition}`)
+    .join(" | ");
   return [
     OMNI_PROMPT_WRITER_SYSTEM_PROMPT,
     `Часть ${segmentIndex} из ${segmentCount}.`,
     `ЖИЗНЕННАЯ СИТУАЦИЯ: ${strategy.providerFormatDescription}. Место: ${strategy.setting}.`,
+    `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     `ТИП ХУКА: ${strategy.hookType}. ${strategy.hookRule}`,
     "СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде одновременно с уже начавшимся действием. До него нет паузы, улыбки, вдоха, приветствия или подготовки.",
     `ТОЧНАЯ РЕПЛИКА: "${plan.voiceoverText}"`,
@@ -175,7 +182,7 @@ function renderSegmentPrompt(
     ...plan.beats.map((beat) => `${beat.startSeconds.toFixed(1)}-${beat.endSeconds.toFixed(1)} сек: ${beat.action}.`),
     `РОЛЬ ПРОДУКТА: ${productRoleInstruction(plan.productRole)}`,
     "РЕЧЬ: произнести только точную реплику один раз, без добавлений, повторов и субтитров; речь продолжается между состояниями действия.",
-    `НЕПРЕРЫВНОСТЬ: тот же человек, одежда, свет и бытовая локация. Один телефонный кадр без перебивок и рекламных крупных планов. ${continuity}`,
+    `НЕПРЕРЫВНОСТЬ: тот же человек, одежда, свет, локация и все предметы из паспорта. Цвет, материал, форма, размер, детали и количество каждого предмета неизменны. Нельзя заменять, перекрашивать, дублировать или самовольно убирать предметы. Их положение меняется только по перечисленным действиям. Первый кадр этой части точно продолжает финальные позиции предыдущей части. Один телефонный кадр без перебивок и рекламных крупных планов. ${continuity}`,
     `ЗАПРЕЩЕНО: ${[...strategy.forbiddenMotifs, ...strategy.safetyRules].join("; ")}.`,
   ].join("\n");
 }

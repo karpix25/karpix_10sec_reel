@@ -77,5 +77,25 @@ class TestOmniSmartLayer(unittest.TestCase):
         self.assertNotIn('ТОЧНАЯ РЕПЛИКА: "описании.', prompts[-1])
         self.assertEqual(sum(prompt.count("Артикул оставлю в описании.") for prompt in prompts), 1)
 
+    def test_every_part_repeats_identical_prop_passport(self):
+        script = "Я ношу с собой слишком много вещей. " + " ".join(
+            f"сумка ключи блокнот слово{i}" for i in range(10)
+        )
+        prompts = process_scenario_for_omni(script)
+        passports = [
+            next(line for line in prompt.splitlines() if line.startswith("ПАСПОРТ РЕКВИЗИТА"))
+            for prompt in prompts
+        ]
+
+        self.assertGreater(len(passports), 1)
+        self.assertEqual(len(set(passports)), 1)
+        self.assertIn("матовая черная нейлоновая сумка", passports[0])
+
+    def test_script_contract_removes_long_dashes_and_emoji(self):
+        prompts = process_scenario_for_omni("Это тест — без тире и emoji 😊. Артикул в описании.")
+
+        self.assertNotIn("—", prompts[0])
+        self.assertNotIn("😊", prompts[0])
+
 if __name__ == '__main__':
     unittest.main()

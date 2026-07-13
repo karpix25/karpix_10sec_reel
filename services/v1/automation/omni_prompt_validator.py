@@ -16,6 +16,10 @@ CONSUMPTION_DURING_SPEECH = re.compile(
     r"(?:ест|жует|кусает|пьет|глотает|наносит\s+на\s+(?:лицо|губы)).*(?:говорит|продолжает\s+речь)",
     re.IGNORECASE,
 )
+LONG_DASH_OR_EMOJI = re.compile(
+    "[\u2012\u2013\u2014\u2015\u2212\ufe0f\u20e3"
+    "\U0001F1E6-\U0001F1FF\U0001F300-\U0001FAFF\u2300-\u23FF\u2600-\u27BF]"
+)
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,7 @@ def validate_omni_prompt(
     exact_voiceover: str,
     beat_actions: Sequence[str],
     product_role: str,
+    continuity_props: Sequence[str] = (),
 ) -> PromptValidationResult:
     errors = []
     warnings = []
@@ -41,6 +46,12 @@ def validate_omni_prompt(
         errors.append("speech_must_start_at_zero")
     if prompt.count(f'"{exact_voiceover}"') != 1:
         errors.append("exact_voiceover_must_appear_once")
+    if LONG_DASH_OR_EMOJI.search(exact_voiceover):
+        errors.append("voiceover_contains_long_dash_or_emoji")
+    if continuity_props and "ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ:" not in prompt:
+        errors.append("continuity_prop_passport_required")
+    if any(prop not in prompt for prop in continuity_props):
+        errors.append("continuity_prop_details_missing")
     if len(beat_actions) != 3 or any(not action.strip() for action in beat_actions):
         errors.append("three_complete_beats_required")
     if any(pattern.search(joined_actions) for pattern in FORBIDDEN_ACTION_PATTERNS):

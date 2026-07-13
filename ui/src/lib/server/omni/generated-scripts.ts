@@ -10,6 +10,7 @@ import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
 import { listRecentLifeFormatIds } from "./omni-creative-history";
 import type { CtaMode } from "@/lib/omni/creative-contract";
+import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
 
 type GeneratedScriptPayload = {
   title?: string;
@@ -251,16 +252,19 @@ async function generateScript(input: {
   const data = await response.json();
   const content = String(data?.choices?.[0]?.message?.content || "");
   const parsed = parseJsonPayload(content);
-  const script = formatScenarioScript(parsed.script);
+  const script = sanitizeOmniScriptText(formatScenarioScript(parsed.script));
   if (!script) throw new Error("Script model returned empty script");
+  assertOmniScriptTextContract(script);
+
+  const clean = (value: unknown) => sanitizeOmniScriptText(String(value || ""));
 
   return {
-    title: String(parsed.title || parsed.hook || "Новый сценарий").trim(),
-    hook: String(parsed.hook || "").trim(),
+    title: clean(parsed.title || parsed.hook || "Новый сценарий"),
+    hook: clean(parsed.hook),
     script,
-    caption: String(parsed.caption || "").trim(),
-    cta_keyword: String(parsed.cta_keyword || "").trim(),
-    lead_magnet: String(parsed.lead_magnet || "").trim(),
+    caption: clean(parsed.caption),
+    cta_keyword: clean(parsed.cta_keyword),
+    lead_magnet: clean(parsed.lead_magnet),
   };
 }
 
@@ -304,8 +308,8 @@ function buildPrompt(input: {
 5. CTA: ${buildCtaInstruction(input.ctaMode, input.ctaValue)}
 6. Не добавляй второй CTA и не меняй выбранное действие. Если для CTA нужны конкретные данные и их нет, не выдумывай их.
 7. Не используй дешевый кликбейт: "СТОП", "не листай", "99% людей", "секрет, который скрывают", "досмотри до конца".
-8. Не используй длинное тире, слова "является", "в современном мире", "стоит отметить", "важно понимать".
-9. Не добавляй emoji.
+8. Не используй ни один длинный знак тире: —, –, ‒, ―, −. Также не используй слова "является", "в современном мире", "стоит отметить", "важно понимать".
+9. Не добавляй emoji ни в одно поле JSON.
 10. Пиши бытовым русским языком. Одна мысль в одной строке.
 
 Бренд: ${input.projectName}
