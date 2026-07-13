@@ -103,6 +103,9 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
           : null,
       ].filter((image): image is ReferenceImage => Boolean(image))
     : [];
+  const kieReferenceImages = productReferenceUrl
+    ? [{ url: productReferenceUrl, fieldName: referenceImageField, role: "product" }]
+    : [];
   if (provider === "kie-ai" && !avatarCharacterId) {
     throw new Error("KIE.ai Omni requires an approved avatar with saved character id");
   }
@@ -138,7 +141,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     if (!segment.prompt) throw new Error(`Segment ${segment.segment_index} has no prompt`);
     const selectedReferenceImages =
       provider === "kie-ai"
-        ? { sent: baseReferenceImages, skipped: [] }
+        ? { sent: kieReferenceImages, skipped: [] }
         : selectReferenceImagesForComet(cometReferenceImages, referenceImageTransport, segment.segment_index);
 
     const requestPayload = {
