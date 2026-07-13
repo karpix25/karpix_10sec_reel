@@ -67,6 +67,7 @@ try {
   assert.equal(strategy.lifeFormatId, "talking_head_cutaways");
   assert.ok(strategy.visualStyle, "visual style writer must attach a visual style plan");
   assert.ok(!/коридор|ключи|дверь/u.test(scenePayload), "beauty script must not fall back to corridor, keys, or door");
+  assert.ok(!/полотенц|сумк|органайзер|шоппер/u.test(scenePayload), "talking-head style must not inherit old prop defaults");
   assert.equal(strategy.visualStyle.id, "talking_head_home");
   assert.ok(strategy.visualStyle.label.includes("говорящая голова"));
 

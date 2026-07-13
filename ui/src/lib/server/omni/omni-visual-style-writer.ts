@@ -193,6 +193,11 @@ const VISUAL_STYLE_PROFILES: readonly VisualStyleProfile[] = [
 export function writeOmniVisualStyle(input: WriteVisualStyleInput): OmniVisualStylePlan {
   const content = normalize([input.script, input.productName, input.productDescription].filter(Boolean).join(" "));
   const audience = normalize(input.targetAudience || "");
+  if (input.lifeFormat.id === "talking_head_cutaways") {
+    const talkingHead = VISUAL_STYLE_PROFILES.find((profile) => profile.id === "talking_head_home") ||
+      VISUAL_STYLE_PROFILES[0];
+    return buildStylePlan(talkingHead, input.lifeFormat.id, content, audience);
+  }
   const ranked = VISUAL_STYLE_PROFILES
     .map((profile) => ({ profile, score: scoreProfile(profile, input.lifeFormat.id, content, audience) }))
     .sort((left, right) => right.score - left.score || left.profile.id.localeCompare(right.profile.id));
@@ -202,15 +207,24 @@ export function writeOmniVisualStyle(input: WriteVisualStyleInput): OmniVisualSt
     ranked[0]?.profile ||
     VISUAL_STYLE_PROFILES[0];
 
+  return buildStylePlan(selected, input.lifeFormat.id, content, audience);
+}
+
+function buildStylePlan(
+  profile: VisualStyleProfile,
+  formatId: LifeFormatId,
+  content: string,
+  audience: string
+): OmniVisualStylePlan {
   return {
-    id: selected.id,
-    label: selected.label,
-    visualTone: selected.visualTone,
-    cameraLanguage: selected.cameraLanguage,
-    lighting: selected.lighting,
-    sceneArc: selected.sceneArc,
+    id: profile.id,
+    label: profile.label,
+    visualTone: profile.visualTone,
+    cameraLanguage: profile.cameraLanguage,
+    lighting: profile.lighting,
+    sceneArc: profile.sceneArc,
     forbiddenDefaults: FORBIDDEN_DEFAULTS,
-    selectionReason: `style=${selected.id}; score=${scoreProfile(selected, input.lifeFormat.id, content, audience)}`,
+    selectionReason: `style=${profile.id}; score=${scoreProfile(profile, formatId, content, audience)}`,
   };
 }
 
