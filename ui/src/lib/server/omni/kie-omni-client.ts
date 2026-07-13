@@ -109,17 +109,15 @@ export async function createKieOmniVideoTask(input: KieOmniVideoInput) {
   return postCreateTask(
     {
       model: getVideoModel(),
-      input: {
+      input: omitEmptyFields({
         prompt: input.prompt,
         image_urls: input.imageUrls,
         duration: String(input.duration),
         aspect_ratio: input.aspectRatio,
         resolution: input.resolution,
         seed: 0,
-        audio_ids: [],
-        video_list: [],
         character_ids: input.characterIds,
-      },
+      }),
     },
     "video create"
   );
@@ -159,13 +157,24 @@ function buildCharacterCreatePayload(input: {
 }) {
   return {
     model: getCharacterModel(),
-    input: {
+    input: omitEmptyFields({
       character_name: input.characterName || undefined,
       image_urls: [input.imageUrl],
       descriptions: input.description,
-      audio_ids: input.audioIds || [],
-    },
+      audio_ids: input.audioIds,
+    }),
   };
+}
+
+function omitEmptyFields(input: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(input).filter(([, value]) => {
+      if (value === null || value === undefined) return false;
+      if (typeof value === "string") return Boolean(value.trim());
+      if (Array.isArray(value)) return value.length > 0;
+      return true;
+    })
+  );
 }
 
 async function waitForKieOmniCharacter(taskId: string) {
