@@ -35,6 +35,7 @@ Write code as a professional modular system, not as large monolithic files.
 - For KIE continuity screenshots or generated frame references, upload the image through KIE File Upload before passing it in `image_urls`.
 - Keep provider-facing video prompts free of platform names or app-interface cues that can imprint unwanted social-media overlays.
 - When auditing provider prompt imprint terms, exclude exact voiceover lines from matcher checks without rewriting the spoken text.
+- Do not mutate or trim provider prompts at runtime to remove imprint terms; control that through prompt templates so the model receives the full intended prompt.
 
 # Project Skills
 

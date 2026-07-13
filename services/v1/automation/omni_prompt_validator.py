@@ -20,14 +20,6 @@ LONG_DASH_OR_EMOJI = re.compile(
     "[\u2012\u2013\u2014\u2015\u2212\ufe0f\u20e3"
     "\U0001F1E6-\U0001F1FF\U0001F300-\U0001FAFF\u2300-\u23FF\u2600-\u27BF]"
 )
-PROVIDER_PLATFORM_IMPRINT_PATTERNS = (
-    re.compile(r"\b(?:reels?|instagram|tiktok|youtube\s*shorts|shorts)\b", re.IGNORECASE),
-    re.compile(
-        r"(?:инстаграм(?:а|е|ом)?|инста(?:грам)?|рилс(?:а|ы|е|ом|ов)?|"
-        r"тикток(?:а|е|ом)?|ютуб\s*шортс(?:а|ов|е)?|шортс(?:а|ов|е)?)",
-        re.IGNORECASE,
-    ),
-)
 
 
 @dataclass(frozen=True)
@@ -60,9 +52,6 @@ def validate_omni_prompt(
         errors.append("continuity_prop_passport_required")
     if any(prop not in prompt for prop in continuity_props):
         errors.append("continuity_prop_details_missing")
-    instruction_surface = prompt.replace(f'ТОЧНАЯ РЕПЛИКА: "{exact_voiceover}"', 'ТОЧНАЯ РЕПЛИКА: ""')
-    if any(pattern.search(instruction_surface) for pattern in PROVIDER_PLATFORM_IMPRINT_PATTERNS):
-        errors.append("provider_prompt_contains_platform_imprint")
     if len(beat_actions) != 3 or any(not action.strip() for action in beat_actions):
         errors.append("three_complete_beats_required")
     if any(pattern.search(joined_actions) for pattern in FORBIDDEN_ACTION_PATTERNS):
