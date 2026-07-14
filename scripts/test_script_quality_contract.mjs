@@ -130,7 +130,7 @@ And this is line 2."
   // --- Test Script Quality Contract ---
   console.log("Running Script Quality checks...");
 
-  const baseGoodScript = "Хочешь запустить свой бизнес? Но постоянно боишься ошибок. Начни с тестирования гипотез. Наш ИИ-конструктор сайтов поможет сделать это за 10 минут. Напиши кодовое слово «СТАРТ» в комментариях.";
+  const baseGoodScript = "Хочешь запустить свой бизнес? Но постоянно боишься ошибок и откладываешь старт. Начни с одной проверки гипотезы на реальных клиентах. Наш ИИ-конструктор сайтов поможет быстро собрать страницу, показать оффер и понять, есть ли спрос. Напиши кодовое слово «СТАРТ» в комментариях.";
 
   // A. Good script with comments mode
   const res1 = validateViralScriptContract({
@@ -143,7 +143,7 @@ And this is line 2."
     ctaValue: "СТАРТ"
   });
   assert(res1.score > 70);
-  assert.equal(res1.metrics.wordCount, 27); // 27 words is out of recommended range 35-90 so we get a small warning/score reduction, but it passes
+  assert.equal(res1.metrics.wordCount, 39);
   assert.equal(res1.metrics.productMentioned, true);
   assert.equal(res1.metrics.hasContrast, true); // "Но"
   assert.equal(res1.metrics.hasProblem, true); // "боишься" or "ошибок"
@@ -162,6 +162,19 @@ And this is line 2."
     /слишком короткий/u
   );
 
+  assert.throws(
+    () => validateViralScriptContract({
+      script: "Хочешь запустить свой бизнес? Но постоянно боишься ошибок. Начни с тестирования гипотез. Наш ИИ-конструктор сайтов поможет сделать это за 10 минут. Напиши кодовое слово «СТАРТ» в комментариях.",
+      rawScriptBeforeCta: "Хочешь запустить свой бизнес? Но постоянно боишься ошибок. Начни с тестирования гипотез. Наш ИИ-конструктор сайтов поможет сделать это за 10 минут. Напиши кодовое слово «СТАРТ» в комментариях.",
+      rawScriptFromModel: "Хочешь запустить свой бизнес? Но постоянно боишься ошибок. Начни с тестирования гипотез. Наш ИИ-конструктор сайтов поможет сделать это за 10 минут. Напиши кодовое слово «СТАРТ» в комментариях.",
+      hook: "Хочешь запустить свой бизнес?",
+      productName: "ИИ-конструктор сайтов",
+      ctaMode: "keyword_in_comments",
+      ctaValue: "СТАРТ"
+    }),
+    /Минимальная длина — 36 слов/u
+  );
+
   // C. Too long hook (should throw)
   assert.throws(
     () => validateViralScriptContract({
@@ -177,11 +190,12 @@ And this is line 2."
   );
 
   // D. Severe slop "в современном мире" (should throw)
+  const severeSlopScript = "В современном мире каждый человек должен уметь программировать на Python, чтобы создавать автоматизированные системы и работать удаленно. Этот навык помогает быстрее проверять идеи, собирать простые проекты, экономить время на рутине и уверенно расти в новой профессии.";
   assert.throws(
     () => validateViralScriptContract({
-      script: "В современном мире каждый человек должен уметь программировать на Python, чтобы создавать крутые автоматизированные системы и работать удаленно.",
-      rawScriptBeforeCta: "В современном мире каждый человек должен уметь программировать на Python, чтобы создавать крутые автоматизированные системы и работать удаленно.",
-      rawScriptFromModel: "В современном мире каждый человек должен уметь программировать на Python, чтобы создавать крутые автоматизированные системы и работать удаленно.",
+      script: severeSlopScript,
+      rawScriptBeforeCta: severeSlopScript,
+      rawScriptFromModel: severeSlopScript,
       hook: null,
       productName: "Python",
       ctaMode: "no_explicit_cta",
@@ -226,7 +240,7 @@ And this is line 2."
   );
 
   // F. Minor slop / clickbaits and warnings (checks score reductions)
-  const minorSlopScript = "Уникальный инструмент для автоматизации рутинных процессов. Не листай дальше, если хочешь узнать больше полезных советов по повышению продуктивности в вашей работе.";
+  const minorSlopScript = "Уникальный инструмент для автоматизации рутинных процессов помогает быстро убрать хаос в задачах. Не листай дальше, если хочешь узнать больше полезных советов по повышению продуктивности в вашей работе. Покажи команде один простой сценарий и проверь результат уже сегодня.";
   const res2 = validateViralScriptContract({
     script: minorSlopScript,
     rawScriptBeforeCta: minorSlopScript,

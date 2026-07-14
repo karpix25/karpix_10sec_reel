@@ -37,6 +37,7 @@ Write code as a professional modular system, not as large monolithic files.
 - When auditing provider prompt imprint terms, exclude exact voiceover lines from matcher checks without rewriting the spoken text.
 - Do not mutate or trim provider prompts at runtime to remove imprint terms; control that through prompt templates so the model receives the full intended prompt.
 - When verifying container environment variables over SSH, use `docker exec env | grep NAME` or quote the in-container shell so the outer shell cannot expand them.
+- For 10 second Omni segments, keep speech dense and montage-paced; do not stretch sparse text with filler actions or long silent beats.
 
 # Project Skills
 

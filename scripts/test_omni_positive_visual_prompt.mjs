@@ -126,6 +126,8 @@ try {
   assert.ok(fullBodyJoinedPrompt.includes("UGC style vertical video"), "simple UGC prompt must be rendered");
   assert.ok(fullBodyJoinedPrompt.includes("medium-wide full-body shot"), "full-body framing must be explicit");
   assert.ok(fullBodyJoinedPrompt.includes("visible from head to shoes or at least head to knees"), "full height framing must be explicit");
+  assert.ok(fullBodyJoinedPrompt.includes("no long pauses"), "full-body prompt must prevent dead air");
+  assert.ok(fullBodyJoinedPrompt.includes("Do not invent unrelated filler actions"), "full-body prompt must prevent filler actions");
   assert.ok(fullBodyJoinedPrompt.includes("ТОЧНАЯ РЕПЛИКА"), "exact Russian quote must be preserved");
   assert.ok(!fullBodyJoinedPrompt.includes("ГОВОРЯЩАЯ ГОЛОВА"), "full-body prompt must not ask for talking head");
   assert.ok(!/\b(?:Reels?|Instagram|TikTok|Shorts)\b/u.test(fullBodyJoinedPrompt), "platform names must not reach full-body provider prompt");

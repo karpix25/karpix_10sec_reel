@@ -26,11 +26,10 @@ class TestOmniSmartLayer(unittest.TestCase):
         script = " ".join([f"слово{i}" for i in range(40)])
         prompts = process_scenario_for_omni(script)
         
-        # 40 / 18 = 2.22 -> 3 chunks
-        self.assertEqual(len(prompts), 3)
-        self.assertIn("часть 1 из 3 одного непрерывного вертикального видео", prompts[0])
-        self.assertIn("часть 2 из 3 одного непрерывного вертикального видео", prompts[1])
-        self.assertIn("часть 3 из 3 одного непрерывного вертикального видео", prompts[2])
+        # 40 / 24 = 1.66 -> 2 dense chunks
+        self.assertEqual(len(prompts), 2)
+        self.assertIn("часть 1 из 2 одного непрерывного вертикального видео", prompts[0])
+        self.assertIn("часть 2 из 2 одного непрерывного вертикального видео", prompts[1])
         self.assertTrue(all("Reels" not in prompt for prompt in prompts))
 
     def test_each_part_has_own_exact_voice_text(self):
@@ -38,8 +37,8 @@ class TestOmniSmartLayer(unittest.TestCase):
         prompts = process_scenario_for_omni(script)
 
         self.assertIn('ТОЧНАЯ РЕПЛИКА: "слово0', prompts[0])
-        self.assertIn('слово19"', prompts[1])
-        self.assertEqual(sum(prompt.count("ТОЧНАЯ РЕПЛИКА:") for prompt in prompts), 2)
+        self.assertIn('слово19"', prompts[0])
+        self.assertEqual(sum(prompt.count("ТОЧНАЯ РЕПЛИКА:") for prompt in prompts), 1)
         self.assertIn("не добавлять и не повторять слова", prompts[0])
 
     def test_first_part_gets_visual_hook_direction(self):

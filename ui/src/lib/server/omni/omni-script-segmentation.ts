@@ -39,6 +39,8 @@ const PROTECTED_PHRASES = [
   /кодовое\s+слово\s+[«"]?\S+[»"]?/giu,
 ];
 
+const DEFAULT_SEGMENT_SOFT_WORD_LIMIT = 28;
+
 type Token = {
   value: string;
   start: number;
@@ -182,7 +184,7 @@ function segmentPenalty(tokens: Token[], start: number, end: number, target: num
   const length = end - start;
   const deviation = length - target;
   const tinyPenalty = length < 4 ? (4 - length) * 80 : 0;
-  const longPenalty = length > 24 ? (length - 24) * 12 : 0;
+  const longPenalty = length > DEFAULT_SEGMENT_SOFT_WORD_LIMIT ? (length - DEFAULT_SEGMENT_SOFT_WORD_LIMIT) * 12 : 0;
   return deviation * deviation + tinyPenalty + longPenalty;
 }
 
