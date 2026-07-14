@@ -111,7 +111,7 @@ def _best_boundaries(tokens: Sequence[Token], count: int, protected: Set[int]) -
 def _segment_penalty(start: int, end: int, target: float) -> float:
     length = end - start
     tiny = max(0, 4 - length) * 80
-    too_long = max(0, length - 24) * 12
+    too_long = max(0, length - 28) * 12
     return ((length - target) ** 2) + tiny + too_long
 
 

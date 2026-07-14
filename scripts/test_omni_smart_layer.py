@@ -22,6 +22,12 @@ class TestOmniSmartLayer(unittest.TestCase):
         self.assertIn("ЖИЗНЕННАЯ СИТУАЦИЯ", prompts[0])
 
     def test_process_scenario_chunking(self):
+        short_script = " ".join([f"слово{i}" for i in range(27)])
+        short_prompts = process_scenario_for_omni(short_script)
+
+        self.assertEqual(len(short_prompts), 1)
+        self.assertIn("часть 1 из 1 одного непрерывного вертикального видео", short_prompts[0])
+
         # 40 words
         script = " ".join([f"слово{i}" for i in range(40)])
         prompts = process_scenario_for_omni(script)
@@ -31,6 +37,9 @@ class TestOmniSmartLayer(unittest.TestCase):
         self.assertIn("часть 1 из 2 одного непрерывного вертикального видео", prompts[0])
         self.assertIn("часть 2 из 2 одного непрерывного вертикального видео", prompts[1])
         self.assertTrue(all("Reels" not in prompt for prompt in prompts))
+
+        with self.assertRaisesRegex(ValueError, "cannot form dense 10-second Omni parts"):
+            process_scenario_for_omni(" ".join([f"слово{i}" for i in range(34)]))
 
     def test_each_part_has_own_exact_voice_text(self):
         script = " ".join([f"слово{i}" for i in range(20)])

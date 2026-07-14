@@ -27,7 +27,7 @@ try {
   const { planOmniReelSegments } = require(join(output, "omni-duration-planner.js"));
   const { reconstructVoiceSegments, splitScriptIntoVoiceSegments } = require(join(output, "omni-script-segmentation.js"));
 
-  for (const [wordCount, expectedSegments] of [[27, 1], [40, 2], [60, 3], [80, 3], [90, 4]]) {
+  for (const [wordCount, expectedSegments] of [[27, 1], [36, 2], [40, 2], [60, 3], [80, 3], [90, 4]]) {
     const script = makeScript(wordCount);
     const plan = planOmniReelSegments(script);
     assert.equal(plan.segmentCount, expectedSegments, `${wordCount} words should use ${expectedSegments} segments`);
@@ -39,7 +39,7 @@ try {
   const cta = [
     "Этот предмет помогает быстро навести порядок дома без лишних движений и сложных привычек.",
     "Напишите кодовое слово ХОЧУ в комментариях.",
-    "Я отправлю подробности и покажу простой способ применения прямо сегодня.",
+    "Я отправлю подробности и покажу простой способ применения сегодня.",
   ].join(" ");
   const ctaPlan = planOmniReelSegments(cta);
   assert.ok(
@@ -63,6 +63,14 @@ try {
     () => planOmniReelSegments(makeScript(113)),
     (error) => error instanceof Error && /113 слов.*Максимум 112 слов/u.test(error.message)
   );
+
+  for (const deadZoneWordCount of [29, 35]) {
+    assert.throws(
+      () => planOmniReelSegments(makeScript(deadZoneWordCount)),
+      (error) => error instanceof Error && /пустую зону плотности/u.test(error.message),
+      `${deadZoneWordCount} words should not stretch into a sparse 20s plan`
+    );
+  }
 
   console.log("Omni segment planner regression checks passed");
 } finally {

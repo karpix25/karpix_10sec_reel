@@ -1,4 +1,3 @@
-import math
 from typing import List, Tuple
 
 from services.v1.automation.omni_life_formats import GLOBAL_FORBIDDEN, LifeFormat, select_life_format
@@ -7,6 +6,10 @@ from services.v1.automation.omni_script_segmentation import normalize_script_tex
 
 
 TARGET_WORDS_PER_PART = 24
+MAX_WORDS_PER_PART = 28
+MIN_SINGLE_PART_WORDS = 22
+MIN_VIABLE_WORDS_PER_PART = 18
+MAX_PART_COUNT = 4
 CLEAN_FRAME_CONTRACT = (
     "Кадр выглядит как обычное сырое видео с камеры: полный экран, реальная сцена, человек, локация, "
     "предметы и естественный свет."
@@ -99,7 +102,7 @@ def process_scenario_for_omni(script: str, clothing: str = "") -> List[str]:
     if not cleaned:
         return []
 
-    part_count = max(1, math.ceil(len(cleaned.split()) / TARGET_WORDS_PER_PART))
+    part_count = _select_part_count(len(cleaned.split()))
     voice_parts = split_script_into_voice_parts(cleaned, part_count)
     life_format = select_life_format(cleaned)
     product_role = "hidden"
@@ -115,6 +118,33 @@ def process_scenario_for_omni(script: str, clothing: str = "") -> List[str]:
         )
         for index, part_text in enumerate(voice_parts)
     ]
+
+
+def _select_part_count(word_count: int) -> int:
+    if word_count <= 0:
+        return 0
+    if word_count < MIN_SINGLE_PART_WORDS:
+        return 1
+
+    for part_count in range(1, MAX_PART_COUNT + 1):
+        if _part_count_is_viable(word_count, part_count):
+            return part_count
+
+    raise ValueError(
+        f"Scenario has {word_count} words, which cannot form dense 10-second Omni parts. "
+        f"Use {MIN_SINGLE_PART_WORDS}-{MAX_WORDS_PER_PART} words for one part or "
+        f"{MIN_VIABLE_WORDS_PER_PART * 2}+ words for multiple parts."
+    )
+
+
+def _part_count_is_viable(word_count: int, part_count: int) -> bool:
+    if part_count <= 0 or part_count > MAX_PART_COUNT:
+        return False
+    if word_count > part_count * MAX_WORDS_PER_PART:
+        return False
+    if part_count == 1:
+        return word_count >= MIN_SINGLE_PART_WORDS
+    return word_count >= part_count * MIN_VIABLE_WORDS_PER_PART
 
 
 def _build_omni_part_prompt(
