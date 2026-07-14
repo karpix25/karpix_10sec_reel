@@ -11,6 +11,7 @@ import {
 } from "@/lib/omni/creative-contract";
 import { OMNI_LIFE_FORMATS } from "./omni-life-formats";
 import { writeOmniVisualStyle } from "./omni-visual-style-writer";
+import { isSimpleFullBodyProviderPromptStyle } from "./omni-provider-prompt-contract";
 
 export interface SelectOmniFormatInput {
   script: string;
@@ -44,8 +45,10 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
   const firstLine = normalize(input.firstSpokenLine || input.script.split(/[.!?]/, 1)[0] || input.script);
   const audience = normalize(input.targetAudience || "");
   const recent = input.recentFormatIds || [];
-  const eligibleFormats = OMNI_LIFE_FORMATS.filter(
-    (format) => format.id === STABLE_TALKING_HEAD_FORMAT
+  const eligibleFormats = OMNI_LIFE_FORMATS.filter((format) =>
+    isSimpleFullBodyProviderPromptStyle()
+      ? format.id !== STABLE_TALKING_HEAD_FORMAT
+      : format.id === STABLE_TALKING_HEAD_FORMAT
   );
   const ranked = eligibleFormats
     .map((format) => scoreFormat(format, story, firstLine, normalized, audience, recent))
