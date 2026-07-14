@@ -20,7 +20,11 @@ import {
   isTalkingHeadCutawayFormat,
   OMNI_TALKING_HEAD_SYSTEM_PROMPT,
 } from "./omni-talking-head-format";
-import { OMNI_PROVIDER_CONTINUOUS_SYSTEM_PROMPT } from "./omni-provider-prompt-contract";
+import {
+  isSimpleFullBodyProviderPromptStyle,
+  OMNI_PROVIDER_CONTINUOUS_SYSTEM_PROMPT,
+} from "./omni-provider-prompt-contract";
+import { renderSimpleFullBodyUgcPrompt } from "./omni-simple-ugc-prompt";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -99,7 +103,9 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentCount: input.segmentCount,
       segmentSeconds: input.segmentSeconds,
     });
-    const prompt = renderSegmentPrompt(plan, strategy, characterContract, segmentIndex, input.segmentCount);
+    const prompt = isSimpleFullBodyProviderPromptStyle()
+      ? renderSimpleFullBodyUgcPrompt({ plan, strategy, characterContract, productName: input.product.name, segmentIndex, segmentCount: input.segmentCount })
+      : renderSegmentPrompt(plan, strategy, characterContract, segmentIndex, input.segmentCount);
     const validation = validateOmniSegmentPrompt({ prompt, plan });
     if (!validation.valid) {
       throw new Error(`Invalid Omni segment ${segmentIndex}: ${validation.errors.join(", ")}`);

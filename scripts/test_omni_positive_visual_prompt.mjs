@@ -40,7 +40,7 @@ try {
   copyFileSync(contractOutput, aliasContract);
 
   const { buildOmniSegmentPrompts } = require(findFile(compiled, "omni-prompt-builder.js"));
-  const prompts = buildOmniSegmentPrompts({
+  const baseInput = {
     generatedScript: {
       id: 1,
       project_id: 1,
@@ -88,7 +88,10 @@ try {
     ctaMode: "article_in_description",
     ctaValue: null,
     recentFormatIds: [],
-  });
+  };
+
+  delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
+  const prompts = buildOmniSegmentPrompts(baseInput);
 
   const joinedPrompt = prompts.map((item) => item.prompt).join("\n");
   assert.ok(prompts.every((item) => item.creativeStrategy.lifeFormatId === "talking_head_cutaways"));
@@ -111,6 +114,21 @@ try {
   assert.ok(!/\b(?:Reels?|Instagram|TikTok|Shorts)\b/u.test(joinedPrompt), "platform names must not reach provider prompt");
   assert.ok(!/спокойный коридор как универсальная сцена|связка ключей как обязательный реквизит/u.test(joinedPrompt));
   assert.ok(!/полотенц|сумк|ключ|органайзер|шоппер/u.test(joinedPrompt), "talking-head prompts must not use old default props");
+
+  process.env.OMNI_PROVIDER_PROMPT_STYLE = "simple_full_body";
+  const fullBodyPrompts = buildOmniSegmentPrompts(baseInput);
+  delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
+  const fullBodyJoinedPrompt = fullBodyPrompts.map((item) => item.prompt).join("\n");
+  assert.ok(
+    fullBodyPrompts.every((item) => item.creativeStrategy.lifeFormatId !== "talking_head_cutaways"),
+    "simple full-body mode must avoid talking-head strategy"
+  );
+  assert.ok(fullBodyJoinedPrompt.includes("UGC style vertical video"), "simple UGC prompt must be rendered");
+  assert.ok(fullBodyJoinedPrompt.includes("medium-wide full-body shot"), "full-body framing must be explicit");
+  assert.ok(fullBodyJoinedPrompt.includes("visible from head to shoes or at least head to knees"), "full height framing must be explicit");
+  assert.ok(fullBodyJoinedPrompt.includes("ТОЧНАЯ РЕПЛИКА"), "exact Russian quote must be preserved");
+  assert.ok(!fullBodyJoinedPrompt.includes("ГОВОРЯЩАЯ ГОЛОВА"), "full-body prompt must not ask for talking head");
+  assert.ok(!/\b(?:Reels?|Instagram|TikTok|Shorts)\b/u.test(fullBodyJoinedPrompt), "platform names must not reach full-body provider prompt");
 
   console.log("Omni positive visual prompt regression checks passed");
 } finally {
