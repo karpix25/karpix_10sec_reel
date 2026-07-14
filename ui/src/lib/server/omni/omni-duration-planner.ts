@@ -4,10 +4,12 @@ import {
 } from "./omni-script-segmentation";
 
 export const OMNI_SEGMENT_SECONDS = 10;
-export const OMNI_SPOKEN_WORDS_PER_SECOND = 2.4;
+export const OMNI_SPOKEN_WORDS_PER_SECOND = 2.8;
 
-export const OMNI_MIN_SEGMENT_COUNT = 2;
+export const OMNI_MIN_SEGMENT_COUNT = 1;
 export const OMNI_MAX_SEGMENT_COUNT = 4;
+const OMNI_TARGET_SEGMENT_WORDS_MIN = 22;
+const OMNI_TARGET_SEGMENT_WORDS_MAX = 27;
 
 export type OmniReelSegmentPlan = {
   segmentCount: number;
@@ -36,7 +38,7 @@ export function planOmniReelSegments(script: string): OmniReelSegmentPlan {
     );
   }
   if (wordCount < OMNI_MIN_SEGMENT_COUNT) {
-    throw new Error("Сценарий слишком короткий: для видео из 2 частей нужно минимум 2 слова.");
+    throw new Error("Сценарий слишком короткий: для видео нужно минимум 1 слово.");
   }
 
   const candidates = Array.from(
@@ -84,10 +86,10 @@ function buildCandidate(script: string, segmentCount: number, maxWordsPerSegment
 
 function scoreSegments(segments: VoiceSegment[]) {
   return segments.reduce((score, segment, index) => {
-    const densityPenalty = segment.wordCount < 18
-      ? Math.pow(18 - segment.wordCount, 2) * 1.3
-      : segment.wordCount > 20
-        ? Math.pow(segment.wordCount - 20, 2) * 1.8
+    const densityPenalty = segment.wordCount < OMNI_TARGET_SEGMENT_WORDS_MIN
+      ? Math.pow(OMNI_TARGET_SEGMENT_WORDS_MIN - segment.wordCount, 2) * 8
+      : segment.wordCount > OMNI_TARGET_SEGMENT_WORDS_MAX
+        ? Math.pow(segment.wordCount - OMNI_TARGET_SEGMENT_WORDS_MAX, 2) * 1.2
         : 0;
     return score + densityPenalty + (index < segments.length - 1 ? endingPenalty(segment.text) : 0);
   }, 0);
@@ -104,8 +106,8 @@ function buildPlanReason(segments: VoiceSegment[]) {
   const naturalBoundaryCount = segments
     .slice(0, -1)
     .filter((segment) => /[.!?,;:][»"]?$/.test(segment.text)).length;
-  const density = counts.every((count) => count >= 18 && count <= 20)
-    ? "оптимальная плотность речи"
+  const density = counts.every((count) => count >= OMNI_TARGET_SEGMENT_WORDS_MIN && count <= OMNI_TARGET_SEGMENT_WORDS_MAX)
+    ? "плотная речь без пауз"
     : "безопасная плотность речи";
   const boundaries = naturalBoundaryCount > 0 ? " и естественные границы фраз" : "";
   return `${segments.length} части: ${density}${boundaries}; ${counts.join(" / ")} слов`;

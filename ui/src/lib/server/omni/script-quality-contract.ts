@@ -104,20 +104,20 @@ export function validateViralScriptContract(input: {
 
   // 3. Word count bounds
   const totalWordCount = countWords(scriptText);
-  if (totalWordCount < 15) {
+  if (totalWordCount < 36) {
     throw new Error(
-      `Сценарий отклонен: слишком короткий (${totalWordCount} слов). Минимальная длина — 15 слов.`
+      `Сценарий отклонен: слишком короткий (${totalWordCount} слов). Минимальная длина — 36 слов, иначе Omni растягивает паузы и лишние действия.`
     );
   }
-  if (totalWordCount > 140) {
+  if (totalWordCount > 120) {
     throw new Error(
-      `Сценарий отклонен: слишком длинный для формата Reels (${totalWordCount} слов). Максимальная длина — 140 слов.`
+      `Сценарий отклонен: слишком длинный для формата Reels (${totalWordCount} слов). Максимальная длина — 120 слов.`
     );
   }
 
-  if (totalWordCount < 35 || totalWordCount > 90) {
+  if (totalWordCount < 46 || totalWordCount > 88) {
     warnings.push(
-      `Длина сценария (${totalWordCount} слов) вне рекомендованных рамок 35-90 слов.`
+      `Длина сценария (${totalWordCount} слов) вне рекомендованных рамок 46-88 слов для плотной речи без пауз.`
     );
   }
 

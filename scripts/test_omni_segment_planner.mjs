@@ -27,12 +27,12 @@ try {
   const { planOmniReelSegments } = require(join(output, "omni-duration-planner.js"));
   const { reconstructVoiceSegments, splitScriptIntoVoiceSegments } = require(join(output, "omni-script-segmentation.js"));
 
-  for (const [wordCount, expectedSegments] of [[40, 2], [60, 3], [80, 4]]) {
+  for (const [wordCount, expectedSegments] of [[27, 1], [40, 2], [60, 3], [80, 3], [90, 4]]) {
     const script = makeScript(wordCount);
     const plan = planOmniReelSegments(script);
     assert.equal(plan.segmentCount, expectedSegments, `${wordCount} words should use ${expectedSegments} segments`);
     assert.equal(plan.durationSeconds, expectedSegments * 10);
-    assert.ok(plan.segmentWordCounts.every((count) => count <= 24), "every segment must fit 24 words");
+    assert.ok(plan.segmentWordCounts.every((count) => count <= 28), "every segment must fit 28 words");
     assert.equal(reconstructVoiceSegments(plan.segments), script, "the source script must reconstruct exactly");
   }
 
@@ -60,8 +60,8 @@ try {
   assert.ok(fallbackSegments.every(seg => seg.wordCount > 0), "no segment should be empty");
 
   assert.throws(
-    () => planOmniReelSegments(makeScript(97)),
-    (error) => error instanceof Error && /97 слов.*Максимум 96 слов/u.test(error.message)
+    () => planOmniReelSegments(makeScript(113)),
+    (error) => error instanceof Error && /113 слов.*Максимум 112 слов/u.test(error.message)
   );
 
   console.log("Omni segment planner regression checks passed");

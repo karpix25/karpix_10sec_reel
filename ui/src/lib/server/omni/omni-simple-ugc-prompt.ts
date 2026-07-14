@@ -14,6 +14,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
   segmentCount: number;
 }) {
   const duration = input.plan.beats[2]?.endSeconds || 10;
+  const wordCount = input.plan.voiceoverText.split(/\s+/).filter(Boolean).length;
   const props = input.plan.continuityProps
     .map((item) => `${item.name}: ${item.appearance}; начальная позиция: ${item.initialPosition}`)
     .join(" | ");
@@ -25,6 +26,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     `UGC style vertical video, 9:16, ${duration.toFixed(0)}s duration.`,
     "FRAMING: medium-wide full-body shot for the whole clip; the person stands in frame, visible from head to shoes or at least head to knees, with hands visible.",
     "CAMERA: authentic handheld phone camera feel, natural movement, bright domestic light, high quality visuals.",
+    "EDITING RHYTHM: fast-paced UGC montage with 4-6 quick jump cuts in the same scene; no shot should feel like waiting.",
     `SCENE: ${input.strategy.setting}.`,
     `ГЛАВНЫЙ ПЕРСОНАЖ: ${input.characterContract.identityLine}.`,
     `ОДЕЖДА: ${input.characterContract.clothingLine}.`,
@@ -32,10 +34,9 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     `ПРОДУКТ: ${input.productName}. ${productLine(input.plan.productRole)}`,
     `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     `СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде; герой уже стоит в кадре и смотрит в камеру.`,
-    `ТОЧНАЯ РЕПЛИКА: "${input.plan.voiceoverText}"`,
-    "ACTION:",
-    ...input.plan.beats.map((beat) => `${beat.startSeconds.toFixed(1)}-${beat.endSeconds.toFixed(1)} sec: ${beat.action}.`),
-    "SPEECH: Russian, natural enthusiastic product-review delivery, speak only the exact quote once, no subtitles.",
+    `ТОЧНАЯ РЕПЛИКА (${wordCount} слов): "${input.plan.voiceoverText}"`,
+    "SPEECH TIMING: Russian, energetic product-review delivery; the exact quote should occupy almost the whole clip with no long pauses between phrases. Speak only the exact quote once, no subtitles.",
+    "ACTION: keep it simple and tied to speech - stand in the scene, hold or gesture toward the product when allowed, make tiny natural body shifts, and use quick cuts for rhythm. Do not invent unrelated filler actions.",
     `CONTINUITY: same person, outfit, room, light, product appearance, and prop layout across the segment. ${continuity}`,
   ].join("\n");
 }
