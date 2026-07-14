@@ -1,4 +1,12 @@
 import { hasForbiddenOmniScriptSymbols } from "./omni-script-text-contract";
+import {
+  OMNI_MIN_SCRIPT_WORDS,
+  OMNI_TARGET_SEGMENT_WORDS_MAX,
+  OMNI_TARGET_SEGMENT_WORDS_MIN,
+  describeOmniDensityGap,
+  getOmniMaxScriptWords,
+  getPreferredOmniSegmentCount,
+} from "./omni-speech-density";
 
 const FORBIDDEN_SYMBOL_ERROR = "Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.";
 
@@ -104,20 +112,30 @@ export function validateViralScriptContract(input: {
 
   // 3. Word count bounds
   const totalWordCount = countWords(scriptText);
-  if (totalWordCount < 36) {
+  if (totalWordCount < OMNI_MIN_SCRIPT_WORDS) {
     throw new Error(
-      `Сценарий отклонен: слишком короткий (${totalWordCount} слов). Минимальная длина — 36 слов, иначе Omni растягивает паузы и лишние действия.`
+      `Сценарий отклонен: ${describeOmniDensityGap(totalWordCount)}`
     );
   }
-  if (totalWordCount > 120) {
+  const maxScriptWords = getOmniMaxScriptWords();
+  if (totalWordCount > maxScriptWords) {
     throw new Error(
-      `Сценарий отклонен: слишком длинный для формата Reels (${totalWordCount} слов). Максимальная длина — 120 слов.`
+      `Сценарий отклонен: слишком длинный для формата Reels (${totalWordCount} слов). Максимальная длина — ${maxScriptWords} слов.`
     );
   }
 
-  if (totalWordCount < 46 || totalWordCount > 88) {
+  const plannedSegmentCount = getPreferredOmniSegmentCount(totalWordCount);
+  if (!plannedSegmentCount) {
+    throw new Error(`Сценарий отклонен: ${describeOmniDensityGap(totalWordCount)}`);
+  }
+
+  const averageWordsPerSegment = totalWordCount / plannedSegmentCount;
+  if (
+    averageWordsPerSegment < OMNI_TARGET_SEGMENT_WORDS_MIN ||
+    averageWordsPerSegment > OMNI_TARGET_SEGMENT_WORDS_MAX
+  ) {
     warnings.push(
-      `Длина сценария (${totalWordCount} слов) вне рекомендованных рамок 46-88 слов для плотной речи без пауз.`
+      `Средняя плотность ${averageWordsPerSegment.toFixed(1)} слов на 10 секунд. Цель: ${OMNI_TARGET_SEGMENT_WORDS_MIN}-${OMNI_TARGET_SEGMENT_WORDS_MAX} слов без пауз.`
     );
   }
 
@@ -203,7 +221,12 @@ export function validateViralScriptContract(input: {
   if (!productMentioned) score -= 15;
   if (!hasContrast && !hasProblem && !hasMechanism) score -= 15;
   if (hookWordCount > 12 || hookCharCount > 80) score -= 15;
-  if (totalWordCount < 35 || totalWordCount > 90) score -= 15;
+  if (
+    averageWordsPerSegment < OMNI_TARGET_SEGMENT_WORDS_MIN ||
+    averageWordsPerSegment > OMNI_TARGET_SEGMENT_WORDS_MAX
+  ) {
+    score -= 10;
+  }
   if (ctaAppended) score -= 10;
   score -= Math.min(30, slopCount * 10);
 

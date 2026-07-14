@@ -148,6 +148,19 @@ And this is line 2."
   assert.equal(res1.metrics.hasContrast, true); // "Но"
   assert.equal(res1.metrics.hasProblem, true); // "боишься" or "ошибок"
 
+  const shortDenseScript = "Запускаешь бизнес? Проверь идею за вечер: ИИ-конструктор сайтов быстро собирает страницу, показывает оффер клиентам и помогает понять спрос. Напиши слово «СТАРТ» в комментариях.";
+  const shortDenseResult = validateViralScriptContract({
+    script: shortDenseScript,
+    rawScriptBeforeCta: shortDenseScript,
+    rawScriptFromModel: shortDenseScript,
+    hook: "Запускаешь бизнес?",
+    productName: "ИИ-конструктор сайтов",
+    ctaMode: "keyword_in_comments",
+    ctaValue: "СТАРТ"
+  });
+  assert.equal(shortDenseResult.metrics.wordCount, 23);
+  assert(shortDenseResult.score > 70);
+
   // B. Too short script (should throw)
   assert.throws(
     () => validateViralScriptContract({
@@ -164,15 +177,15 @@ And this is line 2."
 
   assert.throws(
     () => validateViralScriptContract({
-      script: "Хочешь запустить свой бизнес? Но постоянно боишься ошибок. Начни с тестирования гипотез. Наш ИИ-конструктор сайтов поможет сделать это за 10 минут. Напиши кодовое слово «СТАРТ» в комментариях.",
-      rawScriptBeforeCta: "Хочешь запустить свой бизнес? Но постоянно боишься ошибок. Начни с тестирования гипотез. Наш ИИ-конструктор сайтов поможет сделать это за 10 минут. Напиши кодовое слово «СТАРТ» в комментариях.",
-      rawScriptFromModel: "Хочешь запустить свой бизнес? Но постоянно боишься ошибок. Начни с тестирования гипотез. Наш ИИ-конструктор сайтов поможет сделать это за 10 минут. Напиши кодовое слово «СТАРТ» в комментариях.",
-      hook: "Хочешь запустить свой бизнес?",
+      script: makeScript(34),
+      rawScriptBeforeCta: makeScript(34),
+      rawScriptFromModel: makeScript(34),
+      hook: "слово1",
       productName: "ИИ-конструктор сайтов",
       ctaMode: "keyword_in_comments",
       ctaValue: "СТАРТ"
     }),
-    /Минимальная длина — 36 слов/u
+    /пустую зону плотности/u
   );
 
   // C. Too long hook (should throw)
@@ -258,4 +271,8 @@ And this is line 2."
   console.log("All tests passed successfully.");
 } finally {
   rmSync(output, { recursive: true, force: true });
+}
+
+function makeScript(wordCount) {
+  return Array.from({ length: wordCount }, (_, index) => `слово${index + 1}`).join(" ");
 }

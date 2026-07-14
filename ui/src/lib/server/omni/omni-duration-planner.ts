@@ -2,14 +2,24 @@ import {
   splitScriptIntoVoiceSegments,
   type VoiceSegment,
 } from "./omni-script-segmentation";
+import {
+  OMNI_MAX_SEGMENT_COUNT,
+  OMNI_MIN_SEGMENT_COUNT,
+  OMNI_SEGMENT_SECONDS,
+  OMNI_TARGET_SEGMENT_WORDS_MAX,
+  OMNI_TARGET_SEGMENT_WORDS_MIN,
+  describeOmniDensityGap,
+  getOmniMaxScriptWords,
+  getOmniSegmentWordBudget,
+  isOmniSegmentCountViable,
+} from "./omni-speech-density";
 
-export const OMNI_SEGMENT_SECONDS = 10;
-export const OMNI_SPOKEN_WORDS_PER_SECOND = 2.8;
-
-export const OMNI_MIN_SEGMENT_COUNT = 1;
-export const OMNI_MAX_SEGMENT_COUNT = 4;
-const OMNI_TARGET_SEGMENT_WORDS_MIN = 22;
-const OMNI_TARGET_SEGMENT_WORDS_MAX = 27;
+export {
+  OMNI_MAX_SEGMENT_COUNT,
+  OMNI_MIN_SEGMENT_COUNT,
+  OMNI_SEGMENT_SECONDS,
+  getOmniSegmentWordBudget,
+};
 
 export type OmniReelSegmentPlan = {
   segmentCount: number;
@@ -20,10 +30,6 @@ export type OmniReelSegmentPlan = {
   segmentWordCounts: number[];
 };
 
-export function getOmniSegmentWordBudget(segmentSeconds = OMNI_SEGMENT_SECONDS) {
-  return Math.floor(segmentSeconds * OMNI_SPOKEN_WORDS_PER_SECOND);
-}
-
 export function countOmniScriptWords(script: string) {
   return script.trim().split(/\s+/).filter(Boolean).length;
 }
@@ -31,14 +37,14 @@ export function countOmniScriptWords(script: string) {
 export function planOmniReelSegments(script: string): OmniReelSegmentPlan {
   const wordCount = countOmniScriptWords(script);
   const maxWordsPerSegment = getOmniSegmentWordBudget();
-  const maxWords = OMNI_MAX_SEGMENT_COUNT * maxWordsPerSegment;
+  const maxWords = getOmniMaxScriptWords();
   if (wordCount > maxWords) {
     throw new Error(
       `Сценарий слишком длинный: ${wordCount} слов. Максимум ${maxWords} слов для 4 частей. Сократите сценарий.`
     );
   }
-  if (wordCount < OMNI_MIN_SEGMENT_COUNT) {
-    throw new Error("Сценарий слишком короткий: для видео нужно минимум 1 слово.");
+  if (wordCount < OMNI_MIN_SEGMENT_COUNT || !isAnySegmentCountViable(wordCount)) {
+    throw new Error(describeOmniDensityGap(wordCount));
   }
 
   const candidates = Array.from(
@@ -46,12 +52,13 @@ export function planOmniReelSegments(script: string): OmniReelSegmentPlan {
     (_, index) => index + OMNI_MIN_SEGMENT_COUNT
   )
     .filter((segmentCount) => wordCount <= segmentCount * maxWordsPerSegment)
+    .filter((segmentCount) => isOmniSegmentCountViable(wordCount, segmentCount))
     .map((segmentCount) => buildCandidate(script, segmentCount, maxWordsPerSegment))
     .filter((candidate): candidate is PlanCandidate => candidate !== null);
 
   const selected = candidates.sort((left, right) => left.score - right.score)[0];
   if (!selected) {
-    throw new Error("Не удалось разделить сценарий на 2-4 части без разрыва CTA. Измените формулировку сценария.");
+    throw new Error("Не удалось разделить сценарий на плотные 10-секундные части без разрыва CTA. Измените формулировку сценария.");
   }
 
   return {
@@ -82,6 +89,13 @@ function buildCandidate(script: string, segmentCount: number, maxWordsPerSegment
   } catch {
     return null;
   }
+}
+
+function isAnySegmentCountViable(wordCount: number) {
+  for (let segmentCount = OMNI_MIN_SEGMENT_COUNT; segmentCount <= OMNI_MAX_SEGMENT_COUNT; segmentCount += 1) {
+    if (isOmniSegmentCountViable(wordCount, segmentCount)) return true;
+  }
+  return false;
 }
 
 function scoreSegments(segments: VoiceSegment[]) {

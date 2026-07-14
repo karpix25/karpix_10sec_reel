@@ -62,7 +62,7 @@ def validate_omni_prompt(
         errors.append("advertising_product_display")
 
     first_words = exact_voiceover.split()[:15]
-    if len(exact_voiceover.split()) > 24:
+    if len(exact_voiceover.split()) > 28:
         warnings.append("voiceover_may_be_too_long_for_ten_seconds")
     if len(first_words) == 15 and not re.search(r"[.!?]", " ".join(first_words)):
         warnings.append("spoken_hook_may_exceed_four_seconds")
