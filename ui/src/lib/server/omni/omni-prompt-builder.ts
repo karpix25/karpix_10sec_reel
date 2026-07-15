@@ -113,11 +113,14 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   for (let index = 0; index < voiceSegments.length; index += 1) {
     const segmentIndex = index + 1;
     const segmentRole = getSegmentRole(segmentIndex, input.segmentCount);
+    const segmentScriptBeats = selectScriptBeatsForSegment(scriptPlan, segmentIndex, input.segmentCount);
     const productRole = getSegmentProductRole(
       strategy.productRole,
       segmentIndex,
       input.segmentCount,
-      voiceSegments[index].text
+      voiceSegments[index].text,
+      segmentScriptBeats,
+      input.product.name
     );
     const plan = buildSegmentCreativePlan({
       segmentIndex,
@@ -126,7 +129,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       productRole,
       segmentCount: input.segmentCount,
       segmentSeconds: input.segmentSeconds,
-      scriptBeats: selectScriptBeatsForSegment(scriptPlan, segmentIndex, input.segmentCount),
+      scriptBeats: segmentScriptBeats,
     });
     const prompt = isSimpleFullBodyProviderPromptStyle()
       ? renderSimpleFullBodyUgcPrompt({
@@ -295,12 +298,44 @@ function getSegmentProductRole(
   role: ProductRole,
   segmentIndex: number,
   segmentCount: number,
-  voiceoverText: string
+  voiceoverText: string,
+  scriptBeats: readonly OmniScriptBeatCue[] = [],
+  productName = ""
 ): ProductRole {
   if (role === "hidden") return role;
+  if (
+    segmentIndex > 1 &&
+    segmentMentionsProduct({
+      voiceoverText,
+      scriptBeats,
+      productName,
+    })
+  ) {
+    return "background_prop";
+  }
   if (role === "background_prop") return segmentIndex === 1 ? "hidden" : role;
   if (segmentIndex !== segmentCount) return "hidden";
   return countWords(voiceoverText) > 18 ? "background_prop" : role;
+}
+
+function segmentMentionsProduct(input: {
+  voiceoverText: string;
+  scriptBeats: readonly OmniScriptBeatCue[];
+  productName: string;
+}) {
+  const text = [
+    input.voiceoverText,
+    ...input.scriptBeats.flatMap((beat) => [beat.voiceover, beat.visualCue]),
+  ].join(" ").toLowerCase().replace(/ё/g, "е");
+  const productWords = input.productName
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .split(/[^a-zа-я0-9]+/iu)
+    .filter((word) => word.length >= 4);
+  return (
+    productWords.some((word) => text.includes(word.slice(0, Math.max(4, word.length - 2)))) ||
+    /коллаген|продукт|упаковк|баноч|пакет|желе|капсул|витамин|бад|саше|флакон|тюбик|коробк/iu.test(text)
+  );
 }
 
 function productRoleInstruction(role: ProductRole) {
