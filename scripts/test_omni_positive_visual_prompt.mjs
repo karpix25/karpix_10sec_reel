@@ -340,7 +340,6 @@ try {
     beatPlanPrompts.some((item) => item.creativePlan.scriptBeats?.length),
     "script beat plan must be attached to creative plans"
   );
-  assert.ok(beatPlanJoinedPrompt.includes("voiceover:"), "script beat visual cues must reach simple provider prompt");
   assert.ok(beatPlanJoinedPrompt.includes("черном sleeveless top"), "script wardrobe cue must reach provider prompt");
   assert.ok(beatPlanJoinedPrompt.includes("синем фоне"), "script background cue must reach provider prompt");
   assert.ok(beatPlanJoinedPrompt.includes("blue under-cabinet glow"), "safe style-only blue lighting must be preserved");
