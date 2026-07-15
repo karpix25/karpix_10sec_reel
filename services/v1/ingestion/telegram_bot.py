@@ -402,8 +402,16 @@ def _handle_web_auth_start(message, payload: str, access_row: Optional[Dict[str,
             )
             return True
 
+        callback_origin = str(auth_result.get("callback_origin") or WEBAPP_BASE_URL).strip().rstrip("/")
+        if not callback_origin:
+            _reply_in_same_thread(
+                message,
+                "Не настроен адрес веб-интерфейса для возврата из Telegram. Сообщите администратору сервиса.",
+            )
+            return True
+
         callback_url = (
-            f"{WEBAPP_BASE_URL}/api/auth/telegram/callback"
+            f"{callback_origin}/api/auth/telegram/callback"
             f"?requestId={auth_result['request_id']}&token={auth_result['session_token']}"
         )
         _reply_in_same_thread(
