@@ -7,6 +7,7 @@ import type { OmniCharacterContract } from "./omni-character-contract";
 import type { DirectorBrief } from "./director-analysis-types";
 import { buildDirectorSceneContract } from "./director-scene-contract";
 import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
+import { renderScriptBeatGuidance } from "./script-beat-plan";
 
 export function renderSimpleFullBodyUgcPrompt(input: {
   plan: OmniSegmentCreativePlan;
@@ -23,6 +24,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
   const wordCount = input.plan.voiceoverText.split(/\s+/).filter(Boolean).length;
   const referencePolicy = input.referencePolicy || { mode: "full_reference" as const, omitRawDirectorGuidance: false };
   const directorScene = buildDirectorSceneContract(input.directorBrief || null, referencePolicy);
+  const scriptBeatGuidance = renderScriptBeatGuidance(input.plan.scriptBeats);
   const props = input.plan.continuityProps
     .map((item) => `${item.name}: ${item.appearance}; начальная позиция: ${item.initialPosition}`)
     .join(" | ");
@@ -50,6 +52,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     directorScene?.propPassportLine || `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     `СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде; герой уже стоит в кадре и смотрит в камеру.`,
     `ТОЧНАЯ РЕПЛИКА (${wordCount} слов): "${input.plan.voiceoverText}"`,
+    ...(scriptBeatGuidance ? [scriptBeatGuidance] : []),
     "SPEECH TIMING: Russian, energetic delivery; the exact quote should occupy almost the whole clip with no long pauses between phrases. Speak only the exact quote once, no subtitles.",
     directorScene?.actionLine ||
       "ACTION: keep it simple and tied to speech; do not invent unrelated filler actions.",

@@ -1,4 +1,4 @@
-import type { CtaMode } from "@/lib/omni/creative-contract";
+import type { CtaMode, OmniScriptBeatCue } from "@/lib/omni/creative-contract";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { formatScenarioScript } from "@/lib/scenario-text";
 import type { DirectorBrief } from "./director-analysis-types";
@@ -12,6 +12,11 @@ import {
 } from "./script-quality-contract";
 import { buildPrompt } from "./script-prompt-helper";
 import {
+  appendCtaToLastBeat,
+  deriveVoiceoverScriptFromPlan,
+  normalizeGeneratedScriptBeatPlan,
+} from "./script-beat-plan";
+import {
   buildScriptRetryFeedback,
   isRetryableScriptGenerationError,
   MAX_SCRIPT_GENERATION_ATTEMPTS,
@@ -21,7 +26,10 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 export type GeneratedScriptResultPayload = {
   title: string;
+  hook_options: string[];
+  selected_hook: string;
   hook: string;
+  beats: OmniScriptBeatCue[];
   script: string;
   caption: string;
   cta_keyword: string;
@@ -103,17 +111,24 @@ async function requestScriptOnce(
   const content = String(data?.choices?.[0]?.message?.content || "");
   assertGeneratedScriptSymbolContract(content);
   const parsed = parseAndRepairJson(content);
-  const rawScriptFromModel = String(parsed.script || "");
-  const rawScript = sanitizeOmniScriptText(formatScenarioScript(parsed.script));
+  const scriptPlan = normalizeGeneratedScriptBeatPlan(parsed);
+  const voiceoverScript = deriveVoiceoverScriptFromPlan(scriptPlan);
+  const rawScriptSource = voiceoverScript || parsed.script;
+  const rawScriptFromModel = String(rawScriptSource || "");
+  const rawScript = sanitizeOmniScriptText(formatScenarioScript(rawScriptSource));
   if (!rawScript) throw new Error("Script model returned empty script");
   const script = ensureOmniScriptCta(rawScript, input.ctaMode, input.ctaValue);
+  const persistedScriptPlan = appendCtaToLastBeat(scriptPlan, rawScript, script);
   assertOmniScriptTextContract(script);
 
   const clean = (value: unknown) => sanitizeOmniScriptText(String(value || ""));
 
   const payload: GeneratedScriptResultPayload = {
-    title: clean(parsed.title || parsed.hook || "Новый сценарий"),
-    hook: clean(parsed.hook),
+    title: clean(parsed.title || persistedScriptPlan?.selectedHook || parsed.hook || "Новый сценарий"),
+    hook_options: persistedScriptPlan?.hookOptions || [],
+    selected_hook: persistedScriptPlan?.selectedHook || clean(parsed.hook),
+    hook: persistedScriptPlan?.selectedHook || clean(parsed.hook),
+    beats: persistedScriptPlan?.beats || [],
     script,
     caption: clean(parsed.caption),
     cta_keyword: clean(parsed.cta_keyword),

@@ -133,6 +133,12 @@ export interface OmniCreativeBeat {
   action: string;
 }
 
+export interface OmniScriptBeatCue {
+  stage: string;
+  visualCue: string;
+  voiceover: string;
+}
+
 export interface OmniSegmentCreativePlan {
   segmentIndex: number;
   lifeFormatId: LifeFormatId;
@@ -140,6 +146,7 @@ export interface OmniSegmentCreativePlan {
   voiceoverText: string;
   productRole: ProductRole;
   continuityProps: readonly OmniContinuityProp[];
+  scriptBeats?: readonly OmniScriptBeatCue[];
   beats: readonly [OmniCreativeBeat, OmniCreativeBeat, OmniCreativeBeat];
 }
 

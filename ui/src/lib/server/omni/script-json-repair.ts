@@ -1,6 +1,9 @@
 export type GeneratedScriptPayload = {
   title?: string;
   hook?: string;
+  hook_options?: unknown;
+  selected_hook?: string;
+  beats?: unknown;
   script?: unknown;
   caption?: string;
   cta_keyword?: string;
