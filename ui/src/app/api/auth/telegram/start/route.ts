@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { buildTelegramBotUrl, createTelegramAuthRequest, sanitizeReturnPath } from "@/lib/server/telegram-auth";
+import { buildTelegramBotUrl, createTelegramAuthRequest } from "@/lib/server/telegram-auth";
+import { resolveTelegramAuthOrigin, sanitizeReturnPath } from "@/lib/server/telegram-auth-origin";
 
-async function createAuthStartResponse(returnToInput: unknown) {
+async function createAuthStartResponse(request: Request, returnToInput: unknown) {
   const returnTo = sanitizeReturnPath(returnToInput);
-  const authRequest = await createTelegramAuthRequest(returnTo);
+  const authRequest = await createTelegramAuthRequest(returnTo, resolveTelegramAuthOrigin(request));
   const botUrl = buildTelegramBotUrl(authRequest.payload);
 
   return {
@@ -16,7 +17,7 @@ async function createAuthStartResponse(returnToInput: unknown) {
 export async function POST(request: Request) {
   try {
     const payload = await request.json().catch(() => ({}));
-    const result = await createAuthStartResponse((payload as { returnTo?: unknown })?.returnTo);
+    const result = await createAuthStartResponse(request, (payload as { returnTo?: unknown })?.returnTo);
 
     return NextResponse.json({
       ok: true,
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const result = await createAuthStartResponse(url.searchParams.get("returnTo"));
+    const result = await createAuthStartResponse(request, url.searchParams.get("returnTo"));
     return NextResponse.redirect(result.botUrl, { status: 302 });
   } catch (error) {
     console.error("Telegram auth start redirect error:", error);

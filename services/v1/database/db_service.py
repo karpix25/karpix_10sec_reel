@@ -569,6 +569,7 @@ def init_db() -> None:
             telegram_user_id BIGINT,
             status TEXT NOT NULL DEFAULT 'pending',
             redirect_path TEXT NOT NULL DEFAULT '/',
+            callback_origin TEXT,
             session_token_hash TEXT,
             session_expires_at TIMESTAMP,
             approved_at TIMESTAMP,
@@ -872,6 +873,7 @@ def init_db() -> None:
         "ALTER TABLE telegram_web_auth_requests ADD COLUMN IF NOT EXISTS telegram_user_id BIGINT",
         "ALTER TABLE telegram_web_auth_requests ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'",
         "ALTER TABLE telegram_web_auth_requests ADD COLUMN IF NOT EXISTS redirect_path TEXT NOT NULL DEFAULT '/'",
+        "ALTER TABLE telegram_web_auth_requests ADD COLUMN IF NOT EXISTS callback_origin TEXT",
         "ALTER TABLE telegram_web_auth_requests ADD COLUMN IF NOT EXISTS session_token_hash TEXT",
         "ALTER TABLE telegram_web_auth_requests ADD COLUMN IF NOT EXISTS session_expires_at TIMESTAMP",
         "ALTER TABLE telegram_web_auth_requests ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP",
@@ -2141,7 +2143,7 @@ def approve_telegram_web_auth_request(
                 approved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
-            RETURNING request_id, redirect_path, status, session_expires_at
+            RETURNING request_id, redirect_path, callback_origin, status, session_expires_at
             """,
             (int(telegram_user_id), token_hash, ttl_hours, auth_row["id"]),
         )

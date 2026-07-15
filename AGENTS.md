@@ -41,6 +41,7 @@ Write code as a professional modular system, not as large monolithic files.
 - For remote Node diagnostics over SSH, avoid fragile heredoc quoting; send the script via stdin or a safely quoted temp file.
 - Exclude `.env*` from broad searches unless explicitly inspecting environment shape, and never print secret values while debugging.
 - When the user names a provider env with a non-doc spelling, support that alias explicitly instead of assuming the doc spelling is what production uses.
+- Verify Telegram auth callback hosts, not only app health, because `WEBAPP_BASE_URL` can point to a different or dead domain.
 
 # Project Skills
 

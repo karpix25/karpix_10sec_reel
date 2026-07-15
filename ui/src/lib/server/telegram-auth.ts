@@ -2,6 +2,7 @@ import crypto from "crypto";
 import pool from "@/lib/db";
 import { rateLimit, getClientIp } from "./rate-limit";
 import { NextResponse } from "next/server";
+import { sanitizeCallbackOrigin, sanitizeReturnPath } from "./telegram-auth-origin";
 
 export const TELEGRAM_SESSION_COOKIE = "tg_session";
 export const STAGING_AUTH_COOKIE = "staging_auth";
@@ -154,14 +155,6 @@ function parseDate(value: unknown): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-export function sanitizeReturnPath(candidate: unknown) {
-  const value = typeof candidate === "string" ? candidate.trim() : "";
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/";
-  }
-  return value;
-}
-
 function resolveBotUsername() {
   const raw = String(process.env.TELEGRAM_BOT_USERNAME || "").trim();
   const normalized = raw.startsWith("@") ? raw.slice(1) : raw;
@@ -219,6 +212,7 @@ export async function ensureTelegramAuthTables() {
       telegram_user_id BIGINT,
       status TEXT NOT NULL DEFAULT 'pending',
       redirect_path TEXT NOT NULL DEFAULT '/',
+      callback_origin TEXT,
       session_token_hash TEXT,
       session_expires_at TIMESTAMP,
       approved_at TIMESTAMP,
@@ -244,6 +238,7 @@ export async function ensureTelegramAuthTables() {
     "CREATE INDEX IF NOT EXISTS idx_telegram_web_sessions_user ON telegram_web_sessions(telegram_user_id)",
     "CREATE INDEX IF NOT EXISTS idx_telegram_web_sessions_expires ON telegram_web_sessions(expires_at)",
     "ALTER TABLE telegram_web_auth_requests ADD COLUMN IF NOT EXISTS redirect_path TEXT NOT NULL DEFAULT '/'",
+    "ALTER TABLE telegram_web_auth_requests ADD COLUMN IF NOT EXISTS callback_origin TEXT",
     "ALTER TABLE telegram_web_auth_requests ADD COLUMN IF NOT EXISTS session_token_hash TEXT",
     "ALTER TABLE telegram_web_auth_requests ADD COLUMN IF NOT EXISTS session_expires_at TIMESTAMP",
     "ALTER TABLE telegram_web_auth_requests ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP",
@@ -279,9 +274,10 @@ export async function ensureTelegramAuthTables() {
   );
 }
 
-export async function createTelegramAuthRequest(redirectPathInput: unknown) {
+export async function createTelegramAuthRequest(redirectPathInput: unknown, callbackOriginInput?: unknown) {
   await ensureTelegramAuthTables();
   const redirectPath = sanitizeReturnPath(redirectPathInput);
+  const callbackOrigin = sanitizeCallbackOrigin(callbackOriginInput);
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const requestId = randomId(16);
@@ -293,6 +289,7 @@ export async function createTelegramAuthRequest(redirectPathInput: unknown) {
          request_id,
          nonce,
          redirect_path,
+         callback_origin,
          status,
          expires_at,
          updated_at
@@ -301,13 +298,14 @@ export async function createTelegramAuthRequest(redirectPathInput: unknown) {
          $1,
          $2,
          $3,
+         $4,
          'pending',
-         CURRENT_TIMESTAMP + ($4 * INTERVAL '1 minute'),
+         CURRENT_TIMESTAMP + ($5 * INTERVAL '1 minute'),
          CURRENT_TIMESTAMP
        )
        ON CONFLICT (request_id) DO NOTHING
        RETURNING request_id, expires_at`,
-      [requestId, nonce, redirectPath, AUTH_REQUEST_TTL_MINUTES]
+      [requestId, nonce, redirectPath, callbackOrigin, AUTH_REQUEST_TTL_MINUTES]
     );
 
     if (rows.length > 0) {

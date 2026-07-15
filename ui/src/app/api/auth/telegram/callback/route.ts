@@ -3,42 +3,17 @@ import {
   consumeTelegramAuthCallback,
   TELEGRAM_SESSION_COOKIE,
 } from "@/lib/server/telegram-auth";
-
-function resolvePublicOrigin(request: Request) {
-  const explicitBaseUrl = String(process.env.WEBAPP_BASE_URL || process.env.UI_BASE_URL || "")
-    .trim()
-    .replace(/\/+$/, "");
-  if (explicitBaseUrl) {
-    try {
-      return new URL(explicitBaseUrl).origin;
-    } catch (error) {
-      console.error("Invalid WEBAPP_BASE_URL/UI_BASE_URL:", error);
-    }
-  }
-
-  const forwardedHost = String(request.headers.get("x-forwarded-host") || "")
-    .split(",")[0]
-    .trim();
-  const forwardedProto = String(request.headers.get("x-forwarded-proto") || "")
-    .split(",")[0]
-    .trim();
-  if (forwardedHost) {
-    const protocol = forwardedProto || "https";
-    return `${protocol}://${forwardedHost}`;
-  }
-
-  return new URL(request.url).origin;
-}
+import { resolveTelegramAuthOrigin } from "@/lib/server/telegram-auth-origin";
 
 function buildErrorRedirect(request: Request, code: string) {
-  const origin = resolvePublicOrigin(request);
+  const origin = resolveTelegramAuthOrigin(request) || new URL(request.url).origin;
   return `${origin}/?auth_error=${encodeURIComponent(code)}`;
 }
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const publicOrigin = resolvePublicOrigin(request);
+    const publicOrigin = resolveTelegramAuthOrigin(request) || url.origin;
     const requestId = String(url.searchParams.get("requestId") || "").trim();
     const token = String(url.searchParams.get("token") || "").trim();
 
