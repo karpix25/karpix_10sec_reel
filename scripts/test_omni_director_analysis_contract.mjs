@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 
 const root = resolve(import.meta.dirname, "..");
@@ -29,9 +29,12 @@ try {
       typeRoots: [join(ui, "node_modules/@types")],
     },
     include: [
+      join(ui, "src/lib/omni/creative-contract.ts"),
       join(ui, "src/lib/server/omni/director-analysis-types.ts"),
       join(ui, "src/lib/server/omni/director-analysis-policy.ts"),
       join(ui, "src/lib/server/omni/director-analysis-prompt.ts"),
+      join(ui, "src/lib/server/omni/director-scene-contract.ts"),
+      join(ui, "src/lib/server/omni/omni-simple-ugc-prompt.ts"),
       join(ui, "src/lib/server/omni/scrapecreators-client.ts"),
       join(ui, "src/lib/server/omni/openrouter-director-analysis-client.ts"),
       join(ui, "src/lib/server/omni/script-json-repair.ts"),
@@ -40,9 +43,15 @@ try {
 
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
 
+  const contractOutput = findFile(compiled, "creative-contract.js");
+  const aliasContract = join(output, "node_modules", "@", "lib", "omni", "creative-contract.js");
+  mkdirSync(dirname(aliasContract), { recursive: true });
+  copyFileSync(contractOutput, aliasContract);
+
   const { normalizeDirectorBrief } = require(findFile(compiled, "director-analysis-types.js"));
   const { shouldAnalyzeDirectorReference } = require(findFile(compiled, "director-analysis-policy.js"));
   const { renderDirectorBriefForOmniPrompt } = require(findFile(compiled, "director-analysis-prompt.js"));
+  const { renderSimpleFullBodyUgcPrompt } = require(findFile(compiled, "omni-simple-ugc-prompt.js"));
   const { extractScrapeCreatorsInstagramVideo } = require(findFile(compiled, "scrapecreators-client.js"));
   const { analyzeDirectorVideo } = require(findFile(compiled, "openrouter-director-analysis-client.js"));
 
@@ -88,6 +97,73 @@ try {
   assert.ok(rendered.includes("4 quick cuts"));
   assert.ok(!rendered.includes("bottom captions area"), "post-production safe zones must not reach provider prompt");
   assert.ok(!/\b(?:Instagram|Reels|TikTok|Shorts)\b/u.test(rendered), "platform imprint terms must not be rendered");
+
+  const closeUpBrief = normalizeDirectorBrief({
+    director_brief: {
+      visual_hook: { action: "speaker talks directly to camera", retention_trigger: "urgent eye contact" },
+      atmosphere: {
+        mood: "authoritative clinical urgent",
+        lighting: "flat even frontal light",
+        color_grading: "neutral cool white balance",
+        setting: "plain indoor wall",
+      },
+      clothing: {
+        style: "casual professional neutral top",
+        color_palette: ["black"],
+        fit_details: "long-sleeve fitted high-neckline top",
+      },
+      camera: {
+        shot_types: ["medium close-up", "close-up"],
+        angles: ["eye-level"],
+        movements: ["static"],
+        stabilization: "locked-off tripod",
+      },
+      montage_rhythm: {
+        cut_pace: "single continuous take or very minimal cutting",
+        beat_sync: "speech cadence only",
+        transition_style: ["hard cut"],
+      },
+      action_beats: [{ timestamp_sec: 0, action_description: "talks to camera", actor_gesture: "subtle head movement" }],
+      reusable_mechanics: {
+        visual_mechanics: ["locked-off medium close-up", "direct-to-camera authority delivery"],
+        safe_zones_for_elements: "lower third",
+        looping_pattern: "reset to neutral face",
+      },
+    },
+  });
+  const simplePrompt = renderSimpleFullBodyUgcPrompt({
+    plan: {
+      segmentIndex: 1,
+      lifeFormatId: "talking_head_cutaways",
+      speechStartsAtSeconds: 0,
+      voiceoverText: "После тридцати лет коллаген важно восполнять каждый день.",
+      productRole: "background_prop",
+      continuityProps: [],
+      beats: [
+        { startSeconds: 0, endSeconds: 6, action: "говорит в камеру" },
+        { startSeconds: 6, endSeconds: 8, action: "перебивка продукта" },
+        { startSeconds: 8, endSeconds: 10, action: "возврат к лицу" },
+      ],
+    },
+    strategy: { setting: "fallback setting" },
+    characterContract: {
+      identityLine: "главный персонаж",
+      clothingLine: "fallback outfit",
+      sourceRuleLine: "character_id sets identity",
+      clothingSource: "fallback",
+    },
+    productName: "Апельсиновый коллаген",
+    segmentIndex: 1,
+    segmentCount: 2,
+    directorBrief: closeUpBrief,
+  });
+  assert.ok(simplePrompt.includes("REFERENCE LOCK:"), "director prompt must lock to reference direction");
+  assert.ok(simplePrompt.includes("REFERENCE FRAMING: medium close-up, close-up"), "director framing must reach provider prompt");
+  assert.ok(simplePrompt.includes("REFERENCE WARDROBE: casual professional neutral top"), "director wardrobe must reach provider prompt");
+  assert.ok(simplePrompt.includes("REFERENCE EDITING: single continuous take or very minimal cutting"), "director editing must reach provider prompt");
+  assert.ok(simplePrompt.includes("replace any original product or brand with the new product"));
+  assert.ok(simplePrompt.includes("replace it with this product while preserving the same placement, timing, framing"));
+  assert.ok(!/medium-wide full-body|head to shoes|4-6 quick cuts|fast-paced realistic montage/u.test(simplePrompt));
 
   process.env.OPENROUTER_API_KEY = "test-key";
   process.env.OMNI_DIRECTOR_ANALYSIS_MODEL = "minimax/minimax-m3";
