@@ -42,6 +42,7 @@ Write code as a professional modular system, not as large monolithic files.
 - Exclude `.env*` from broad searches unless explicitly inspecting environment shape, and never print secret values while debugging.
 - When the user names a provider env with a non-doc spelling, support that alias explicitly instead of assuming the doc spelling is what production uses.
 - Verify Telegram auth callback hosts, not only app health, because `WEBAPP_BASE_URL` can point to a different or dead domain.
+- Escape SQL placeholders such as `$1` in remote `node -e` diagnostics so the outer shell cannot expand them away.
 
 # Project Skills
 
