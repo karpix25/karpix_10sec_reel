@@ -133,6 +133,63 @@ try {
   assert.ok(!fullBodyJoinedPrompt.includes("ГОВОРЯЩАЯ ГОЛОВА"), "full-body prompt must not ask for talking head");
   assert.ok(!/\b(?:Reels?|Instagram|TikTok|Shorts)\b/u.test(fullBodyJoinedPrompt), "platform names must not reach full-body provider prompt");
 
+  const directorBrief = {
+    visual_hook: {
+      action: "Subject holds a product box directly toward the camera while speaking.",
+      retention_trigger: "Immediate direct address and product presentation.",
+    },
+    atmosphere: {
+      mood: "Educational, intimate, professional.",
+      lighting: "Soft warm directional light on the face.",
+      color_grading: "Warm amber tones.",
+      setting: "Indoor room with a warm solid-colored wall and a hint of curtain in the background.",
+    },
+    clothing: {
+      style: "Minimalist fitted black top.",
+      color_palette: ["black"],
+      fit_details: "Long-sleeve high-neckline fitted outfit with simple jewelry.",
+    },
+    camera: {
+      shot_types: ["Medium close-up", "Wide B-roll insert"],
+      angles: ["Eye-level"],
+      movements: ["Static"],
+      stabilization: "Fixed phone or tripod framing.",
+    },
+    montage_rhythm: {
+      cut_pace: "Slow to medium talking-head rhythm with short inserts.",
+      beat_sync: "Cuts align with topic shifts.",
+      transition_style: ["Hard cuts"],
+    },
+    action_beats: [
+      { timestamp_sec: 0, action_description: "Presents product box", actor_gesture: "Both hands at chest level" },
+    ],
+    reusable_mechanics: {
+      visual_mechanics: ["Direct-to-camera educational talking head", "Brief contrasting inserts"],
+      safe_zones_for_elements: "",
+      looping_pattern: "Return to the same speaker after each insert.",
+    },
+  };
+  const directorInput = {
+    ...baseInput,
+    generatedScript: {
+      ...baseInput.generatedScript,
+      source_snapshot: { director_analysis: directorBrief },
+    },
+  };
+  process.env.OMNI_PROVIDER_PROMPT_STYLE = "simple_full_body";
+  const directorPrompts = buildOmniSegmentPrompts(directorInput);
+  delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
+  const directorJoinedPrompt = directorPrompts.map((item) => item.prompt).join("\n");
+  assert.ok(directorJoinedPrompt.includes("REFERENCE SCENE:"), "director scene must override preset scene");
+  assert.ok(directorJoinedPrompt.includes("warm solid-colored wall"), "reference environment must reach provider prompt");
+  assert.ok(directorJoinedPrompt.includes("Minimalist fitted black top"), "reference wardrobe must reach provider prompt");
+  assert.ok(directorJoinedPrompt.includes("Soft warm directional light"), "reference lighting must reach provider prompt");
+  assert.ok(directorJoinedPrompt.includes("REFERENCE SCENE PASSPORT:"), "reference prop passport must replace preset props");
+  assert.ok(
+    !/полотенц|сумк|ключ|органайзер|шоппер|у светлого стола рядом с окном|у скамьи/u.test(directorJoinedPrompt),
+    "director-based prompts must not leak preset props or settings"
+  );
+
   console.log("Omni positive visual prompt regression checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
