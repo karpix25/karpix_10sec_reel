@@ -3,6 +3,7 @@ import type {
   CtaMode,
   LifeFormatId,
   OmniCreativeStrategy,
+  OmniScriptBeatCue,
   OmniPromptValidationResult,
   OmniSegmentCreativePlan,
   ProductRole,
@@ -13,6 +14,11 @@ import { renderDirectorBriefForOmniPrompt } from "./director-analysis-prompt";
 import { buildDirectorSceneContract } from "./director-scene-contract";
 import { selectOmniCreativeStrategy } from "./omni-format-selector";
 import { splitScriptIntoVoiceSegments } from "./omni-script-segmentation";
+import {
+  extractGeneratedScriptBeatPlanFromSnapshot,
+  renderScriptBeatGuidance,
+  selectScriptBeatsForSegment,
+} from "./script-beat-plan";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
 import { validateOmniSegmentPrompt, validateVoiceoverSequence } from "./omni-prompt-validator";
 import { getOmniSegmentWordBudget } from "./omni-duration-planner";
@@ -70,6 +76,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   if (voiceSegments.length !== input.segmentCount) {
     throw new Error(`Script is too short for ${input.segmentCount} exact-speech Omni segments`);
   }
+  const scriptPlan = extractGeneratedScriptBeatPlanFromSnapshot(input.generatedScript?.source_snapshot);
 
   const productReference = getPrimaryReference(input.product.product_refs);
   const avatarReference = input.avatar?.reference_url || null;
@@ -119,6 +126,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       productRole,
       segmentCount: input.segmentCount,
       segmentSeconds: input.segmentSeconds,
+      scriptBeats: selectScriptBeatsForSegment(scriptPlan, segmentIndex, input.segmentCount),
     });
     const prompt = isSimpleFullBodyProviderPromptStyle()
       ? renderSimpleFullBodyUgcPrompt({
@@ -171,6 +179,7 @@ function buildSegmentCreativePlan(input: {
   productRole: ProductRole;
   segmentCount: number;
   segmentSeconds: number;
+  scriptBeats: OmniScriptBeatCue[];
 }): OmniSegmentCreativePlan {
   const format = getOmniLifeFormat(input.strategy.lifeFormatId);
   const sceneArc = input.strategy.visualStyle?.sceneArc ||
@@ -180,26 +189,27 @@ function buildSegmentCreativePlan(input: {
   const stateIndexes = getSceneStateIndexes(input.segmentIndex, input.segmentCount);
   const [opening, middle, closing] = stateIndexes.map((stateIndex) => sceneArc.states[stateIndex]);
   if (isTalkingHeadCutawayFormat(input.strategy.lifeFormatId)) {
-    return buildTalkingHeadCreativePlan({ ...input, opening, closing });
+    return addScriptBeatCues(buildTalkingHeadCreativePlan({ ...input, opening, closing }), input.scriptBeats);
   }
   const hookOpening = input.segmentIndex === 1
     ? buildHookOpening(input.strategy, opening)
     : `без сброса сцены продолжает из предыдущего положения: ${lowerFirst(opening)}`;
   const safeClosing = productClosingAction(closing, input.productRole);
 
-  return {
+  return addScriptBeatCues({
     segmentIndex: input.segmentIndex,
     lifeFormatId: input.strategy.lifeFormatId,
     speechStartsAtSeconds: 0,
     voiceoverText: input.voiceoverText,
     productRole: input.productRole,
     continuityProps: input.strategy.continuityProps,
+    scriptBeats: input.scriptBeats,
     beats: [
       { startSeconds: 0, endSeconds: 3, action: hookOpening },
       { startSeconds: 3, endSeconds: 7, action: middle },
       { startSeconds: 7, endSeconds: input.segmentSeconds, action: safeClosing },
     ],
-  };
+  }, input.scriptBeats);
 }
 
 function buildHookOpening(strategy: OmniCreativeStrategy, baseAction: string) {
@@ -233,6 +243,7 @@ function renderSegmentPrompt(
   referencePolicy: ReferenceTransferPolicy
 ) {
   const directorScene = buildDirectorSceneContract(directorBrief, referencePolicy);
+  const scriptBeatGuidance = renderScriptBeatGuidance(plan.scriptBeats);
   const talkingHead = isTalkingHeadCutawayFormat(strategy.lifeFormatId);
   const continuity = segmentIndex < segmentCount
     ? talkingHead
@@ -265,6 +276,7 @@ function renderSegmentPrompt(
       ? "СТАРТ РЕЧИ: первое слово точной реплики звучит на 0.0 секунде в кадре говорящей головы; лицо уже видно, герой смотрит в камеру. До него нет паузы, улыбки, вдоха, приветствия или подготовки."
       : "СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде одновременно с уже начавшимся действием. До него нет паузы, улыбки, вдоха, приветствия или подготовки.",
     `ТОЧНАЯ РЕПЛИКА: "${plan.voiceoverText}"`,
+    ...(scriptBeatGuidance ? [scriptBeatGuidance] : []),
     ...(directorScene ? [directorScene.actionLine] : []),
     talkingHead ? "ТРИ КАДРА ОДНОЙ ЧАСТИ:" : "ТРИ СОСТОЯНИЯ ОДНОГО МИНИ-ДЕЙСТВИЯ:",
     ...plan.beats.map((beat) => `${beat.startSeconds.toFixed(1)}-${beat.endSeconds.toFixed(1)} сек: ${beat.action}.`),
@@ -302,6 +314,26 @@ function productClosingAction(action: string, role: ProductRole) {
   if (role === "hidden" || role === "background_prop") return action;
   if (role === "brief_demo") return "только после последнего слова берет продукт с поверхности и один раз показывает без крупного плана";
   return "только после последнего слова берет продукт с поверхности и оставляет в руке, не открывая и не употребляя";
+}
+
+function addScriptBeatCues(
+  plan: OmniSegmentCreativePlan,
+  scriptBeats: readonly OmniScriptBeatCue[]
+): OmniSegmentCreativePlan {
+  if (!scriptBeats.length) return plan;
+  const visualCues = scriptBeats.map((beat) => beat.visualCue).filter(Boolean);
+  if (!visualCues.length) return { ...plan, scriptBeats };
+  return {
+    ...plan,
+    scriptBeats,
+    beats: plan.beats.map((beat, index) => {
+      const cue = visualCues[Math.min(index, visualCues.length - 1)];
+      return {
+        ...beat,
+        action: cue ? `${beat.action}. Сценарный visual cue: ${cue}` : beat.action,
+      };
+    }) as unknown as OmniSegmentCreativePlan["beats"],
+  };
 }
 
 function selectReferenceUrl(

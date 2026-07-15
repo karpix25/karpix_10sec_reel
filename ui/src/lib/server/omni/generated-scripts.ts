@@ -162,6 +162,16 @@ export async function createGeneratedScriptFromLegacy(input: {
     director_analysis_model: directorAnalysis?.analysis_model || null,
     director_analysis_prompt_version: directorAnalysis?.analysis_prompt_version || null,
     director_analysis_error: directorAnalysis?.analysis_error || null,
+    generated_script_plan_version: "reels-script-writer-v1",
+    generated_script_plan: {
+      hook_options: generated.payload.hook_options,
+      selected_hook: generated.payload.selected_hook,
+      beats: generated.payload.beats.map((beat) => ({
+        stage: beat.stage,
+        visual_cue: beat.visualCue,
+        voiceover: beat.voiceover,
+      })),
+    },
   };
   const productSnapshot = {
     id: product.id,

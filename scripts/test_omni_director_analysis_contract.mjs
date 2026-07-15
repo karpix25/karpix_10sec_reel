@@ -204,7 +204,8 @@ try {
     referencePolicy: irrelevantPolicy,
   });
   assert.ok(styleOnlyPrompt.includes("new product reference in a clean static cutaway"));
-  assert.ok(!/small kitchen|food assembly|sliced meat|plastic container|digital scale|bottom captions area/u.test(styleOnlyPrompt));
+  assert.ok(styleOnlyPrompt.includes("small kitchen"), "safe presenter background can still transfer in style-only mode");
+  assert.ok(!/food assembly|sliced meat|plastic container|digital scale|bottom captions area/u.test(styleOnlyPrompt));
 
   process.env.OPENROUTER_API_KEY = "test-key";
   process.env.OMNI_DIRECTOR_ANALYSIS_MODEL = "minimax/minimax-m3";

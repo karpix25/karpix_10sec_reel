@@ -266,6 +266,86 @@ try {
     "style-only prompt must not leak unrelated reference B-roll objects or processes"
   );
 
+  const blueBackgroundDirectorBrief = {
+    visual_hook: {
+      action: "Presenter talks directly to camera with confident hand gestures.",
+      retention_trigger: "Strong direct address against a blue-lit background.",
+    },
+    atmosphere: {
+      mood: "Bright, confident, intimate.",
+      lighting: "Bright cool-toned light with blue under-cabinet glow behind the presenter.",
+      color_grading: "Cool clean blue contrast.",
+      setting: "Modern home kitchen wall with a saturated blue background glow.",
+    },
+    clothing: {
+      style: "Black sleeveless fitted top.",
+      color_palette: ["black"],
+      fit_details: "Clean fitted silhouette with bare arms and simple watch.",
+    },
+    camera: {
+      shot_types: ["Medium shot"],
+      angles: ["Eye-level"],
+      movements: ["Static"],
+      stabilization: "Fixed phone or tripod.",
+    },
+    montage_rhythm: {
+      cut_pace: "Mostly continuous talking head with tiny jump cuts.",
+      beat_sync: "Cuts follow spoken phrase changes.",
+      transition_style: ["Hard cut"],
+    },
+    action_beats: [
+      { timestamp_sec: 0, action_description: "Presenter leans toward camera", actor_gesture: "Open palms and pointing gesture" },
+    ],
+    reusable_mechanics: {
+      visual_mechanics: ["Static eye-level talking head", "Confident hand gestures"],
+      safe_zones_for_elements: "",
+      looping_pattern: "Return to the same blue-lit speaker setup.",
+    },
+  };
+  const beatPlanInput = {
+    ...baseInput,
+    generatedScript: {
+      ...baseInput.generatedScript,
+      source_snapshot: {
+        director_analysis: blueBackgroundDirectorBrief,
+        generated_script_plan: {
+          hook_options: ["Кожа тускнеет быстрее, чем кажется?", "Хочешь сияющую кожу без сложного ухода?", "Коллаген легче встроить, чем крем"],
+          selected_hook: "Хочешь сияющую кожу без сложного ухода?",
+          beats: [
+            {
+              stage: "hook",
+              visual_cue: "Героиня в черном sleeveless top на синем фоне смотрит в камеру, cool blue light, medium shot.",
+              voiceover: "Хочешь сияющую кожу без сложного ухода?",
+            },
+            {
+              stage: "body",
+              visual_cue: "Статичная перебивка нового продукта в том же синем свете, без чужого продукта и без субтитров.",
+              voiceover: "Этот апельсиновый коллаген легко встроить в утро и взять с собой.",
+            },
+            {
+              stage: "cta",
+              visual_cue: "Возврат к лицу, та же черная одежда, синий фон и eye-level camera.",
+              voiceover: "Артикул можно найти в описании.",
+            },
+          ],
+        },
+      },
+    },
+  };
+  process.env.OMNI_PROVIDER_PROMPT_STYLE = "simple_full_body";
+  const beatPlanPrompts = buildOmniSegmentPrompts(beatPlanInput);
+  delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
+  const beatPlanJoinedPrompt = beatPlanPrompts.map((item) => item.prompt).join("\n");
+  assert.ok(
+    beatPlanPrompts.some((item) => item.creativePlan.scriptBeats?.length),
+    "script beat plan must be attached to creative plans"
+  );
+  assert.ok(beatPlanJoinedPrompt.includes("voiceover:"), "script beat visual cues must reach simple provider prompt");
+  assert.ok(beatPlanJoinedPrompt.includes("черном sleeveless top"), "script wardrobe cue must reach provider prompt");
+  assert.ok(beatPlanJoinedPrompt.includes("синем фоне"), "script background cue must reach provider prompt");
+  assert.ok(beatPlanJoinedPrompt.includes("blue under-cabinet glow"), "safe style-only blue lighting must be preserved");
+  assert.ok(beatPlanJoinedPrompt.includes("Black sleeveless fitted top"), "safe style-only wardrobe must be preserved");
+
   console.log("Omni positive visual prompt regression checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });

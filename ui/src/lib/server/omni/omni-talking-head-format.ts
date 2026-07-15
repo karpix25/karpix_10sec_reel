@@ -1,6 +1,7 @@
 import type {
   LifeFormatId,
   OmniCreativeStrategy,
+  OmniScriptBeatCue,
   OmniSegmentCreativePlan,
   ProductRole,
 } from "@/lib/omni/creative-contract";
@@ -27,13 +28,23 @@ export function buildTalkingHeadCreativePlan(input: {
   segmentSeconds: number;
   opening: string;
   closing: string;
+  scriptBeats?: OmniScriptBeatCue[];
 }): OmniSegmentCreativePlan {
-  const cutaway = input.productRole === "hidden"
+  const scriptCue = renderScriptCueSummary(input.scriptBeats);
+  const cueOpening = input.scriptBeats?.[0]?.visualCue;
+  const cueClosing = input.scriptBeats?.[input.scriptBeats.length - 1]?.visualCue;
+  const cutaway = cueCutaway(input.scriptBeats, input.productRole) || (input.productRole === "hidden"
     ? "короткая спокойная перебивка на фон, стол или деталь интерьера без действия руками"
-    : "короткая спокойная перебивка на продукт на столе без рук, без поворота упаковки и без рекламного крупного плана";
+    : "короткая спокойная перебивка на продукт на столе без рук, без поворота упаковки и без рекламного крупного плана");
   const opening = input.segmentIndex === 1
     ? buildTalkingHeadHookOpening(input.strategy, input.opening)
     : `говорит в камеру новым монтажным кадром: ${lowerFirst(input.opening)}`;
+  const guidedOpening = cueOpening
+    ? `говорит в камеру по visual cue сценариста: ${cueOpening}; ${lowerFirst(opening)}`
+    : opening;
+  const guidedClosing = cueClosing && cueClosing !== cueOpening
+    ? `возврат к лицу героя по visual cue сценариста: ${cueClosing}`
+    : `возврат к лицу героя: ${lowerFirst(input.closing)}`;
 
   return {
     segmentIndex: input.segmentIndex,
@@ -42,12 +53,31 @@ export function buildTalkingHeadCreativePlan(input: {
     voiceoverText: input.voiceoverText,
     productRole: input.productRole,
     continuityProps: input.strategy.continuityProps,
+    scriptBeats: input.scriptBeats || [],
     beats: [
-      { startSeconds: 0, endSeconds: 6.2, action: opening },
+      { startSeconds: 0, endSeconds: 6.2, action: withScriptCue(guidedOpening, scriptCue) },
       { startSeconds: 6.2, endSeconds: 8.4, action: cutaway },
-      { startSeconds: 8.4, endSeconds: input.segmentSeconds, action: `возврат к лицу героя: ${lowerFirst(input.closing)}` },
+      { startSeconds: 8.4, endSeconds: input.segmentSeconds, action: guidedClosing },
     ],
   };
+}
+
+function cueCutaway(scriptBeats: readonly OmniScriptBeatCue[] | undefined, productRole: ProductRole) {
+  const cutawayBeat = scriptBeats?.find((beat) => /перебив|insert|продукт|product|стол|фон|детал/iu.test(beat.visualCue));
+  if (!cutawayBeat) return "";
+  const productRule = productRole === "hidden"
+    ? "без показа продукта, если он не нужен в этой части"
+    : "если в cue есть продукт, показывать только новый продукт";
+  return `короткая спокойная перебивка по visual cue сценариста: ${cutawayBeat.visualCue}; ${productRule}; без субтитров и сложной хореографии`;
+}
+
+function renderScriptCueSummary(scriptBeats: readonly OmniScriptBeatCue[] | undefined) {
+  if (!scriptBeats?.length) return "";
+  return scriptBeats.map((beat) => `${beat.stage}: ${beat.visualCue}`).join(" | ");
+}
+
+function withScriptCue(action: string, scriptCue: string) {
+  return scriptCue ? `${action}; сценарный visual plan: ${scriptCue}` : action;
 }
 
 function buildTalkingHeadHookOpening(strategy: OmniCreativeStrategy, baseAction: string) {

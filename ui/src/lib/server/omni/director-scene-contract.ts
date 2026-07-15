@@ -44,10 +44,12 @@ export function buildDirectorSceneContract(
   ].filter(Boolean).join("; ");
 
   if (policy.mode === "style_only") {
+    const transferableScene = buildTransferableStyleOnlyScene(brief);
+    const transferableWardrobe = buildTransferableStyleOnlyWardrobe(brief, wardrobe);
     return {
       referenceLockLine: [
         "REFERENCE LOCK:",
-        "use the original reference only for transferable direction: presenter confidence, camera framing, camera movement, lighting feel, and edit rhythm.",
+        "use the original reference only for transferable direction: main-presenter wardrobe, background color mood, lighting feel, camera framing, camera movement, gesture confidence, and edit rhythm.",
         "Do not copy unrelated B-roll locations, props, tools, hands-only process shots, uniforms from supporting workers, or another product category.",
         "Replace every product/process insert with the new product reference in a clean static cutaway.",
       ].join(" "),
@@ -58,19 +60,20 @@ export function buildDirectorSceneContract(
       ].filter(Boolean).join(" "),
       sceneLine: [
         "REFERENCE SCENE:",
-        "keep the main presenter setup and overall visual polish from the reference only when it supports this script.",
+        transferableScene,
         "Do not recreate unrelated scene worlds, process props, work tools, supporting characters, or objects from another product category.",
-      ].join(" "),
+      ].filter(Boolean).join(" "),
       cameraLightLine: [
         "REFERENCE CAMERA AND LIGHT:",
         camera,
-        "match the reference lighting quality on the presenter; product inserts must use clean light that makes the new product image recognizable.",
+        `match the reference lighting quality on the presenter: ${getTransferableLighting(brief)}`,
+        "product inserts must use clean light that makes the new product image recognizable.",
       ].filter(Boolean).join(" "),
       wardrobeLine: [
         "REFERENCE WARDROBE:",
-        "match only the main presenter's outfit formality, silhouette, and color mood from the reference;",
+        transferableWardrobe,
         "do not copy supporting-character outfit details, brand marks, or clothing from unrelated cutaways.",
-      ].join(" "),
+      ].filter(Boolean).join(" "),
       editingLine: [
         "REFERENCE EDITING:",
         "match the reference pacing and transition feel at a high level.",
@@ -137,4 +140,49 @@ export function buildDirectorSceneContract(
       "do not use preset household, travel, office, or gym props that are not part of this reference scene.",
     ].join(" "),
   };
+}
+
+const FOREIGN_PROCESS_PATTERN =
+  /commercial kitchen|industrial|sterile|stainless-steel|food assembly|food prep|prep table|container|digital scale|sliced meat|gloved hands|staff|workers|цех|производств|контейнер|весы|перчат|работник|сборк|упаков/iu;
+
+const SUPPORTING_WARDROBE_PATTERN =
+  /staff|workers|gloves|nitrile|culinary|medical uniform|uniform|перчат|работник|униформ|медицинск|повар/iu;
+
+function buildTransferableStyleOnlyScene(brief: DirectorBrief) {
+  const setting = brief.atmosphere.setting || "";
+  const safeSetting = FOREIGN_PROCESS_PATTERN.test(setting)
+    ? "keep only the main presenter setup and background color mood from the reference; omit unrelated B-roll locations and process rooms."
+    : `match the main presenter background from the reference: ${setting}`;
+  return [
+    safeSetting,
+    `mood: ${brief.atmosphere.mood}`,
+    `light: ${getTransferableLighting(brief)}`,
+    `grade: ${brief.atmosphere.color_grading}`,
+  ].filter(Boolean).join("; ");
+}
+
+function getTransferableLighting(brief: DirectorBrief) {
+  const lighting = brief.atmosphere.lighting || "";
+  if (FOREIGN_PROCESS_PATTERN.test(lighting)) {
+    return "copy only the main-presenter light direction, contrast, softness, and color mood; omit unrelated process-room or industrial lighting";
+  }
+  return lighting;
+}
+
+function buildTransferableStyleOnlyWardrobe(brief: DirectorBrief, fullWardrobe: string) {
+  if (!SUPPORTING_WARDROBE_PATTERN.test(fullWardrobe)) {
+    return [
+      "match the main presenter's outfit from the reference:",
+      fullWardrobe,
+      "face and body identity still come from the character_id/reference image.",
+    ].filter(Boolean).join(" ");
+  }
+  const colors = brief.clothing.color_palette.length
+    ? `colors: ${brief.clothing.color_palette.join(", ")}`
+    : "";
+  return [
+    "match only the main presenter's outfit formality, silhouette, fit, and color mood from the reference;",
+    colors,
+    "omit uniforms, gloves, aprons, masks, or supporting-worker details.",
+  ].filter(Boolean).join(" ");
 }
