@@ -48,6 +48,7 @@ Write code as a professional modular system, not as large monolithic files.
 - Do not copy unrelated reference B-roll into Omni prompts; map reference cutaway mechanics to the new product and send the product reference whenever the product should appear.
 - Avoid type-only import hacks in prompt renderers; import shared TypeScript types explicitly.
 - Re-open newly added shared modules before wiring imports when subagents or parallel work may have changed their public interface.
+- Verify the production Docker Compose service name before build/up; do not assume the local workspace package name is a Compose service.
 
 # Project Skills
 
