@@ -30,6 +30,7 @@ try {
     },
     include: [
       join(ui, "src/lib/server/omni/director-analysis-types.ts"),
+      join(ui, "src/lib/server/omni/director-analysis-policy.ts"),
       join(ui, "src/lib/server/omni/director-analysis-prompt.ts"),
       join(ui, "src/lib/server/omni/scrapecreators-client.ts"),
       join(ui, "src/lib/server/omni/openrouter-director-analysis-client.ts"),
@@ -40,6 +41,7 @@ try {
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
 
   const { normalizeDirectorBrief } = require(findFile(compiled, "director-analysis-types.js"));
+  const { shouldAnalyzeDirectorReference } = require(findFile(compiled, "director-analysis-policy.js"));
   const { renderDirectorBriefForOmniPrompt } = require(findFile(compiled, "director-analysis-prompt.js"));
   const { extractScrapeCreatorsInstagramVideo } = require(findFile(compiled, "scrapecreators-client.js"));
   const { analyzeDirectorVideo } = require(findFile(compiled, "openrouter-director-analysis-client.js"));
@@ -57,6 +59,13 @@ try {
   });
   assert.equal(scrapeResult.videoUrl, "https://cdn.example.com/direct.mp4");
   assert.equal(scrapeResult.metadata.shortcode, "abc123");
+  assert.equal(
+    shouldAnalyzeDirectorReference({ reels_url: "https://www.instagram.com/reel/C80JdaJM6_C" }),
+    true,
+    "any resolved legacy source with an original reel must request director analysis"
+  );
+  assert.equal(shouldAnalyzeDirectorReference({ reels_url: "   " }), false);
+  assert.equal(shouldAnalyzeDirectorReference({ reels_url: null }), false);
 
   const brief = normalizeDirectorBrief({
     director_brief: {

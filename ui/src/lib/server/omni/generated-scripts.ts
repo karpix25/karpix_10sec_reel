@@ -2,6 +2,7 @@ import pool from "@/lib/db";
 import type { OmniGeneratedScript, OmniPromptPreviewSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
+import { shouldAnalyzeDirectorReference } from "./director-analysis-policy";
 import { ensureDirectorAnalysis } from "./director-analyses";
 import { resolveGeneratedScriptSource } from "./generated-script-source";
 import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
@@ -114,7 +115,7 @@ export async function createGeneratedScriptFromLegacy(input: {
 
   const product = await requireOmniProductInProject(input.projectId, input.productId);
   const { sourceScenario, sourceMode } = await resolveGeneratedScriptSource(input);
-  const directorAnalysis = input.legacyScenarioId
+  const directorAnalysis = shouldAnalyzeDirectorReference(sourceScenario)
     ? await ensureDirectorAnalysis({
         projectId: input.projectId,
         productId: input.productId,
