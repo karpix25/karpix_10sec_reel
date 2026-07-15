@@ -224,6 +224,7 @@ function renderSegmentPrompt(
   return [
     talkingHead ? OMNI_TALKING_HEAD_SYSTEM_PROMPT : OMNI_PROMPT_WRITER_SYSTEM_PROMPT,
     `Часть ${segmentIndex} из ${segmentCount}.`,
+    ...(directorScene ? [directorScene.referenceLockLine, directorScene.framingLine] : []),
     ...(talkingHead ? [
       "ФОРМАТ: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Основной кадр - лицо героя в камеру; перебивка - короткий спокойный insert без хореографии руками.",
     ] : []),
@@ -231,10 +232,11 @@ function renderSegmentPrompt(
     `ГЛАВНЫЙ ПЕРСОНАЖ: ${characterContract.identityLine}.`,
     `ОДЕЖДА: ${directorScene?.wardrobeLine || characterContract.clothingLine}.`,
     `ИСТОЧНИКИ ОБРАЗА: ${characterContract.sourceRuleLine}.`,
-    ...(strategy.visualStyle ? [
+    ...(strategy.visualStyle && !directorScene ? [
       `ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА: ${strategy.visualStyle.label}; ${strategy.visualStyle.visualTone}.`,
-      directorScene?.cameraLightLine || `КАМЕРА И СВЕТ: ${strategy.visualStyle.cameraLanguage}; ${strategy.visualStyle.lighting}.`,
+      `КАМЕРА И СВЕТ: ${strategy.visualStyle.cameraLanguage}; ${strategy.visualStyle.lighting}.`,
     ] : []),
+    ...(directorScene ? [directorScene.cameraLightLine, directorScene.editingLine] : []),
     ...(directorGuidance ? [`РЕЖИССУРА ОРИГИНАЛА:\n${directorGuidance}`] : []),
     directorScene?.propPassportLine || `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     `ТИП ХУКА: ${strategy.hookType}. ${strategy.hookRule}`,
@@ -242,6 +244,7 @@ function renderSegmentPrompt(
       ? "СТАРТ РЕЧИ: первое слово точной реплики звучит на 0.0 секунде в кадре говорящей головы; лицо уже видно, герой смотрит в камеру. До него нет паузы, улыбки, вдоха, приветствия или подготовки."
       : "СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде одновременно с уже начавшимся действием. До него нет паузы, улыбки, вдоха, приветствия или подготовки.",
     `ТОЧНАЯ РЕПЛИКА: "${plan.voiceoverText}"`,
+    ...(directorScene ? [directorScene.actionLine] : []),
     talkingHead ? "ТРИ КАДРА ОДНОЙ ЧАСТИ:" : "ТРИ СОСТОЯНИЯ ОДНОГО МИНИ-ДЕЙСТВИЯ:",
     ...plan.beats.map((beat) => `${beat.startSeconds.toFixed(1)}-${beat.endSeconds.toFixed(1)} сек: ${beat.action}.`),
     `РОЛЬ ПРОДУКТА: ${productRoleInstruction(plan.productRole)}`,

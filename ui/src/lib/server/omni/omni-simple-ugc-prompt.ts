@@ -29,9 +29,13 @@ export function renderSimpleFullBodyUgcPrompt(input: {
 
   return [
     `Raw vertical video recording, 9:16 aspect ratio, ${duration.toFixed(0)}s duration.`,
-    "FRAMING: medium-wide full-body shot for the whole clip; the person stands in frame, visible from head to shoes or at least head to knees, with hands visible.",
+    directorScene?.referenceLockLine ||
+      "REFERENCE LOCK: no external director reference is available; use a clean realistic UGC scene with no subtitles or overlays.",
+    directorScene?.framingLine ||
+      "FRAMING: raw smartphone camera recording, stable portrait composition, person clearly visible, no forced full-body framing.",
     directorScene?.cameraLightLine || "CAMERA: raw smartphone camera recording, slight natural breathing movement, bright domestic light, high quality sensor output.",
-    "EDITING RHYTHM: fast-paced realistic montage with 4-6 quick cuts; use slight perspective or angle changes between cuts to avoid blending or morphing artifacts.",
+    directorScene?.editingLine ||
+      "EDITING RHYTHM: simple clean cuts only when needed; no subtitles, captions, progress bars, or interface overlays.",
     ...(input.directorGuidance ? [`REFERENCE VIDEO DIRECTION:\n${input.directorGuidance}`] : []),
     directorScene?.sceneLine || `SCENE: ${input.strategy.setting}.`,
     `ГЛАВНЫЙ ПЕРСОНАЖ: ${input.characterContract.identityLine}.`,
@@ -42,7 +46,8 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     `СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде; герой уже стоит в кадре и смотрит в камеру.`,
     `ТОЧНАЯ РЕПЛИКА (${wordCount} слов): "${input.plan.voiceoverText}"`,
     "SPEECH TIMING: Russian, energetic delivery; the exact quote should occupy almost the whole clip with no long pauses between phrases. Speak only the exact quote once, no subtitles.",
-    "ACTION: keep it simple and tied to speech - stand in the scene, hold or gesture toward the product when allowed, make tiny natural body shifts, and use quick cuts for rhythm. Do not invent unrelated filler actions.",
+    directorScene?.actionLine ||
+      "ACTION: keep it simple and tied to speech; do not invent unrelated filler actions.",
     `CONTINUITY: same person, outfit, room, light, product appearance, and prop layout across the segment. ${continuity}`,
     "CLEAN FRAME: only the raw environment and the person are visible. No on-screen text, subtitles, captions, progress bars, overlay icons, buttons, watermarks, logos, or app interfaces.",
   ].join("\n");
@@ -50,6 +55,8 @@ export function renderSimpleFullBodyUgcPrompt(input: {
 
 function productLine(role: ProductRole) {
   if (role === "hidden") return "Do not show the product in this segment; keep the story personal.";
-  if (role === "background_prop") return "Keep the product visible in the wide scene on a table or counter, without a close-up.";
-  return "The person naturally holds one product bottle or package in one hand while speaking to camera.";
+  if (role === "background_prop") {
+    return "If the original reference has a visible main product, replace it with this product while preserving the same placement, timing, framing, and visual importance; otherwise keep it as a quiet background product without inventing a product demo.";
+  }
+  return "If the original reference shows a held or demonstrated product, replace that original product with this product while preserving the same gesture, timing, framing, and naturalness.";
 }
