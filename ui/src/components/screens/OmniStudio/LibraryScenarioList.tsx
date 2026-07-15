@@ -10,6 +10,7 @@ import {
   ListFilter,
   Maximize2,
   Minimize2,
+  PenLine,
   Play,
   RefreshCw,
   Video,
@@ -62,9 +63,11 @@ export function LibraryScenarioList({
   selectedScenarioId,
   isScenariosLoading,
   onSelectScenario,
+  onCreateScenarioScript,
   onCreateScenarioVideo,
   onRunReel,
   onSyncReel,
+  isCreatingScript,
   isCreatingReel,
   isRunningReel,
   isSyncingReel,
@@ -77,10 +80,12 @@ export function LibraryScenarioList({
   selectedScenarioId: number | null;
   isScenariosLoading: boolean;
   onSelectScenario: (scenarioId: number) => void;
+  onCreateScenarioScript: (scenarioId: number) => void;
   onCreateScenarioVideo: (scenarioId: number) => void;
   onRunReel: (reelId: number) => void;
   onSyncReel: (reelId: number) => void;
   isCreatingReel: boolean;
+  isCreatingScript: boolean;
   isRunningReel: boolean;
   isSyncingReel: boolean;
 }) {
@@ -90,6 +95,7 @@ export function LibraryScenarioList({
   const [filter, setFilter] = useState<VideoFilter>("all");
 
   useEffect(() => {
+    let isMounted = true;
     try {
       const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}") as {
         expandedScenarioId?: number;
@@ -97,13 +103,19 @@ export function LibraryScenarioList({
         viewMode?: ViewMode;
         filter?: VideoFilter;
       };
-      setExpandedScenarioId(saved.expandedScenarioId || null);
-      if (saved.activeTab) setActiveTab(saved.activeTab);
-      if (saved.viewMode) setViewMode(saved.viewMode);
-      if (saved.filter) setFilter(saved.filter);
+      window.setTimeout(() => {
+        if (!isMounted) return;
+        setExpandedScenarioId(saved.expandedScenarioId || null);
+        if (saved.activeTab) setActiveTab(saved.activeTab);
+        if (saved.viewMode) setViewMode(saved.viewMode);
+        if (saved.filter) setFilter(saved.filter);
+      }, 0);
     } catch {
       // Keep defaults when localStorage contains stale data.
     }
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -160,13 +172,16 @@ export function LibraryScenarioList({
             isSelected={item.scenario.id === selectedScenarioId}
             isExpanded={viewMode === "detail" || expandedScenarioId === item.scenario.id}
             activeTab={activeTab}
+            canCreateScript={Boolean(activeProduct)}
             canCreateVideo={Boolean(activeProduct && latestAvatar)}
+            isCreatingScript={isCreatingScript}
             isCreatingReel={isCreatingReel}
             isRunningReel={isRunningReel}
             isSyncingReel={isSyncingReel}
             onToggle={() => setExpandedScenarioId((current) => (current === item.scenario.id ? null : item.scenario.id))}
             onTabChange={setActiveTab}
             onSelectScenario={onSelectScenario}
+            onCreateScenarioScript={onCreateScenarioScript}
             onCreateScenarioVideo={onCreateScenarioVideo}
             onRunReel={onRunReel}
             onSyncReel={onSyncReel}
@@ -192,13 +207,16 @@ function LibraryScenarioCard({
   isSelected,
   isExpanded,
   activeTab,
+  canCreateScript,
   canCreateVideo,
+  isCreatingScript,
   isCreatingReel,
   isRunningReel,
   isSyncingReel,
   onToggle,
   onTabChange,
   onSelectScenario,
+  onCreateScenarioScript,
   onCreateScenarioVideo,
   onRunReel,
   onSyncReel,
@@ -207,13 +225,16 @@ function LibraryScenarioCard({
   isSelected: boolean;
   isExpanded: boolean;
   activeTab: CardTab;
+  canCreateScript: boolean;
   canCreateVideo: boolean;
+  isCreatingScript: boolean;
   isCreatingReel: boolean;
   isRunningReel: boolean;
   isSyncingReel: boolean;
   onToggle: () => void;
   onTabChange: (tab: CardTab) => void;
   onSelectScenario: (scenarioId: number) => void;
+  onCreateScenarioScript: (scenarioId: number) => void;
   onCreateScenarioVideo: (scenarioId: number) => void;
   onRunReel: (reelId: number) => void;
   onSyncReel: (reelId: number) => void;
@@ -248,6 +269,18 @@ function LibraryScenarioCard({
             className="h-9 w-9"
           >
             {isSelected ? <Check className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            onClick={() => onCreateScenarioScript(scenario.id)}
+            disabled={!canCreateScript || isCreatingScript}
+            title="Написать draft по этому оригиналу"
+            aria-label="Написать draft по этому оригиналу"
+            className="h-9 w-9"
+          >
+            <PenLine className="h-4 w-4" />
           </Button>
           <Button
             type="button"

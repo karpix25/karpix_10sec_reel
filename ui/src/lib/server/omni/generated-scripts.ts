@@ -2,8 +2,8 @@ import pool from "@/lib/db";
 import type { OmniGeneratedScript, OmniPromptPreviewSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
-import { getRandomLegacyScenarioFromClients } from "./legacy-scenarios";
-import { listLegacyLibraryLinks } from "./legacy-library-links";
+import { ensureDirectorAnalysis } from "./director-analyses";
+import { resolveGeneratedScriptSource } from "./generated-script-source";
 import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
@@ -19,6 +19,7 @@ function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
       row.source_legacy_scenario_id === null ? null : Number(row.source_legacy_scenario_id),
     source_legacy_client_id:
       row.source_legacy_client_id === null ? null : Number(row.source_legacy_client_id),
+    director_analysis_id: row.director_analysis_id === null ? null : Number(row.director_analysis_id),
   };
 }
 
@@ -105,22 +106,23 @@ export async function buildGeneratedScriptPromptPreview(input: {
 export async function createGeneratedScriptFromLegacy(input: {
   projectId: number;
   productId: number;
+  legacyScenarioId?: number | null;
 }) {
   await ensureOmniSchema();
   const project = await getOmniProject(input.projectId);
   if (!project) throw new Error("Omni client project not found");
 
   const product = await requireOmniProductInProject(input.projectId, input.productId);
-  const libraryLinks = await listLegacyLibraryLinks(input.projectId, null);
-  const legacyClientIds = libraryLinks.map((link) => link.legacy_client_id);
-  if (!legacyClientIds.length) {
-    throw new Error("No active legacy bundles for this project");
-  }
-
-  const sourceScenario = await getRandomLegacyScenarioFromClients(legacyClientIds);
-  if (!sourceScenario) {
-    throw new Error("No reference transcripts found in active legacy bundles");
-  }
+  const { sourceScenario, sourceMode } = await resolveGeneratedScriptSource(input);
+  const directorAnalysis = input.legacyScenarioId
+    ? await ensureDirectorAnalysis({
+        projectId: input.projectId,
+        productId: input.productId,
+        sourceScenario,
+      })
+    : null;
+  const directorBrief =
+    directorAnalysis?.director_analysis_status === "completed" ? directorAnalysis.director_analysis_json : null;
 
   const model = process.env.SCENARIO_MODEL || "google/gemini-2.5-flash";
   const generated = await generateScript({
@@ -134,10 +136,12 @@ export async function createGeneratedScriptFromLegacy(input: {
     ctaMode: product.cta_mode,
     ctaValue: product.cta_value,
     sourceScenario,
+    directorBrief,
   });
 
   const sourceSnapshot = {
     id: sourceScenario.id,
+    source_selection_mode: sourceMode,
     legacy_client_id: sourceScenario.client_id,
     legacy_client_name: sourceScenario.legacy_client_name,
     legacy_product_keyword: sourceScenario.legacy_product_keyword,
@@ -150,6 +154,13 @@ export async function createGeneratedScriptFromLegacy(input: {
     duration_seconds: sourceScenario.duration_seconds,
     source_reference: sourceScenario.source_reference,
     quality_check: generated.qualityCheck,
+    director_analysis_id: directorAnalysis?.id || null,
+    director_analysis_status: directorAnalysis?.director_analysis_status || "not_requested",
+    director_analysis: directorBrief,
+    director_video_url: directorAnalysis?.stored_video_url || directorAnalysis?.resolved_video_url || null,
+    director_analysis_model: directorAnalysis?.analysis_model || null,
+    director_analysis_prompt_version: directorAnalysis?.analysis_prompt_version || null,
+    director_analysis_error: directorAnalysis?.analysis_error || null,
   };
   const productSnapshot = {
     id: product.id,
@@ -165,6 +176,7 @@ export async function createGeneratedScriptFromLegacy(input: {
        product_id,
        source_legacy_scenario_id,
        source_legacy_client_id,
+       director_analysis_id,
        title,
        hook,
        script,
@@ -176,13 +188,14 @@ export async function createGeneratedScriptFromLegacy(input: {
        model,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb, $14, CURRENT_TIMESTAMP)
      RETURNING *`,
     [
       input.projectId,
       input.productId,
       sourceScenario.id,
       sourceScenario.client_id,
+      directorAnalysis?.id || null,
       generated.payload.title || null,
       generated.payload.hook || null,
       generated.payload.script || "",

@@ -27,10 +27,11 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const projectId = parsePositiveInt(body.projectId);
     const productId = parsePositiveInt(body.productId);
+    const legacyScenarioId = parsePositiveInt(body.legacyScenarioId);
     if (!projectId) return jsonError("projectId is required");
     if (!productId) return jsonError("productId is required");
 
-    return NextResponse.json(await createGeneratedScriptFromLegacy({ projectId, productId }), { status: 201 });
+    return NextResponse.json(await createGeneratedScriptFromLegacy({ projectId, productId, legacyScenarioId }), { status: 201 });
   } catch (error) {
     console.error("Omni generated script create error:", error);
     return jsonError(error instanceof Error ? error.message : "Internal Server Error", 500);

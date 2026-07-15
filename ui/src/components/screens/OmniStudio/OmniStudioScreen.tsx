@@ -96,6 +96,16 @@ export function OmniStudioScreen({
     handleCreateReel(scenarioId);
   };
 
+  const handleCreateScenarioScript = (scenarioId: number) => {
+    setSelectedScenarioId(scenarioId);
+    if (!activeProjectId || !selectedProductId) return;
+    studio.createGeneratedScriptMutation.mutate({
+      projectId: activeProjectId,
+      productId: selectedProductId,
+      legacyScenarioId: scenarioId,
+    });
+  };
+
   const handleRunReel = (reelId: number) => {
     if (!activeProjectId) return;
     studio.runReelMutation.mutate({ projectId: activeProjectId, reelId, provider: omniGenerationProvider });
@@ -200,6 +210,7 @@ export function OmniStudioScreen({
         isScenariosError={studio.legacyScenariosQuery.isError}
         isActivatingBundle={studio.linkLibraryMutation.isPending}
         isDeactivatingBundle={studio.unlinkLibraryMutation.isPending}
+        isCreatingScript={studio.createGeneratedScriptMutation.isPending}
         isCreatingReel={studio.createReelMutation.isPending}
         isRunningReel={studio.runReelMutation.isPending}
         isSyncingReel={studio.syncReelMutation.isPending}
@@ -208,6 +219,7 @@ export function OmniStudioScreen({
         onActivateBundle={handleActivateBundle}
         onDeactivateBundle={handleDeactivateBundle}
         onSelectScenario={setSelectedScenarioId}
+        onCreateScenarioScript={handleCreateScenarioScript}
         onCreateScenarioVideo={handleCreateScenarioVideo}
         onRunReel={handleRunReel}
         onSyncReel={handleSyncReel}

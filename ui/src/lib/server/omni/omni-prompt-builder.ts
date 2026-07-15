@@ -8,6 +8,8 @@ import type {
   ProductRole,
 } from "@/lib/omni/creative-contract";
 import { getOmniLifeFormat } from "./omni-life-formats";
+import { extractDirectorBriefFromSnapshot, type DirectorBrief } from "./director-analysis-types";
+import { renderDirectorBriefForOmniPrompt } from "./director-analysis-prompt";
 import { selectOmniCreativeStrategy } from "./omni-format-selector";
 import { splitScriptIntoVoiceSegments } from "./omni-script-segmentation";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
@@ -45,6 +47,7 @@ type BuildOmniPromptsInput = {
   segmentCount: number;
   segmentSeconds: number;
   brief: string | null;
+  directorBrief?: DirectorBrief | null;
   targetAudience?: string | null;
   ctaMode?: CtaMode;
   ctaValue?: string | null;
@@ -72,6 +75,9 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     product: input.product,
     avatar: input.avatar,
   });
+  const directorGuidance = renderDirectorBriefForOmniPrompt(
+    input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot)
+  );
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,
     firstSpokenLine: voiceSegments[0]?.text,
@@ -104,8 +110,16 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentSeconds: input.segmentSeconds,
     });
     const prompt = isSimpleFullBodyProviderPromptStyle()
-      ? renderSimpleFullBodyUgcPrompt({ plan, strategy, characterContract, productName: input.product.name, segmentIndex, segmentCount: input.segmentCount })
-      : renderSegmentPrompt(plan, strategy, characterContract, segmentIndex, input.segmentCount);
+      ? renderSimpleFullBodyUgcPrompt({
+          plan,
+          strategy,
+          characterContract,
+          productName: input.product.name,
+          segmentIndex,
+          segmentCount: input.segmentCount,
+          directorGuidance,
+        })
+      : renderSegmentPrompt(plan, strategy, characterContract, segmentIndex, input.segmentCount, directorGuidance);
     const validation = validateOmniSegmentPrompt({ prompt, plan });
     if (!validation.valid) {
       throw new Error(`Invalid Omni segment ${segmentIndex}: ${validation.errors.join(", ")}`);
@@ -191,7 +205,8 @@ function renderSegmentPrompt(
   strategy: OmniCreativeStrategy,
   characterContract: OmniCharacterContract,
   segmentIndex: number,
-  segmentCount: number
+  segmentCount: number,
+  directorGuidance: string | null
 ) {
   const talkingHead = isTalkingHeadCutawayFormat(strategy.lifeFormatId);
   const continuity = segmentIndex < segmentCount
@@ -216,6 +231,7 @@ function renderSegmentPrompt(
       `ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА: ${strategy.visualStyle.label}; ${strategy.visualStyle.visualTone}.`,
       `КАМЕРА И СВЕТ: ${strategy.visualStyle.cameraLanguage}; ${strategy.visualStyle.lighting}.`,
     ] : []),
+    ...(directorGuidance ? [`РЕЖИССУРА ОРИГИНАЛА:\n${directorGuidance}`] : []),
     `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     `ТИП ХУКА: ${strategy.hookType}. ${strategy.hookRule}`,
     talkingHead

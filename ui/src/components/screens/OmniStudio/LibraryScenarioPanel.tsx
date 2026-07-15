@@ -33,6 +33,7 @@ export function LibraryScenarioPanel({
   isScenariosError,
   isActivatingBundle,
   isDeactivatingBundle,
+  isCreatingScript,
   isCreatingReel,
   isRunningReel,
   isSyncingReel,
@@ -41,6 +42,7 @@ export function LibraryScenarioPanel({
   onActivateBundle,
   onDeactivateBundle,
   onSelectScenario,
+  onCreateScenarioScript,
   onCreateScenarioVideo,
   onRunReel,
   onSyncReel,
@@ -62,6 +64,7 @@ export function LibraryScenarioPanel({
   isScenariosError: boolean;
   isActivatingBundle: boolean;
   isDeactivatingBundle: boolean;
+  isCreatingScript: boolean;
   isCreatingReel: boolean;
   isRunningReel: boolean;
   isSyncingReel: boolean;
@@ -70,6 +73,7 @@ export function LibraryScenarioPanel({
   onActivateBundle: (legacyClientId: number) => void;
   onDeactivateBundle: (legacyClientId: number) => void;
   onSelectScenario: (scenarioId: number) => void;
+  onCreateScenarioScript: (scenarioId: number) => void;
   onCreateScenarioVideo: (scenarioId: number) => void;
   onRunReel: (reelId: number) => void;
   onSyncReel: (reelId: number) => void;
@@ -253,10 +257,12 @@ export function LibraryScenarioPanel({
             segments={segments}
             selectedScenarioId={selectedScenarioId}
             isScenariosLoading={isScenariosLoading}
+            isCreatingScript={isCreatingScript}
             isCreatingReel={isCreatingReel}
             isRunningReel={isRunningReel}
             isSyncingReel={isSyncingReel}
             onSelectScenario={onSelectScenario}
+            onCreateScenarioScript={onCreateScenarioScript}
             onCreateScenarioVideo={onCreateScenarioVideo}
             onRunReel={onRunReel}
             onSyncReel={onSyncReel}

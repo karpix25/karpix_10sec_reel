@@ -100,7 +100,7 @@ try {
   assert.equal(prompts[2].referenceUrl, "https://example.com/product.png");
   assert.ok(joinedPrompt.includes("ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА:"), "positive visual style must be rendered");
   assert.ok(joinedPrompt.includes("КАМЕРА И СВЕТ:"), "camera and light must be rendered");
-  assert.ok(joinedPrompt.includes("обычное сырое видео с камеры"), "clean-frame provider contract must be rendered");
+  assert.ok(joinedPrompt.includes("чистое сырое видео напрямую с сенсора камеры"), "clean-frame provider contract must be rendered");
   assert.ok(joinedPrompt.includes("ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ"), "talking-head cutaway format must be rendered");
   assert.ok(joinedPrompt.includes("ТРИ КАДРА ОДНОЙ ЧАСТИ:"), "talking-head prompt must use shot-based structure");
   assert.ok(joinedPrompt.includes("во время короткой перебивки речь продолжает звучать как voiceover"), "cutaway voiceover rule must be rendered");
@@ -123,11 +123,12 @@ try {
     fullBodyPrompts.every((item) => item.creativeStrategy.lifeFormatId !== "talking_head_cutaways"),
     "simple full-body mode must avoid talking-head strategy"
   );
-  assert.ok(fullBodyJoinedPrompt.includes("UGC style vertical video"), "simple UGC prompt must be rendered");
+  assert.ok(fullBodyJoinedPrompt.includes("Raw vertical video recording"), "simple full-body prompt must be rendered");
   assert.ok(fullBodyJoinedPrompt.includes("medium-wide full-body shot"), "full-body framing must be explicit");
   assert.ok(fullBodyJoinedPrompt.includes("visible from head to shoes or at least head to knees"), "full height framing must be explicit");
   assert.ok(fullBodyJoinedPrompt.includes("no long pauses"), "full-body prompt must prevent dead air");
   assert.ok(fullBodyJoinedPrompt.includes("Do not invent unrelated filler actions"), "full-body prompt must prevent filler actions");
+  assert.ok(fullBodyJoinedPrompt.includes("No on-screen text"), "full-body prompt must explicitly prevent generated overlays");
   assert.ok(fullBodyJoinedPrompt.includes("ТОЧНАЯ РЕПЛИКА"), "exact Russian quote must be preserved");
   assert.ok(!fullBodyJoinedPrompt.includes("ГОВОРЯЩАЯ ГОЛОВА"), "full-body prompt must not ask for talking head");
   assert.ok(!/\b(?:Reels?|Instagram|TikTok|Shorts)\b/u.test(fullBodyJoinedPrompt), "platform names must not reach full-body provider prompt");
