@@ -34,6 +34,7 @@ try {
       join(ui, "src/lib/server/omni/director-analysis-policy.ts"),
       join(ui, "src/lib/server/omni/director-analysis-prompt.ts"),
       join(ui, "src/lib/server/omni/director-scene-contract.ts"),
+      join(ui, "src/lib/server/omni/omni-reference-transfer-policy.ts"),
       join(ui, "src/lib/server/omni/omni-simple-ugc-prompt.ts"),
       join(ui, "src/lib/server/omni/scrapecreators-client.ts"),
       join(ui, "src/lib/server/omni/openrouter-director-analysis-client.ts"),
@@ -51,6 +52,7 @@ try {
   const { normalizeDirectorBrief } = require(findFile(compiled, "director-analysis-types.js"));
   const { shouldAnalyzeDirectorReference } = require(findFile(compiled, "director-analysis-policy.js"));
   const { renderDirectorBriefForOmniPrompt } = require(findFile(compiled, "director-analysis-prompt.js"));
+  const { buildReferenceTransferPolicy } = require(findFile(compiled, "omni-reference-transfer-policy.js"));
   const { renderSimpleFullBodyUgcPrompt } = require(findFile(compiled, "omni-simple-ugc-prompt.js"));
   const { extractScrapeCreatorsInstagramVideo } = require(findFile(compiled, "scrapecreators-client.js"));
   const { analyzeDirectorVideo } = require(findFile(compiled, "openrouter-director-analysis-client.js"));
@@ -164,6 +166,45 @@ try {
   assert.ok(simplePrompt.includes("replace any original product or brand with the new product"));
   assert.ok(simplePrompt.includes("replace it with this product while preserving the same placement, timing, framing"));
   assert.ok(!/medium-wide full-body|head to shoes|4-6 quick cuts|fast-paced realistic montage/u.test(simplePrompt));
+
+  const irrelevantPolicy = buildReferenceTransferPolicy({
+    directorBrief: brief,
+    productName: "Апельсиновый коллаген",
+    productDescription: "БАД для красоты кожи, волос и суставов",
+    productReferenceNotes: null,
+    hasProductReference: true,
+  });
+  assert.equal(irrelevantPolicy.mode, "style_only", "meal-prep reference must become style-only for collagen product");
+  const styleOnlyPrompt = renderSimpleFullBodyUgcPrompt({
+    plan: {
+      segmentIndex: 1,
+      lifeFormatId: "talking_head_cutaways",
+      speechStartsAtSeconds: 0,
+      voiceoverText: "Коллаген легко встроить в утренний уход.",
+      productRole: "background_prop",
+      continuityProps: [],
+      beats: [
+        { startSeconds: 0, endSeconds: 6, action: "говорит в камеру" },
+        { startSeconds: 6, endSeconds: 8, action: "перебивка продукта" },
+        { startSeconds: 8, endSeconds: 10, action: "возврат к лицу" },
+      ],
+    },
+    strategy: { setting: "fallback setting" },
+    characterContract: {
+      identityLine: "главный персонаж",
+      clothingLine: "fallback outfit",
+      sourceRuleLine: "character_id sets identity",
+      clothingSource: "fallback",
+    },
+    productName: "Апельсиновый коллаген",
+    segmentIndex: 1,
+    segmentCount: 2,
+    directorGuidance: rendered,
+    directorBrief: brief,
+    referencePolicy: irrelevantPolicy,
+  });
+  assert.ok(styleOnlyPrompt.includes("new product reference in a clean static cutaway"));
+  assert.ok(!/small kitchen|food assembly|sliced meat|plastic container|digital scale|bottom captions area/u.test(styleOnlyPrompt));
 
   process.env.OPENROUTER_API_KEY = "test-key";
   process.env.OMNI_DIRECTOR_ANALYSIS_MODEL = "minimax/minimax-m3";

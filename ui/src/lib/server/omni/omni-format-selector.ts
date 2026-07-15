@@ -132,7 +132,13 @@ function getNoveltyPenalty(format: OmniLifeFormat, recent: readonly LifeFormatId
 function selectProductRole(format: OmniLifeFormat, content: string, hasReference: boolean): ProductRole {
   if (!hasReference || INTANGIBLE_PRODUCT_PATTERN.test(content)) return "hidden";
   if (EXPLICIT_DEMO_PATTERN.test(content) && format.allowedProductRoles.includes("brief_demo")) return "brief_demo";
-  return format.preferredProductRoles[0] || format.allowedProductRoles[0];
+  return pickVisibleProductRole(format) || format.preferredProductRoles[0] || format.allowedProductRoles[0];
+}
+
+function pickVisibleProductRole(format: OmniLifeFormat): ProductRole | null {
+  const preferredVisible = format.preferredProductRoles.find((role) => role !== "hidden");
+  if (preferredVisible) return preferredVisible;
+  return format.allowedProductRoles.find((role) => role !== "hidden") || null;
 }
 
 function selectHookType(format: OmniLifeFormat, firstLine: string, productRole: ProductRole): HookType {

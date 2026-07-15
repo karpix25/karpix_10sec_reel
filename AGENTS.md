@@ -45,6 +45,7 @@ Write code as a professional modular system, not as large monolithic files.
 - Escape SQL placeholders such as `$1` in remote `node -e` diagnostics so the outer shell cannot expand them away.
 - When director analysis exists, use its scene, wardrobe, lighting, and environment props as the provider prompt source of truth, not preset visual-style props.
 - Director-reference Omni prompts must follow the reference wardrobe, light, camera, and edit rhythm exactly, except removing overlays/subtitles and replacing the original product with ours.
+- Do not copy unrelated reference B-roll into Omni prompts; map reference cutaway mechanics to the new product and send the product reference whenever the product should appear.
 
 # Project Skills
 

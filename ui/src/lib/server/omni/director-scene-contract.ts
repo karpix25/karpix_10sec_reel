@@ -1,4 +1,5 @@
 import type { DirectorBrief } from "./director-analysis-types";
+import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 
 export type DirectorSceneContract = {
   referenceLockLine: string;
@@ -11,7 +12,10 @@ export type DirectorSceneContract = {
   propPassportLine: string;
 };
 
-export function buildDirectorSceneContract(brief: DirectorBrief | null): DirectorSceneContract | null {
+export function buildDirectorSceneContract(
+  brief: DirectorBrief | null,
+  policy: ReferenceTransferPolicy = { mode: "full_reference", omitRawDirectorGuidance: false }
+): DirectorSceneContract | null {
   if (!brief) return null;
 
   const wardrobe = [
@@ -38,6 +42,54 @@ export function buildDirectorSceneContract(brief: DirectorBrief | null): Directo
     brief.reusable_mechanics.visual_mechanics.join("; "),
     brief.reusable_mechanics.looping_pattern ? `loop: ${brief.reusable_mechanics.looping_pattern}` : "",
   ].filter(Boolean).join("; ");
+
+  if (policy.mode === "style_only") {
+    return {
+      referenceLockLine: [
+        "REFERENCE LOCK:",
+        "use the original reference only for transferable direction: presenter confidence, camera framing, camera movement, lighting feel, and edit rhythm.",
+        "Do not copy unrelated B-roll locations, props, tools, hands-only process shots, uniforms from supporting workers, or another product category.",
+        "Replace every product/process insert with the new product reference in a clean static cutaway.",
+      ].join(" "),
+      framingLine: [
+        "REFERENCE FRAMING:",
+        camera,
+        "Keep the reference shot scale and stability, but point all insert shots at the new product instead of the original scene objects.",
+      ].filter(Boolean).join(" "),
+      sceneLine: [
+        "REFERENCE SCENE:",
+        "keep the main presenter setup and overall visual polish from the reference only when it supports this script.",
+        "Do not recreate unrelated scene worlds, process props, work tools, supporting characters, or objects from another product category.",
+      ].join(" "),
+      cameraLightLine: [
+        "REFERENCE CAMERA AND LIGHT:",
+        camera,
+        "match the reference lighting quality on the presenter; product inserts must use clean light that makes the new product image recognizable.",
+      ].filter(Boolean).join(" "),
+      wardrobeLine: [
+        "REFERENCE WARDROBE:",
+        "match only the main presenter's outfit formality, silhouette, and color mood from the reference;",
+        "do not copy supporting-character outfit details, brand marks, or clothing from unrelated cutaways.",
+      ].join(" "),
+      editingLine: [
+        "REFERENCE EDITING:",
+        "match the reference pacing and transition feel at a high level.",
+        "Use the same explain-and-show rhythm, but every insert must be relevant to the spoken script and the new product.",
+      ].filter(Boolean).join(" "),
+      actionLine: [
+        "REFERENCE ACTION DNA:",
+        "keep the reference pattern of presenter explanation plus short visual insert.",
+        "Rewrite all unrelated process shots into calm product cutaways: the new product on a clean surface, visible packaging, stable framing, no extra hands unless needed for scale.",
+        "Do not show another product, another workflow, or unrelated objects from the original reference.",
+      ].join(" "),
+      propPassportLine: [
+        "REFERENCE SCENE PASSPORT:",
+        "stable presenter background plus the new product only;",
+        "the original reference product/process is not a prop source;",
+        "when a cutaway appears, show the new product reference clearly on a clean surface.",
+      ].join(" "),
+    };
+  }
 
   return {
     referenceLockLine: [

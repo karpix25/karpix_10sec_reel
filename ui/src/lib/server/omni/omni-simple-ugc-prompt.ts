@@ -6,6 +6,7 @@ import type {
 import type { OmniCharacterContract } from "./omni-character-contract";
 import type { DirectorBrief } from "./director-analysis-types";
 import { buildDirectorSceneContract } from "./director-scene-contract";
+import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 
 export function renderSimpleFullBodyUgcPrompt(input: {
   plan: OmniSegmentCreativePlan;
@@ -16,10 +17,12 @@ export function renderSimpleFullBodyUgcPrompt(input: {
   segmentCount: number;
   directorGuidance?: string | null;
   directorBrief?: DirectorBrief | null;
+  referencePolicy?: ReferenceTransferPolicy;
 }) {
   const duration = input.plan.beats[2]?.endSeconds || 10;
   const wordCount = input.plan.voiceoverText.split(/\s+/).filter(Boolean).length;
-  const directorScene = buildDirectorSceneContract(input.directorBrief || null);
+  const referencePolicy = input.referencePolicy || { mode: "full_reference" as const, omitRawDirectorGuidance: false };
+  const directorScene = buildDirectorSceneContract(input.directorBrief || null, referencePolicy);
   const props = input.plan.continuityProps
     .map((item) => `${item.name}: ${item.appearance}; начальная позиция: ${item.initialPosition}`)
     .join(" | ");
@@ -36,7 +39,9 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     directorScene?.cameraLightLine || "CAMERA: raw smartphone camera recording, slight natural breathing movement, bright domestic light, high quality sensor output.",
     directorScene?.editingLine ||
       "EDITING RHYTHM: simple clean cuts only when needed; no subtitles, captions, progress bars, or interface overlays.",
-    ...(input.directorGuidance ? [`REFERENCE VIDEO DIRECTION:\n${input.directorGuidance}`] : []),
+    ...(input.directorGuidance && !referencePolicy.omitRawDirectorGuidance
+      ? [`REFERENCE VIDEO DIRECTION:\n${input.directorGuidance}`]
+      : []),
     directorScene?.sceneLine || `SCENE: ${input.strategy.setting}.`,
     `ГЛАВНЫЙ ПЕРСОНАЖ: ${input.characterContract.identityLine}.`,
     `ОДЕЖДА: ${directorScene?.wardrobeLine || `${input.characterContract.clothingLine}. Use solid matte colors only; no stripes, checks, brand marks, or logos.`}`,
