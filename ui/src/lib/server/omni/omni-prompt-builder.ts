@@ -10,6 +10,7 @@ import type {
 import { getOmniLifeFormat } from "./omni-life-formats";
 import { extractDirectorBriefFromSnapshot, type DirectorBrief } from "./director-analysis-types";
 import { renderDirectorBriefForOmniPrompt } from "./director-analysis-prompt";
+import { buildDirectorSceneContract } from "./director-scene-contract";
 import { selectOmniCreativeStrategy } from "./omni-format-selector";
 import { splitScriptIntoVoiceSegments } from "./omni-script-segmentation";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
@@ -75,9 +76,9 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     product: input.product,
     avatar: input.avatar,
   });
-  const directorGuidance = renderDirectorBriefForOmniPrompt(
-    input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot)
-  );
+  const directorBrief =
+    input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
+  const directorGuidance = renderDirectorBriefForOmniPrompt(directorBrief);
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,
     firstSpokenLine: voiceSegments[0]?.text,
@@ -118,8 +119,9 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
           segmentIndex,
           segmentCount: input.segmentCount,
           directorGuidance,
+          directorBrief,
         })
-      : renderSegmentPrompt(plan, strategy, characterContract, segmentIndex, input.segmentCount, directorGuidance);
+      : renderSegmentPrompt(plan, strategy, characterContract, segmentIndex, input.segmentCount, directorGuidance, directorBrief);
     const validation = validateOmniSegmentPrompt({ prompt, plan });
     if (!validation.valid) {
       throw new Error(`Invalid Omni segment ${segmentIndex}: ${validation.errors.join(", ")}`);
@@ -206,8 +208,10 @@ function renderSegmentPrompt(
   characterContract: OmniCharacterContract,
   segmentIndex: number,
   segmentCount: number,
-  directorGuidance: string | null
+  directorGuidance: string | null,
+  directorBrief: DirectorBrief | null
 ) {
+  const directorScene = buildDirectorSceneContract(directorBrief);
   const talkingHead = isTalkingHeadCutawayFormat(strategy.lifeFormatId);
   const continuity = segmentIndex < segmentCount
     ? talkingHead
@@ -223,16 +227,16 @@ function renderSegmentPrompt(
     ...(talkingHead ? [
       "ФОРМАТ: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Основной кадр - лицо героя в камеру; перебивка - короткий спокойный insert без хореографии руками.",
     ] : []),
-    `ЖИЗНЕННАЯ СИТУАЦИЯ: ${strategy.providerFormatDescription}. Место: ${strategy.setting}.`,
+    directorScene?.sceneLine || `ЖИЗНЕННАЯ СИТУАЦИЯ: ${strategy.providerFormatDescription}. Место: ${strategy.setting}.`,
     `ГЛАВНЫЙ ПЕРСОНАЖ: ${characterContract.identityLine}.`,
-    `ОДЕЖДА: ${characterContract.clothingLine}.`,
+    `ОДЕЖДА: ${directorScene?.wardrobeLine || characterContract.clothingLine}.`,
     `ИСТОЧНИКИ ОБРАЗА: ${characterContract.sourceRuleLine}.`,
     ...(strategy.visualStyle ? [
       `ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА: ${strategy.visualStyle.label}; ${strategy.visualStyle.visualTone}.`,
-      `КАМЕРА И СВЕТ: ${strategy.visualStyle.cameraLanguage}; ${strategy.visualStyle.lighting}.`,
+      directorScene?.cameraLightLine || `КАМЕРА И СВЕТ: ${strategy.visualStyle.cameraLanguage}; ${strategy.visualStyle.lighting}.`,
     ] : []),
     ...(directorGuidance ? [`РЕЖИССУРА ОРИГИНАЛА:\n${directorGuidance}`] : []),
-    `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
+    directorScene?.propPassportLine || `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     `ТИП ХУКА: ${strategy.hookType}. ${strategy.hookRule}`,
     talkingHead
       ? "СТАРТ РЕЧИ: первое слово точной реплики звучит на 0.0 секунде в кадре говорящей головы; лицо уже видно, герой смотрит в камеру. До него нет паузы, улыбки, вдоха, приветствия или подготовки."

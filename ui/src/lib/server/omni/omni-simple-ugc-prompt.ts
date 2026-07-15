@@ -4,6 +4,8 @@ import type {
   ProductRole,
 } from "@/lib/omni/creative-contract";
 import type { OmniCharacterContract } from "./omni-character-contract";
+import type { DirectorBrief } from "./director-analysis-types";
+import { buildDirectorSceneContract } from "./director-scene-contract";
 
 export function renderSimpleFullBodyUgcPrompt(input: {
   plan: OmniSegmentCreativePlan;
@@ -13,9 +15,11 @@ export function renderSimpleFullBodyUgcPrompt(input: {
   segmentIndex: number;
   segmentCount: number;
   directorGuidance?: string | null;
+  directorBrief?: DirectorBrief | null;
 }) {
   const duration = input.plan.beats[2]?.endSeconds || 10;
   const wordCount = input.plan.voiceoverText.split(/\s+/).filter(Boolean).length;
+  const directorScene = buildDirectorSceneContract(input.directorBrief || null);
   const props = input.plan.continuityProps
     .map((item) => `${item.name}: ${item.appearance}; начальная позиция: ${item.initialPosition}`)
     .join(" | ");
@@ -26,15 +30,15 @@ export function renderSimpleFullBodyUgcPrompt(input: {
   return [
     `Raw vertical video recording, 9:16 aspect ratio, ${duration.toFixed(0)}s duration.`,
     "FRAMING: medium-wide full-body shot for the whole clip; the person stands in frame, visible from head to shoes or at least head to knees, with hands visible.",
-    "CAMERA: raw smartphone camera recording, slight natural breathing movement, bright domestic light, high quality sensor output.",
+    directorScene?.cameraLightLine || "CAMERA: raw smartphone camera recording, slight natural breathing movement, bright domestic light, high quality sensor output.",
     "EDITING RHYTHM: fast-paced realistic montage with 4-6 quick cuts; use slight perspective or angle changes between cuts to avoid blending or morphing artifacts.",
     ...(input.directorGuidance ? [`REFERENCE VIDEO DIRECTION:\n${input.directorGuidance}`] : []),
-    `SCENE: ${input.strategy.setting}.`,
+    directorScene?.sceneLine || `SCENE: ${input.strategy.setting}.`,
     `ГЛАВНЫЙ ПЕРСОНАЖ: ${input.characterContract.identityLine}.`,
-    `ОДЕЖДА: ${input.characterContract.clothingLine}. Use solid matte colors only; no stripes, checks, brand marks, or logos.`,
+    `ОДЕЖДА: ${directorScene?.wardrobeLine || `${input.characterContract.clothingLine}. Use solid matte colors only; no stripes, checks, brand marks, or logos.`}`,
     `ИСТОЧНИКИ ОБРАЗА: ${input.characterContract.sourceRuleLine}.`,
     `ПРОДУКТ: ${input.productName}. ${productLine(input.plan.productRole)}`,
-    `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
+    directorScene?.propPassportLine || `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     `СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде; герой уже стоит в кадре и смотрит в камеру.`,
     `ТОЧНАЯ РЕПЛИКА (${wordCount} слов): "${input.plan.voiceoverText}"`,
     "SPEECH TIMING: Russian, energetic delivery; the exact quote should occupy almost the whole clip with no long pauses between phrases. Speak only the exact quote once, no subtitles.",

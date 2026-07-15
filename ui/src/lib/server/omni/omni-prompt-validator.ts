@@ -19,6 +19,7 @@ const CONSUMPTION_DURING_SPEECH =
 
 const TALKING_HEAD_FORBIDDEN_DEFAULT_PROPS =
   /полотенц|сумк|ключ|органайзер|шоппер|комод|скамь|лавк|чехол/iu;
+const REFERENCE_SCENE_PASSPORT_MARKER = "REFERENCE SCENE PASSPORT:";
 
 export function validateOmniSegmentPrompt(input: {
   prompt: string;
@@ -31,6 +32,7 @@ export function validateOmniSegmentPrompt(input: {
   const propContract = input.plan.continuityProps
     .map((item) => `${item.name} ${item.appearance} ${item.initialPosition}`)
     .join(" ");
+  const usesReferenceScenePassport = input.prompt.includes(REFERENCE_SCENE_PASSPORT_MARKER);
   const exactQuote = `"${input.plan.voiceoverText}"`;
 
   if (input.plan.speechStartsAtSeconds !== 0 || !input.prompt.includes("0.0 секунде")) {
@@ -42,7 +44,7 @@ export function validateOmniSegmentPrompt(input: {
   if (hasForbiddenOmniScriptSymbols(input.plan.voiceoverText)) {
     errors.push("voiceover_contains_long_dash_or_emoji");
   }
-  if (!input.prompt.includes("ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ:")) {
+  if (!input.prompt.includes("ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ:") && !usesReferenceScenePassport) {
     errors.push("continuity_prop_passport_required");
   }
   if (!input.prompt.includes("ГЛАВНЫЙ ПЕРСОНАЖ:")) {
@@ -54,10 +56,12 @@ export function validateOmniSegmentPrompt(input: {
   if (!input.prompt.includes("ИСТОЧНИКИ ОБРАЗА:")) {
     errors.push("character_source_contract_required");
   }
-  for (const item of input.plan.continuityProps) {
-    if (!input.prompt.includes(item.name) || !input.prompt.includes(item.appearance)) {
-      errors.push("continuity_prop_details_missing");
-      break;
+  if (!usesReferenceScenePassport) {
+    for (const item of input.plan.continuityProps) {
+      if (!input.prompt.includes(item.name) || !input.prompt.includes(item.appearance)) {
+        errors.push("continuity_prop_details_missing");
+        break;
+      }
     }
   }
   if (input.plan.beats.length !== 3 || actions.some((action) => !action.trim())) {
