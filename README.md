@@ -95,7 +95,7 @@ Source of truth для переменных окружения: `.env.example`.
 | Provider | Роль | Переменные |
 | --- | --- | --- |
 | OpenRouter | Script, visual, prompt generation и director analysis через `minimax/minimax-m3` | `OPENROUTER_API_KEY`, `SCENARIO_MODEL`, `OMNI_DIRECTOR_ANALYSIS_MODEL` |
-| ScrapeCreators | Direct MP4 URL для выбранного Instagram/Reels original перед director analysis | `SCRAPECREATORS_API_KEY` или `CREATORSCRAPER_API_KEY`, optional `SCRAPECREATORS_BASE_URL`, `SCRAPECREATORS_INSTAGRAM_POST_ENDPOINT`, `SCRAPECREATORS_DOWNLOAD_MEDIA` |
+| ScrapeCreators | Direct MP4 URL для выбранного Instagram/Reels original перед director analysis | `SCRAPECREATORS_API_KEY`, `SCRAPECREATORS_KEY` или `CREATORSCRAPER_API_KEY`, optional `SCRAPECREATORS_BASE_URL`, `SCRAPECREATORS_INSTAGRAM_POST_ENDPOINT`, `SCRAPECREATORS_DOWNLOAD_MEDIA` |
 | CometAPI | Omni video generation и avatar image generation | `COMETAPI_KEY`, `COMETAPI_BASE_URL` |
 | KIE.ai | Gemini Omni video, character creation, legacy B-roll, File Upload для continuity frames | `KIE_API_KEY` или `KIE_AI_API_KEY`, optional `KIE_FILE_UPLOAD_BASE_URL` |
 | HeyGen | Avatar video generation | `HEYGEN_API_KEY` |

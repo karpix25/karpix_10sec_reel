@@ -9,6 +9,7 @@ export async function resolveInstagramVideoWithScrapeCreators(reelsUrl: string):
   const apiKey =
     process.env.SCRAPECREATORS_API_KEY ||
     process.env.SCRAPE_CREATORS_API_KEY ||
+    process.env.SCRAPECREATORS_KEY ||
     process.env.CREATORSCRAPER_API_KEY ||
     "";
   if (!apiKey.trim()) throw new Error("SCRAPECREATORS_API_KEY is not configured");
