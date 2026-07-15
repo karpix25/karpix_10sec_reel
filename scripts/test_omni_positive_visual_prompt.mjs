@@ -344,6 +344,10 @@ try {
   assert.ok(beatPlanJoinedPrompt.includes("синем фоне"), "script background cue must reach provider prompt");
   assert.ok(beatPlanJoinedPrompt.includes("blue under-cabinet glow"), "safe style-only blue lighting must be preserved");
   assert.ok(beatPlanJoinedPrompt.includes("Black sleeveless fitted top"), "safe style-only wardrobe must be preserved");
+  assert.ok(
+    beatPlanPrompts.some((item) => item.index > 1 && item.referenceUrl === "https://example.com/product.png"),
+    "segments whose script beat asks for product must receive the product reference"
+  );
 
   console.log("Omni positive visual prompt regression checks passed");
 } finally {

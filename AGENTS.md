@@ -49,6 +49,7 @@ Write code as a professional modular system, not as large monolithic files.
 - Avoid type-only import hacks in prompt renderers; import shared TypeScript types explicitly.
 - Re-open newly added shared modules before wiring imports when subagents or parallel work may have changed their public interface.
 - Verify the production Docker Compose service name before build/up; do not assume the local workspace package name is a Compose service.
+- Product-mention predicates must not include the product name in the searched text, or every segment becomes product-visible.
 
 # Project Skills
 
