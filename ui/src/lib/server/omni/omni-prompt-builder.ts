@@ -28,6 +28,7 @@ import {
   OMNI_PROVIDER_CONTINUOUS_SYSTEM_PROMPT,
 } from "./omni-provider-prompt-contract";
 import { renderSimpleFullBodyUgcPrompt } from "./omni-simple-ugc-prompt";
+import { buildReferenceTransferPolicy, type ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -78,7 +79,16 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   });
   const directorBrief =
     input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
-  const directorGuidance = renderDirectorBriefForOmniPrompt(directorBrief);
+  const referencePolicy = buildReferenceTransferPolicy({
+    directorBrief,
+    productName: input.product.name,
+    productDescription: input.product.description,
+    productReferenceNotes: input.product.product_reference_notes,
+    hasProductReference: Boolean(productReference),
+  });
+  const directorGuidance = referencePolicy.omitRawDirectorGuidance
+    ? null
+    : renderDirectorBriefForOmniPrompt(directorBrief);
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,
     firstSpokenLine: voiceSegments[0]?.text,
@@ -120,8 +130,18 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
           segmentCount: input.segmentCount,
           directorGuidance,
           directorBrief,
+          referencePolicy,
         })
-      : renderSegmentPrompt(plan, strategy, characterContract, segmentIndex, input.segmentCount, directorGuidance, directorBrief);
+      : renderSegmentPrompt(
+          plan,
+          strategy,
+          characterContract,
+          segmentIndex,
+          input.segmentCount,
+          directorGuidance,
+          directorBrief,
+          referencePolicy
+        );
     const validation = validateOmniSegmentPrompt({ prompt, plan });
     if (!validation.valid) {
       throw new Error(`Invalid Omni segment ${segmentIndex}: ${validation.errors.join(", ")}`);
@@ -209,9 +229,10 @@ function renderSegmentPrompt(
   segmentIndex: number,
   segmentCount: number,
   directorGuidance: string | null,
-  directorBrief: DirectorBrief | null
+  directorBrief: DirectorBrief | null,
+  referencePolicy: ReferenceTransferPolicy
 ) {
-  const directorScene = buildDirectorSceneContract(directorBrief);
+  const directorScene = buildDirectorSceneContract(directorBrief, referencePolicy);
   const talkingHead = isTalkingHeadCutawayFormat(strategy.lifeFormatId);
   const continuity = segmentIndex < segmentCount
     ? talkingHead

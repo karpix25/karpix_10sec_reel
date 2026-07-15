@@ -126,6 +126,14 @@ try {
   assert.ok(fullBodyJoinedPrompt.includes("No on-screen text"), "simple provider prompt must explicitly prevent generated overlays");
   assert.ok(fullBodyJoinedPrompt.includes("ТОЧНАЯ РЕПЛИКА"), "exact Russian quote must be preserved");
   assert.ok(!/\b(?:Reels?|Instagram|TikTok|Shorts)\b/u.test(fullBodyJoinedPrompt), "platform names must not reach simple provider prompt");
+  assert.ok(
+    fullBodyPrompts.some((item) => item.creativePlan.productRole !== "hidden"),
+    "physical products with image references must not be hidden in every simple-provider segment"
+  );
+  assert.ok(
+    fullBodyPrompts.some((item) => item.referenceUrl === "https://example.com/product.png"),
+    "a visible physical product segment must use the product reference URL"
+  );
 
   const directorBrief = {
     visual_hook: {
@@ -186,6 +194,76 @@ try {
   assert.ok(
     !/полотенц|сумк|ключ|органайзер|шоппер|у светлого стола рядом с окном|у скамьи|medium-wide full-body shot|head to shoes|4-6 quick cuts/u.test(directorJoinedPrompt),
     "director-based prompts must not leak preset props, preset settings, or generic framing/editing"
+  );
+
+  const irrelevantDirectorBrief = {
+    visual_hook: {
+      action: "Direct-to-camera presenter address intercut with tactile, close-up food assembly B-roll.",
+      retention_trigger: "Rhythmic alternation between explanation and sensory visuals of food portioning.",
+    },
+    atmosphere: {
+      mood: "Professional, clean, informative, and appetizing.",
+      lighting: "Soft frontal light on presenter and bright overhead industrial lighting in commercial kitchen scenes.",
+      color_grading: "Neutral crisp contrast.",
+      setting: "Dark studio for presenter and sterile stainless-steel commercial kitchen for B-roll.",
+    },
+    clothing: {
+      style: "Professional culinary or medical uniform.",
+      color_palette: ["white", "black"],
+      fit_details: "Presenter wears a white tunic; kitchen staff wear black nitrile gloves.",
+    },
+    camera: {
+      shot_types: ["Medium shot", "Close-up", "Extreme close-up"],
+      angles: ["Eye-level", "High angle"],
+      movements: ["Static"],
+      stabilization: "Tripod or gimbal, very steady.",
+    },
+    montage_rhythm: {
+      cut_pace: "Moderate rhythm alternating presenter and 2-3 second B-roll.",
+      beat_sync: "Cuts align with speech cadence and food prep actions.",
+      transition_style: ["Hard cut"],
+    },
+    action_beats: [
+      { timestamp_sec: 0, action_description: "Presenter stands facing camera", actor_gesture: "Hands clasped" },
+      { timestamp_sec: 2, action_description: "Gloved hands place sliced meat into a plastic container", actor_gesture: "Precise pinching motion" },
+      { timestamp_sec: 3, action_description: "Container is placed onto a digital scale", actor_gesture: "Careful placement" },
+    ],
+    reusable_mechanics: {
+      visual_mechanics: ["Alternating explain and show", "ASMR-style close-ups of food assembly"],
+      safe_zones_for_elements: "",
+      looping_pattern: "Returns to the static presenter after each insert.",
+    },
+  };
+  const irrelevantInput = {
+    ...baseInput,
+    generatedScript: {
+      ...baseInput.generatedScript,
+      source_snapshot: { director_analysis: irrelevantDirectorBrief },
+    },
+  };
+  process.env.OMNI_PROVIDER_PROMPT_STYLE = "simple_full_body";
+  const irrelevantPrompts = buildOmniSegmentPrompts(irrelevantInput);
+  delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
+  const irrelevantJoinedPrompt = irrelevantPrompts.map((item) => item.prompt).join("\n");
+  assert.ok(
+    irrelevantJoinedPrompt.includes("use the original reference only for transferable direction"),
+    "irrelevant references must be downgraded to style-only transfer"
+  );
+  assert.ok(
+    irrelevantJoinedPrompt.includes("new product reference in a clean static cutaway"),
+    "irrelevant reference inserts must be remapped to the new product"
+  );
+  assert.ok(
+    irrelevantPrompts.some((item) => item.creativePlan.productRole !== "hidden"),
+    "style-only references must still keep at least one visible product segment"
+  );
+  assert.ok(
+    irrelevantPrompts.some((item) => item.referenceUrl === "https://example.com/product.png"),
+    "style-only visible product segment must use the product reference"
+  );
+  assert.ok(
+    !/commercial kitchen|food assembly|sliced meat|plastic container|digital scale|food prep actions|ASMR-style close-ups of food/u.test(irrelevantJoinedPrompt),
+    "style-only prompt must not leak unrelated reference B-roll objects or processes"
   );
 
   console.log("Omni positive visual prompt regression checks passed");
