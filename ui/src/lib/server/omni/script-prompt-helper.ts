@@ -1,5 +1,7 @@
 import type { CtaMode } from "@/lib/omni/creative-contract";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
+import type { DirectorBrief } from "./director-analysis-types";
+import { renderDirectorBriefForScriptPrompt } from "./director-analysis-prompt";
 
 export function buildPrompt(input: {
   projectName: string;
@@ -11,8 +13,10 @@ export function buildPrompt(input: {
   ctaMode: CtaMode;
   ctaValue: string | null;
   sourceScenario: OmniLegacyScenario;
+  directorBrief?: DirectorBrief | null;
   retryFeedback?: string | null;
 }) {
+  const directorGuidance = renderDirectorBriefForScriptPrompt(input.directorBrief || null);
   return `
 Создай 1 новый сценарий для Instagram Reels по методологии reels-script-writer.
 
@@ -40,6 +44,7 @@ Tone of voice: ${input.brandVoice || "не указан"}
 
 Оригинальная транскрибация reference-видео:
 ${input.sourceScenario.script}
+${directorGuidance ? `\n${directorGuidance}` : ""}
 ${input.retryFeedback ? `\nПовторная попытка:\n${input.retryFeedback}` : ""}
 
 Верни JSON строго такого вида:

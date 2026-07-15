@@ -1,6 +1,7 @@
 import type { CtaMode } from "@/lib/omni/creative-contract";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { formatScenarioScript } from "@/lib/scenario-text";
+import type { DirectorBrief } from "./director-analysis-types";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
 import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { parseAndRepairJson } from "./script-json-repair";
@@ -38,6 +39,7 @@ export async function generateScript(input: {
   ctaMode: CtaMode;
   ctaValue: string | null;
   sourceScenario: OmniLegacyScenario;
+  directorBrief?: DirectorBrief | null;
 }): Promise<{
   payload: GeneratedScriptResultPayload;
   qualityCheck: ScriptQualityResult;

@@ -38,6 +38,9 @@ Write code as a professional modular system, not as large monolithic files.
 - Do not mutate or trim provider prompts at runtime to remove imprint terms; control that through prompt templates so the model receives the full intended prompt.
 - When verifying container environment variables over SSH, use `docker exec env | grep NAME` or quote the in-container shell so the outer shell cannot expand them.
 - For 10 second Omni segments, keep speech dense and montage-paced; do not stretch sparse text with filler actions or long silent beats.
+- For remote Node diagnostics over SSH, avoid fragile heredoc quoting; send the script via stdin or a safely quoted temp file.
+- Exclude `.env*` from broad searches unless explicitly inspecting environment shape, and never print secret values while debugging.
+- When the user names a provider env with a non-doc spelling, support that alias explicitly instead of assuming the doc spelling is what production uses.
 
 # Project Skills
 

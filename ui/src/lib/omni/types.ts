@@ -84,6 +84,7 @@ export interface OmniGeneratedScript {
   product_id: number;
   source_legacy_scenario_id: number | null;
   source_legacy_client_id: number | null;
+  director_analysis_id: number | null;
   status: "draft" | "approved" | "archived";
   title: string | null;
   hook: string | null;

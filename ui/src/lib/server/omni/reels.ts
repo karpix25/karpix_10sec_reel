@@ -2,6 +2,7 @@ import pool from "@/lib/db";
 import { OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
+import { getDirectorAnalysisForLegacy } from "./director-analyses";
 import { getGeneratedScript } from "./generated-scripts";
 import { getLegacyScenario } from "./legacy-scenarios";
 import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
@@ -84,6 +85,11 @@ export async function createOmniReel(input: {
       }
     : null;
   const sourceScenario = input.sourceLegacyScenarioId ? await getLegacyScenario(input.sourceLegacyScenarioId) : null;
+  const sourceScenarioAnalysis = sourceScenario
+    ? await getDirectorAnalysisForLegacy({ legacyScenarioId: sourceScenario.id })
+    : null;
+  const sourceScenarioDirectorBrief =
+    sourceScenarioAnalysis?.director_analysis_status === "completed" ? sourceScenarioAnalysis.director_analysis_json : null;
   const scriptText = resolvedGeneratedScript?.script || sourceScenario?.script || brief || "";
   const segmentPlan = planOmniReelSegments(scriptText);
   const targetDuration = segmentPlan.durationSeconds;
@@ -112,6 +118,10 @@ export async function createOmniReel(input: {
         transcript: sourceScenario.script,
         reels_url: sourceScenario.reels_url,
         source_reference: sourceScenario.source_reference,
+        director_analysis_id: sourceScenarioAnalysis?.id || null,
+        director_analysis_status: sourceScenarioAnalysis?.director_analysis_status || "not_requested",
+        director_analysis: sourceScenarioDirectorBrief,
+        director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
       }
     : null;
   const productSnapshot = {
@@ -144,6 +154,7 @@ export async function createOmniReel(input: {
     segmentCount,
     segmentSeconds: OMNI_SEGMENT_SECONDS,
     brief,
+    directorBrief: sourceScenarioDirectorBrief,
     targetAudience: project.target_audience,
     ctaMode: product.cta_mode,
     ctaValue: product.cta_value,

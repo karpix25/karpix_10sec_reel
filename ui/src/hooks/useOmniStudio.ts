@@ -432,7 +432,7 @@ export function useOmniStudio(
   });
 
   const createGeneratedScriptMutation = useMutation({
-    mutationFn: async (payload: { projectId: number; productId: number }) =>
+    mutationFn: async (payload: { projectId: number; productId: number; legacyScenarioId?: number | null }) =>
       (await axios.post(`${API_BASE}/generated-scripts`, payload)).data as OmniGeneratedScript,
     onSuccess: (_, variables) =>
       queryClient.invalidateQueries({
