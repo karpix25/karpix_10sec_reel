@@ -45,6 +45,7 @@ export function buildTalkingHeadCreativePlan(input: {
   const guidedClosing = cueClosing && cueClosing !== cueOpening
     ? `возврат к лицу героя по visual cue сценариста: ${cueClosing}`
     : `возврат к лицу героя: ${lowerFirst(input.closing)}`;
+  const timing = buildTalkingHeadTiming(input.segmentSeconds);
 
   return {
     segmentIndex: input.segmentIndex,
@@ -55,10 +56,19 @@ export function buildTalkingHeadCreativePlan(input: {
     continuityProps: input.strategy.continuityProps,
     scriptBeats: input.scriptBeats || [],
     beats: [
-      { startSeconds: 0, endSeconds: 6.2, action: withScriptCue(guidedOpening, scriptCue) },
-      { startSeconds: 6.2, endSeconds: 8.4, action: cutaway },
-      { startSeconds: 8.4, endSeconds: input.segmentSeconds, action: guidedClosing },
+      { startSeconds: 0, endSeconds: timing.faceEndSeconds, action: withScriptCue(guidedOpening, scriptCue) },
+      { startSeconds: timing.faceEndSeconds, endSeconds: timing.cutawayEndSeconds, action: cutaway },
+      { startSeconds: timing.cutawayEndSeconds, endSeconds: input.segmentSeconds, action: guidedClosing },
     ],
+  };
+}
+
+function buildTalkingHeadTiming(segmentSeconds: number) {
+  const faceEndSeconds = clamp(roundOne(segmentSeconds * 0.62), 1.6, segmentSeconds - 1.2);
+  const cutawayEndSeconds = clamp(roundOne(segmentSeconds * 0.84), faceEndSeconds + 0.6, segmentSeconds - 0.2);
+  return {
+    faceEndSeconds: roundOne(faceEndSeconds),
+    cutawayEndSeconds: roundOne(cutawayEndSeconds),
   };
 }
 
@@ -99,4 +109,12 @@ function buildTalkingHeadHookOpening(strategy: OmniCreativeStrategy, baseAction:
 
 function lowerFirst(value: string) {
   return value ? value[0].toLowerCase() + value.slice(1) : value;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function roundOne(value: number) {
+  return Math.round(value * 10) / 10;
 }

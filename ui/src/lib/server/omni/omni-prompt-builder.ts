@@ -13,7 +13,7 @@ import { extractDirectorBriefFromSnapshot, type DirectorBrief } from "./director
 import { renderDirectorBriefForOmniPrompt } from "./director-analysis-prompt";
 import { buildDirectorSceneContract } from "./director-scene-contract";
 import { selectOmniCreativeStrategy } from "./omni-format-selector";
-import { splitScriptIntoVoiceSegments } from "./omni-script-segmentation";
+import { splitScriptIntoVoiceSegments, type VoiceSegment } from "./omni-script-segmentation";
 import {
   extractGeneratedScriptBeatPlanFromSnapshot,
   renderScriptBeatGuidance,
@@ -41,6 +41,7 @@ export type OmniSegmentPrompt = {
   role: string;
   prompt: string;
   referenceUrl: string | null;
+  durationSeconds: number;
   voiceoverText: string;
   creativeStrategy: OmniCreativeStrategy;
   creativePlan: OmniSegmentCreativePlan;
@@ -54,6 +55,8 @@ type BuildOmniPromptsInput = {
   avatar: OmniClientAvatar | null;
   segmentCount: number;
   segmentSeconds: number;
+  voiceSegments?: readonly VoiceSegment[];
+  segmentDurationsSeconds?: readonly number[];
   brief: string | null;
   directorBrief?: DirectorBrief | null;
   targetAudience?: string | null;
@@ -68,14 +71,19 @@ export const OMNI_PROMPT_WRITER_SYSTEM_PROMPT =
 export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegmentPrompt[] {
   const scriptText = sanitizeOmniScriptText(input.generatedScript?.script || input.legacyTranscript || input.brief || "");
   assertOmniScriptTextContract(scriptText);
-  const voiceSegments = splitScriptIntoVoiceSegments(
-    scriptText,
-    input.segmentCount,
-    getOmniSegmentWordBudget(input.segmentSeconds)
-  );
+  const voiceSegments = input.voiceSegments?.length
+    ? [...input.voiceSegments]
+    : splitScriptIntoVoiceSegments(
+        scriptText,
+        input.segmentCount,
+        getOmniSegmentWordBudget(input.segmentSeconds)
+      );
   if (voiceSegments.length !== input.segmentCount) {
     throw new Error(`Script is too short for ${input.segmentCount} exact-speech Omni segments`);
   }
+  const segmentDurationsSeconds = voiceSegments.map((_, index) =>
+    input.segmentDurationsSeconds?.[index] || input.segmentSeconds
+  );
   const scriptPlan = extractGeneratedScriptBeatPlanFromSnapshot(input.generatedScript?.source_snapshot);
 
   const productReference = getPrimaryReference(input.product.product_refs);
@@ -112,6 +120,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
 
   for (let index = 0; index < voiceSegments.length; index += 1) {
     const segmentIndex = index + 1;
+    const segmentSeconds = segmentDurationsSeconds[index] || input.segmentSeconds;
     const segmentRole = getSegmentRole(segmentIndex, input.segmentCount);
     const segmentScriptBeats = selectScriptBeatsForSegment(scriptPlan, segmentIndex, input.segmentCount);
     const productRole = getSegmentProductRole(
@@ -128,7 +137,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       strategy,
       productRole,
       segmentCount: input.segmentCount,
-      segmentSeconds: input.segmentSeconds,
+      segmentSeconds,
       scriptBeats: segmentScriptBeats,
     });
     const prompt = isSimpleFullBodyProviderPromptStyle()
@@ -162,6 +171,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       role: segmentRole,
       prompt,
       referenceUrl: selectReferenceUrl(segmentIndex, productRole, avatarReference, productReference),
+      durationSeconds: segmentSeconds,
       voiceoverText: plan.voiceoverText,
       creativeStrategy: strategy,
       creativePlan: plan,
@@ -198,6 +208,7 @@ function buildSegmentCreativePlan(input: {
     ? buildHookOpening(input.strategy, opening)
     : `без сброса сцены продолжает из предыдущего положения: ${lowerFirst(opening)}`;
   const safeClosing = productClosingAction(closing, input.productRole);
+  const timing = buildContinuousActionTiming(input.segmentSeconds);
 
   return addScriptBeatCues({
     segmentIndex: input.segmentIndex,
@@ -208,11 +219,20 @@ function buildSegmentCreativePlan(input: {
     continuityProps: input.strategy.continuityProps,
     scriptBeats: input.scriptBeats,
     beats: [
-      { startSeconds: 0, endSeconds: 3, action: hookOpening },
-      { startSeconds: 3, endSeconds: 7, action: middle },
-      { startSeconds: 7, endSeconds: input.segmentSeconds, action: safeClosing },
+      { startSeconds: 0, endSeconds: timing.openingEndSeconds, action: hookOpening },
+      { startSeconds: timing.openingEndSeconds, endSeconds: timing.middleEndSeconds, action: middle },
+      { startSeconds: timing.middleEndSeconds, endSeconds: input.segmentSeconds, action: safeClosing },
     ],
   }, input.scriptBeats);
+}
+
+function buildContinuousActionTiming(segmentSeconds: number) {
+  const openingEndSeconds = clamp(roundOne(segmentSeconds * 0.3), 1, segmentSeconds - 2);
+  const middleEndSeconds = clamp(roundOne(segmentSeconds * 0.7), openingEndSeconds + 0.8, segmentSeconds - 0.5);
+  return {
+    openingEndSeconds: roundOne(openingEndSeconds),
+    middleEndSeconds: roundOne(middleEndSeconds),
+  };
 }
 
 function buildHookOpening(strategy: OmniCreativeStrategy, baseAction: string) {
@@ -394,6 +414,14 @@ function getSceneStateIndexes(segmentIndex: number, segmentCount: number): [numb
 
 function lowerFirst(value: string) {
   return value ? value[0].toLowerCase() + value.slice(1) : value;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function roundOne(value: number) {
+  return Math.round(value * 10) / 10;
 }
 
 function countWords(value: string) {

@@ -91,6 +91,16 @@ try {
         looping_pattern: "Return to same setup",
       },
     },
+    durationRange: {
+      requestedMinSeconds: 30,
+      requestedMaxSeconds: 30,
+      minSeconds: 30,
+      maxSeconds: 30,
+      minWords: 60,
+      maxWords: 72,
+      source: "client_settings",
+      wasClamped: false,
+    },
   });
 
   assert.ok(prompt.includes('"hook_options"'), "prompt must request three hook options");
@@ -103,6 +113,8 @@ try {
   assert.ok(prompt.includes("Не пиши псевдовопросы"), "prompt must ban pseudo questions");
   assert.ok(prompt.includes("Не добавляй субтитры"), "prompt must ban provider subtitles");
   assert.ok(prompt.includes("Поле script должно совпадать"), "script must match beat voiceovers");
+  assert.ok(prompt.includes("Целевая длительность итогового ролика: 30-30 сек"), "prompt must include configured duration range");
+  assert.ok(prompt.includes("60-72 слов"), "prompt must include computed word range");
 
   const plan = normalizeGeneratedScriptPlan({
     hook_options: ["Хук 1", "Хук 2", "Хук 3"],

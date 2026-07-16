@@ -154,7 +154,7 @@ export function AvatarVideoPanel({
 
       <WorkbenchPanel
         title="План видео"
-        description="Сценарий превращается в production plan: 3-4 сегмента по 10 секунд, снапшоты refs и prompt contract."
+        description="Сценарий превращается в production plan: сегменты по 4/6/8/10 секунд, снапшоты refs и prompt contract."
       >
         <div className="grid gap-2 rounded-lg bg-muted/30 p-3">
           <ReadinessItem done={Boolean(activeProject)} label="Карточка бренда выбрана" />

@@ -11,6 +11,7 @@ import { getOmniProject } from "./projects";
 import { listRecentLifeFormatIds } from "./omni-creative-history";
 import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
 import { ensureOmniScriptCta } from "./omni-cta-contract";
+import { resolveOmniDurationRange } from "./omni-duration-settings";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -91,7 +92,12 @@ export async function createOmniReel(input: {
   const sourceScenarioDirectorBrief =
     sourceScenarioAnalysis?.director_analysis_status === "completed" ? sourceScenarioAnalysis.director_analysis_json : null;
   const scriptText = resolvedGeneratedScript?.script || sourceScenario?.script || brief || "";
-  const segmentPlan = planOmniReelSegments(scriptText);
+  const durationRange = await resolveOmniDurationRange({
+    project,
+    product,
+    requestTargetDurationSeconds: input.targetDurationSeconds,
+  });
+  const segmentPlan = planOmniReelSegments(scriptText, { durationRange });
   const targetDuration = segmentPlan.durationSeconds;
   const segmentCount = segmentPlan.segmentCount;
   const latestAvatar = await getLatestOmniClientAvatar(input.projectId);
@@ -130,6 +136,7 @@ export async function createOmniReel(input: {
     description: product.description,
     product_reference_notes: product.product_reference_notes,
     target_duration_seconds: product.target_duration_seconds,
+    duration_range: durationRange,
     cta_mode: product.cta_mode,
     cta_value: product.cta_value,
     product_refs: product.product_refs,
@@ -153,6 +160,8 @@ export async function createOmniReel(input: {
     avatar: latestAvatar,
     segmentCount,
     segmentSeconds: OMNI_SEGMENT_SECONDS,
+    voiceSegments: segmentPlan.segments,
+    segmentDurationsSeconds: segmentPlan.segmentDurationsSeconds,
     brief,
     directorBrief: sourceScenarioDirectorBrief,
     targetAudience: project.target_audience,
@@ -221,7 +230,7 @@ export async function createOmniReel(input: {
         [
           reel.id,
           index + 1,
-          OMNI_SEGMENT_SECONDS,
+          segmentPrompt.durationSeconds,
           segmentPrompt.role,
           segmentPrompt.prompt,
           segmentPrompt.referenceUrl,

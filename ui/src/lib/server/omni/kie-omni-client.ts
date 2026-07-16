@@ -17,7 +17,7 @@ export type KieOmniTask = {
 
 export type KieOmniVideoInput = {
   prompt: string;
-  duration: 8 | 10;
+  duration: 4 | 6 | 8 | 10;
   aspectRatio: "9:16";
   resolution: string;
   imageUrls: string[];

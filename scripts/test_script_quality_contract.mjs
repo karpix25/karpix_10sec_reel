@@ -175,17 +175,39 @@ And this is line 2."
     /слишком короткий/u
   );
 
+  const flexibleDensityScript = makeScript(34);
+  const flexibleDensityResult = validateViralScriptContract({
+    script: flexibleDensityScript,
+    rawScriptBeforeCta: flexibleDensityScript,
+    rawScriptFromModel: flexibleDensityScript,
+    hook: "слово1",
+    productName: "ИИ-конструктор сайтов",
+    ctaMode: "keyword_in_comments",
+    ctaValue: "СТАРТ"
+  });
+  assert.equal(flexibleDensityResult.metrics.wordCount, 34);
+
   assert.throws(
     () => validateViralScriptContract({
-      script: makeScript(34),
-      rawScriptBeforeCta: makeScript(34),
-      rawScriptFromModel: makeScript(34),
+      script: makeScript(40),
+      rawScriptBeforeCta: makeScript(40),
+      rawScriptFromModel: makeScript(40),
       hook: "слово1",
       productName: "ИИ-конструктор сайтов",
       ctaMode: "keyword_in_comments",
-      ctaValue: "СТАРТ"
+      ctaValue: "СТАРТ",
+      durationRange: {
+        requestedMinSeconds: 30,
+        requestedMaxSeconds: 30,
+        minSeconds: 30,
+        maxSeconds: 30,
+        minWords: 60,
+        maxWords: 72,
+        source: "client_settings",
+        wasClamped: false,
+      }
     }),
-    /пустую зону плотности/u
+    /слишком короткий для выбранной длины ролика/u
   );
 
   // C. Too long hook (should throw)

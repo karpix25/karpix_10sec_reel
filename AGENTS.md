@@ -40,6 +40,7 @@ Write code as a professional modular system, not as large monolithic files.
 - For 10 second Omni segments, keep speech dense and montage-paced; do not stretch sparse text with filler actions or long silent beats.
 - For remote Node diagnostics over SSH, avoid fragile heredoc quoting; send the script via stdin or a safely quoted temp file.
 - Exclude `.env*` from broad searches unless explicitly inspecting environment shape, and never print secret values while debugging.
+- Exclude local tunnel and shell helper scripts from broad searches unless explicitly auditing them, because they may contain sensitive operational values.
 - When the user names a provider env with a non-doc spelling, support that alias explicitly instead of assuming the doc spelling is what production uses.
 - Verify Telegram auth callback hosts, not only app health, because `WEBAPP_BASE_URL` can point to a different or dead domain.
 - Escape SQL placeholders such as `$1` in remote `node -e` diagnostics so the outer shell cannot expand them away.
@@ -50,6 +51,7 @@ Write code as a professional modular system, not as large monolithic files.
 - Re-open newly added shared modules before wiring imports when subagents or parallel work may have changed their public interface.
 - Verify the production Docker Compose service name before build/up; do not assume the local workspace package name is a Compose service.
 - Product-mention predicates must not include the product name in the searched text, or every segment becomes product-visible.
+- Calibrate Omni speech budgets from delivered original words per second, not total transcribed words that may include duplicated hallucinated phrases.
 
 # Project Skills
 

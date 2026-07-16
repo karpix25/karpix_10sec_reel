@@ -15,6 +15,9 @@ type YandexDiskFolderNode = {
   children: YandexDiskFolderNode[];
 };
 
+const OMNI_WORDS_PER_SECOND_HINT = 2.45;
+const OMNI_MAX_DURATION_HINT_SECONDS = 40;
+
 const FolderTree: React.FC<{
   nodes: YandexDiskFolderNode[];
   selectedPath: string;
@@ -209,9 +212,8 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
     setTargetMaxInput(String(committedMax));
   };
 
-  // Approximate words calculation (similar to original logic)
-  const estMin = Math.round(targetMin * 2.2);
-  const estMax = Math.round(targetMax * 2.2);
+  const estMin = Math.round(Math.min(targetMin, OMNI_MAX_DURATION_HINT_SECONDS) * OMNI_WORDS_PER_SECOND_HINT);
+  const estMax = Math.round(Math.min(targetMax, OMNI_MAX_DURATION_HINT_SECONDS) * OMNI_WORDS_PER_SECOND_HINT);
 
   const dailyProgress = Math.min(100, Math.round((dailyCount / Math.max(1, dailyLimit)) * 100));
   const projectProgress = Math.min(100, Math.round((projectCount / Math.max(1, projectLimit)) * 100));
@@ -483,12 +485,12 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
           <div className="bg-white rounded-2xl border border-white/70 p-4 shadow-inner text-center">
             <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Примерно слов</div>
             <div className="text-xl font-black text-primary">{estMin} – {estMax}</div>
-            <div className="text-[9px] font-bold uppercase tracking-tight text-slate-400 mt-1">Основано на темпе 2.2 с/с</div>
+            <div className="text-[9px] font-bold uppercase tracking-tight text-slate-400 mt-1">2.45 с/с, Omni max 40с</div>
           </div>
         </div>
 
         <p className="text-xs italic text-muted-foreground leading-relaxed">
-          Генератор будет подбирать сюжет так, чтобы итоговый хронометраж попал в этот диапазон.
+          Генератор будет подбирать сюжет так, чтобы итоговый хронометраж попал в этот диапазон. Для Omni 2-4 сегмента сейчас поддерживают до 40 сек.
         </p>
       </div>
     </div>
