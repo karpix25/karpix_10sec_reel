@@ -1,6 +1,7 @@
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { getLegacyScenario, getRandomLegacyScenarioFromClients } from "./legacy-scenarios";
 import { listLegacyLibraryLinks } from "./legacy-library-links";
+import { listFailedDirectorAnalysisLegacyIds } from "./director-analyses";
 
 export type GeneratedScriptSourceMode = "random_active_legacy_reference" | "selected_legacy_reference";
 
@@ -28,7 +29,8 @@ export async function resolveGeneratedScriptSource(input: {
     return { sourceScenario, sourceMode: "selected_legacy_reference" };
   }
 
-  const sourceScenario = await getRandomLegacyScenarioFromClients(legacyClientIds);
+  const failedDirectorIds = await listFailedDirectorAnalysisLegacyIds();
+  const sourceScenario = await getRandomLegacyScenarioFromClients(legacyClientIds, failedDirectorIds);
   if (!sourceScenario) {
     throw new Error("No reference transcripts found in active legacy bundles");
   }

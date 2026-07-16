@@ -1,7 +1,9 @@
 import type { CtaMode, OmniScriptBeatCue } from "@/lib/omni/creative-contract";
+import { normalizeOpenRouterUsage, type OpenRouterUsageRecord } from "@/lib/omni/openrouter-cost";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { formatScenarioScript } from "@/lib/scenario-text";
 import type { DirectorBrief } from "./director-analysis-types";
+import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
 import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { parseAndRepairJson } from "./script-json-repair";
@@ -53,13 +55,18 @@ export async function generateScript(input: {
 }): Promise<{
   payload: GeneratedScriptResultPayload;
   qualityCheck: ScriptQualityResult;
+  openRouterUsage: OpenRouterUsageRecord[];
 }> {
   let retryFeedback: string | null = null;
   let lastError: unknown = null;
+  const openRouterUsage: OpenRouterUsageRecord[] = [];
 
   for (let attempt = 1; attempt <= MAX_SCRIPT_GENERATION_ATTEMPTS; attempt++) {
     try {
-      return await requestScriptOnce(input, retryFeedback);
+      const result = await requestScriptOnce(input, retryFeedback, attempt, (usage) => {
+        openRouterUsage.push(usage);
+      });
+      return { ...result, openRouterUsage };
     } catch (error) {
       lastError = error;
       if (attempt >= MAX_SCRIPT_GENERATION_ATTEMPTS || !isRetryableScriptGenerationError(error)) {
@@ -74,7 +81,9 @@ export async function generateScript(input: {
 
 async function requestScriptOnce(
   input: Parameters<typeof generateScript>[0],
-  retryFeedback: string | null
+  retryFeedback: string | null,
+  attempt: number,
+  onUsage: (usage: OpenRouterUsageRecord) => void
 ) {
   const apiKey = process.env.OPENROUTER_API_KEY || "";
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured");
@@ -109,8 +118,10 @@ async function requestScriptOnce(
     throw new Error(`Script model request failed: ${response.status} ${text.slice(0, 240)}`);
   }
 
-  const data = await response.json();
-  const content = String(data?.choices?.[0]?.message?.content || "");
+  const data = (await response.json()) as Record<string, unknown>;
+  const pricing = await getOpenRouterPricingSnapshot(String(data.model || input.model));
+  onUsage(normalizeOpenRouterUsage({ layer: "script_writer", model: input.model, response: data, attempt, pricing }));
+  const content = readAssistantContent(data);
   assertGeneratedScriptSymbolContract(content);
   const parsed = parseAndRepairJson(content);
   const scriptPlan = normalizeGeneratedScriptBeatPlan(parsed);
@@ -152,4 +163,18 @@ async function requestScriptOnce(
     payload,
     qualityCheck,
   };
+}
+
+function readAssistantContent(data: Record<string, unknown>) {
+  const choices = Array.isArray(data.choices) ? data.choices : [];
+  const firstChoice = choices[0];
+  const message =
+    firstChoice && typeof firstChoice === "object" && !Array.isArray(firstChoice)
+      ? (firstChoice as Record<string, unknown>).message
+      : null;
+  if (message && typeof message === "object" && !Array.isArray(message)) {
+    const content = (message as Record<string, unknown>).content;
+    if (typeof content === "string") return content;
+  }
+  return "";
 }

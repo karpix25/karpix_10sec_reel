@@ -51,6 +51,7 @@ export type OmniDirectorAnalysis = {
   stored_video_url: string | null;
   video_storage_status: string | null;
   video_storage_error: string | null;
+  source_snapshot: Record<string, unknown> | null;
   scrapecreators_payload: Record<string, unknown> | null;
   director_analysis_status: DirectorAnalysisStatus;
   director_analysis_json: DirectorBrief | null;

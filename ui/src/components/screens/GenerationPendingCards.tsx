@@ -3,6 +3,7 @@
 import { CheckCircle2, Loader2 } from "lucide-react";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import { getOmniGenerationProviderLabel } from "@/lib/omni/provider";
+import { OpenRouterCostBadge } from "./OpenRouterCostBadge";
 
 export type PendingScriptDraft = {
   id: string;
@@ -26,7 +27,7 @@ export function PendingGeneratedScriptCard({ draft }: { draft: PendingScriptDraf
             {draft.brandName} · {draft.productName}
           </p>
         </div>
-        <PendingIcon />
+        <OpenRouterCostBadge pending />
       </div>
       <PendingSteps
         steps={[

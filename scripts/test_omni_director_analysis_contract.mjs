@@ -30,6 +30,7 @@ try {
     },
     include: [
       join(ui, "src/lib/omni/creative-contract.ts"),
+      join(ui, "src/lib/omni/openrouter-cost.ts"),
       join(ui, "src/lib/server/omni/director-analysis-types.ts"),
       join(ui, "src/lib/server/omni/director-analysis-policy.ts"),
       join(ui, "src/lib/server/omni/director-analysis-prompt.ts"),
@@ -38,6 +39,7 @@ try {
       join(ui, "src/lib/server/omni/omni-simple-ugc-prompt.ts"),
       join(ui, "src/lib/server/omni/scrapecreators-client.ts"),
       join(ui, "src/lib/server/omni/openrouter-director-analysis-client.ts"),
+      join(ui, "src/lib/server/omni/openrouter-pricing.ts"),
       join(ui, "src/lib/server/omni/script-json-repair.ts"),
     ],
   }));
@@ -48,6 +50,9 @@ try {
   const aliasContract = join(output, "node_modules", "@", "lib", "omni", "creative-contract.js");
   mkdirSync(dirname(aliasContract), { recursive: true });
   copyFileSync(contractOutput, aliasContract);
+  const costOutput = findFile(compiled, "openrouter-cost.js");
+  const aliasCost = join(output, "node_modules", "@", "lib", "omni", "openrouter-cost.js");
+  copyFileSync(costOutput, aliasCost);
 
   const { normalizeDirectorBrief } = require(findFile(compiled, "director-analysis-types.js"));
   const { shouldAnalyzeDirectorReference } = require(findFile(compiled, "director-analysis-policy.js"));
@@ -210,13 +215,21 @@ try {
   process.env.OPENROUTER_API_KEY = "test-key";
   process.env.OMNI_DIRECTOR_ANALYSIS_MODEL = "minimax/minimax-m3";
   let requestPayload = null;
-  global.fetch = async (_url, init) => {
+  global.fetch = async (url, init = {}) => {
+    if (String(url).includes("/api/v1/model/")) {
+      return {
+        ok: true,
+        json: async () => ({ data: { pricing: { prompt: "0.000001", completion: "0.000002" } } }),
+      };
+    }
     requestPayload = JSON.parse(String(init.body));
     return {
       ok: true,
       json: async () => ({
+        id: "gen-director-1",
+        model: "minimax/minimax-m3",
         choices: [{ message: { content: JSON.stringify({ director_brief: brief }) } }],
-        usage: { total_tokens: 123 },
+        usage: { prompt_tokens: 100, completion_tokens: 23, total_tokens: 123, cost: 0.000146 },
       }),
     };
   };
@@ -228,6 +241,9 @@ try {
   assert.equal(requestPayload.model, "minimax/minimax-m3");
   assert.equal(requestPayload.messages[1].content[1].type, "video_url");
   assert.equal(requestPayload.messages[1].content[1].video_url.url, "https://cdn.example.com/direct.mp4");
+  assert.equal(analyzed.openRouterUsage.totalTokens, 123);
+  assert.equal(analyzed.openRouterUsage.costUsd, 0.000146);
+  assert.equal(analyzed.responseMetadata.openrouter_usage.generationId, "gen-director-1");
 
   console.log("Omni director analysis contract checks passed");
 } finally {

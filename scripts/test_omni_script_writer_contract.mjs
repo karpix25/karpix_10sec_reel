@@ -44,6 +44,12 @@ try {
   copyFileSync(contractOutput, aliasContract);
 
   const { buildPrompt } = require(findFile(compiled, "script-prompt-helper.js"));
+  const {
+    normalizeOpenRouterUsage,
+    summarizeOpenRouterUsage,
+    extractOpenRouterCostSummaryFromSnapshot,
+    formatOpenRouterUsd,
+  } = require(findFile(compiled, "openrouter-cost.js"));
   const { normalizeGeneratedScriptPlan, deriveVoiceoverScriptFromPlan, selectScriptBeatsForSegment } =
     require(findFile(compiled, "script-beat-plan.js"));
 
@@ -128,6 +134,35 @@ try {
   assert.equal(deriveVoiceoverScriptFromPlan(plan), "Хочешь проще ухаживать за кожей? Коллаген легко встроить в утро. Артикул можно найти в описании.");
   assert.equal(selectScriptBeatsForSegment(plan, 1, 2).length, 1);
   assert.equal(selectScriptBeatsForSegment(plan, 2, 2).length, 2);
+
+  const usage = normalizeOpenRouterUsage({
+    layer: "script_writer",
+    model: "google/gemini-2.5-flash",
+    attempt: 1,
+    pricing: {
+      source: "openrouter_models_api",
+      model: "google/gemini-2.5-flash",
+      checkedAt: "2026-07-16T00:00:00.000Z",
+      promptUsdPerToken: 0.0000003,
+      completionUsdPerToken: 0.0000025,
+      requestUsd: null,
+      imageUsd: null,
+      internalReasoningUsdPerToken: null,
+      inputCacheReadUsdPerToken: null,
+      inputCacheWriteUsdPerToken: null,
+    },
+    response: {
+      id: "gen-script-1",
+      model: "google/gemini-2.5-flash",
+      usage: { prompt_tokens: 1000, completion_tokens: 200, total_tokens: 1200, cost: 0.0008 },
+    },
+  });
+  const summary = summarizeOpenRouterUsage([usage]);
+  assert.equal(summary.promptTokens, 1000);
+  assert.equal(summary.completionTokens, 200);
+  assert.equal(summary.costUsd, 0.0008);
+  assert.equal(formatOpenRouterUsd(summary.costUsd), "$0.00080");
+  assert.equal(extractOpenRouterCostSummaryFromSnapshot({ openrouter_cost: summary }).totalTokens, 1200);
 
   console.log("Omni script writer contract checks passed");
 } finally {

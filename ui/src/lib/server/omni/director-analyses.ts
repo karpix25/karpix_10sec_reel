@@ -1,4 +1,5 @@
 import pool from "@/lib/db";
+import { summarizeOpenRouterUsage } from "@/lib/omni/openrouter-cost";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
 import { DIRECTOR_ANALYSIS_PROMPT_VERSION } from "./director-analysis-prompt";
@@ -45,6 +46,21 @@ export async function ensureDirectorAnalysis(input: {
 
   const row = await upsertPendingAnalysis(input);
   return runDirectorAnalysis(row.id, input.sourceScenario);
+}
+
+export async function listFailedDirectorAnalysisLegacyIds(limit = 500) {
+  await ensureOmniSchema();
+  const { rows } = await pool.query<{ legacy_scenario_id: string | number }>(
+    `SELECT legacy_scenario_id
+     FROM omni_legacy_video_analyses
+     WHERE legacy_source = $1
+       AND analysis_prompt_version = $2
+       AND director_analysis_status = 'failed'
+     ORDER BY updated_at DESC
+     LIMIT $3`,
+    [LEGACY_SOURCE, DIRECTOR_ANALYSIS_PROMPT_VERSION, limit]
+  );
+  return rows.map((row) => Number(row.legacy_scenario_id)).filter((id) => Number.isFinite(id) && id > 0);
 }
 
 async function upsertPendingAnalysis(input: {
@@ -126,6 +142,8 @@ async function runDirectorAnalysis(analysisId: number, sourceScenario: OmniLegac
       videoUrl: videoUrlForAnalysis,
       transcript: sourceScenario.script,
     });
+    const openRouterUsage = analyzed.openRouterUsage ? [analyzed.openRouterUsage] : [];
+    const openRouterCost = summarizeOpenRouterUsage(openRouterUsage);
 
     const { rows } = await pool.query<DirectorAnalysisRow>(
       `UPDATE omni_legacy_video_analyses
@@ -137,6 +155,12 @@ async function runDirectorAnalysis(analysisId: number, sourceScenario: OmniLegac
            director_analysis_status = 'completed',
            director_analysis_json = $7::jsonb,
            analysis_model = $8,
+           source_snapshot = jsonb_set(
+             jsonb_set(COALESCE(source_snapshot, '{}'::jsonb), '{openrouter_usage}', $9::jsonb, true),
+             '{openrouter_cost}',
+             $10::jsonb,
+             true
+           ),
            analysis_error = NULL,
            completed_at = CURRENT_TIMESTAMP,
            updated_at = CURRENT_TIMESTAMP
@@ -151,6 +175,8 @@ async function runDirectorAnalysis(analysisId: number, sourceScenario: OmniLegac
         JSON.stringify(resolved.metadata),
         JSON.stringify(analyzed.brief),
         analyzed.model,
+        JSON.stringify(openRouterUsage),
+        JSON.stringify(openRouterCost),
       ]
     );
     return normalizeAnalysis(rows[0]);
