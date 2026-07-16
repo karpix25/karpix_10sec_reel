@@ -1,12 +1,13 @@
 import { hasForbiddenOmniScriptSymbols } from "./omni-script-text-contract";
 import {
+  OMNI_MIN_USEFUL_SEGMENT_WORDS,
   OMNI_MIN_SCRIPT_WORDS,
   OMNI_TARGET_SEGMENT_WORDS_MAX,
-  OMNI_TARGET_SEGMENT_WORDS_MIN,
   describeOmniDensityGap,
   getOmniMaxScriptWords,
   getPreferredOmniSegmentCount,
 } from "./omni-speech-density";
+import type { OmniDurationRange } from "./omni-duration-range";
 
 const FORBIDDEN_SYMBOL_ERROR = "Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.";
 
@@ -81,6 +82,7 @@ export function validateViralScriptContract(input: {
   productName: string;
   ctaMode: string;
   ctaValue: string | null;
+  durationRange?: OmniDurationRange;
 }): ScriptQualityResult {
   const warnings: string[] = [];
   const scriptText = input.script;
@@ -123,6 +125,18 @@ export function validateViralScriptContract(input: {
       `Сценарий отклонен: слишком длинный для формата Reels (${totalWordCount} слов). Максимальная длина — ${maxScriptWords} слов.`
     );
   }
+  if (input.durationRange) {
+    if (totalWordCount < input.durationRange.minWords) {
+      throw new Error(
+        `Сценарий отклонен: слишком короткий для выбранной длины ролика (${totalWordCount} слов). Нужно ${input.durationRange.minWords}-${input.durationRange.maxWords} слов для ${input.durationRange.minSeconds}-${input.durationRange.maxSeconds} сек.`
+      );
+    }
+    if (totalWordCount > input.durationRange.maxWords) {
+      throw new Error(
+        `Сценарий отклонен: слишком длинный для выбранной длины ролика (${totalWordCount} слов). Нужно ${input.durationRange.minWords}-${input.durationRange.maxWords} слов для ${input.durationRange.minSeconds}-${input.durationRange.maxSeconds} сек.`
+      );
+    }
+  }
 
   const plannedSegmentCount = getPreferredOmniSegmentCount(totalWordCount);
   if (!plannedSegmentCount) {
@@ -131,11 +145,11 @@ export function validateViralScriptContract(input: {
 
   const averageWordsPerSegment = totalWordCount / plannedSegmentCount;
   if (
-    averageWordsPerSegment < OMNI_TARGET_SEGMENT_WORDS_MIN ||
+    averageWordsPerSegment < OMNI_MIN_USEFUL_SEGMENT_WORDS ||
     averageWordsPerSegment > OMNI_TARGET_SEGMENT_WORDS_MAX
   ) {
     warnings.push(
-      `Средняя плотность ${averageWordsPerSegment.toFixed(1)} слов на 10 секунд. Цель: ${OMNI_TARGET_SEGMENT_WORDS_MIN}-${OMNI_TARGET_SEGMENT_WORDS_MAX} слов без пауз.`
+      `Средняя плотность ${averageWordsPerSegment.toFixed(1)} слов на часть. Цель: ${OMNI_MIN_USEFUL_SEGMENT_WORDS}-${OMNI_TARGET_SEGMENT_WORDS_MAX} слов с авто-длительностью 4/6/8/10 сек.`
     );
   }
 
@@ -222,7 +236,7 @@ export function validateViralScriptContract(input: {
   if (!hasContrast && !hasProblem && !hasMechanism) score -= 15;
   if (hookWordCount > 12 || hookCharCount > 80) score -= 15;
   if (
-    averageWordsPerSegment < OMNI_TARGET_SEGMENT_WORDS_MIN ||
+    averageWordsPerSegment < OMNI_MIN_USEFUL_SEGMENT_WORDS ||
     averageWordsPerSegment > OMNI_TARGET_SEGMENT_WORDS_MAX
   ) {
     score -= 10;

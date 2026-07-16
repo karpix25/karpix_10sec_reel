@@ -39,7 +39,7 @@ export function OmniPipelineHeader({
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               Один бренд может иметь несколько продуктов. Для каждого продукта подключаем refs, reference-бандлы и
-              собираем 30-40 секунд из 10-секундных Omni-сегментов.
+              собираем ролик из Omni-сегментов 4/6/8/10 секунд.
             </p>
           </div>
           <div className="grid gap-2 rounded-lg border border-border bg-muted/35 p-3 text-xs text-muted-foreground xl:min-w-72">
@@ -71,7 +71,7 @@ export function OmniPipelineHeader({
       <div className="grid border-t border-border text-xs text-muted-foreground sm:grid-cols-3">
         <PipelineStep icon={<PackageCheck className="h-4 w-4" />} label="Setup" value="Бренд, продукты, avatar" />
         <PipelineStep icon={<Database className="h-4 w-4" />} label="Library" value="Legacy reference transcripts" />
-        <PipelineStep icon={<Video className="h-4 w-4" />} label="Reel" value="Plan -> 10s segments -> stitch" />
+        <PipelineStep icon={<Video className="h-4 w-4" />} label="Reel" value="Plan -> 4/6/8/10s segments -> stitch" />
       </div>
     </header>
   );

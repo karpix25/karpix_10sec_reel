@@ -52,7 +52,9 @@ export async function downloadProviderVideo(providerInput: unknown, taskId: stri
   return provider === "kie-ai" ? downloadKieOmniVideo(taskId) : downloadCometOmniVideo(taskId);
 }
 
-export function getProviderDuration(provider: OmniGenerationProvider, seconds: number): 8 | 10 {
-  if (provider === "kie-ai") return seconds <= 8 ? 8 : 10;
-  return seconds <= 8 ? 8 : 10;
+export function getProviderDuration(provider: OmniGenerationProvider, seconds: number): 4 | 6 | 8 | 10 {
+  if (seconds <= 4) return 4;
+  if (seconds <= 6) return 6;
+  if (seconds <= 8) return 8;
+  return 10;
 }

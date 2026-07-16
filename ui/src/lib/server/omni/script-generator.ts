@@ -11,6 +11,7 @@ import {
   type ScriptQualityResult,
 } from "./script-quality-contract";
 import { buildPrompt } from "./script-prompt-helper";
+import type { OmniDurationRange } from "./omni-duration-range";
 import {
   appendCtaToLastBeat,
   deriveVoiceoverScriptFromPlan,
@@ -48,6 +49,7 @@ export async function generateScript(input: {
   ctaValue: string | null;
   sourceScenario: OmniLegacyScenario;
   directorBrief?: DirectorBrief | null;
+  durationRange?: OmniDurationRange;
 }): Promise<{
   payload: GeneratedScriptResultPayload;
   qualityCheck: ScriptQualityResult;
@@ -143,6 +145,7 @@ async function requestScriptOnce(
     productName: input.productName,
     ctaMode: input.ctaMode,
     ctaValue: input.ctaValue,
+    durationRange: input.durationRange,
   });
 
   return {

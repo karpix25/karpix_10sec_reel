@@ -2,6 +2,7 @@ import type { CtaMode } from "@/lib/omni/creative-contract";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import type { DirectorBrief } from "./director-analysis-types";
 import { renderDirectorBriefForScriptPrompt } from "./director-analysis-prompt";
+import type { OmniDurationRange } from "./omni-duration-range";
 
 export function buildPrompt(input: {
   projectName: string;
@@ -14,9 +15,11 @@ export function buildPrompt(input: {
   ctaValue: string | null;
   sourceScenario: OmniLegacyScenario;
   directorBrief?: DirectorBrief | null;
+  durationRange?: OmniDurationRange;
   retryFeedback?: string | null;
 }) {
   const directorGuidance = renderDirectorBriefForScriptPrompt(input.directorBrief || null);
+  const durationInstruction = buildDurationInstruction(input.durationRange);
   return `
 Создай 1 новый сценарий для Instagram Reels по методологии reels-script-writer.
 
@@ -31,11 +34,11 @@ export function buildPrompt(input: {
 8. Не используй ни один длинный знак тире: —, –, ‒, ―, −. Также не используй слова "является", "в современном мире", "стоит отметить", "важно понимать".
 9. Не добавляй emoji ни в одно поле JSON.
 10. Пиши бытовым русским языком. Одна мысль в одной строке.
-11. Целевая длина сценария: обычно 54-84 слова. Если нужен короткий 10-секундный ролик, пиши 22-28 слов. Не выдавай 29-35 слов: это растягивает 20 секунд паузами и пустыми действиями.
-12. В каждом 10-секундном куске должно быть примерно 22-28 слов, чтобы речь занимала почти весь клип.
+11. ${durationInstruction}
+12. Планируй речь по фактической скорости KIE Gemini Omni около 2.45 полезных слов в секунду: 4с до 9 слов, 6с до 14 слов, 8с до 19 слов, 10с до 24 слов.
 13. Не пиши псевдовопросы без ответа и фальшивую эмпатию вроде "я знаю, как тебе сложно".
 14. Сначала придумай 3 разных кульминационных hook_options, затем выбери strongest selected_hook.
-15. Разбей сценарий на 3-4 beats. В каждом beat должны быть:
+15. Разбей сценарий на 2-4 beats. В каждом beat должны быть:
     - visual_cue: конкретный кадр для режиссера, включая одежду, фон, свет, камеру и действие.
     - voiceover: точная произносимая реплика этого бита.
 16. Если есть режиссерский анализ reference-видео, visual_cue должен копировать одежду главного персонажа, задний фон, свет, камеру, монтажный ритм и жесты reference-видео. Меняй только смысл под новый продукт. Не добавляй субтитры, оверлеи, интерфейсы или текст на экране.
@@ -84,6 +87,21 @@ ${input.retryFeedback ? `\nПовторная попытка:\n${input.retryFeed
   "lead_magnet": "пустая строка, если отдельного подарка нет"
 }
 `;
+}
+
+function buildDurationInstruction(durationRange?: OmniDurationRange) {
+  if (!durationRange) {
+    return "Целевая длина сценария: обычно 48-72 слова. Система сама выберет длительность каждой части из 4, 6, 8 или 10 секунд.";
+  }
+
+  const clampedNote = durationRange.wasClamped
+    ? ` Настройка клиента ${durationRange.requestedMinSeconds}-${durationRange.requestedMaxSeconds} сек выходит за текущий Omni-лимит 8-40 сек, поэтому пиши под ${durationRange.minSeconds}-${durationRange.maxSeconds} сек.`
+    : "";
+  return (
+    `Целевая длительность итогового ролика: ${durationRange.minSeconds}-${durationRange.maxSeconds} сек. ` +
+    `Целевая длина произносимого текста: ${durationRange.minWords}-${durationRange.maxWords} слов.${clampedNote} ` +
+    "Система сама выберет 2-4 части и длительность каждой части из 4, 6, 8 или 10 секунд."
+  );
 }
 
 function buildCtaInstruction(mode: CtaMode, value: string | null) {

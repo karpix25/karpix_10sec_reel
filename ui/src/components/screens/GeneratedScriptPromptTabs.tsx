@@ -27,7 +27,7 @@ export function GeneratedScriptPromptTabs({
           <WandSparkles className="h-4 w-4 shrink-0 text-primary" />
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Omni prompts</p>
-            <p className="truncate text-xs text-muted-foreground">Промты для 10-секундных частей ролика</p>
+            <p className="truncate text-xs text-muted-foreground">Промты для частей 4/6/8/10 секунд</p>
           </div>
         </div>
         {prompts.length ? (

@@ -12,6 +12,7 @@ import { listRecentLifeFormatIds } from "./omni-creative-history";
 import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
 import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { generateScript } from "./script-generator";
+import { resolveOmniDurationRange } from "./omni-duration-settings";
 
 function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
   return {
@@ -76,7 +77,8 @@ export async function buildGeneratedScriptPromptPreview(input: {
   const avatar = await getLatestOmniClientAvatar(input.projectId);
   const project = await getOmniProject(input.projectId);
   if (!project) throw new Error("Omni client project not found");
-  const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script);
+  const durationRange = await resolveOmniDurationRange({ project, product });
+  const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script, { durationRange });
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
 
   return buildOmniSegmentPrompts({
@@ -86,6 +88,8 @@ export async function buildGeneratedScriptPromptPreview(input: {
     avatar,
     segmentCount: segmentPlan.segmentCount,
     segmentSeconds: OMNI_SEGMENT_SECONDS,
+    voiceSegments: segmentPlan.segments,
+    segmentDurationsSeconds: segmentPlan.segmentDurationsSeconds,
     brief: null,
     targetAudience: project.target_audience,
     ctaMode: product.cta_mode,
@@ -93,7 +97,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     recentFormatIds,
   }).map((segment) => ({
     segmentIndex: segment.index,
-    durationSeconds: OMNI_SEGMENT_SECONDS,
+    durationSeconds: segment.durationSeconds,
     role: segment.role,
     prompt: segment.prompt,
     referenceUrl: segment.referenceUrl,
@@ -114,6 +118,7 @@ export async function createGeneratedScriptFromLegacy(input: {
   if (!project) throw new Error("Omni client project not found");
 
   const product = await requireOmniProductInProject(input.projectId, input.productId);
+  const durationRange = await resolveOmniDurationRange({ project, product });
   const { sourceScenario, sourceMode } = await resolveGeneratedScriptSource(input);
   const directorAnalysis = shouldAnalyzeDirectorReference(sourceScenario)
     ? await ensureDirectorAnalysis({
@@ -138,6 +143,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     ctaValue: product.cta_value,
     sourceScenario,
     directorBrief,
+    durationRange,
   });
 
   const sourceSnapshot = {
@@ -163,6 +169,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     director_analysis_prompt_version: directorAnalysis?.analysis_prompt_version || null,
     director_analysis_error: directorAnalysis?.analysis_error || null,
     generated_script_plan_version: "reels-script-writer-v1",
+    duration_range: durationRange,
     generated_script_plan: {
       hook_options: generated.payload.hook_options,
       selected_hook: generated.payload.selected_hook,

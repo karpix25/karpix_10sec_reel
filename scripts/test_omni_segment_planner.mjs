@@ -16,6 +16,7 @@ try {
     [
       "src/lib/server/omni/omni-duration-planner.ts",
       "src/lib/server/omni/omni-script-segmentation.ts",
+      "src/lib/server/omni/omni-duration-range.ts",
       "--outDir", output,
       "--module", "commonjs",
       "--target", "es2022",
@@ -25,14 +26,68 @@ try {
   );
 
   const { planOmniReelSegments } = require(join(output, "omni-duration-planner.js"));
+  const { getOmniSegmentDurationForWordCount } = require(join(output, "omni-speech-density.js"));
+  const { normalizeOmniDurationRange } = require(join(output, "omni-duration-range.js"));
   const { reconstructVoiceSegments, splitScriptIntoVoiceSegments } = require(join(output, "omni-script-segmentation.js"));
 
-  for (const [wordCount, expectedSegments] of [[27, 1], [36, 2], [40, 2], [60, 3], [80, 3], [90, 4]]) {
+  assert.equal(getOmniSegmentDurationForWordCount(7), null, "segments below the useful speech floor are invalid");
+  assert.equal(getOmniSegmentDurationForWordCount(8), 4);
+  assert.equal(getOmniSegmentDurationForWordCount(14), 6);
+  assert.equal(getOmniSegmentDurationForWordCount(19), 8);
+  assert.equal(getOmniSegmentDurationForWordCount(24), 10);
+
+  const exactThirty = normalizeOmniDurationRange({
+    requestedMinSeconds: 30,
+    requestedMaxSeconds: 30,
+    fallbackSeconds: 30,
+    source: "client_settings",
+  });
+  assert.equal(exactThirty.minSeconds, 30);
+  assert.equal(exactThirty.maxSeconds, 30);
+  assert.equal(exactThirty.minWords, 60);
+  assert.equal(exactThirty.maxWords, 72);
+
+  const overLimit = normalizeOmniDurationRange({
+    requestedMinSeconds: 50,
+    requestedMaxSeconds: 50,
+    fallbackSeconds: 50,
+    source: "client_settings",
+  });
+  assert.equal(overLimit.minSeconds, 40);
+  assert.equal(overLimit.maxSeconds, 40);
+  assert.equal(overLimit.wasClamped, true);
+  assert.equal(overLimit.minWords, 80);
+  assert.equal(overLimit.maxWords, 96);
+
+  const allowedDurations = new Set([4, 6, 8, 10]);
+  for (const [wordCount, expectedSegments] of [
+    [16, 2],
+    [19, 2],
+    [24, 2],
+    [25, 2],
+    [29, 2],
+    [35, 2],
+    [36, 2],
+    [48, 2],
+    [49, 3],
+    [54, 3],
+    [72, 3],
+    [73, 4],
+    [90, 4],
+  ]) {
     const script = makeScript(wordCount);
     const plan = planOmniReelSegments(script);
     assert.equal(plan.segmentCount, expectedSegments, `${wordCount} words should use ${expectedSegments} segments`);
-    assert.equal(plan.durationSeconds, expectedSegments * 10);
-    assert.ok(plan.segmentWordCounts.every((count) => count <= 28), "every segment must fit 28 words");
+    assert.equal(plan.segmentDurationsSeconds.length, expectedSegments);
+    assert.ok(
+      plan.segmentDurationsSeconds.every((duration) => allowedDurations.has(duration)),
+      "every segment duration must be one of the provider-supported values"
+    );
+    assert.equal(
+      plan.durationSeconds,
+      plan.segmentDurationsSeconds.reduce((sum, duration) => sum + duration, 0)
+    );
+    assert.ok(plan.segmentWordCounts.every((count) => count <= 24), "every segment must fit 24 useful words");
     assert.equal(reconstructVoiceSegments(plan.segments), script, "the source script must reconstruct exactly");
   }
 
@@ -40,6 +95,7 @@ try {
     "Этот предмет помогает быстро навести порядок дома без лишних движений и сложных привычек.",
     "Напишите кодовое слово ХОЧУ в комментариях.",
     "Я отправлю подробности и покажу простой способ применения сегодня.",
+    "Это экономит время каждый день и делает привычку простой.",
   ].join(" ");
   const ctaPlan = planOmniReelSegments(cta);
   assert.ok(
@@ -60,17 +116,19 @@ try {
   assert.ok(fallbackSegments.every(seg => seg.wordCount > 0), "no segment should be empty");
 
   assert.throws(
-    () => planOmniReelSegments(makeScript(113)),
-    (error) => error instanceof Error && /113 слов.*Максимум 112 слов/u.test(error.message)
+    () => planOmniReelSegments(makeScript(97)),
+    (error) => error instanceof Error && /97 слов.*Максимум 96 слов/u.test(error.message)
   );
 
-  for (const deadZoneWordCount of [29, 35]) {
-    assert.throws(
-      () => planOmniReelSegments(makeScript(deadZoneWordCount)),
-      (error) => error instanceof Error && /пустую зону плотности/u.test(error.message),
-      `${deadZoneWordCount} words should not stretch into a sparse 20s plan`
-    );
-  }
+  assert.throws(
+    () => planOmniReelSegments(makeScript(15)),
+    (error) => error instanceof Error && /слишком короткий/u.test(error.message),
+    "plans below two useful segments should be rejected"
+  );
+
+  const exactThirtyPlan = planOmniReelSegments(makeScript(60), { durationRange: exactThirty });
+  assert.equal(exactThirtyPlan.durationSeconds, 30);
+  assert.equal(exactThirtyPlan.segmentDurationsSeconds.reduce((sum, duration) => sum + duration, 0), 30);
 
   console.log("Omni segment planner regression checks passed");
 } finally {
