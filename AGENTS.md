@@ -56,6 +56,7 @@ Write code as a professional modular system, not as large monolithic files.
 - Count exact Omni voiceover repetitions only in provider-facing exact-replica lines, not in internal script beat guidance.
 - Show original references as external Instagram links unless the user explicitly asks to embed or play the reference video.
 - When a reference is a collage or picture-in-picture format, preserve that layout contract explicitly instead of reducing it to a generic talking-head scene.
+- Quote bracketed Next.js route paths in shell commands so zsh does not expand them.
 
 # Project Skills
 
