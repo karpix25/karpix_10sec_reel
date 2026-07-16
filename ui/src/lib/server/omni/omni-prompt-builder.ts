@@ -36,6 +36,7 @@ import {
 } from "./omni-provider-prompt-contract";
 import { renderSimpleFullBodyUgcPrompt } from "./omni-simple-ugc-prompt";
 import { buildReferenceTransferPolicy, type ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
+import { applyDirectorLayoutToPlan, buildDirectorLayoutContract } from "./director-layout-contract";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -105,6 +106,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   const directorGuidance = referencePolicy.omitRawDirectorGuidance
     ? null
     : renderDirectorBriefForOmniPrompt(directorBrief);
+  const layoutContract = buildDirectorLayoutContract(directorBrief, referencePolicy);
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,
     firstSpokenLine: voiceSegments[0]?.text,
@@ -124,7 +126,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const segmentSeconds = segmentDurationsSeconds[index] || input.segmentSeconds;
     const segmentRole = getSegmentRole(segmentIndex, input.segmentCount);
     const segmentScriptBeats = selectScriptBeatsForSegment(scriptPlan, segmentIndex, input.segmentCount);
-    const productRole = getSegmentProductRole(
+    const baseProductRole = getSegmentProductRole(
       strategy.productRole,
       segmentIndex,
       input.segmentCount,
@@ -132,7 +134,10 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentScriptBeats,
       input.product.name
     );
-    const plan = buildSegmentCreativePlan({
+    const productRole = layoutContract?.requiresOpeningProductBackground && segmentIndex === 1 && baseProductRole === "hidden"
+      ? "background_prop"
+      : baseProductRole;
+    const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
       segmentIndex,
       voiceoverText: voiceSegments[index].text,
       strategy,
@@ -140,7 +145,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentCount: input.segmentCount,
       segmentSeconds,
       scriptBeats: segmentScriptBeats,
-    });
+    }), layoutContract);
     const prompt = isSimpleFullBodyProviderPromptStyle()
       ? renderSimpleFullBodyUgcPrompt({
           plan,
@@ -171,7 +176,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       index: segmentIndex,
       role: segmentRole,
       prompt,
-      referenceUrl: selectReferenceUrl(segmentIndex, productRole, avatarReference, productReference),
+      referenceUrl: selectReferenceUrl(productRole, avatarReference, productReference),
       durationSeconds: segmentSeconds,
       voiceoverText: plan.voiceoverText,
       creativeStrategy: strategy,
@@ -281,6 +286,7 @@ function renderSegmentPrompt(
     talkingHead ? OMNI_TALKING_HEAD_SYSTEM_PROMPT : OMNI_PROMPT_WRITER_SYSTEM_PROMPT,
     `Часть ${segmentIndex} из ${segmentCount}.`,
     ...(directorScene ? [directorScene.referenceLockLine, directorScene.framingLine] : []),
+    ...(directorScene?.layoutLine ? [directorScene.layoutLine] : []),
     ...(talkingHead ? [
       "ФОРМАТ: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Основной кадр - лицо героя в камеру; перебивка - короткий спокойный insert без хореографии руками.",
     ] : []),
@@ -393,12 +399,11 @@ function addScriptBeatCues(
 }
 
 function selectReferenceUrl(
-  segmentIndex: number,
   role: ProductRole,
   avatarReference: string | null,
   productReference: OmniReferenceAsset | null
 ) {
-  if (segmentIndex === 1 || role === "hidden") return avatarReference;
+  if (role === "hidden") return avatarReference;
   return productReference?.url || avatarReference;
 }
 

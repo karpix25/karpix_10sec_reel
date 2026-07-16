@@ -1,15 +1,18 @@
 import type { DirectorBrief } from "./director-analysis-types";
+import { buildDirectorLayoutContract } from "./director-layout-contract";
 import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 
 export type DirectorSceneContract = {
   referenceLockLine: string;
   framingLine: string;
+  layoutLine?: string;
   sceneLine: string;
   cameraLightLine: string;
   wardrobeLine: string;
   editingLine: string;
   actionLine: string;
   propPassportLine: string;
+  cleanFrameLine?: string;
 };
 
 export function buildDirectorSceneContract(
@@ -42,6 +45,7 @@ export function buildDirectorSceneContract(
     brief.reusable_mechanics.visual_mechanics.join("; "),
     brief.reusable_mechanics.looping_pattern ? `loop: ${brief.reusable_mechanics.looping_pattern}` : "",
   ].filter(Boolean).join("; ");
+  const layoutContract = buildDirectorLayoutContract(brief, policy);
 
   if (policy.mode === "style_only") {
     const transferableScene = buildTransferableStyleOnlyScene(brief);
@@ -58,6 +62,7 @@ export function buildDirectorSceneContract(
         camera,
         "Keep the reference shot scale and stability, but point all insert shots at the new product instead of the original scene objects.",
       ].filter(Boolean).join(" "),
+      layoutLine: undefined,
       sceneLine: [
         "REFERENCE SCENE:",
         transferableScene,
@@ -91,6 +96,7 @@ export function buildDirectorSceneContract(
         "the original reference product/process is not a prop source;",
         "when a cutaway appears, show the new product reference clearly on a clean surface.",
       ].join(" "),
+      cleanFrameLine: undefined,
     };
   }
 
@@ -105,6 +111,7 @@ export function buildDirectorSceneContract(
       camera,
       "Do not override this with generic full-body, medium-wide, handheld, or fast-cut instructions unless those are explicitly in the reference.",
     ].filter(Boolean).join(" "),
+    layoutLine: layoutContract?.layoutLine,
     sceneLine: [
       "REFERENCE SCENE:",
       brief.atmosphere.setting,
@@ -127,18 +134,19 @@ export function buildDirectorSceneContract(
       editing,
       "match this edit rhythm and transition style; do not add extra fast cuts, subtitles, captions, or interface overlays.",
     ].filter(Boolean).join(" "),
-    actionLine: [
+    actionLine: layoutContract?.actionLine || [
       "REFERENCE ACTION DNA:",
       actionDna,
       mechanics,
       "adapt only the spoken script and product identity; keep gestures, posture, pacing, and camera mechanics from the reference.",
     ].filter(Boolean).join(" "),
-    propPassportLine: [
+    propPassportLine: layoutContract?.propPassportLine || [
       "REFERENCE SCENE PASSPORT:",
       "keep only stable background elements implied by the reference environment and the product when its role allows it;",
       "replace the original reference product with the new product when the product is visible;",
       "do not use preset household, travel, office, or gym props that are not part of this reference scene.",
     ].join(" "),
+    cleanFrameLine: layoutContract?.cleanFrameLine,
   };
 }
 

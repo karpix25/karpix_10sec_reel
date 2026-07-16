@@ -1,4 +1,8 @@
 import type { DirectorBrief } from "./director-analysis-types";
+import {
+  isCollagePictureInPictureReference,
+  referenceUsesProductOrScienceBackground,
+} from "./director-layout-contract";
 
 export type ReferenceTransferMode = "full_reference" | "style_only";
 
@@ -75,6 +79,13 @@ export function buildReferenceTransferPolicy(input: {
   const referenceDomains = detectDomains(referenceText);
   const hasDomainOverlap = [...referenceDomains].some((domain) => productDomains.has(domain));
   const hasForeignProcess = STRONG_FOREIGN_PROCESS.test(referenceText);
+  const isProductCollageReference =
+    isCollagePictureInPictureReference(input.directorBrief) &&
+    referenceUsesProductOrScienceBackground(input.directorBrief);
+
+  if (isProductCollageReference && hasDomainOverlap) {
+    return { mode: "full_reference", omitRawDirectorGuidance: false };
+  }
 
   if (productDomains.size && referenceDomains.size && !hasDomainOverlap) {
     return { mode: "style_only", omitRawDirectorGuidance: true };
