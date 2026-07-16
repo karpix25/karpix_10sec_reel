@@ -52,6 +52,7 @@ Write code as a professional modular system, not as large monolithic files.
 - Verify the production Docker Compose service name before build/up; do not assume the local workspace package name is a Compose service.
 - Product-mention predicates must not include the product name in the searched text, or every segment becomes product-visible.
 - Calibrate Omni speech budgets from delivered original words per second, not total transcribed words that may include duplicated hallucinated phrases.
+- Count exact Omni voiceover repetitions only in provider-facing exact-replica lines, not in internal script beat guidance.
 
 # Project Skills
 

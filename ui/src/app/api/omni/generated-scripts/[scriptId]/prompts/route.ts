@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildGeneratedScriptPromptPreview } from "@/lib/server/omni/generated-scripts";
-import { jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
+import { getOmniErrorStatus, jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
 
 export async function GET(
   request: Request,
@@ -29,6 +29,6 @@ export async function GET(
     );
   } catch (error) {
     console.error("Omni generated script prompt preview error:", error);
-    return jsonError(error instanceof Error ? error.message : "Internal Server Error", 500);
+    return jsonError(error instanceof Error ? error.message : "Internal Server Error", getOmniErrorStatus(error));
   }
 }

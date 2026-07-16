@@ -40,6 +40,7 @@ try {
   copyFileSync(contractOutput, aliasContract);
 
   const { buildOmniSegmentPrompts } = require(findFile(compiled, "omni-prompt-builder.js"));
+  const { validateOmniSegmentPrompt } = require(findFile(compiled, "omni-prompt-validator.js"));
   const baseInput = {
     generatedScript: {
       id: 1,
@@ -114,6 +115,36 @@ try {
   assert.ok(!/\b(?:Reels?|Instagram|TikTok|Shorts)\b/u.test(joinedPrompt), "platform names must not reach provider prompt");
   assert.ok(!/спокойный коридор как универсальная сцена|связка ключей как обязательный реквизит/u.test(joinedPrompt));
   assert.ok(!/полотенц|сумк|ключ|органайзер|шоппер/u.test(joinedPrompt), "talking-head prompts must not use old default props");
+
+  const duplicateVoiceoverValidation = validateOmniSegmentPrompt({
+    prompt: [
+      "ГЛАВНЫЙ ПЕРСОНАЖ: тот же герой.",
+      "ОДЕЖДА: та же одежда.",
+      "ИСТОЧНИКИ ОБРАЗА: avatar reference.",
+      "ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ:",
+      "СТАРТ РЕЧИ: первое слово точной реплики звучит на 0.0 секунде.",
+      'ТОЧНАЯ РЕПЛИКА: "Повтори эту фразу один раз."',
+      'СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ: речь - "Повтори эту фразу один раз."',
+    ].join("\n"),
+    plan: {
+      segmentIndex: 1,
+      lifeFormatId: "talking_head_cutaways",
+      speechStartsAtSeconds: 0,
+      voiceoverText: "Повтори эту фразу один раз.",
+      productRole: "hidden",
+      continuityProps: [],
+      scriptBeats: [],
+      beats: [
+        { startSeconds: 0, endSeconds: 2, action: "говорит в камеру" },
+        { startSeconds: 2, endSeconds: 3, action: "короткая перебивка" },
+        { startSeconds: 3, endSeconds: 4, action: "возврат к лицу" },
+      ],
+    },
+  });
+  assert.ok(
+    !duplicateVoiceoverValidation.errors.includes("exact_voiceover_must_appear_once"),
+    "script beat guidance may repeat the quote without becoming a second exact replica line"
+  );
 
   process.env.OMNI_PROVIDER_PROMPT_STYLE = "simple_full_body";
   const fullBodyPrompts = buildOmniSegmentPrompts(baseInput);
@@ -319,7 +350,7 @@ try {
             },
             {
               stage: "body",
-              visual_cue: "Статичная перебивка нового продукта в том же синем свете, без чужого продукта и без субтитров.",
+              visual_cue: "Статичная перебивка нового продукта, этикетка продукта в центр камеры, без чужого продукта и без субтитров.",
               voiceover: "Этот апельсиновый коллаген легко встроить в утро и взять с собой.",
             },
             {
@@ -347,6 +378,15 @@ try {
   assert.ok(
     beatPlanPrompts.some((item) => item.index > 1 && item.referenceUrl === "https://example.com/product.png"),
     "segments whose script beat asks for product must receive the product reference"
+  );
+  assert.ok(!/этикетка продукта в центр камеры/iu.test(beatPlanJoinedPrompt), "ad-like label-to-camera cue must be sanitized");
+  assert.ok(
+    beatPlanJoinedPrompt.includes("продукт виден естественно в сцене без акцента на логотипе"),
+    "sanitized product cue must keep the product context without asking for an ad close-up"
+  );
+  assert.ok(
+    beatPlanPrompts.every((item) => !item.validation?.errors.includes("advertising_product_display")),
+    "sanitized script cues must not trip advertising display validation"
   );
 
   console.log("Omni positive visual prompt regression checks passed");

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createGeneratedScriptFromLegacy, listGeneratedScripts } from "@/lib/server/omni/generated-scripts";
-import { jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
+import { getOmniErrorStatus, jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
 
 export async function GET(request: Request) {
   const auth = await requireOmniUser(request);
@@ -34,6 +34,6 @@ export async function POST(request: Request) {
     return NextResponse.json(await createGeneratedScriptFromLegacy({ projectId, productId, legacyScenarioId }), { status: 201 });
   } catch (error) {
     console.error("Omni generated script create error:", error);
-    return jsonError(error instanceof Error ? error.message : "Internal Server Error", 500);
+    return jsonError(error instanceof Error ? error.message : "Internal Server Error", getOmniErrorStatus(error));
   }
 }
