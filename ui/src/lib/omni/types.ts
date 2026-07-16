@@ -1,6 +1,10 @@
+import type { WordTimestamp } from "@/types";
+import type { OmniSubtitleSettings, OmniSubtitleStatus } from "./subtitle-settings";
+
 export type OmniProjectStatus = "active" | "archived";
 export type OmniReelStatus = "draft" | "queued" | "generating" | "stitching" | "completed" | "failed";
 export type OmniSegmentStatus = "draft" | "queued" | "submitted" | "processing" | "completed" | "failed";
+export type { OmniSubtitleStatus } from "./subtitle-settings";
 
 export interface OmniProject {
   id: number;
@@ -155,6 +159,18 @@ export interface OmniReel {
   stitch_status: "not_ready" | "ready" | "queued" | "stitching" | "completed" | "failed";
   final_video_url: string | null;
   final_s3_url?: string | null;
+  subtitles_status?: OmniSubtitleStatus | null;
+  subtitled_video_url?: string | null;
+  subtitles_error?: string | null;
+  subtitles_settings?: OmniSubtitleSettings | null;
+  subtitles_transcript?: {
+    provider?: string;
+    model?: string;
+    transcript?: string;
+    words?: WordTimestamp[];
+    word_count?: number;
+    updated_at?: string;
+  } | null;
   yandex_disk_path?: string | null;
   yandex_public_url?: string | null;
   yandex_status?: "pending" | "completed" | "skipped" | "failed" | null;

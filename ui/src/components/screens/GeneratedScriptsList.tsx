@@ -29,6 +29,7 @@ import {
 import { OpenRouterCostBadge } from "./OpenRouterCostBadge";
 import { OriginalReferenceLink } from "./OriginalReferenceLink";
 import { SegmentDots, StatusBadge } from "./OmniStudio/ui";
+import { ReelSubtitlesPanel } from "./ReelSubtitlesPanel";
 import { getVideoStageLabel, VideoProgressSteps } from "./VideoProgressStatus";
 
 type VideoFilter = "all" | "none" | "active" | "completed" | "failed";
@@ -376,7 +377,16 @@ function VideoPanel({
   pendingVideo: boolean;
   omniGenerationProvider: OmniGenerationProvider;
 }) {
-  if (!reel) return pendingVideo ? <PendingVideoCard provider={omniGenerationProvider} /> : <EmptyVideoPanel />;
+  const [currentReel, setCurrentReel] = useState(reel);
+
+  useEffect(() => {
+    setCurrentReel(reel);
+  }, [reel]);
+
+  if (!currentReel) return pendingVideo ? <PendingVideoCard provider={omniGenerationProvider} /> : <EmptyVideoPanel />;
+
+  const displayVideoUrl = currentReel.subtitled_video_url || currentReel.final_video_url;
+  const isShowingSubtitled = Boolean(currentReel.subtitled_video_url);
 
   return (
     <div className="rounded-lg border border-border bg-card p-3">
@@ -384,43 +394,54 @@ function VideoPanel({
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Видео</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Reel #{reel.id} · {reel.target_duration_seconds} сек · {reel.segment_count} сегмента
+            Reel #{currentReel.id} · {currentReel.target_duration_seconds} сек · {currentReel.segment_count} сегмента
           </p>
-          <p className="mt-1 text-sm font-semibold text-foreground">{getVideoStageLabel(reel, segments)}</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{getVideoStageLabel(currentReel, segments)}</p>
         </div>
-        <StatusBadge status={reel.status} />
+        <StatusBadge status={currentReel.status} />
       </div>
 
-      {reel.final_video_url ? (
+      {displayVideoUrl ? (
         <div className="mt-3 overflow-hidden rounded-lg border border-border bg-black">
-          <video src={reel.final_video_url} controls playsInline className="aspect-[9/16] max-h-[34rem] w-full object-contain" />
+          <video
+            key={displayVideoUrl}
+            src={displayVideoUrl}
+            controls
+            playsInline
+            className="aspect-[9/16] max-h-[34rem] w-full object-contain"
+          />
         </div>
+      ) : null}
+      {isShowingSubtitled ? (
+        <p className="mt-2 text-xs text-muted-foreground">Показываю версию с burned-in субтитрами.</p>
       ) : null}
 
       {segments.length ? (
         <div className="mt-3 space-y-3">
           <SegmentDots segments={segments} />
-          <VideoProgressSteps reel={reel} segments={segments} />
+          <VideoProgressSteps reel={currentReel} segments={segments} />
         </div>
       ) : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {reel.final_video_url ? (
-          <ExternalIconLink href={reel.final_video_url} label="Открыть S3 preview">
+        {displayVideoUrl ? (
+          <ExternalIconLink href={displayVideoUrl} label="Открыть S3 preview">
             <Video className="h-4 w-4" />
           </ExternalIconLink>
         ) : null}
-        {reel.yandex_public_url ? (
-          <ExternalIconLink href={reel.yandex_public_url} label="Открыть на Яндекс Диске">
+        {currentReel.yandex_public_url ? (
+          <ExternalIconLink href={currentReel.yandex_public_url} label="Открыть на Яндекс Диске">
             <ExternalLink className="h-4 w-4" />
           </ExternalIconLink>
         ) : null}
-        {reel.yandex_disk_path ? (
+        {currentReel.yandex_disk_path ? (
           <span className="min-w-0 truncate rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-            {reel.yandex_disk_path}
+            {currentReel.yandex_disk_path}
           </span>
         ) : null}
       </div>
+
+      {currentReel.final_video_url ? <ReelSubtitlesPanel reel={currentReel} onReelUpdate={setCurrentReel} /> : null}
     </div>
   );
 }
