@@ -2,16 +2,13 @@ import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import pool from "@/lib/db";
-import {
-  marginPercentForSubtitlePosition,
-  normalizeOmniSubtitleSettings,
-  type OmniSubtitleSettings,
-} from "@/lib/omni/subtitle-settings";
+import type { OmniSubtitleSettings } from "@/lib/omni/subtitle-settings";
 import type { OmniReel } from "@/lib/omni/types";
 import type { WordTimestamp } from "@/types";
 import { materializeSubtitleTrack } from "@/lib/server/subtitles";
 import { transcribeAudioFileWithDeepgram } from "./deepgram-transcription";
 import { runOmniFfmpeg, runOmniFfprobeDuration } from "./omni-ffmpeg";
+import { resolveOmniProjectSubtitleSettings } from "./omni-project-subtitle-settings";
 import { uploadOmniVideoBufferToS3 } from "./omni-video-storage";
 import { ensureOmniSchema } from "./schema";
 
@@ -26,7 +23,10 @@ export async function rebuildOmniReelSubtitles(input: {
     throw new Error("Final video is not ready yet");
   }
 
-  const settings = normalizeSettingsForRender(input.settings);
+  const settings = await resolveOmniProjectSubtitleSettings({ reel, override: input.settings });
+  if (!settings.subtitles_enabled) {
+    throw new Error("Субтитры выключены в настройках проекта");
+  }
   const workdir = await mkdtemp(path.join(tmpdir(), `omni-reel-subtitles-${input.reelId}-`));
 
   try {
@@ -145,16 +145,6 @@ function isWordTimestamp(value: unknown): value is WordTimestamp {
   if (!value || typeof value !== "object") return false;
   const word = value as WordTimestamp;
   return typeof word.word === "string" && Number.isFinite(word.start) && Number.isFinite(word.end) && word.end > word.start;
-}
-
-function normalizeSettingsForRender(input?: Partial<OmniSubtitleSettings> | null) {
-  const settings = normalizeOmniSubtitleSettings(input);
-  const subtitleMarginPercent = marginPercentForSubtitlePosition(settings.position);
-  return {
-    ...settings,
-    subtitle_margin_percent: subtitleMarginPercent,
-    subtitle_margin_v: Math.round((subtitleMarginPercent / 100) * 1920),
-  };
 }
 
 async function getOmniReel(reelId: number) {

@@ -16,7 +16,6 @@ export async function POST(request: Request, context: { params: Promise<{ reelId
     const body = await request.json().catch(() => ({}));
     const reel = await rebuildOmniReelSubtitles({
       reelId,
-      settings: body.settings,
       forceTranscribe: Boolean(body.forceTranscribe),
     });
     return NextResponse.json(reel);

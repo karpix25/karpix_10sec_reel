@@ -165,7 +165,7 @@ export const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({
             Субтитры
           </div>
           <p className="text-sm text-muted-foreground">
-            Вшиваются в финальный монтаж. Выбор шрифта идёт из каталога Google Fonts.
+            Настраиваются один раз для проекта и применяются ко всем Omni роликам. Выбор шрифта идёт из каталога Google Fonts.
           </p>
         </div>
         <div className="flex items-center gap-6">
