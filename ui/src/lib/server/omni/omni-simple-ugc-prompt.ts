@@ -39,6 +39,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
       "REFERENCE LOCK: no external director reference is available; use a clean realistic UGC scene with no subtitles or overlays.",
     directorScene?.framingLine ||
       "FRAMING: raw smartphone camera recording, stable portrait composition, person clearly visible, no forced full-body framing.",
+    ...(directorScene?.layoutLine ? [directorScene.layoutLine] : []),
     directorScene?.cameraLightLine || "CAMERA: raw smartphone camera recording, slight natural breathing movement, bright domestic light, high quality sensor output.",
     directorScene?.editingLine ||
       "EDITING RHYTHM: simple clean cuts only when needed; no subtitles, captions, progress bars, or interface overlays.",
@@ -62,7 +63,8 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     directorScene?.actionLine ||
       "ACTION: keep it simple and tied to speech; do not invent unrelated filler actions.",
     `CONTINUITY: same person, outfit, room, light, product appearance, and prop layout across the segment. ${continuity}`,
-    "CLEAN FRAME: only the raw environment and the person are visible. No on-screen text, subtitles, captions, progress bars, overlay icons, buttons, watermarks, logos, or app interfaces.",
+    directorScene?.cleanFrameLine ||
+      "CLEAN FRAME: only the raw environment and the person are visible. No on-screen text, subtitles, captions, progress bars, overlay icons, buttons, watermarks, logos, or app interfaces.",
   ].join("\n");
 }
 
