@@ -1,4 +1,5 @@
 import pool from "@/lib/db";
+import { extractOpenRouterCostSummaryFromSnapshot, summarizeOpenRouterUsage } from "@/lib/omni/openrouter-cost";
 import type { OmniGeneratedScript, OmniPromptPreviewSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
@@ -127,6 +128,7 @@ export async function createGeneratedScriptFromLegacy(input: {
         sourceScenario,
       })
     : null;
+  assertDirectorReferenceReady(sourceScenario.id, directorAnalysis);
   const directorBrief =
     directorAnalysis?.director_analysis_status === "completed" ? directorAnalysis.director_analysis_json : null;
 
@@ -145,6 +147,9 @@ export async function createGeneratedScriptFromLegacy(input: {
     directorBrief,
     durationRange,
   });
+  const directorCost = extractOpenRouterCostSummaryFromSnapshot(directorAnalysis?.source_snapshot);
+  const openRouterUsage = [...(directorCost?.layers || []), ...generated.openRouterUsage];
+  const openRouterCost = summarizeOpenRouterUsage(openRouterUsage);
 
   const sourceSnapshot = {
     id: sourceScenario.id,
@@ -161,6 +166,8 @@ export async function createGeneratedScriptFromLegacy(input: {
     duration_seconds: sourceScenario.duration_seconds,
     source_reference: sourceScenario.source_reference,
     quality_check: generated.qualityCheck,
+    openrouter_usage: openRouterUsage,
+    openrouter_cost: openRouterCost,
     director_analysis_id: directorAnalysis?.id || null,
     director_analysis_status: directorAnalysis?.director_analysis_status || "not_requested",
     director_analysis: directorBrief,
@@ -227,4 +234,15 @@ export async function createGeneratedScriptFromLegacy(input: {
   );
 
   return normalizeScript(rows[0]);
+}
+
+function assertDirectorReferenceReady(
+  legacyScenarioId: number,
+  directorAnalysis: Awaited<ReturnType<typeof ensureDirectorAnalysis>> | null
+) {
+  if (!directorAnalysis || directorAnalysis.director_analysis_status === "completed") return;
+  const reason = directorAnalysis.analysis_error || directorAnalysis.director_analysis_status;
+  throw new Error(
+    `Не удалось разобрать reference video для source #${legacyScenarioId}: ${reason}. Выберите другой reference или повторите после исправления анализатора.`
+  );
 }

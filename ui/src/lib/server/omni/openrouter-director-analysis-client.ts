@@ -1,9 +1,11 @@
+import { normalizeOpenRouterUsage, type OpenRouterUsageRecord } from "@/lib/omni/openrouter-cost";
 import { parseAndRepairJson } from "./script-json-repair";
 import { normalizeDirectorBrief, type DirectorBrief } from "./director-analysis-types";
 import {
   buildDirectorAnalysisUserPrompt,
   DIRECTOR_ANALYSIS_SYSTEM_PROMPT,
 } from "./director-analysis-prompt";
+import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_DIRECTOR_MODEL = "minimax/minimax-m3";
@@ -12,6 +14,7 @@ export type DirectorVideoAnalysisResult = {
   brief: DirectorBrief;
   model: string;
   responseMetadata: Record<string, unknown>;
+  openRouterUsage: OpenRouterUsageRecord | null;
 };
 
 export async function analyzeDirectorVideo(input: {
@@ -57,15 +60,25 @@ export async function analyzeDirectorVideo(input: {
   const parsed = parseAndRepairJson(content);
   const brief = normalizeDirectorBrief(parsed);
   if (!brief) throw new Error("Director analysis model returned invalid director_brief JSON");
+  const responseModel = String(data.model || model);
+  const pricing = await getOpenRouterPricingSnapshot(responseModel);
+  const openRouterUsage = normalizeOpenRouterUsage({
+    layer: "director_analysis",
+    model,
+    response: data,
+    pricing,
+  });
 
   return {
     brief,
     model,
     responseMetadata: {
       id: data.id || null,
-      model: data.model || model,
+      model: responseModel,
       usage: data.usage || null,
+      openrouter_usage: openRouterUsage,
     },
+    openRouterUsage,
   };
 }
 

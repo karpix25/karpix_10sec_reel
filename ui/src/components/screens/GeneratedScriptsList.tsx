@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { extractOpenRouterCostSummaryFromSnapshot } from "@/lib/omni/openrouter-cost";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import type { OmniGeneratedScript, OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { GeneratedScriptPromptTabs } from "./GeneratedScriptPromptTabs";
@@ -25,6 +26,7 @@ import {
   type PendingScriptDraft,
   type PendingVideoDraft,
 } from "./GenerationPendingCards";
+import { OpenRouterCostBadge } from "./OpenRouterCostBadge";
 import { SegmentDots, StatusBadge } from "./OmniStudio/ui";
 import { getVideoStageLabel, VideoProgressSteps } from "./VideoProgressStatus";
 
@@ -250,6 +252,7 @@ function GeneratedScriptCard({
 }) {
   const { script, latestReel, latestSegments } = item;
   const videoStage = latestReel ? getVideoStageLabel(latestReel, latestSegments) : "Видео ещё не создавалось";
+  const costSummary = extractOpenRouterCostSummaryFromSnapshot(script.source_snapshot);
 
   return (
     <article className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-background">
@@ -269,6 +272,7 @@ function GeneratedScriptCard({
           </div>
         </button>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {costSummary ? <OpenRouterCostBadge summary={costSummary} /> : null}
           <div className="min-w-36 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
             <span className="block truncate font-semibold text-foreground">{videoStage}</span>
             {latestReel ? <span>Reel #{latestReel.id}</span> : <span>draft</span>}

@@ -104,11 +104,23 @@ export async function getLegacyScenario(legacyScenarioId: number) {
   return rowsResult.rows[0] ? normalizeLegacyScenario(rowsResult.rows[0]) : null;
 }
 
-export async function getRandomLegacyScenarioFromClients(legacyClientIds: number[]) {
+export async function getRandomLegacyScenarioFromClients(
+  legacyClientIds: number[],
+  excludedScenarioIds: number[] = []
+) {
   const clientIds = Array.from(
     new Set(legacyClientIds.filter((id) => Number.isFinite(id) && id > 0))
   );
   if (!clientIds.length) return null;
+  const excludedIds = Array.from(
+    new Set(excludedScenarioIds.filter((id) => Number.isFinite(id) && id > 0))
+  );
+  const values: unknown[] = [clientIds];
+  let excludeClause = "";
+  if (excludedIds.length) {
+    values.push(excludedIds);
+    excludeClause = `AND NOT (pc.id = ANY($${values.length}::bigint[]))`;
+  }
 
   const legacyPool = getLegacyPool();
   const rowsResult = await legacyPool.query<LegacyScenarioRow>(
@@ -129,9 +141,10 @@ export async function getRandomLegacyScenarioFromClients(legacyClientIds: number
      WHERE pc.client_id = ANY($1::bigint[])
        AND COALESCE(TRIM(pc.transcript), '') <> ''
        AND pc.transcript NOT ILIKE 'Error %'
+       ${excludeClause}
      ORDER BY RANDOM()
      LIMIT 1`,
-    [clientIds]
+    values
   );
 
   return rowsResult.rows[0] ? normalizeLegacyScenario(rowsResult.rows[0]) : null;

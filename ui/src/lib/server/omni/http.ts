@@ -29,7 +29,9 @@ export function getOmniErrorStatus(error: unknown) {
     message.includes("Invalid Omni segment") ||
     message.includes("Script is too short") ||
     message.includes("Script cannot be split") ||
-    message.includes("Не удалось разделить сценарий")
+    message.includes("Не удалось разделить сценарий") ||
+    message.includes("Reference video analysis failed") ||
+    message.includes("Не удалось разобрать reference video")
   ) {
     return 422;
   }

@@ -25,6 +25,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
   const referencePolicy = input.referencePolicy || { mode: "full_reference" as const, omitRawDirectorGuidance: false };
   const directorScene = buildDirectorSceneContract(input.directorBrief || null, referencePolicy);
   const scriptBeatGuidance = renderScriptBeatGuidance(input.plan.scriptBeats);
+  const talkingHead = input.plan.lifeFormatId === "talking_head_cutaways";
   const props = input.plan.continuityProps
     .map((item) => `${item.name}: ${item.appearance}; начальная позиция: ${item.initialPosition}`)
     .join(" | ");
@@ -41,6 +42,9 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     directorScene?.cameraLightLine || "CAMERA: raw smartphone camera recording, slight natural breathing movement, bright domestic light, high quality sensor output.",
     directorScene?.editingLine ||
       "EDITING RHYTHM: simple clean cuts only when needed; no subtitles, captions, progress bars, or interface overlays.",
+    ...(talkingHead
+      ? ["FORMAT: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Main shot is face-to-camera; cutaway is short, static, and tied to the script."]
+      : []),
     ...(input.directorGuidance && !referencePolicy.omitRawDirectorGuidance
       ? [`REFERENCE VIDEO DIRECTION:\n${input.directorGuidance}`]
       : []),
@@ -53,12 +57,19 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     `СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде; герой уже стоит в кадре и смотрит в камеру.`,
     `ТОЧНАЯ РЕПЛИКА (${wordCount} слов): "${input.plan.voiceoverText}"`,
     ...(scriptBeatGuidance ? [scriptBeatGuidance] : []),
+    `SHOT PLAN:\n${renderShotPlan(input.plan)}`,
     "SPEECH TIMING: Russian, energetic delivery; the exact quote should occupy almost the whole clip with no long pauses between phrases. Speak only the exact quote once, no subtitles.",
     directorScene?.actionLine ||
       "ACTION: keep it simple and tied to speech; do not invent unrelated filler actions.",
     `CONTINUITY: same person, outfit, room, light, product appearance, and prop layout across the segment. ${continuity}`,
     "CLEAN FRAME: only the raw environment and the person are visible. No on-screen text, subtitles, captions, progress bars, overlay icons, buttons, watermarks, logos, or app interfaces.",
   ].join("\n");
+}
+
+function renderShotPlan(plan: OmniSegmentCreativePlan) {
+  return plan.beats
+    .map((beat) => `${beat.startSeconds.toFixed(1)}-${beat.endSeconds.toFixed(1)}s: ${beat.action}.`)
+    .join("\n");
 }
 
 function productLine(role: ProductRole) {

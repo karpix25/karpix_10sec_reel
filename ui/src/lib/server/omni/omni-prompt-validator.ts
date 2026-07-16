@@ -15,7 +15,7 @@ const FORBIDDEN_ACTION_PATTERNS = [
 ];
 
 const CONSUMPTION_DURING_SPEECH =
-  /(?:ест|жует|жуёт|кусает|пьет|пьёт|глотает|наносит\s+на\s+(?:лицо|губы)).*(?:говорит|продолжает\s+речь)/iu;
+  /(?:^|[^а-яё])(?:ест|жует|жуёт|кусает|пьет|пьёт|глотает|наносит\s+на\s+(?:лицо|губы))(?:[^а-яё]|$).*(?:говорит|продолжает\s+речь)/iu;
 
 const TALKING_HEAD_FORBIDDEN_DEFAULT_PROPS =
   /полотенц|сумк|ключ|органайзер|шоппер|комод|скамь|лавк|чехол/iu;
@@ -70,8 +70,8 @@ export function validateOmniSegmentPrompt(input: {
   if (FORBIDDEN_ACTION_PATTERNS.some((pattern) => pattern.test(joinedActions))) {
     errors.push("forbidden_visual_motif");
   }
-  if (CONSUMPTION_DURING_SPEECH.test(joinedActions)) errors.push("consumption_during_speech");
-  if (input.plan.productRole !== "brief_demo" && /(?:этикетк|логотип).*(?:камер|центр)/iu.test(joinedActions)) {
+  if (actions.some((action) => CONSUMPTION_DURING_SPEECH.test(action))) errors.push("consumption_during_speech");
+  if (input.plan.productRole !== "brief_demo" && actions.some(isAdvertisingProductDisplay)) {
     errors.push("advertising_product_display");
   }
   if (input.plan.lifeFormatId === "talking_head_cutaways") {
@@ -130,4 +130,10 @@ function countExactVoiceoverReplicaLines(prompt: string, voiceoverText: string) 
 
 function normalize(value: string) {
   return value.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+}
+
+function isAdvertisingProductDisplay(action: string) {
+  const normalized = normalize(action);
+  if (/без\s+акцента\s+на\s+логотип|без\s+рекламн/u.test(normalized)) return false;
+  return /(?:этикетк|логотип)[^.?!;]*(?:камер|центр)|(?:камер|центр)[^.?!;]*(?:этикетк|логотип)/iu.test(normalized);
 }
