@@ -22,6 +22,20 @@ export function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+export function getOmniErrorStatus(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (
+    message.includes("Сценарий отклонен:") ||
+    message.includes("Invalid Omni segment") ||
+    message.includes("Script is too short") ||
+    message.includes("Script cannot be split") ||
+    message.includes("Не удалось разделить сценарий")
+  ) {
+    return 422;
+  }
+  return 500;
+}
+
 export function clampInt(value: unknown, min: number, max: number, fallback: number) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed)) return fallback;

@@ -17,6 +17,7 @@ import { splitScriptIntoVoiceSegments, type VoiceSegment } from "./omni-script-s
 import {
   extractGeneratedScriptBeatPlanFromSnapshot,
   renderScriptBeatGuidance,
+  sanitizeProviderVisualCue,
   selectScriptBeatsForSegment,
 } from "./script-beat-plan";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
@@ -382,7 +383,7 @@ function addScriptBeatCues(
     ...plan,
     scriptBeats,
     beats: plan.beats.map((beat, index) => {
-      const cue = visualCues[Math.min(index, visualCues.length - 1)];
+      const cue = sanitizeProviderVisualCue(visualCues[Math.min(index, visualCues.length - 1)] || "");
       return {
         ...beat,
         action: cue ? `${beat.action}. Сценарный visual cue: ${cue}` : beat.action,

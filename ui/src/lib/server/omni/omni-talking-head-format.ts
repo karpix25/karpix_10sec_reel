@@ -6,6 +6,7 @@ import type {
   ProductRole,
 } from "@/lib/omni/creative-contract";
 import { OMNI_CLEAN_FRAME_PROMPT } from "./omni-provider-prompt-contract";
+import { sanitizeProviderVisualCue } from "./script-beat-plan";
 
 export const TALKING_HEAD_CUTAWAY_FORMAT_ID: LifeFormatId = "talking_head_cutaways";
 
@@ -31,8 +32,8 @@ export function buildTalkingHeadCreativePlan(input: {
   scriptBeats?: OmniScriptBeatCue[];
 }): OmniSegmentCreativePlan {
   const scriptCue = renderScriptCueSummary(input.scriptBeats);
-  const cueOpening = input.scriptBeats?.[0]?.visualCue;
-  const cueClosing = input.scriptBeats?.[input.scriptBeats.length - 1]?.visualCue;
+  const cueOpening = sanitizeProviderVisualCue(input.scriptBeats?.[0]?.visualCue || "");
+  const cueClosing = sanitizeProviderVisualCue(input.scriptBeats?.[input.scriptBeats.length - 1]?.visualCue || "");
   const cutaway = cueCutaway(input.scriptBeats, input.productRole) || (input.productRole === "hidden"
     ? "короткая спокойная перебивка на фон, стол или деталь интерьера без действия руками"
     : "короткая спокойная перебивка на продукт на столе без рук, без поворота упаковки и без рекламного крупного плана");
@@ -78,12 +79,12 @@ function cueCutaway(scriptBeats: readonly OmniScriptBeatCue[] | undefined, produ
   const productRule = productRole === "hidden"
     ? "без показа продукта, если он не нужен в этой части"
     : "если в cue есть продукт, показывать только новый продукт";
-  return `короткая спокойная перебивка по visual cue сценариста: ${cutawayBeat.visualCue}; ${productRule}; без субтитров и сложной хореографии`;
+  return `короткая спокойная перебивка по visual cue сценариста: ${sanitizeProviderVisualCue(cutawayBeat.visualCue)}; ${productRule}; без субтитров и сложной хореографии`;
 }
 
 function renderScriptCueSummary(scriptBeats: readonly OmniScriptBeatCue[] | undefined) {
   if (!scriptBeats?.length) return "";
-  return scriptBeats.map((beat) => `${beat.stage}: ${beat.visualCue}`).join(" | ");
+  return scriptBeats.map((beat) => `${beat.stage}: ${sanitizeProviderVisualCue(beat.visualCue)}`).join(" | ");
 }
 
 function withScriptCue(action: string, scriptCue: string) {

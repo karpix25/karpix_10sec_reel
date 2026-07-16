@@ -78,7 +78,7 @@ export function renderScriptBeatCue(beats: readonly GeneratedScriptBeat[] | null
   if (!beats?.length) return "";
   const lines = beats.map((beat, index) => {
     const stage = beat.stage ? `${beat.stage}: ` : "";
-    return `${index + 1}. ${stage}визуально - ${beat.visualCue}; речь - "${beat.voiceover}"`;
+    return `${index + 1}. ${stage}визуально - ${sanitizeProviderVisualCue(beat.visualCue)}; речь - "${beat.voiceover}"`;
   });
   return [
     "СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:",
@@ -88,6 +88,14 @@ export function renderScriptBeatCue(beats: readonly GeneratedScriptBeat[] | null
 }
 
 export const renderScriptBeatGuidance = renderScriptBeatCue;
+
+export function sanitizeProviderVisualCue(value: string) {
+  return value
+    .replace(/(?:логотип|этикетк[аиуойе]?)[^.?!;,\n]*(?:камер|центр)[^.?!;,\n]*/giu, "продукт виден естественно в сцене без акцента на логотипе")
+    .replace(/(?:камер|центр)[^.?!;,\n]*(?:логотип|этикетк[аиуойе]?)[^.?!;,\n]*/giu, "продукт виден естественно в сцене без акцента на логотипе")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 export function appendCtaToLastBeat(
   plan: GeneratedScriptPlan | null,

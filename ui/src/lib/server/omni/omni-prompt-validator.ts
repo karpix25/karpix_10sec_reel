@@ -33,12 +33,11 @@ export function validateOmniSegmentPrompt(input: {
     .map((item) => `${item.name} ${item.appearance} ${item.initialPosition}`)
     .join(" ");
   const usesReferenceScenePassport = input.prompt.includes(REFERENCE_SCENE_PASSPORT_MARKER);
-  const exactQuote = `"${input.plan.voiceoverText}"`;
 
   if (input.plan.speechStartsAtSeconds !== 0 || !input.prompt.includes("0.0 секунде")) {
     errors.push("speech_must_start_at_zero");
   }
-  if (input.prompt.split(exactQuote).length - 1 !== 1) {
+  if (countExactVoiceoverReplicaLines(input.prompt, input.plan.voiceoverText) !== 1) {
     errors.push("exact_voiceover_must_appear_once");
   }
   if (hasForbiddenOmniScriptSymbols(input.plan.voiceoverText)) {
@@ -119,6 +118,14 @@ function hasContinuousTimeline(plan: OmniSegmentCreativePlan) {
 
 function getFirstSentenceWordCount(text: string) {
   return (text.split(/[.!?]/, 1)[0] || text).split(/\s+/).filter(Boolean).length;
+}
+
+function countExactVoiceoverReplicaLines(prompt: string, voiceoverText: string) {
+  const exactQuote = `"${voiceoverText}"`;
+  return prompt
+    .split("\n")
+    .filter((line) => line.trim().startsWith("ТОЧНАЯ РЕПЛИКА"))
+    .filter((line) => line.includes(exactQuote)).length;
 }
 
 function normalize(value: string) {
