@@ -58,6 +58,7 @@ Write code as a professional modular system, not as large monolithic files.
 - When a reference is a collage or picture-in-picture format, preserve that layout contract explicitly instead of reducing it to a generic talking-head scene.
 - Quote bracketed Next.js route paths in shell commands so zsh does not expand them.
 - Keep subtitle style controls in project/client settings; reel cards should only trigger or show subtitle render status.
+- Split complex SSH diagnostics into simple quoted commands instead of packing many nested quotes into one local shell invocation.
 
 # Project Skills
 
