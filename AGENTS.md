@@ -54,6 +54,7 @@ Write code as a professional modular system, not as large monolithic files.
 - Product-mention predicates must not include the product name in the searched text, or every segment becomes product-visible.
 - Calibrate Omni speech budgets from delivered original words per second, not total transcribed words that may include duplicated hallucinated phrases.
 - Count exact Omni voiceover repetitions only in provider-facing exact-replica lines, not in internal script beat guidance.
+- Show original references as external Instagram links unless the user explicitly asks to embed or play the reference video.
 
 # Project Skills
 
