@@ -27,7 +27,7 @@ import {
   type PendingVideoDraft,
 } from "./GenerationPendingCards";
 import { OpenRouterCostBadge } from "./OpenRouterCostBadge";
-import { OriginalReferencePreview } from "./OriginalReferencePreview";
+import { OriginalReferenceLink } from "./OriginalReferenceLink";
 import { SegmentDots, StatusBadge } from "./OmniStudio/ui";
 import { getVideoStageLabel, VideoProgressSteps } from "./VideoProgressStatus";
 
@@ -274,6 +274,7 @@ function GeneratedScriptCard({
         </button>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           {costSummary ? <OpenRouterCostBadge summary={costSummary} /> : null}
+          <OriginalReferenceLink script={script} />
           <div className="min-w-36 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
             <span className="block truncate font-semibold text-foreground">{videoStage}</span>
             {latestReel ? <span>Reel #{latestReel.id}</span> : <span>draft</span>}
@@ -344,15 +345,12 @@ function GeneratedScriptCard({
             ) : null}
           </TabsContent>
           <TabsContent value="video" className="px-4 pb-4">
-            <div className="space-y-3">
-              <OriginalReferencePreview script={script} />
-              <VideoPanel
-                reel={latestReel}
-                segments={latestSegments}
-                pendingVideo={pendingVideo?.scriptId === script.id}
-                omniGenerationProvider={omniGenerationProvider}
-              />
-            </div>
+            <VideoPanel
+              reel={latestReel}
+              segments={latestSegments}
+              pendingVideo={pendingVideo?.scriptId === script.id}
+              omniGenerationProvider={omniGenerationProvider}
+            />
           </TabsContent>
           <TabsContent value="prompts" className="px-4 pb-4">
             <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-3 text-xs text-muted-foreground">
