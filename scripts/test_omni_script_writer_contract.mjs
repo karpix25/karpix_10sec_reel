@@ -31,6 +31,7 @@ try {
       join(ui, "src/lib/server/omni/director-analysis-types.ts"),
       join(ui, "src/lib/server/omni/director-analysis-prompt.ts"),
       join(ui, "src/lib/server/omni/script-prompt-helper.ts"),
+      join(ui, "src/lib/server/omni/script-generation-retry.ts"),
       join(ui, "src/lib/server/omni/script-beat-plan.ts"),
       join(ui, "src/lib/server/omni/omni-script-text-contract.ts"),
     ],
@@ -52,6 +53,11 @@ try {
   } = require(findFile(compiled, "openrouter-cost.js"));
   const { normalizeGeneratedScriptPlan, deriveVoiceoverScriptFromPlan, selectScriptBeatsForSegment } =
     require(findFile(compiled, "script-beat-plan.js"));
+  const {
+    MAX_SCRIPT_GENERATION_ATTEMPTS,
+    buildScriptRetryFeedback,
+    isRetryableScriptGenerationError,
+  } = require(findFile(compiled, "script-generation-retry.js"));
 
   const prompt = buildPrompt({
     projectName: "Omni Reels",
@@ -121,6 +127,17 @@ try {
   assert.ok(prompt.includes("Поле script должно совпадать"), "script must match beat voiceovers");
   assert.ok(prompt.includes("Целевая длительность итогового ролика: 30-30 сек"), "prompt must include configured duration range");
   assert.ok(prompt.includes("60-72 слов"), "prompt must include computed word range");
+  assert.ok(MAX_SCRIPT_GENERATION_ATTEMPTS >= 5, "script writer should retry enough times before asking the user");
+  assert.ok(
+    isRetryableScriptGenerationError(new Error("Сценарий отклонен: слишком короткий для выбранной длины ролика (45 слов). Нужно 60-72 слов для 30-30 сек.")),
+    "short generated scripts must be retryable"
+  );
+  const shortRetryFeedback = buildScriptRetryFeedback(
+    new Error("Сценарий отклонен: слишком короткий для выбранной длины ролика (45 слов). Нужно 60-72 слов для 30-30 сек.")
+  );
+  assert.ok(shortRetryFeedback.includes("45 слов"), "retry feedback must include previous short word count");
+  assert.ok(shortRetryFeedback.includes("60-72"), "retry feedback must repeat required word range");
+  assert.ok(shortRetryFeedback.includes("66-72"), "retry feedback must give a concrete target range");
 
   const plan = normalizeGeneratedScriptPlan({
     hook_options: ["Хук 1", "Хук 2", "Хук 3"],
