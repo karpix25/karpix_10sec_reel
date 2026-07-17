@@ -22,7 +22,7 @@ export function ProductVisualPassportPanel({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
             <Sparkles className="h-4 w-4 text-primary" />
-            Product visual passport
+            Паспорт продукта из ref
             <Badge variant={getProfileBadgeVariant(product.product_visual_profile_status)}>
               {getProfileStatusLabel(product.product_visual_profile_status)}
             </Badge>
@@ -39,7 +39,7 @@ export function ProductVisualPassportPanel({
           className="min-h-10 shrink-0"
         >
           {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {isAnalyzing ? "Анализирую" : "Анализ ref"}
+          {isAnalyzing ? "Анализирую" : "Обновить паспорт"}
         </Button>
       </div>
       {profile ? (
@@ -68,10 +68,10 @@ export function ProductVisualPassportPanel({
 }
 
 function getProfileStatusLabel(status: OmniProduct["product_visual_profile_status"]) {
-  if (status === "completed") return "passport ready";
-  if (status === "processing") return "analysis running";
-  if (status === "failed") return "analysis failed";
-  return "passport missing";
+  if (status === "completed") return "готов";
+  if (status === "processing") return "анализ идет";
+  if (status === "failed") return "ошибка";
+  return "не собран";
 }
 
 function getProfileBadgeVariant(status: OmniProduct["product_visual_profile_status"]): BadgeProps["variant"] {

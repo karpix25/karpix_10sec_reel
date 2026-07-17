@@ -44,7 +44,12 @@ export function getLatestAvatar(avatars: OmniClientAvatar[]) {
 }
 
 export function getActiveProduct(products: OmniProduct[], productId: number | null) {
-  return products.find((product) => product.id === productId) || null;
+  return products.find((product) => product.id === productId) || products[0] || null;
+}
+
+export function getPreferredProductId(products: OmniProduct[], productId: number | null) {
+  const activeProduct = getActiveProduct(products, productId);
+  return activeProduct?.id || null;
 }
 
 export function getEffectiveLegacyLibraryId(activeLibraryId: number | null, links: OmniLegacyLibraryLink[]) {

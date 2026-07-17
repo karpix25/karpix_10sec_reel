@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Archive, Database } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useOmniProjects, useOmniStudio } from "@/hooks/useOmniStudio";
@@ -9,6 +9,7 @@ import {
   getActiveProduct,
   getClientWorkspaceDescription,
   getLatestAvatar,
+  getPreferredProductId,
 } from "@/lib/omni/workspace";
 import type { OmniProject } from "@/lib/omni/types";
 import type { Client } from "@/types";
@@ -53,11 +54,18 @@ export function OmniStudioScreen({
   const libraries = studio.legacyLibrariesQuery.data || [];
   const scenarios = studio.legacyScenariosQuery.data?.data || [];
   const libraryLinks = studio.libraryLinksQuery.data || [];
-  const products = studio.productsQuery.data || [];
+  const products = useMemo(() => studio.productsQuery.data || [], [studio.productsQuery.data]);
   const avatars = studio.avatarsQuery.data || [];
   const reelsPayload = studio.reelsQuery.data || { reels: [], segments: [] };
   const activeProduct = getActiveProduct(products, selectedProductId);
   const latestAvatar = getLatestAvatar(avatars);
+
+  useEffect(() => {
+    const preferredProductId = getPreferredProductId(products, selectedProductId);
+    if (preferredProductId !== selectedProductId) {
+      onSelectProduct(preferredProductId);
+    }
+  }, [onSelectProduct, products, selectedProductId]);
 
   const handleCreateWorkspace = () => {
     if (!selectedClient) return;
