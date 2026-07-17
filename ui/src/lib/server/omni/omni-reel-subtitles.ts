@@ -12,12 +12,80 @@ import { resolveOmniProjectSubtitleSettings } from "./omni-project-subtitle-sett
 import { uploadOmniVideoBufferToS3 } from "./omni-video-storage";
 import { ensureOmniSchema } from "./schema";
 
+const SUBTITLE_RENDER_LOCK_NAMESPACE = 20260717;
+const PROCESSABLE_SUBTITLE_STATUSES = new Set(["queued", "transcribing", "rendering"]);
+
 export async function rebuildOmniReelSubtitles(input: {
   reelId: number;
   settings?: Partial<OmniSubtitleSettings> | null;
   forceTranscribe?: boolean;
 }) {
   await ensureOmniSchema();
+  return withSubtitleRenderLock(input.reelId, {
+    onLocked: async () => {
+      throw new Error("Subtitle render already running");
+    },
+    run: () => renderOmniReelSubtitles(input),
+  });
+}
+
+export async function startOmniReelSubtitlesIfEnabled(input: { reelId: number }) {
+  try {
+    const queued = await queueOmniReelSubtitlesIfEnabled(input);
+    if (queued?.subtitles_status === "queued") {
+      void processOmniReelSubtitlesIfNeeded(input).catch((error) => {
+        console.error("Automatic Omni reel subtitles failed:", error);
+      });
+    }
+    return queued;
+  } catch (error) {
+    console.error("Automatic Omni reel subtitles start failed:", error);
+    await markSubtitleStartFailed(input.reelId, error).catch(() => {});
+    return getOmniReel(input.reelId).catch(() => null);
+  }
+}
+
+export async function processOmniReelSubtitlesIfNeeded(input: { reelId: number }) {
+  await ensureOmniSchema();
+  const reel = await getOmniReel(input.reelId);
+  if (!isFinalReelReady(reel)) return reel;
+
+  const candidate = shouldQueueSubtitles(reel)
+    ? await queueOmniReelSubtitlesIfEnabled(input)
+    : reel;
+  if (!isFinalReelReady(candidate) || !shouldProcessSubtitles(candidate)) return candidate;
+
+  return withSubtitleRenderLock(candidate.id, {
+    onLocked: () => getOmniReel(candidate.id),
+    run: () =>
+      renderOmniReelSubtitles({
+        reelId: candidate.id,
+        settings: candidate.subtitles_settings,
+      }),
+  });
+}
+
+async function queueOmniReelSubtitlesIfEnabled(input: { reelId: number }) {
+  await ensureOmniSchema();
+  const reel = await getOmniReel(input.reelId);
+  if (!isFinalReelReady(reel)) return reel;
+  if (reel.subtitles_status === "completed" && reel.subtitled_video_url) return reel;
+  if (shouldProcessSubtitles(reel)) return reel;
+
+  const settings = await resolveOmniProjectSubtitleSettings({ reel });
+  if (!settings.subtitles_enabled) return reel;
+
+  return updateSubtitleState(input.reelId, "queued", {
+    subtitles_error: null,
+    subtitles_settings: settings,
+  });
+}
+
+async function renderOmniReelSubtitles(input: {
+  reelId: number;
+  settings?: Partial<OmniSubtitleSettings> | null;
+  forceTranscribe?: boolean;
+}) {
   const reel = await getOmniReel(input.reelId);
   if (!reel?.final_video_url) {
     throw new Error("Final video is not ready yet");
@@ -214,4 +282,48 @@ async function uploadSubtitledVideo(reel: OmniReel, outputPath: string) {
     fileName: `subtitled/reel_${reel.id}_subtitles.mp4`,
     body,
   });
+}
+
+function shouldQueueSubtitles(reel: OmniReel) {
+  if (reel.subtitled_video_url && reel.subtitles_status === "completed") return false;
+  return !reel.subtitles_status || reel.subtitles_status === "none" || reel.subtitles_status === "not_requested";
+}
+
+function shouldProcessSubtitles(reel: OmniReel) {
+  return PROCESSABLE_SUBTITLE_STATUSES.has(String(reel.subtitles_status || "").toLowerCase());
+}
+
+function isFinalReelReady(reel: OmniReel | null) {
+  return Boolean(reel?.final_video_url && reel.status === "completed" && reel.stitch_status === "completed");
+}
+
+async function markSubtitleStartFailed(reelId: number, error: unknown) {
+  return updateSubtitleState(reelId, "failed", {
+    subtitles_error: error instanceof Error ? error.message : "Subtitle render start failed",
+  });
+}
+
+async function withSubtitleRenderLock<T>(
+  reelId: number,
+  input: {
+    onLocked: () => Promise<T>;
+    run: () => Promise<T>;
+  }
+) {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock($1, $2) AS locked",
+      [SUBTITLE_RENDER_LOCK_NAMESPACE, reelId]
+    );
+    if (!rows[0]?.locked) return input.onLocked();
+
+    try {
+      return await input.run();
+    } finally {
+      await client.query("SELECT pg_advisory_unlock($1, $2)", [SUBTITLE_RENDER_LOCK_NAMESPACE, reelId]).catch(() => {});
+    }
+  } finally {
+    client.release();
+  }
 }

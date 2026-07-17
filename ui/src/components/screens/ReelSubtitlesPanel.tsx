@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Captions, ExternalLink, Loader2, Settings, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getOmniSubtitleStatusLabel, isActiveOmniSubtitleStatus } from "@/lib/omni/subtitle-status-labels";
 import type { OmniReel } from "@/lib/omni/types";
 
 export function ReelSubtitlesPanel({
@@ -14,8 +15,8 @@ export function ReelSubtitlesPanel({
 }) {
   const [isRendering, setIsRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isBusy = isRendering || reel.subtitles_status === "transcribing" || reel.subtitles_status === "rendering";
-  const statusLabel = getSubtitleStatusLabel(isRendering ? "rendering" : reel.subtitles_status);
+  const isBusy = isRendering || isActiveOmniSubtitleStatus(reel.subtitles_status);
+  const statusLabel = getOmniSubtitleStatusLabel(isRendering ? "rendering" : reel.subtitles_status);
   const wordsCount = getWordCount(reel);
 
   const renderSubtitles = async () => {
@@ -83,14 +84,6 @@ export function ReelSubtitlesPanel({
       </div>
     </section>
   );
-}
-
-function getSubtitleStatusLabel(status: OmniReel["subtitles_status"]) {
-  if (status === "transcribing") return "транскрибация";
-  if (status === "rendering") return "рендер";
-  if (status === "completed") return "готово";
-  if (status === "failed") return "ошибка";
-  return "не собирались";
 }
 
 function getWordCount(reel: OmniReel) {

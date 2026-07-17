@@ -29,6 +29,7 @@ import {
   retrieveProviderVideoTask,
   type ProviderTask,
 } from "./omni-provider-tasks";
+import { processOmniReelSubtitlesIfNeeded } from "./omni-reel-subtitles";
 import { storeCompletedSegment, stitchAndStoreReel } from "./omni-segment-completion";
 
 type ReelBundle = {
@@ -403,6 +404,7 @@ export async function syncOmniReel(reelId: number) {
     (segment) => !segment.kie_task_id && segment.status !== "completed" && segment.status !== "failed"
   );
 
+  let stitchedNow = false;
   if (hasFailed) {
     await pool.query(
       "UPDATE omni_reels SET status = 'failed', error_message = 'One or more segments failed', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
@@ -410,6 +412,7 @@ export async function syncOmniReel(reelId: number) {
     );
   } else if (allCompleted && updated.reel.stitch_status !== "completed") {
     await stitchAndStoreReel({ reel: updated.reel, segments: updated.segments });
+    stitchedNow = true;
   } else if (hasRunningSegments(updated.segments)) {
     await pool.query(
       "UPDATE omni_reels SET status = 'generating', stitch_status = 'not_ready', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
@@ -417,6 +420,10 @@ export async function syncOmniReel(reelId: number) {
     );
   } else if (isOmniContinuityChainEnabled() && hasPendingDraft) {
     await submitOmniReel(reelId, getReelGenerationProvider(updated.segments));
+  }
+
+  if (!stitchedNow) {
+    await processOmniReelSubtitlesIfNeeded({ reelId });
   }
 
   return getReelBundle(reelId);

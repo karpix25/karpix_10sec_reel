@@ -1,11 +1,17 @@
 import { useEffect, useRef } from "react";
+import { isActiveOmniSubtitleStatus } from "@/lib/omni/subtitle-status-labels";
 import type { OmniReel } from "@/lib/omni/types";
 
 const ACTIVE_REEL_STATUSES = new Set(["queued", "generating", "stitching"]);
 const SYNC_INTERVAL_MS = 20_000;
 const MIN_REEL_SYNC_GAP_MS = 18_000;
 
-export function useOmniReelAutoSync(input: {
+export function useOmniReelAutoSync({
+  enabled,
+  reels,
+  isSyncing,
+  onSync,
+}: {
   enabled: boolean;
   reels: OmniReel[];
   isSyncing: boolean;
@@ -14,25 +20,33 @@ export function useOmniReelAutoSync(input: {
   const lastSyncByReelIdRef = useRef<Record<number, number>>({});
 
   useEffect(() => {
-    if (!input.enabled) return;
+    if (!enabled) return;
 
     const syncNext = () => {
-      if (input.isSyncing) return;
+      if (isSyncing) return;
       const now = Date.now();
-      const nextReel = input.reels.find((reel) => {
-        if (reel.final_video_url) return false;
-        if (!ACTIVE_REEL_STATUSES.has(String(reel.status || "").toLowerCase())) return false;
+      const eligibleReels = reels.filter((reel) => {
+        if (reel.final_video_url) {
+          if (!isActiveOmniSubtitleStatus(reel.subtitles_status)) return false;
+        } else if (!ACTIVE_REEL_STATUSES.has(String(reel.status || "").toLowerCase())) {
+          return false;
+        }
         const lastSyncAt = lastSyncByReelIdRef.current[reel.id] || 0;
         return now - lastSyncAt >= MIN_REEL_SYNC_GAP_MS;
       });
+      const nextReel = eligibleReels.sort((left, right) => {
+        const leftSyncedAt = lastSyncByReelIdRef.current[left.id] || 0;
+        const rightSyncedAt = lastSyncByReelIdRef.current[right.id] || 0;
+        return leftSyncedAt - rightSyncedAt || left.id - right.id;
+      })[0];
 
       if (!nextReel) return;
       lastSyncByReelIdRef.current[nextReel.id] = now;
-      input.onSync(nextReel.id);
+      onSync(nextReel.id);
     };
 
     syncNext();
     const intervalId = window.setInterval(syncNext, SYNC_INTERVAL_MS);
     return () => window.clearInterval(intervalId);
-  }, [input.enabled, input.isSyncing, input.onSync, input.reels]);
+  }, [enabled, isSyncing, onSync, reels]);
 }

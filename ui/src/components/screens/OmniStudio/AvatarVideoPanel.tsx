@@ -3,6 +3,7 @@
 import { Bot, ExternalLink, Film, ImageUp, Play, RefreshCw, Video, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getOmniReelSubtitleCue } from "@/lib/omni/subtitle-status-labels";
 import type { OmniClientAvatar, OmniProduct, OmniProject, OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { OmniSegmentPromptDetails } from "./OmniSegmentPromptDetails";
 import { EmptyState, QueryState, ReadinessItem, SegmentDots, StatusBadge, WorkbenchPanel } from "./ui";
@@ -176,111 +177,116 @@ export function AvatarVideoPanel({
       <WorkbenchPanel title="Reel jobs" description="Сегменты отправляются в Omni, затем готовые mp4 склеиваются и сохраняются в S3 + Яндекс.">
         <QueryState isLoading={isReelsLoading} loadingText="Загружаю draft reels" errorText="Не удалось загрузить reels" />
         <div className="space-y-2">
-          {reels.map((reel) => (
-            <div key={reel.id} className="rounded-lg border border-border bg-background p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Reel #{reel.id}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {reel.target_duration_seconds} сек / {reel.segment_count} сегмента / stitch: {reel.stitch_status}
-                  </p>
+          {reels.map((reel) => {
+            const displayVideoUrl = reel.subtitled_video_url || reel.final_video_url;
+            const subtitleCue = getOmniReelSubtitleCue(reel);
+            return (
+              <div key={reel.id} className="rounded-lg border border-border bg-background p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Reel #{reel.id}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {reel.target_duration_seconds} сек / {reel.segment_count} сегмента / stitch: {reel.stitch_status}
+                    </p>
+                  </div>
+                  <StatusBadge status={reel.status} />
                 </div>
-                <StatusBadge status={reel.status} />
-              </div>
-              {reel.final_video_url ? (
-                <div className="mt-3 overflow-hidden rounded-lg border border-border bg-black">
-                  <video src={reel.final_video_url} controls playsInline className="aspect-[9/16] max-h-[34rem] w-full object-contain" />
+                {displayVideoUrl ? (
+                  <div className="mt-3 overflow-hidden rounded-lg border border-border bg-black">
+                    <video src={displayVideoUrl} controls playsInline className="aspect-[9/16] max-h-[34rem] w-full object-contain" />
+                  </div>
+                ) : null}
+                {reel.final_video_url || reel.yandex_public_url || reel.yandex_disk_path ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {displayVideoUrl ? (
+                      <a
+                        href={displayVideoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium text-primary hover:bg-muted"
+                      >
+                        <Video className="h-3.5 w-3.5" />
+                        S3 preview
+                      </a>
+                    ) : null}
+                    {reel.yandex_public_url ? (
+                      <a
+                        href={reel.yandex_public_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium text-primary hover:bg-muted"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Yandex
+                      </a>
+                    ) : reel.yandex_disk_path ? (
+                      <span className="truncate rounded-md bg-muted px-2 py-1">Yandex: {reel.yandex_disk_path}</span>
+                    ) : null}
+                    {subtitleCue ? <span className="rounded-md bg-muted px-2 py-1">{subtitleCue}</span> : null}
+                  </div>
+                ) : null}
+                {reel.yandex_status === "failed" && reel.yandex_error ? (
+                  <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{reel.yandex_error}</p>
+                ) : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={() => onRunReel(reel.id)}
+                    disabled={isRunningReel || reel.status === "completed"}
+                    title="Запустить сегменты"
+                    aria-label="Запустить сегменты"
+                    className="h-9 w-9"
+                  >
+                    <Play className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={() => onSyncReel(reel.id)}
+                    disabled={isSyncingReel}
+                    title="Проверить статус и собрать"
+                    aria-label="Проверить статус и собрать"
+                    className="h-9 w-9"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isSyncingReel ? "animate-spin" : ""}`} />
+                  </Button>
                 </div>
-              ) : null}
-              {reel.final_video_url || reel.yandex_public_url || reel.yandex_disk_path ? (
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {reel.final_video_url ? (
-                    <a
-                      href={reel.final_video_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium text-primary hover:bg-muted"
-                    >
-                      <Video className="h-3.5 w-3.5" />
-                      S3 preview
-                    </a>
-                  ) : null}
-                  {reel.yandex_public_url ? (
-                    <a
-                      href={reel.yandex_public_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium text-primary hover:bg-muted"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      Yandex
-                    </a>
-                  ) : reel.yandex_disk_path ? (
-                    <span className="truncate rounded-md bg-muted px-2 py-1">Yandex: {reel.yandex_disk_path}</span>
-                  ) : null}
+                <div className="mt-3">
+                  <SegmentDots segments={segments.filter((segment) => segment.reel_id === reel.id)} />
                 </div>
-              ) : null}
-              {reel.yandex_status === "failed" && reel.yandex_error ? (
-                <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{reel.yandex_error}</p>
-              ) : null}
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={() => onRunReel(reel.id)}
-                  disabled={isRunningReel || reel.status === "completed"}
-                  title="Запустить сегменты"
-                  aria-label="Запустить сегменты"
-                  className="h-9 w-9"
-                >
-                  <Play className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  onClick={() => onSyncReel(reel.id)}
-                  disabled={isSyncingReel}
-                  title="Проверить статус и собрать"
-                  aria-label="Проверить статус и собрать"
-                  className="h-9 w-9"
-                >
-                  <RefreshCw className={`h-4 w-4 ${isSyncingReel ? "animate-spin" : ""}`} />
-                </Button>
-              </div>
-              <div className="mt-3">
-                <SegmentDots segments={segments.filter((segment) => segment.reel_id === reel.id)} />
-              </div>
-              <div className="mt-3 grid gap-2">
-                {segments
-                  .filter((segment) => segment.reel_id === reel.id)
-                  .map((segment) => (
-                    <div key={segment.id} className="rounded-lg border border-border bg-card p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-                            Segment {segment.segment_index} · {segment.slot_role || "body"}
-                          </p>
-                          {segment.reference_url ? (
-                            <p className="mt-1 truncate text-xs text-muted-foreground">{segment.reference_url}</p>
-                          ) : null}
+                <div className="mt-3 grid gap-2">
+                  {segments
+                    .filter((segment) => segment.reel_id === reel.id)
+                    .map((segment) => (
+                      <div key={segment.id} className="rounded-lg border border-border bg-card p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+                              Segment {segment.segment_index} · {segment.slot_role || "body"}
+                            </p>
+                            {segment.reference_url ? (
+                              <p className="mt-1 truncate text-xs text-muted-foreground">{segment.reference_url}</p>
+                            ) : null}
+                          </div>
+                          <StatusBadge status={segment.status} />
                         </div>
-                        <StatusBadge status={segment.status} />
+                        <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-xs leading-5 text-foreground">
+                          {segment.prompt || "Prompt пока не подготовлен."}
+                        </pre>
+                        <OmniSegmentPromptDetails
+                          prompt={segment.prompt}
+                          voiceoverText={segment.voiceover_text}
+                          creativeStrategy={reel.creative_strategy}
+                          creativePlan={segment.creative_plan}
+                          validation={segment.prompt_validation}
+                        />
                       </div>
-                      <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-xs leading-5 text-foreground">
-                        {segment.prompt || "Prompt пока не подготовлен."}
-                      </pre>
-                      <OmniSegmentPromptDetails
-                        prompt={segment.prompt}
-                        voiceoverText={segment.voiceover_text}
-                        creativeStrategy={reel.creative_strategy}
-                        creativePlan={segment.creative_plan}
-                        validation={segment.prompt_validation}
-                      />
-                    </div>
-                  ))}
+                    ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {!reels.length && (
             <EmptyState
               title="Draft reels пока нет"
