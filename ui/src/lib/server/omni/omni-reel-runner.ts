@@ -8,7 +8,11 @@ import {
 } from "./comet-video-client";
 import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
-import { selectReferenceImagesForComet } from "./omni-reference-images";
+import {
+  selectReferenceImagesForSegment,
+  type ReelReferenceImage,
+} from "./omni-reference-images";
+import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { createOmniCompositeReference } from "./omni-composite-reference";
 import {
   appendContinuityPromptContract,
@@ -31,8 +35,6 @@ type ReelBundle = {
   reel: OmniReel;
   segments: OmniReelSegment[];
 };
-
-type ReferenceImage = { url: string; fieldName: string; role: string };
 
 const RUNNING_STATUSES = new Set(["queued", "submitted", "processing"]);
 
@@ -63,13 +65,8 @@ function getAvatarReferenceUrl(reel: OmniReel) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function getProductReferenceUrl(reel: OmniReel) {
-  const snapshot = reel.product_snapshot || {};
-  const refs = (snapshot as { product_refs?: unknown }).product_refs;
-  if (!Array.isArray(refs)) return null;
-  const primary = refs.find((ref) => Boolean((ref as { is_primary?: unknown }).is_primary)) || refs[0];
-  const value = (primary as { url?: unknown } | undefined)?.url;
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+function getProductReferenceUrls(reel: OmniReel) {
+  return resolveProductReferenceImageUrls(reel.product_snapshot || {});
 }
 
 function getAvatarCharacterId(reel: OmniReel) {
@@ -98,7 +95,8 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
   const continuityChainEnabled = isOmniContinuityChainEnabled();
   if (!segments.length) throw new Error("Omni reel has no segments");
   const avatarReferenceUrl = getAvatarReferenceUrl(reel);
-  const productReferenceUrl = getProductReferenceUrl(reel);
+  const productReferenceUrls = getProductReferenceUrls(reel);
+  const productReferenceUrl = productReferenceUrls[0] || null;
   const avatarCharacterId = await resolveAvatarCharacterId(reel);
   const referenceImageField = getCometReferenceImageFieldName();
   const referenceImageTransport = getCometReferenceImageTransport();
@@ -110,11 +108,13 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
         productReferenceUrl
           ? { url: productReferenceUrl, fieldName: referenceImageField, role: "product" }
           : null,
-      ].filter((image): image is ReferenceImage => Boolean(image))
+      ].filter((image): image is ReelReferenceImage => Boolean(image))
     : [];
-  const kieReferenceImages = productReferenceUrl
-    ? [{ url: productReferenceUrl, fieldName: referenceImageField, role: "product" }]
-    : [];
+  const kieReferenceImages = productReferenceUrls.map((url, index) => ({
+    url,
+    fieldName: referenceImageField,
+    role: index === 0 ? "product" : "product_secondary",
+  }));
   if (provider === "kie-ai" && !avatarCharacterId) {
     await markOmniReelPreflightFailure({
       reelId: reel.id,
@@ -142,7 +142,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
           ? { url: avatarReferenceUrl, fieldName: referenceImageField, role: "avatar" }
           : null,
         { url: compositeReferenceUrl, fieldName: referenceImageField, role: "avatar_product_composite" },
-      ].filter((image): image is ReferenceImage => Boolean(image))
+      ].filter((image): image is ReelReferenceImage => Boolean(image))
     : baseReferenceImages;
 
   await pool.query(
@@ -175,25 +175,15 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     });
     const productIsVisible = segment.creative_plan?.productRole !== "hidden";
     const continuityImages = continuity.image ? [continuity.image] : [];
-    const visibleCometReferences = productIsVisible
-      ? cometReferenceImages
-      : cometReferenceImages.filter((image) => image.role === "avatar");
-    const segmentCometReferences = [...continuityImages, ...visibleCometReferences];
-    const hiddenCometReferences = productIsVisible
-      ? []
-      : cometReferenceImages.filter((image) => image.role !== "avatar");
-    const cometSelection = selectReferenceImagesForComet(
-      segmentCometReferences,
+    const selectedReferenceImages = selectReferenceImagesForSegment({
+      provider,
+      continuityImages,
+      cometReferenceImages,
+      kieReferenceImages,
       referenceImageTransport,
-      segment.segment_index
-    );
-    const kieSegmentReferences = [
-      ...continuityImages,
-      ...(productIsVisible ? kieReferenceImages : []),
-    ];
-    const selectedReferenceImages = provider === "kie-ai"
-      ? { sent: kieSegmentReferences, skipped: productIsVisible ? [] : kieReferenceImages }
-      : { ...cometSelection, skipped: [...cometSelection.skipped, ...hiddenCometReferences] };
+      segmentIndex: segment.segment_index,
+      productIsVisible,
+    });
     const continuityPrompt = continuity.image
       ? appendContinuityPromptContract(segment.prompt)
       : segment.prompt;
@@ -236,6 +226,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       reference_images_source: {
         avatar_url: avatarReferenceUrl,
         product_url: productReferenceUrl,
+        product_urls: productReferenceUrls,
         composite_url: compositeReferenceUrl,
         continuity_frame_url:
           typeof continuity.metadata.sourceFrameUrl === "string"
@@ -249,7 +240,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       continuity: continuity.metadata,
       prompt_contracts: [
         ...(continuity.image ? ["previous_frame_continuity_v1"] : []),
-        ...(provider === "kie-ai" && selectedReferenceImages.sent.length > 1
+        ...(provider === "kie-ai" && selectedReferenceImages.sent.length > 0
           ? ["kie_reference_order_v1"]
           : []),
       ],
@@ -350,7 +341,7 @@ function getSkippedReferenceReason(input: {
 }) {
   if (
     !input.productIsVisible &&
-    (input.role === "product" || input.role === "avatar_product_composite")
+    (input.role === "product" || input.role === "product_secondary" || input.role === "avatar_product_composite")
   ) {
     return "product_hidden_by_creative_strategy";
   }

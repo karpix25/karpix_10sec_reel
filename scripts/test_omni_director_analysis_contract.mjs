@@ -11,6 +11,7 @@ const output = mkdtempSync(join(tmpdir(), "omni-director-analysis-"));
 const compiled = join(output, "compiled");
 const tsconfig = join(output, "tsconfig.json");
 const require = createRequire(import.meta.url);
+const RAW_FILMING_SUPPORT_PATTERN = /Fixed phone or tripod|Tripod or gimbal|Fixed mount or tripod|locked-off tripod/iu;
 
 try {
   writeFileSync(tsconfig, JSON.stringify({
@@ -168,6 +169,9 @@ try {
   assert.ok(simplePrompt.includes("REFERENCE FRAMING: medium close-up, close-up"), "director framing must reach provider prompt");
   assert.ok(simplePrompt.includes("REFERENCE WARDROBE: casual professional neutral top"), "director wardrobe must reach provider prompt");
   assert.ok(simplePrompt.includes("REFERENCE EDITING: single continuous take or very minimal cutting"), "director editing must reach provider prompt");
+  assert.ok(simplePrompt.includes("stable locked-off camera framing"), "tripod stabilization should become stable off-camera framing");
+  assert.ok(simplePrompt.includes("filming equipment is never visible"), "director prompt must ban visible filming gear");
+  assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(simplePrompt), "raw tripod wording must not reach provider prompt");
   assert.ok(simplePrompt.includes("replace any original product or brand with the new product"));
   assert.ok(simplePrompt.includes("replace it with this product while preserving the same placement, timing, framing"));
   assert.ok(!/medium-wide full-body|head to shoes|4-6 quick cuts|fast-paced realistic montage/u.test(simplePrompt));

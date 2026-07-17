@@ -1,6 +1,10 @@
 import type { DirectorBrief } from "./director-analysis-types";
 import { buildDirectorLayoutContract } from "./director-layout-contract";
 import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
+import {
+  OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
+  sanitizeCameraStabilizationForPrompt,
+} from "./omni-scene-safety-contract";
 
 export type DirectorSceneContract = {
   referenceLockLine: string;
@@ -26,12 +30,7 @@ export function buildDirectorSceneContract(
     brief.clothing.fit_details,
     brief.clothing.color_palette.length ? `colors: ${brief.clothing.color_palette.join(", ")}` : "",
   ].filter(Boolean).join("; ");
-  const camera = [
-    brief.camera.shot_types.join(", "),
-    brief.camera.angles.length ? `angles: ${brief.camera.angles.join(", ")}` : "",
-    brief.camera.movements.length ? `movement: ${brief.camera.movements.join(", ")}` : "",
-    brief.camera.stabilization,
-  ].filter(Boolean).join("; ");
+  const camera = buildCameraDescription(brief);
   const editing = [
     brief.montage_rhythm.cut_pace,
     brief.montage_rhythm.beat_sync,
@@ -73,6 +72,7 @@ export function buildDirectorSceneContract(
         camera,
         `match the reference lighting quality on the presenter: ${getTransferableLighting(brief)}`,
         "product inserts must use clean light that makes the new product image recognizable.",
+        OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
       ].filter(Boolean).join(" "),
       wardrobeLine: [
         "REFERENCE WARDROBE:",
@@ -123,6 +123,7 @@ export function buildDirectorSceneContract(
       "REFERENCE CAMERA AND LIGHT:",
       camera,
       `lighting must follow the reference: ${brief.atmosphere.lighting}`,
+      OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
     ].filter(Boolean).join(" "),
     wardrobeLine: [
       "REFERENCE WARDROBE:",
@@ -155,6 +156,15 @@ const FOREIGN_PROCESS_PATTERN =
 
 const SUPPORTING_WARDROBE_PATTERN =
   /staff|workers|gloves|nitrile|culinary|medical uniform|uniform|перчат|работник|униформ|медицинск|повар/iu;
+
+function buildCameraDescription(brief: DirectorBrief) {
+  return [
+    brief.camera.shot_types.join(", "),
+    brief.camera.angles.length ? `angles: ${brief.camera.angles.join(", ")}` : "",
+    brief.camera.movements.length ? `movement: ${brief.camera.movements.join(", ")}` : "",
+    sanitizeCameraStabilizationForPrompt(brief.camera.stabilization),
+  ].filter(Boolean).join("; ");
+}
 
 function buildTransferableStyleOnlyScene(brief: DirectorBrief) {
   const setting = brief.atmosphere.setting || "";

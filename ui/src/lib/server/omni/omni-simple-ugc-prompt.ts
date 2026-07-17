@@ -8,6 +8,7 @@ import type { DirectorBrief } from "./director-analysis-types";
 import { buildDirectorSceneContract } from "./director-scene-contract";
 import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { renderScriptBeatGuidance } from "./script-beat-plan";
+import { OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT } from "./omni-scene-safety-contract";
 
 export function renderSimpleFullBodyUgcPrompt(input: {
   plan: OmniSegmentCreativePlan;
@@ -67,6 +68,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     `CONTINUITY: same person, outfit, room, light, product appearance, and prop layout across the segment. ${continuity}`,
     directorScene?.cleanFrameLine ||
       "CLEAN FRAME: only the raw environment and the person are visible. No on-screen text, subtitles, captions, progress bars, overlay icons, buttons, watermarks, logos, or app interfaces.",
+    OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
   ].join("\n");
 }
 

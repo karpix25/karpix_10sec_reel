@@ -1,4 +1,5 @@
 import type { DirectorBrief } from "./director-analysis-types";
+import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 
 export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v1";
 
@@ -56,7 +57,7 @@ export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
     `REFERENCE DIRECTION: visual hook - ${brief.visual_hook.action}; retention trigger - ${brief.visual_hook.retention_trigger}.`,
     `ATMOSPHERE: ${brief.atmosphere.mood}; ${brief.atmosphere.setting}; ${brief.atmosphere.lighting}; ${brief.atmosphere.color_grading}.`,
     `WARDROBE: ${brief.clothing.style}; ${brief.clothing.fit_details}; colors: ${brief.clothing.color_palette.join(", ") || "natural neutral palette"}.`,
-    `CAMERA: ${brief.camera.shot_types.join(", ")}; angles: ${brief.camera.angles.join(", ")}; movement: ${brief.camera.movements.join(", ")}; ${brief.camera.stabilization}.`,
+    `CAMERA: ${brief.camera.shot_types.join(", ")}; angles: ${brief.camera.angles.join(", ")}; movement: ${brief.camera.movements.join(", ")}; ${sanitizeCameraStabilizationForPrompt(brief.camera.stabilization)}.`,
     `EDITING: ${brief.montage_rhythm.cut_pace}; ${brief.montage_rhythm.beat_sync}; transitions: ${brief.montage_rhythm.transition_style.join(", ") || "clean jump cuts"}.`,
     firstBeats ? `ACTION DNA: ${firstBeats}.` : "",
     `REUSABLE MECHANICS: ${brief.reusable_mechanics.visual_mechanics.join("; ")}; loop pattern: ${brief.reusable_mechanics.looping_pattern}.`,

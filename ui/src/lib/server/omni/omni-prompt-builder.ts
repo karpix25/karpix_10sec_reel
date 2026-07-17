@@ -148,6 +148,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const productRole = layoutContract?.requiresOpeningProductBackground && segmentIndex === 1 && baseProductRole === "hidden"
       ? "background_prop"
       : baseProductRole;
+    const segmentProductVisualPassport = productVisualPassport;
     const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
       segmentIndex,
       voiceoverText: voiceSegments[index].text,
@@ -163,7 +164,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
           strategy,
           characterContract,
           productName: input.product.name,
-          productVisualPassport: productRole === "hidden" ? null : productVisualPassport,
+          productVisualPassport: segmentProductVisualPassport,
           segmentIndex,
           segmentCount: input.segmentCount,
           directorGuidance,
@@ -179,9 +180,13 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
           directorGuidance,
           directorBrief,
           referencePolicy,
-          productRole === "hidden" ? null : productVisualPassport
+          segmentProductVisualPassport
         );
-    const validation = validateOmniSegmentPrompt({ prompt, plan });
+    const validation = validateOmniSegmentPrompt({
+      prompt,
+      plan,
+      requiresProductVisualPassport: Boolean(segmentProductVisualPassport),
+    });
     if (!validation.valid) {
       throw new Error(`Invalid Omni segment ${segmentIndex}: ${validation.errors.join(", ")}`);
     }

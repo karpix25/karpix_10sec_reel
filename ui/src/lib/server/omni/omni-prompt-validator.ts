@@ -20,10 +20,14 @@ const CONSUMPTION_DURING_SPEECH =
 const TALKING_HEAD_FORBIDDEN_DEFAULT_PROPS =
   /полотенц|сумк|ключ|органайзер|шоппер|комод|скамь|лавк|чехол/iu;
 const REFERENCE_SCENE_PASSPORT_MARKER = "REFERENCE SCENE PASSPORT:";
+const PRODUCT_VISUAL_PASSPORT_MARKER = "PRODUCT VISUAL PASSPORT:";
+const RAW_VISIBLE_FILMING_SUPPORT_PATTERN =
+  /(?:fixed\s+phone\s+or\s+tripod|fixed\s+mount\s+or\s+tripod|locked-off\s+tripod|tripod\s+(?:framing|for|or|and)|gimbal,\s*very\s+steady|штатив(?:н|ом|а|е)?\s+(?:кадр|съем|съём)|стойк[аи]\s+света\s+в\s+кадр)/iu;
 
 export function validateOmniSegmentPrompt(input: {
   prompt: string;
   plan: OmniSegmentCreativePlan;
+  requiresProductVisualPassport?: boolean;
 }): OmniPromptValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -54,6 +58,12 @@ export function validateOmniSegmentPrompt(input: {
   }
   if (!input.prompt.includes("ИСТОЧНИКИ ОБРАЗА:")) {
     errors.push("character_source_contract_required");
+  }
+  if (input.requiresProductVisualPassport && !input.prompt.includes(PRODUCT_VISUAL_PASSPORT_MARKER)) {
+    errors.push("product_visual_passport_required");
+  }
+  if (RAW_VISIBLE_FILMING_SUPPORT_PATTERN.test(input.prompt)) {
+    errors.push("raw_visible_filming_support_leaked");
   }
   if (!usesReferenceScenePassport) {
     for (const item of input.plan.continuityProps) {
