@@ -8,6 +8,7 @@ import type { OmniProduct, OmniReferenceAsset } from "@/lib/omni/types";
 import type { CtaMode } from "@/lib/omni/creative-contract";
 import { AUTO_SEGMENT_MODE_LABEL } from "@/lib/omni/workspace";
 import { ProductCtaFields, getCtaModeLabel } from "@/components/screens/ProductCtaFields";
+import { ProductVisualPassportPanel } from "@/components/screens/ProductVisualPassportPanel";
 
 export type ProductProfileDraft = {
   name: string;
@@ -22,9 +23,11 @@ type DashboardProductDetailsCardProps = {
   isSaving?: boolean;
   isUploading?: boolean;
   isDeleting?: boolean;
+  isAnalyzingReference?: boolean;
   onSave?: (productId: number, draft: ProductProfileDraft) => void | Promise<unknown>;
   onUploadImages?: (files: FileList) => Promise<OmniReferenceAsset[]>;
   onDeleteProduct?: (productId: number) => void | Promise<unknown>;
+  onAnalyzeReference?: (productId: number) => void | Promise<unknown>;
 };
 
 function getProductDraft(product: OmniProduct | null): ProductProfileDraft {
@@ -54,9 +57,11 @@ export function DashboardProductDetailsCard({
   isSaving = false,
   isUploading = false,
   isDeleting = false,
+  isAnalyzingReference = false,
   onSave,
   onUploadImages,
   onDeleteProduct,
+  onAnalyzeReference,
 }: DashboardProductDetailsCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<ProductProfileDraft>(() => getProductDraft(product));
@@ -269,6 +274,13 @@ export function DashboardProductDetailsCard({
 
           {!isEditing ? (
             <>
+              <ProductVisualPassportPanel
+                product={product}
+                isAnalyzing={isAnalyzingReference}
+                onAnalyze={() => {
+                  if (onAnalyzeReference) void onAnalyzeReference(product.id);
+                }}
+              />
               <div className="grid grid-cols-2 gap-2">
                 {product.product_refs.map((ref) => (
                   <a

@@ -81,6 +81,11 @@ export type DeleteOmniProductPayload = {
   productId: number;
 };
 
+export type AnalyzeOmniProductReferencePayload = {
+  projectId: number;
+  productId: number;
+};
+
 export function useOmniProjects() {
   return useQuery<OmniProject[]>({
     queryKey: ["omni-projects"],
@@ -197,6 +202,28 @@ export function useDeleteOmniProduct() {
       queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ["omni-legacy-library-links", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ["omni-scenario-links", variables.projectId] });
+    },
+  });
+}
+
+export function useAnalyzeOmniProductReference() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: AnalyzeOmniProductReferencePayload) =>
+      (await axios.post(`${API_BASE}/products/${payload.productId}/reference-analysis`, {
+        projectId: payload.projectId,
+      })).data as OmniProduct,
+    onSuccess: (updatedProduct, variables) => {
+      queryClient.setQueryData<OmniProduct[]>(["omni-products", variables.projectId], (products) =>
+        products?.map((product) => (product.id === updatedProduct.id ? updatedProduct : product)) || products
+      );
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });
+      queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId, variables.productId] });
+    },
+    onSettled: (_data, _error, variables) => {
+      if (!variables) return;
+      queryClient.invalidateQueries({ queryKey: ["omni-products", variables.projectId] });
     },
   });
 }
@@ -383,6 +410,8 @@ export function useOmniStudio(
 
   const createProductMutation = useCreateOmniProduct();
 
+  const analyzeProductReferenceMutation = useAnalyzeOmniProductReference();
+
   const createAvatarMutation = useCreateOmniAvatar();
 
   const linkLibraryMutation = useMutation({
@@ -452,6 +481,7 @@ export function useOmniStudio(
     generatedScriptsQuery,
     createProjectMutation,
     createProductMutation,
+    analyzeProductReferenceMutation,
     createAvatarMutation,
     linkLibraryMutation,
     unlinkLibraryMutation,

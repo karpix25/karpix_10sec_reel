@@ -37,6 +37,12 @@ import {
 import { renderSimpleFullBodyUgcPrompt } from "./omni-simple-ugc-prompt";
 import { buildReferenceTransferPolicy, type ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { applyDirectorLayoutToPlan, buildDirectorLayoutContract } from "./director-layout-contract";
+import {
+  buildProductVisualProfileFromText,
+  extractProductVisualProfileFromSnapshot,
+  normalizeProductVisualProfile,
+  renderProductVisualProfileForPrompt,
+} from "./product-visual-profile";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -89,6 +95,11 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   const scriptPlan = extractGeneratedScriptBeatPlanFromSnapshot(input.generatedScript?.source_snapshot);
 
   const productReference = getPrimaryReference(input.product.product_refs);
+  const productVisualProfile = resolveProductVisualProfile({
+    product: input.product,
+    generatedScript: input.generatedScript,
+  });
+  const productVisualPassport = renderProductVisualProfileForPrompt(productVisualProfile);
   const avatarReference = input.avatar?.reference_url || null;
   const characterContract = buildOmniCharacterContract({
     product: input.product,
@@ -152,6 +163,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
           strategy,
           characterContract,
           productName: input.product.name,
+          productVisualPassport: productRole === "hidden" ? null : productVisualPassport,
           segmentIndex,
           segmentCount: input.segmentCount,
           directorGuidance,
@@ -166,7 +178,8 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
           input.segmentCount,
           directorGuidance,
           directorBrief,
-          referencePolicy
+          referencePolicy,
+          productRole === "hidden" ? null : productVisualPassport
         );
     const validation = validateOmniSegmentPrompt({ prompt, plan });
     if (!validation.valid) {
@@ -269,7 +282,8 @@ function renderSegmentPrompt(
   segmentCount: number,
   directorGuidance: string | null,
   directorBrief: DirectorBrief | null,
-  referencePolicy: ReferenceTransferPolicy
+  referencePolicy: ReferenceTransferPolicy,
+  productVisualPassport: string | null
 ) {
   const directorScene = buildDirectorSceneContract(directorBrief, referencePolicy);
   const scriptBeatGuidance = renderScriptBeatGuidance(plan.scriptBeats);
@@ -301,6 +315,7 @@ function renderSegmentPrompt(
     ...(directorScene ? [directorScene.cameraLightLine, directorScene.editingLine] : []),
     ...(directorGuidance ? [`РЕЖИССУРА ОРИГИНАЛА:\n${directorGuidance}`] : []),
     directorScene?.propPassportLine || `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
+    ...(productVisualPassport ? [productVisualPassport] : []),
     `ТИП ХУКА: ${strategy.hookType}. ${strategy.hookRule}`,
     talkingHead
       ? "СТАРТ РЕЧИ: первое слово точной реплики звучит на 0.0 секунде в кадре говорящей головы; лицо уже видно, герой смотрит в камеру. До него нет паузы, улыбки, вдоха, приветствия или подготовки."
@@ -436,6 +451,20 @@ function countWords(value: string) {
 
 function getPrimaryReference(refs: OmniReferenceAsset[]) {
   return refs.find((ref) => ref.is_primary && ref.kind === "image") || refs.find((ref) => ref.kind === "image") || null;
+}
+
+function resolveProductVisualProfile(input: {
+  product: OmniProduct;
+  generatedScript: OmniGeneratedScript | null;
+}) {
+  return (
+    normalizeProductVisualProfile(input.product.product_visual_profile) ||
+    extractProductVisualProfileFromSnapshot(input.generatedScript?.product_snapshot) ||
+    buildProductVisualProfileFromText({
+      description: input.product.description,
+      notes: input.product.product_reference_notes,
+    })
+  );
 }
 
 function getSegmentRole(index: number, total: number) {

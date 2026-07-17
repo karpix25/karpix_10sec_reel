@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { OmniProduct, OmniProject, OmniReferenceAsset } from "@/lib/omni/types";
 import { AUTO_SEGMENT_MODE_LABEL } from "@/lib/omni/workspace";
+import { ProductVisualPassportPanel } from "@/components/screens/ProductVisualPassportPanel";
 import { EmptyState, QueryState, WorkbenchPanel } from "./ui";
 
 export type ProductDraft = {
@@ -23,11 +24,13 @@ export function OmniProductTab({
   isProductsLoading,
   isCreatingProduct,
   isUploadingProductImages,
+  isAnalyzingProductReference,
   canCreateProduct,
   onSelectProduct,
   onProductDraftChange,
   onUploadProductImages,
   onCreateProduct,
+  onAnalyzeProductReference,
 }: {
   activeProject: OmniProject | null;
   activeProduct: OmniProduct | null;
@@ -37,11 +40,13 @@ export function OmniProductTab({
   isProductsLoading: boolean;
   isCreatingProduct: boolean;
   isUploadingProductImages: boolean;
+  isAnalyzingProductReference: boolean;
   canCreateProduct: boolean;
   onSelectProduct: (productId: number | null) => void;
   onProductDraftChange: (draft: ProductDraft) => void;
   onUploadProductImages: (files: FileList | null) => void;
   onCreateProduct: () => void;
+  onAnalyzeProductReference: () => void;
 }) {
   const canSubmitProduct =
     Boolean(productDraft.name.trim()) &&
@@ -177,6 +182,11 @@ export function OmniProductTab({
                 {activeProduct.description || activeProduct.product_reference_notes || "Описание продукта пока не заполнено."}
               </p>
             </div>
+            <ProductVisualPassportPanel
+              product={activeProduct}
+              isAnalyzing={isAnalyzingProductReference}
+              onAnalyze={onAnalyzeProductReference}
+            />
             <div className="grid gap-2">
               {activeProduct.product_refs.map((ref) => (
                 <a

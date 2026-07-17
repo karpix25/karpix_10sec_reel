@@ -1,4 +1,4 @@
-export type OpenRouterUsageLayer = "director_analysis" | "script_writer";
+export type OpenRouterUsageLayer = "director_analysis" | "product_analysis" | "script_writer";
 
 export type OpenRouterPricingSnapshot = {
   source: "openrouter_models_api";
@@ -133,13 +133,17 @@ export function formatOpenRouterTokens(value: number) {
 
 export function getOpenRouterLayerLabel(layer: OpenRouterUsageLayer) {
   if (layer === "director_analysis") return "Режиссёрский анализ";
+  if (layer === "product_analysis") return "Анализ продукта";
   return "Сценарист";
 }
 
 function normalizeStoredUsageRecord(value: unknown): OpenRouterUsageRecord | null {
   const record = readRecord(value);
   if (!record) return null;
-  const layer = record.layer === "director_analysis" ? "director_analysis" : "script_writer";
+  const layer =
+    record.layer === "director_analysis" || record.layer === "product_analysis"
+      ? record.layer
+      : "script_writer";
   const pricing = readRecord(record.pricing) as OpenRouterPricingSnapshot | null;
   return {
     layer,

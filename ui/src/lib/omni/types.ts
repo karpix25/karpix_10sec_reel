@@ -26,6 +26,11 @@ export interface OmniProduct {
   name: string;
   description: string | null;
   product_reference_notes: string | null;
+  product_visual_profile: ProductVisualProfile | null;
+  product_visual_profile_status: ProductVisualProfileStatus;
+  product_visual_profile_model: string | null;
+  product_visual_profile_error: string | null;
+  product_visual_profile_updated_at: string | null;
   avatar_reference_notes: string | null;
   target_duration_seconds: number;
   cta_mode: CtaMode;
@@ -35,6 +40,22 @@ export interface OmniProduct {
   created_at: string;
   updated_at: string;
 }
+
+export type ProductVisualProfileStatus = "missing" | "processing" | "completed" | "failed";
+
+export type ProductVisualProfile = {
+  physical_form: string;
+  package_type: string;
+  colors: string[];
+  materials_finish: string[];
+  size_proportions: string;
+  labels_text_logo_placement: string;
+  cap_closure_seal: string;
+  texture: string;
+  must_preserve: string[];
+  must_not_change: string[];
+  prompt_summary: string;
+};
 
 export interface OmniReferenceAsset {
   id: string;
