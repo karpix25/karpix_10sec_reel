@@ -21,6 +21,7 @@ import type { CtaMode } from "@/lib/omni/creative-contract";
 import {
   AUTO_SEGMENT_FALLBACK_DURATION_SECONDS,
   AUTO_SEGMENT_MODE_LABEL,
+  getPreferredProductId,
 } from "@/lib/omni/workspace";
 
 type DashboardScreenProps = {
@@ -62,8 +63,9 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
   const [productDraft, setProductDraft] = useState<ProductDraft>(emptyProductDraft);
 
   useEffect(() => {
-    if (selectedProductId && !products.some((product) => product.id === selectedProductId)) {
-      onSelectProduct(null);
+    const preferredProductId = getPreferredProductId(products, selectedProductId);
+    if (preferredProductId !== selectedProductId) {
+      onSelectProduct(preferredProductId);
     }
   }, [onSelectProduct, products, selectedProductId]);
 
@@ -148,6 +150,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
             {products.map((product) => {
               const isActive = product.id === selectedProductId;
               const preview = product.product_refs.find((ref) => ref.kind === "image") || product.product_refs[0];
+              const passportReady = product.product_visual_profile_status === "completed";
               return (
                 <button
                   key={product.id}
@@ -176,9 +179,18 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
                     </span>
                   </div>
                   {product.product_refs.length ? (
-                    <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-primary">
-                      <ImageIcon className="h-4 w-4" />
-                      {product.product_refs.length} ref
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
+                      <span className="inline-flex items-center gap-2 text-primary">
+                        <ImageIcon className="h-4 w-4" />
+                        {product.product_refs.length} ref
+                      </span>
+                      <span
+                        className={`rounded-md px-2 py-1 ${
+                          passportReady ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {passportReady ? "Паспорт готов" : "Паспорт не собран"}
+                      </span>
                     </div>
                   ) : null}
                 </button>
