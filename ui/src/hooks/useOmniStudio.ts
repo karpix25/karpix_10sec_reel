@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
+import { postOmniApi } from "./omniApiClient";
 import {
   OmniClientAvatar,
   OmniGeneratedScript,
@@ -462,7 +463,7 @@ export function useOmniStudio(
 
   const createGeneratedScriptMutation = useMutation({
     mutationFn: async (payload: { projectId: number; productId: number; legacyScenarioId?: number | null }) =>
-      (await axios.post(`${API_BASE}/generated-scripts`, payload)).data as OmniGeneratedScript,
+      postOmniApi<OmniGeneratedScript>(`${API_BASE}/generated-scripts`, payload),
     onSuccess: (_, variables) =>
       queryClient.invalidateQueries({
         queryKey: ["omni-generated-scripts", variables.projectId, variables.productId],
