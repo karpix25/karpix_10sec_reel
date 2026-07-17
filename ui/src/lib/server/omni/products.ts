@@ -1,6 +1,7 @@
 import pool from "@/lib/db";
 import { OmniProduct, OmniReferenceAsset } from "@/lib/omni/types";
 import type { CtaMode } from "@/lib/omni/creative-contract";
+import { analyzeProductReferenceImages } from "./openrouter-product-analysis-client";
 import { ensureOmniSchema } from "./schema";
 
 function cleanText(value: unknown) {
@@ -178,6 +179,20 @@ export async function updateOmniProduct(input: {
   const nextName = hasName ? cleanText(input.name) : current.name;
   const nextCtaMode = hasCtaMode ? normalizeCtaMode(input.ctaMode) : current.cta_mode;
   const nextCtaValue = hasCtaValue ? cleanText(input.ctaValue) : current.cta_value || "";
+  const nextDescription = hasDescription ? cleanText(input.description) || null : current.description;
+  const nextProductReferenceNotes = hasProductReferenceNotes
+    ? cleanText(input.productReferenceNotes) || null
+    : current.product_reference_notes;
+  const nextProductRefs = hasProductRefs
+    ? normalizeRefsForUpdate(input.productRefs, "productRefs")
+    : current.product_refs;
+  const nextAvatarRefs = hasAvatarRefs
+    ? normalizeRefsForUpdate(input.avatarRefs, "avatarRefs")
+    : current.avatar_refs;
+  const visualInputChanged =
+    nextDescription !== current.description ||
+    nextProductReferenceNotes !== current.product_reference_notes ||
+    JSON.stringify(nextProductRefs) !== JSON.stringify(current.product_refs);
   if (!nextName) throw new Error("Product name is required");
   assertValidCta(nextCtaMode, nextCtaValue);
 
@@ -191,6 +206,11 @@ export async function updateOmniProduct(input: {
          cta_value = $8,
          product_refs = $9::jsonb,
          avatar_refs = $10::jsonb,
+         product_visual_profile = CASE WHEN $11 THEN NULL ELSE product_visual_profile END,
+         product_visual_profile_status = CASE WHEN $11 THEN 'missing' ELSE product_visual_profile_status END,
+         product_visual_profile_model = CASE WHEN $11 THEN NULL ELSE product_visual_profile_model END,
+         product_visual_profile_error = CASE WHEN $11 THEN NULL ELSE product_visual_profile_error END,
+         product_visual_profile_updated_at = CASE WHEN $11 THEN NULL ELSE product_visual_profile_updated_at END,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1 AND project_id = $2
      RETURNING *`,
@@ -198,13 +218,14 @@ export async function updateOmniProduct(input: {
       input.productId,
       input.projectId,
       nextName,
-      hasDescription ? cleanText(input.description) || null : current.description,
-      hasProductReferenceNotes ? cleanText(input.productReferenceNotes) || null : current.product_reference_notes,
+      nextDescription,
+      nextProductReferenceNotes,
       hasAvatarReferenceNotes ? cleanText(input.avatarReferenceNotes) || null : current.avatar_reference_notes,
       nextCtaMode,
       nextCtaValue || null,
-      JSON.stringify(hasProductRefs ? normalizeRefsForUpdate(input.productRefs, "productRefs") : current.product_refs),
-      JSON.stringify(hasAvatarRefs ? normalizeRefsForUpdate(input.avatarRefs, "avatarRefs") : current.avatar_refs),
+      JSON.stringify(nextProductRefs),
+      JSON.stringify(nextAvatarRefs),
+      visualInputChanged,
     ]
   );
 
@@ -229,6 +250,63 @@ export async function deleteOmniProduct(input: { projectId: number; productId: n
   return rows[0];
 }
 
+export async function analyzeOmniProductReference(input: { projectId: number; productId: number }) {
+  await ensureOmniSchema();
+  const product = await requireOmniProductInProject(input.projectId, input.productId);
+  const imageRefs = product.product_refs
+    .filter((ref) => ref.kind === "image" && ref.status !== "failed")
+    .map((ref) => ({ ...ref, url: resolvePublicReferenceUrl(ref.url) }))
+    .filter((ref) => Boolean(ref.url));
+
+  if (!imageRefs.length) {
+    throw new Error("Product needs at least one ready image reference for analysis");
+  }
+
+  await pool.query(
+    `UPDATE omni_products
+     SET product_visual_profile_status = 'processing',
+         product_visual_profile_error = NULL,
+         product_visual_profile_updated_at = CURRENT_TIMESTAMP,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND project_id = $2`,
+    [input.productId, input.projectId]
+  );
+
+  try {
+    const analysis = await analyzeProductReferenceImages({
+      productName: product.name,
+      productDescription: product.description,
+      productReferenceNotes: product.product_reference_notes,
+      references: imageRefs,
+    });
+    const { rows } = await pool.query<OmniProduct>(
+      `UPDATE omni_products
+       SET product_visual_profile = $3::jsonb,
+           product_visual_profile_status = 'completed',
+           product_visual_profile_model = $4,
+           product_visual_profile_error = NULL,
+           product_visual_profile_updated_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND project_id = $2
+       RETURNING *`,
+      [input.productId, input.projectId, JSON.stringify(analysis.profile), analysis.model]
+    );
+    return rows[0];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Product reference analysis failed";
+    await pool.query(
+      `UPDATE omni_products
+       SET product_visual_profile_status = 'failed',
+           product_visual_profile_error = $3,
+           product_visual_profile_updated_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND project_id = $2`,
+      [input.productId, input.projectId, message.slice(0, 800)]
+    );
+    throw error;
+  }
+}
+
 export async function getOmniProduct(productId: number) {
   await ensureOmniSchema();
   const { rows } = await pool.query<OmniProduct>("SELECT * FROM omni_products WHERE id = $1 LIMIT 1", [productId]);
@@ -245,4 +323,11 @@ export async function requireOmniProductInProject(projectId: number, productId: 
     throw new Error("Product does not belong to this Omni client project");
   }
   return rows[0];
+}
+
+function resolvePublicReferenceUrl(url: string) {
+  if (/^https?:\/\//i.test(url)) return url;
+  const appUrl = cleanText(process.env.NEXT_PUBLIC_APP_URL);
+  if (!appUrl || !url.startsWith("/")) return url;
+  return `${appUrl.replace(/\/+$/u, "")}${url}`;
 }

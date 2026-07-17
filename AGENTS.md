@@ -57,8 +57,12 @@ Write code as a professional modular system, not as large monolithic files.
 - Show original references as external Instagram links unless the user explicitly asks to embed or play the reference video.
 - When a reference is a collage or picture-in-picture format, preserve that layout contract explicitly instead of reducing it to a generic talking-head scene.
 - Quote bracketed Next.js route paths in shell commands so zsh does not expand them.
+- Quote bracketed Next.js route paths even for read-only inspection commands.
+- Before running any shell command with a Next.js bracket route path, wrap that path in single quotes.
 - Keep subtitle style controls in project/client settings; reel cards should only trigger or show subtitle render status.
 - Split complex SSH diagnostics into simple quoted commands instead of packing many nested quotes into one local shell invocation.
+- Analyze product reference images through OpenRouter with the same model used for director video analysis, not a separate product-analysis model.
+- Run frontend lint commands from `/ui` with the project-local ESLint binary, not root-level `npx eslint`.
 
 # Project Skills
 

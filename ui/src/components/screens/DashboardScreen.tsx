@@ -8,6 +8,7 @@ import { DashboardProductDetailsCard } from "@/components/screens/DashboardProdu
 import { ProductCtaFields } from "@/components/screens/ProductCtaFields";
 import {
   useCreateOmniProduct,
+  useAnalyzeOmniProductReference,
   useDeleteOmniProduct,
   useOmniProducts,
   useOmniProjects,
@@ -54,6 +55,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
   const updateProjectMutation = useUpdateOmniProjectProfile();
   const updateProductMutation = useUpdateOmniProduct();
   const deleteProductMutation = useDeleteOmniProduct();
+  const analyzeProductReferenceMutation = useAnalyzeOmniProductReference();
 
   const products = useMemo(() => productsQuery.data || [], [productsQuery.data]);
   const activeProduct = products.find((product) => product.id === selectedProductId) || null;
@@ -263,6 +265,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
           isSaving={updateProductMutation.isPending}
           isUploading={uploadImagesMutation.isPending}
           isDeleting={deleteProductMutation.isPending}
+          isAnalyzingReference={analyzeProductReferenceMutation.isPending}
           onSave={async (productId, draft) => {
             await updateProductMutation.mutateAsync({
               projectId: activeProject.id,
@@ -287,6 +290,12 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
               productId,
             });
             onSelectProduct(null);
+          }}
+          onAnalyzeReference={async (productId) => {
+            await analyzeProductReferenceMutation.mutateAsync({
+              projectId: activeProject.id,
+              productId,
+            });
           }}
         />
       </aside>

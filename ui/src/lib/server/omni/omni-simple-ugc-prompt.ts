@@ -14,6 +14,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
   strategy: OmniCreativeStrategy;
   characterContract: OmniCharacterContract;
   productName: string;
+  productVisualPassport?: string | null;
   segmentIndex: number;
   segmentCount: number;
   directorGuidance?: string | null;
@@ -54,6 +55,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     `ОДЕЖДА: ${directorScene?.wardrobeLine || `${input.characterContract.clothingLine}. Use solid matte colors only; no stripes, checks, brand marks, or logos.`}`,
     `ИСТОЧНИКИ ОБРАЗА: ${input.characterContract.sourceRuleLine}.`,
     `ПРОДУКТ: ${input.productName}. ${productLine(input.plan.productRole)}`,
+    ...(input.productVisualPassport ? [input.productVisualPassport] : []),
     directorScene?.propPassportLine || `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     `СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде; герой уже стоит в кадре и смотрит в камеру.`,
     `ТОЧНАЯ РЕПЛИКА (${wordCount} слов): "${input.plan.voiceoverText}"`,

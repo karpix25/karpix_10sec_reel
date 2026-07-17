@@ -192,6 +192,10 @@ export async function createGeneratedScriptFromLegacy(input: {
     name: product.name,
     description: product.description,
     product_reference_notes: product.product_reference_notes,
+    product_visual_profile: product.product_visual_profile,
+    product_visual_profile_status: product.product_visual_profile_status,
+    product_visual_profile_model: product.product_visual_profile_model,
+    product_visual_profile_updated_at: product.product_visual_profile_updated_at,
     product_refs: product.product_refs,
   };
 
