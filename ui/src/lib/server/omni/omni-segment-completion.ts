@@ -8,6 +8,7 @@ import { stitchOmniSegments } from "./omni-video-stitcher";
 import { uploadOmniFinalVideo, uploadOmniVideoBufferToS3 } from "./omni-video-storage";
 import { createContinuityFrameAsset } from "./omni-frame-continuity";
 import { downloadProviderVideo, type ProviderTask } from "./omni-provider-tasks";
+import { startOmniReelSubtitlesIfEnabled } from "./omni-reel-subtitles";
 
 export async function storeCompletedSegment(input: {
   projectId: number;
@@ -91,6 +92,10 @@ export async function stitchAndStoreReel(input: {
            yandex_public_url = $5,
            yandex_status = $6,
            yandex_error = $7,
+           subtitles_status = 'not_requested',
+           subtitled_video_url = NULL,
+           subtitles_error = NULL,
+           subtitles_transcript = NULL,
            error_message = NULL,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
@@ -104,6 +109,7 @@ export async function stitchAndStoreReel(input: {
         stored.yandexError,
       ]
     );
+    await startOmniReelSubtitlesIfEnabled({ reelId: input.reel.id });
   } finally {
     if (stitched?.workdir) {
       await rm(stitched.workdir, { recursive: true, force: true }).catch(() => {});

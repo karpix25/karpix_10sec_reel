@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getOmniReelSubtitleCue } from "@/lib/omni/subtitle-status-labels";
 import type {
   OmniClientAvatar,
   OmniLegacyScenario,
@@ -353,6 +354,8 @@ function LibraryVideoPanel({
   if (!reel) {
     return <div className="rounded-lg border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">Видео по этому сценарию еще не создано.</div>;
   }
+  const displayVideoUrl = reel.subtitled_video_url || reel.final_video_url;
+  const subtitleCue = getOmniReelSubtitleCue(reel);
 
   return (
     <div className="rounded-lg border border-border bg-card p-3">
@@ -366,9 +369,9 @@ function LibraryVideoPanel({
         <StatusBadge status={reel.status} />
       </div>
 
-      {reel.final_video_url ? (
+      {displayVideoUrl ? (
         <div className="mt-3 overflow-hidden rounded-lg border border-border bg-black">
-          <video src={reel.final_video_url} controls playsInline className="aspect-[9/16] max-h-[34rem] w-full object-contain" />
+          <video src={displayVideoUrl} controls playsInline className="aspect-[9/16] max-h-[34rem] w-full object-contain" />
         </div>
       ) : null}
 
@@ -397,8 +400,8 @@ function LibraryVideoPanel({
         >
           <RefreshCw className={`h-4 w-4 ${isSyncingReel ? "animate-spin" : ""}`} />
         </Button>
-        {reel.final_video_url ? (
-          <ExternalIconLink href={reel.final_video_url} label="Открыть S3 preview">
+        {displayVideoUrl ? (
+          <ExternalIconLink href={displayVideoUrl} label="Открыть S3 preview">
             <Video className="h-4 w-4" />
           </ExternalIconLink>
         ) : null}
@@ -407,6 +410,7 @@ function LibraryVideoPanel({
             <ExternalLink className="h-4 w-4" />
           </ExternalIconLink>
         ) : null}
+        {subtitleCue ? <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">{subtitleCue}</span> : null}
       </div>
 
       {segments.length ? (

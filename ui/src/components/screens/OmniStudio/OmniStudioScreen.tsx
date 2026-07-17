@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Archive, Database } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useOmniReelAutoSync } from "@/hooks/useOmniReelAutoSync";
 import { useOmniProjects, useOmniStudio } from "@/hooks/useOmniStudio";
 import {
   findClientWorkspaceProject,
@@ -123,6 +124,13 @@ export function OmniStudioScreen({
     if (!activeProjectId) return;
     studio.syncReelMutation.mutate({ projectId: activeProjectId, reelId });
   };
+
+  useOmniReelAutoSync({
+    enabled: Boolean(activeProjectId),
+    reels: reelsPayload.reels,
+    isSyncing: studio.syncReelMutation.isPending,
+    onSync: handleSyncReel,
+  });
 
   const handleSelectLibrary = (legacyClientId: number) => {
     if (!activeProjectId) return;
