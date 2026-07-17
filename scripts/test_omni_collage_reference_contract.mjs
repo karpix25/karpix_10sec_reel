@@ -11,6 +11,7 @@ const output = mkdtempSync(join(tmpdir(), "omni-collage-prompt-"));
 const compiled = join(output, "compiled");
 const tsconfig = join(output, "tsconfig.json");
 const require = createRequire(import.meta.url);
+const RAW_FILMING_SUPPORT_PATTERN = /Fixed phone or tripod|Tripod or gimbal|Fixed mount or tripod|locked-off tripod/iu;
 
 try {
   writeFileSync(tsconfig, JSON.stringify({
@@ -61,6 +62,8 @@ try {
   assert.ok(firstPrompt.includes("background layer prominently uses the new product reference"), "opening shot must keep product background");
   assert.ok(!/use the original reference only for transferable direction/u.test(joinedPrompt), "same-domain collage reference must not be downgraded to style-only");
   assert.ok(!/продукт и упаковка не появляются/u.test(firstPrompt), "opening segment must not hide the product");
+  assert.ok(joinedPrompt.includes("filming equipment is never visible"), "collage prompts must ban visible filming gear");
+  assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(joinedPrompt), "collage prompts must sanitize raw tripod wording");
   assert.ok(
     !/спокойный фон|маленький столик|new product reference in a clean static cutaway|show the new product reference clearly on a clean surface/u.test(joinedPrompt),
     "collage prompt must not leak generic talking-head-home props or table cutaways"

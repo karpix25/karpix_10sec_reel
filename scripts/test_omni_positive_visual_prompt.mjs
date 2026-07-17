@@ -11,6 +11,7 @@ const output = mkdtempSync(join(tmpdir(), "omni-positive-prompt-"));
 const compiled = join(output, "compiled");
 const tsconfig = join(output, "tsconfig.json");
 const require = createRequire(import.meta.url);
+const RAW_FILMING_SUPPORT_PATTERN = /Fixed phone or tripod|Tripod or gimbal|Fixed mount or tripod|locked-off tripod/iu;
 
 try {
   writeFileSync(tsconfig, JSON.stringify({
@@ -222,6 +223,8 @@ try {
   assert.ok(directorJoinedPrompt.includes("REFERENCE EDITING: Slow to medium talking-head rhythm"), "reference editing rhythm must reach provider prompt");
   assert.ok(directorJoinedPrompt.includes("replace any original product or brand with the new product"), "only product replacement exception must reach provider prompt");
   assert.ok(directorJoinedPrompt.includes("REFERENCE SCENE PASSPORT:"), "reference prop passport must replace preset props");
+  assert.ok(directorJoinedPrompt.includes("filming equipment is never visible"), "director prompts must ban visible filming gear");
+  assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(directorJoinedPrompt), "raw tripod/gimbal support wording must not reach director prompts");
   assert.ok(
     !/полотенц|сумк|ключ|органайзер|шоппер|у светлого стола рядом с окном|у скамьи|medium-wide full-body shot|head to shoes|4-6 quick cuts/u.test(directorJoinedPrompt),
     "director-based prompts must not leak preset props, preset settings, or generic framing/editing"
@@ -296,6 +299,7 @@ try {
     !/commercial kitchen|food assembly|sliced meat|plastic container|digital scale|food prep actions|ASMR-style close-ups of food/u.test(irrelevantJoinedPrompt),
     "style-only prompt must not leak unrelated reference B-roll objects or processes"
   );
+  assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(irrelevantJoinedPrompt), "style-only prompts must sanitize tripod/gimbal wording");
 
   const blueBackgroundDirectorBrief = {
     visual_hook: {
@@ -375,6 +379,7 @@ try {
   assert.ok(beatPlanJoinedPrompt.includes("синем фоне"), "script background cue must reach provider prompt");
   assert.ok(beatPlanJoinedPrompt.includes("blue under-cabinet glow"), "safe style-only blue lighting must be preserved");
   assert.ok(beatPlanJoinedPrompt.includes("Black sleeveless fitted top"), "safe style-only wardrobe must be preserved");
+  assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(beatPlanJoinedPrompt), "script beat prompts must sanitize tripod wording");
   assert.ok(
     beatPlanPrompts.some((item) => item.index > 1 && item.referenceUrl === "https://example.com/product.png"),
     "segments whose script beat asks for product must receive the product reference"

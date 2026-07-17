@@ -85,7 +85,9 @@ export function renderProductVisualProfileForPrompt(profile: ProductVisualProfil
     profile.must_preserve.length ? `- Must preserve: ${profile.must_preserve.join("; ")}.` : "",
     profile.must_not_change.length ? `- Must not change: ${profile.must_not_change.join("; ")}.` : "",
     profile.prompt_summary ? `- Prompt summary: ${profile.prompt_summary}.` : "",
-    "- Treat this product passport as the source of truth whenever the product appears.",
+    "- Treat the supplied product reference image and this product passport as the exact source of truth whenever the product appears.",
+    "- Do not alter package type, silhouette, cap or lid color, label layout, visible color palette, material finish, size proportions, text/logo placement, or closure details.",
+    "- Do not invent a different container, extra labels, alternate flavor artwork, unrelated props attached to the package, or a replacement product.",
   ].filter(Boolean).join("\n");
 }
 

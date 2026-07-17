@@ -50,6 +50,7 @@ try {
   } = require(findFile(compiled, "product-visual-profile.js"));
   const { analyzeProductReferenceImages } = require(findFile(compiled, "openrouter-product-analysis-client.js"));
   const { buildOmniSegmentPrompts } = require(findFile(compiled, "omni-prompt-builder.js"));
+  const { validateOmniSegmentPrompt } = require(findFile(compiled, "omni-prompt-validator.js"));
 
   const profile = normalizeProductVisualProfile({
     product_visual_profile: {
@@ -93,6 +94,8 @@ try {
   assert.ok(passport.includes("bright orange body"));
   assert.ok(passport.includes("do not turn it into a bottle or jar"));
   assert.ok(passport.includes("Show the product as a slim matte orange collagen sachet"));
+  assert.ok(passport.includes("reference image and this product passport as the exact source of truth"));
+  assert.ok(passport.includes("Do not alter package type, silhouette, cap or lid color, label layout"));
 
   process.env.OPENROUTER_API_KEY = "test-key";
   process.env.OMNI_DIRECTOR_ANALYSIS_MODEL = "minimax/minimax-m3";
@@ -143,10 +146,45 @@ try {
   const joinedPrompt = prompts.map((item) => item.prompt).join("\n");
 
   assert.ok(joinedPrompt.includes("PRODUCT VISUAL PASSPORT:"), "final provider prompts must include product visual passport");
+  assert.ok(
+    prompts.every((item) => item.prompt.includes("PRODUCT VISUAL PASSPORT:")),
+    "every active-product segment prompt must include the product visual passport"
+  );
   assert.ok(joinedPrompt.includes("REFERENCE SCENE PASSPORT:"), "director scene passport must remain separate");
   assert.ok(joinedPrompt.includes("orange sachet body"), "product-specific preservation rules must reach provider prompt");
   assert.ok(joinedPrompt.includes("do not turn it into a bottle or jar"), "product-specific negative rules must reach provider prompt");
+  assert.ok(joinedPrompt.includes("reference image and this product passport as the exact source of truth"));
   assert.ok(joinedPrompt.indexOf("REFERENCE SCENE PASSPORT:") !== joinedPrompt.indexOf("PRODUCT VISUAL PASSPORT:"));
+
+  const missingPassportValidation = validateOmniSegmentPrompt({
+    prompt: [
+      "ГЛАВНЫЙ ПЕРСОНАЖ: тот же герой.",
+      "ОДЕЖДА: та же одежда.",
+      "ИСТОЧНИКИ ОБРАЗА: product image_urls define only the product.",
+      "REFERENCE SCENE PASSPORT: clean counter plus product area.",
+      "СТАРТ РЕЧИ: первое слово точной реплики звучит на 0.0 секунде.",
+      'ТОЧНАЯ РЕПЛИКА: "Покажи продукт спокойно."',
+    ].join("\n"),
+    plan: {
+      segmentIndex: 1,
+      lifeFormatId: "daily_routine",
+      speechStartsAtSeconds: 0,
+      voiceoverText: "Покажи продукт спокойно.",
+      productRole: "background_prop",
+      continuityProps: [],
+      scriptBeats: [],
+      beats: [
+        { startSeconds: 0, endSeconds: 2, action: "говорит рядом с продуктом" },
+        { startSeconds: 2, endSeconds: 3, action: "продукт стоит на чистой поверхности" },
+        { startSeconds: 3, endSeconds: 4, action: "возврат к лицу" },
+      ],
+    },
+    requiresProductVisualPassport: true,
+  });
+  assert.ok(
+    missingPassportValidation.errors.includes("product_visual_passport_required"),
+    "visible product segments must fail validation if the product passport is missing"
+  );
 
   console.log("Omni product visual profile contract checks passed");
 } finally {
