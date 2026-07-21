@@ -10,6 +10,7 @@ import { ScenariosScreen } from "@/components/screens/ScenariosScreen";
 import { GeneratorScreen } from "@/components/screens/GeneratorScreen";
 import { SettingsScreen } from "@/components/screens/SettingsScreen";
 import { OmniStudioScreen } from "@/components/screens/OmniStudio";
+import { AudioLibraryScreen } from "@/components/screens/AudioLibrary";
 import { AvatarScreen } from "@/components/screens/AvatarScreen";
 import { useOmniProjects } from "@/hooks/useOmniStudio";
 import { useOmniProviderPreference } from "@/hooks/useOmniProviderPreference";
@@ -235,9 +236,10 @@ export default function CuratorDashboard() {
 
   const clientSettings = useMemo<Settings>(
     () => {
-      const targetDurationSeconds = selectedClient?.target_duration_seconds || 50;
-      const targetDurationMinSeconds = selectedClient?.target_duration_min_seconds || targetDurationSeconds;
-      const targetDurationMaxSeconds = selectedClient?.target_duration_max_seconds || targetDurationSeconds;
+      const targetDurationMinSeconds = selectedClient?.target_duration_min_seconds || 30;
+      const targetDurationMaxSeconds = selectedClient?.target_duration_max_seconds || 40;
+      const targetDurationSeconds =
+        selectedClient?.target_duration_seconds || Math.round((targetDurationMinSeconds + targetDurationMaxSeconds) / 2);
 
       return {
       product_info: selectedClient?.product_info || "",
@@ -641,6 +643,8 @@ export default function CuratorDashboard() {
         setSelectedProjectId={setSelectedOmniProjectId}
         setSelectedProductId={setSelectedOmniProductId}
         onOpenClientWorkspace={() => setScreen("dashboard")}
+        screen={screen}
+        setScreen={setScreen}
         omniGenerationProvider={omniGenerationProvider}
         onOmniGenerationProviderChange={setOmniGenerationProvider}
       />
@@ -683,6 +687,8 @@ export default function CuratorDashboard() {
               omniGenerationProvider={omniGenerationProvider}
             />
           )}
+
+          {screen === "audio" && <AudioLibraryScreen />}
 
           {screen === "avatar" && (
             <AvatarScreen

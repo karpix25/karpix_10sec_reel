@@ -17,6 +17,7 @@ type YandexDiskFolderNode = {
 
 const OMNI_WORDS_PER_SECOND_HINT = 2.45;
 const OMNI_MAX_DURATION_HINT_SECONDS = 40;
+const [DEFAULT_TARGET_MIN_SECONDS, DEFAULT_TARGET_MAX_SECONDS] = [30, 40];
 
 const FolderTree: React.FC<{
   nodes: YandexDiskFolderNode[];
@@ -77,8 +78,8 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
   const [isLoadingFolders, setIsLoadingFolders] = React.useState(false);
   const [folderLoadError, setFolderLoadError] = React.useState<string | null>(null);
 
-  const targetMin = draftSettings.target_duration_min_seconds || draftSettings.target_duration_seconds || MIN_DURATION_SECONDS;
-  const targetMax = draftSettings.target_duration_max_seconds || draftSettings.target_duration_seconds || MIN_DURATION_SECONDS;
+  const targetMin = draftSettings.target_duration_min_seconds || draftSettings.target_duration_seconds || DEFAULT_TARGET_MIN_SECONDS;
+  const targetMax = draftSettings.target_duration_max_seconds || draftSettings.target_duration_seconds || DEFAULT_TARGET_MAX_SECONDS;
   const [targetMinInput, setTargetMinInput] = React.useState(String(targetMin));
   const [targetMaxInput, setTargetMaxInput] = React.useState(String(targetMax));
 
@@ -162,9 +163,9 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
 
     setDraftSettings((prev) => {
       const fallbackMin =
-        Number(prev.target_duration_min_seconds || prev.target_duration_seconds || MIN_DURATION_SECONDS);
+        Number(prev.target_duration_min_seconds || prev.target_duration_seconds || DEFAULT_TARGET_MIN_SECONDS);
       const fallbackMax =
-        Number(prev.target_duration_max_seconds || prev.target_duration_seconds || fallbackMin);
+        Number(prev.target_duration_max_seconds || prev.target_duration_seconds || DEFAULT_TARGET_MAX_SECONDS);
       const normalizedMin = Number.isFinite(parsed)
         ? Math.max(MIN_DURATION_SECONDS, Math.min(MAX_DURATION_SECONDS, parsed))
         : fallbackMin;
@@ -190,9 +191,9 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
 
     setDraftSettings((prev) => {
       const fallbackMin =
-        Number(prev.target_duration_min_seconds || prev.target_duration_seconds || MIN_DURATION_SECONDS);
+        Number(prev.target_duration_min_seconds || prev.target_duration_seconds || DEFAULT_TARGET_MIN_SECONDS);
       const fallbackMax =
-        Number(prev.target_duration_max_seconds || prev.target_duration_seconds || fallbackMin);
+        Number(prev.target_duration_max_seconds || prev.target_duration_seconds || DEFAULT_TARGET_MAX_SECONDS);
       const normalizedMaxCandidate = Number.isFinite(parsed)
         ? Math.max(MIN_DURATION_SECONDS, Math.min(MAX_DURATION_SECONDS, parsed))
         : fallbackMax;

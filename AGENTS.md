@@ -14,6 +14,7 @@ Write code as a professional modular system, not as large monolithic files.
 - After staging code, run a repository build or inspect the exact staged file before pushing/deploying to catch stray typed characters.
 - When validating Docker Compose config, do not print rendered environment values; write or grep only non-secret structural fields.
 - Exclude local tunnel helper scripts such as `start_tunnels.sh` from broad repo searches unless explicitly auditing them.
+- Recheck line counts after touching files near the 500-line project limit before validation.
 
 - For KIE Gemini Omni generation, preserve and pass `image_urls` separately from saved avatar `character_ids`.
 - For KIE Gemini Omni video, do not put the avatar reference into `image_urls`; send only product references there and send the avatar via `character_ids`.

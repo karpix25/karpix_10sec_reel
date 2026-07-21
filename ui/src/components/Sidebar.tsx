@@ -3,7 +3,9 @@ import {
 } from "lucide-react";
 import { ClientProductNavigator } from "@/components/ClientProductNavigator";
 import { OmniProviderSwitch } from "@/components/OmniProviderSwitch";
+import { WorkspaceTabs } from "@/components/WorkspaceTabs";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
+import type { Screen } from "@/types";
 
 interface SidebarProps {
   setSelectedClientId: (id: string) => void;
@@ -11,6 +13,8 @@ interface SidebarProps {
   setSelectedProjectId: (id: number | null) => void;
   setSelectedProductId: (id: number | null) => void;
   onOpenClientWorkspace: () => void;
+  screen: Screen;
+  setScreen: (screen: Screen) => void;
   omniGenerationProvider: OmniGenerationProvider;
   onOmniGenerationProviderChange: (provider: OmniGenerationProvider) => void;
 }
@@ -21,6 +25,8 @@ export function Sidebar({
   setSelectedProjectId,
   setSelectedProductId,
   onOpenClientWorkspace,
+  screen,
+  setScreen,
   omniGenerationProvider,
   onOmniGenerationProviderChange
 }: SidebarProps) {
@@ -55,6 +61,14 @@ export function Sidebar({
           provider={omniGenerationProvider}
           onProviderChange={onOmniGenerationProviderChange}
         />
+
+        <div className="mt-5">
+          <WorkspaceTabs
+            screen={screen}
+            setScreen={setScreen}
+            className="flex-col items-stretch overflow-visible bg-transparent p-0"
+          />
+        </div>
       </aside>
     </>
   );

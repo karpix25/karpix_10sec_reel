@@ -17,19 +17,34 @@ export async function POST(request: Request) {
 
   try {
     const formData = await request.formData();
-    const file = formData.get("file");
-    if (!(file instanceof File)) {
+    const files = formData
+      .getAll("files")
+      .filter((item): item is File => item instanceof File && item.size > 0);
+    const legacyFile = formData.get("file");
+    const uploadFiles = files.length
+      ? files
+      : legacyFile instanceof File && legacyFile.size > 0
+        ? [legacyFile]
+        : [];
+
+    if (!uploadFiles.length) {
       return NextResponse.json({ error: "Аудиофайл обязателен" }, { status: 400 });
     }
 
-    const track = await uploadAudioTrack({
-      mood: formData.get("mood"),
-      title: formData.get("title"),
-      fileName: file.name,
-      contentType: file.type || "application/octet-stream",
-      buffer: Buffer.from(await file.arrayBuffer()),
-    });
-    return NextResponse.json({ track });
+    const rawTitle = String(formData.get("title") || "").trim();
+    const tracks = [];
+    for (const file of uploadFiles) {
+      tracks.push(
+        await uploadAudioTrack({
+          mood: formData.get("mood"),
+          title: uploadFiles.length === 1 ? rawTitle : "",
+          fileName: file.name,
+          contentType: file.type || "application/octet-stream",
+          buffer: Buffer.from(await file.arrayBuffer()),
+        })
+      );
+    }
+    return NextResponse.json({ tracks, track: tracks[0] || null });
   } catch (error) {
     console.error("Audio library upload error:", error);
     return NextResponse.json(

@@ -52,7 +52,7 @@ export function Header({
           </div>
         ) : null}
       </div>
-      <WorkspaceTabs screen={screen} setScreen={setScreen} />
+      <WorkspaceTabs screen={screen} setScreen={setScreen} className="xl:hidden" />
     </header>
   );
 }
