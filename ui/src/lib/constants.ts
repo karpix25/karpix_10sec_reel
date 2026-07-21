@@ -1,11 +1,4 @@
-import { 
-  type LucideIcon,
-  LayoutDashboard, 
-  FolderOpen, 
-  Settings,
-  Sparkles,
-  Bot
-} from "lucide-react";
+import { type LucideIcon, LayoutDashboard, FolderOpen, Settings, Sparkles, Bot, Music } from "lucide-react";
 import { ClientSettings, Screen } from "@/types";
 
 export const defaultSettings: ClientSettings = {
@@ -71,6 +64,7 @@ export const navItems: Array<{
 }> = [
   { id: "dashboard", icon: LayoutDashboard, label: "Бренды", group: "primary" },
   { id: "omni", icon: Sparkles, label: "Библиотека сценариев", group: "primary" },
+  { id: "audio", icon: Music, label: "Аудио", group: "primary" },
   { id: "references", icon: FolderOpen, label: "Сценарии", group: "legacy" },
   { id: "avatar", icon: Bot, label: "Аватар", group: "primary" },
   { id: "settings", icon: Settings, label: "Настройки", group: "system" },

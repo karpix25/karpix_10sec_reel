@@ -3,6 +3,7 @@
 import { Bot, ExternalLink, Film, ImageUp, Play, RefreshCw, Video, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getAudioMoodLabel, normalizeAudioMood } from "@/lib/audio-library/moods";
 import { getOmniReelSubtitleCue } from "@/lib/omni/subtitle-status-labels";
 import type { OmniClientAvatar, OmniProduct, OmniProject, OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { OmniSegmentPromptDetails } from "./OmniSegmentPromptDetails";
@@ -178,17 +179,23 @@ export function AvatarVideoPanel({
         <QueryState isLoading={isReelsLoading} loadingText="Загружаю draft reels" errorText="Не удалось загрузить reels" />
         <div className="space-y-2">
           {reels.map((reel) => {
-            const displayVideoUrl = reel.subtitled_video_url || reel.final_video_url;
-            const subtitleCue = getOmniReelSubtitleCue(reel);
-            return (
+	            const displayVideoUrl = reel.subtitled_video_url || reel.final_video_url;
+	            const subtitleCue = getOmniReelSubtitleCue(reel);
+            const audioMood = normalizeAudioMood(reel.background_audio_mood);
+            const audioTrackTitle = reel.background_audio_track_snapshot?.title || null;
+	            return (
               <div key={reel.id} className="rounded-lg border border-border bg-background p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-foreground">Reel #{reel.id}</p>
+	                    <p className="mt-1 text-xs text-muted-foreground">
+	                      {reel.target_duration_seconds} сек / {reel.segment_count} сегмента / stitch: {reel.stitch_status}
+	                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {reel.target_duration_seconds} сек / {reel.segment_count} сегмента / stitch: {reel.stitch_status}
+                      Аудио: {getAudioMoodLabel(audioMood)} / {reel.background_audio_status || "not_selected"}
+                      {audioTrackTitle ? ` / ${audioTrackTitle}` : ""}
                     </p>
-                  </div>
+	                  </div>
                   <StatusBadge status={reel.status} />
                 </div>
                 {displayVideoUrl ? (
@@ -225,8 +232,14 @@ export function AvatarVideoPanel({
                     {subtitleCue ? <span className="rounded-md bg-muted px-2 py-1">{subtitleCue}</span> : null}
                   </div>
                 ) : null}
-                {reel.yandex_status === "failed" && reel.yandex_error ? (
-                  <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{reel.yandex_error}</p>
+	                {reel.yandex_status === "failed" && reel.yandex_error ? (
+	                  <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{reel.yandex_error}</p>
+	                ) : null}
+                {reel.background_audio_status === "failed" && reel.background_audio_error ? (
+                  <p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{reel.background_audio_error}</p>
+                ) : null}
+                {reel.background_audio_status === "skipped" && reel.background_audio_error ? (
+                  <p className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-700">{reel.background_audio_error}</p>
                 ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
