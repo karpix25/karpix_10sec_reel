@@ -1,16 +1,18 @@
 import { navItems } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import type { Screen } from "@/types";
 
 type WorkspaceTabsProps = {
   screen: Screen;
   setScreen: (screen: Screen) => void;
+  className?: string;
 };
 
-export function WorkspaceTabs({ screen, setScreen }: WorkspaceTabsProps) {
+export function WorkspaceTabs({ screen, setScreen, className }: WorkspaceTabsProps) {
   return (
     <nav
       aria-label="Разделы workspace"
-      className="flex w-full gap-2 overflow-x-auto rounded-lg border border-border bg-muted/70 p-1"
+      className={cn("flex w-full gap-2 overflow-x-auto rounded-lg border border-border bg-muted/70 p-1", className)}
     >
       {navItems.map((item) => {
         const isActive = screen === item.id;

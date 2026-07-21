@@ -112,9 +112,9 @@ async function listLegacyClientFallback() {
       product_info: library.product_info || "",
       product_keyword: library.product_keyword || "",
       target_audience: library.niche || "",
-      target_duration_seconds: 30,
+      target_duration_seconds: 35,
       target_duration_min_seconds: 30,
-      target_duration_max_seconds: 30,
+      target_duration_max_seconds: 40,
       product_media_assets: [],
       tts_pronunciation_overrides: [],
       deepgram_vocabulary_rules: [],
@@ -162,8 +162,11 @@ async function ensureClientVoiceColumn() {
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS final_video_automation_stopped_at TIMESTAMP");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS final_video_automation_stop_reason TEXT");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS yandex_disk_folder_path TEXT");
-  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS target_duration_min_seconds INTEGER DEFAULT 50");
-  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS target_duration_max_seconds INTEGER DEFAULT 50");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS target_duration_min_seconds INTEGER DEFAULT 30");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS target_duration_max_seconds INTEGER DEFAULT 40");
+  await pool.query("ALTER TABLE clients ALTER COLUMN target_duration_seconds SET DEFAULT 35");
+  await pool.query("ALTER TABLE clients ALTER COLUMN target_duration_min_seconds SET DEFAULT 30");
+  await pool.query("ALTER TABLE clients ALTER COLUMN target_duration_max_seconds SET DEFAULT 40");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS broll_timing_mode TEXT DEFAULT 'coverage_percent'");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS broll_pacing_profile TEXT DEFAULT 'balanced'");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS broll_pause_threshold_seconds NUMERIC(3,2) DEFAULT 0.45");
@@ -437,11 +440,11 @@ export async function POST(request: Request) {
     } = await request.json();
     const resolvedTargetDurationMinSeconds = Math.max(
       15,
-      Number(target_duration_min_seconds || target_duration_seconds || 50)
+      Number(target_duration_min_seconds || target_duration_seconds || 30)
     );
     const resolvedTargetDurationMaxSeconds = Math.max(
       resolvedTargetDurationMinSeconds,
-      Number(target_duration_max_seconds || target_duration_seconds || resolvedTargetDurationMinSeconds)
+      Number(target_duration_max_seconds || target_duration_seconds || 40)
     );
     const resolvedTargetDurationSeconds = Math.round(
       (resolvedTargetDurationMinSeconds + resolvedTargetDurationMaxSeconds) / 2
@@ -622,11 +625,11 @@ export async function PUT(request: Request) {
     } = await request.json();
     const resolvedTargetDurationMinSeconds = Math.max(
       15,
-      Number(target_duration_min_seconds || target_duration_seconds || 50)
+      Number(target_duration_min_seconds || target_duration_seconds || 30)
     );
     const resolvedTargetDurationMaxSeconds = Math.max(
       resolvedTargetDurationMinSeconds,
-      Number(target_duration_max_seconds || target_duration_seconds || resolvedTargetDurationMinSeconds)
+      Number(target_duration_max_seconds || target_duration_seconds || 40)
     );
     const resolvedTargetDurationSeconds = Math.round(
       (resolvedTargetDurationMinSeconds + resolvedTargetDurationMaxSeconds) / 2

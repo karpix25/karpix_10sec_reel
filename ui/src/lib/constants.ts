@@ -1,13 +1,13 @@
-import { type LucideIcon, LayoutDashboard, FolderOpen, Settings, Sparkles, Bot } from "lucide-react";
+import { type LucideIcon, LayoutDashboard, FolderOpen, Settings, Sparkles, Bot, Music } from "lucide-react";
 import { ClientSettings, Screen } from "@/types";
 
 export const defaultSettings: ClientSettings = {
   brand_voice: "",
   product_info: "",
   target_audience: "",
-  target_duration_seconds: 50,
-  target_duration_min_seconds: 50,
-  target_duration_max_seconds: 50,
+  target_duration_seconds: 35,
+  target_duration_min_seconds: 30,
+  target_duration_max_seconds: 40,
   broll_interval_seconds: 3,
   broll_timing_mode: "coverage_percent",
   broll_pacing_profile: "balanced",
@@ -64,6 +64,7 @@ export const navItems: Array<{
 }> = [
   { id: "dashboard", icon: LayoutDashboard, label: "Бренды", group: "primary" },
   { id: "omni", icon: Sparkles, label: "Библиотека сценариев", group: "primary" },
+  { id: "audio", icon: Music, label: "Аудио", group: "primary" },
   { id: "references", icon: FolderOpen, label: "Сценарии", group: "legacy" },
   { id: "avatar", icon: Bot, label: "Аватар", group: "primary" },
   { id: "settings", icon: Settings, label: "Настройки", group: "system" },

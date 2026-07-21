@@ -5,9 +5,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { Music, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import type { AudioMood, AudioMoodOption } from "@/lib/audio-library/moods";
 import type { AudioTrack } from "@/lib/audio-library/types";
+import { AudioUploadDialog } from "./AudioUploadDialog";
 import { MoodFolderGrid } from "./MoodFolderGrid";
 import { TrackList } from "./TrackList";
 
@@ -19,8 +19,7 @@ type AudioLibraryResponse = {
 export function AudioLibraryScreen() {
   const queryClient = useQueryClient();
   const [selectedMood, setSelectedMood] = useState<AudioMood>("energetic");
-  const [title, setTitle] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   const libraryQuery = useQuery<AudioLibraryResponse>({
     queryKey: ["audio-library"],
@@ -37,17 +36,16 @@ export function AudioLibraryScreen() {
   );
 
   const uploadMutation = useMutation({
-    mutationFn: async () => {
-      if (!file) throw new Error("Выберите аудиофайл");
+    mutationFn: async ({ files, title }: { files: File[]; title: string }) => {
+      if (!files.length) throw new Error("Выберите аудиофайл");
       const formData = new FormData();
       formData.set("mood", selectedMood);
-      formData.set("title", title.trim());
-      formData.set("file", file);
+      formData.set("title", title);
+      files.forEach((file) => formData.append("files", file));
       await axios.post("/api/audio-library", formData);
     },
     onSuccess: () => {
-      setTitle("");
-      setFile(null);
+      setIsUploadOpen(false);
       queryClient.invalidateQueries({ queryKey: ["audio-library"] });
     },
   });
@@ -74,6 +72,10 @@ export function AudioLibraryScreen() {
             Финальный Omni reel берет музыку из папки настроения сценария, подрезает или зацикливает трек под длину ролика и сохраняет результат как финальное видео.
           </p>
         </div>
+        <Button type="button" onClick={() => setIsUploadOpen(true)} className="min-h-11 shrink-0">
+          <Upload className="h-4 w-4" />
+          Загрузить аудио
+        </Button>
       </div>
 
       <MoodFolderGrid
@@ -95,34 +97,10 @@ export function AudioLibraryScreen() {
               {selectedTracks.length} треков
             </span>
           </div>
-
-          <div className="mt-4 space-y-3">
-            <Input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Название трека"
-              className="h-11"
-            />
-            <Input
-              type="file"
-              accept="audio/*"
-              onChange={(event) => setFile(event.currentTarget.files?.[0] || null)}
-              className="h-11 file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-primary-foreground"
-            />
-            {uploadMutation.error ? (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {uploadMutation.error instanceof Error ? uploadMutation.error.message : "Не удалось загрузить аудио"}
-              </p>
-            ) : null}
-            <Button
-              onClick={() => uploadMutation.mutate()}
-              disabled={!file || uploadMutation.isPending}
-              className="min-h-11 w-full"
-            >
-              <Upload className="h-4 w-4" />
-              {uploadMutation.isPending ? "Загружаю..." : "Загрузить в папку"}
-            </Button>
-          </div>
+          <Button type="button" variant="outline" onClick={() => setIsUploadOpen(true)} className="mt-4 min-h-11 w-full">
+            <Upload className="h-4 w-4" />
+            Добавить треки в эту папку
+          </Button>
         </div>
 
         <TrackList
@@ -132,6 +110,17 @@ export function AudioLibraryScreen() {
           onDelete={(trackId) => deleteMutation.mutate(trackId)}
         />
       </section>
+
+      <AudioUploadDialog
+        open={isUploadOpen}
+        onOpenChange={setIsUploadOpen}
+        moods={moods}
+        selectedMood={selectedMood}
+        onMoodChange={setSelectedMood}
+        isUploading={uploadMutation.isPending}
+        error={uploadMutation.error}
+        onUpload={(input) => uploadMutation.mutate(input)}
+      />
     </div>
   );
 }
