@@ -1,5 +1,6 @@
 import React from "react";
 import { HeygenAvatarConfig, Settings, Voice } from "@/types";
+import { AudioLibraryScreen } from "@/components/screens/AudioLibrary";
 import { useSettingsState } from "./useSettingsState";
 import { AutomationSettings } from "./components/AutomationSettings";
 
@@ -32,10 +33,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = (props) => {
             Настройки
           </div>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-            Автоматика
+            Автоматика и аудио
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Здесь осталось только управление автоматическим режимом, лимитами и запуском production-пайплайна.
+            Здесь управляются автоматический режим, лимиты production-пайплайна и глобальная библиотека музыки для финальных роликов.
           </p>
         </header>
 
@@ -45,6 +46,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = (props) => {
           isManualFinalRunPending={state.isManualFinalRunPending}
           onManualFinalRun={state.handleManualFinalAutomationRun}
         />
+
+        <AudioLibraryScreen />
       </div>
     </div>
   );

@@ -278,7 +278,7 @@ export type ClientSettings = Settings & {
   monthly_limit: number;
 };
 
-export type Screen = "dashboard" | "omni" | "references" | "audio" | "avatar" | "scenarios" | "generator" | "settings" | "graph";
+export type Screen = "dashboard" | "omni" | "references" | "avatar" | "scenarios" | "generator" | "settings" | "graph";
 
 export interface WordTimestamp {
   word: string;
