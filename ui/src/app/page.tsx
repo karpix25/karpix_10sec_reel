@@ -10,6 +10,7 @@ import { ScenariosScreen } from "@/components/screens/ScenariosScreen";
 import { GeneratorScreen } from "@/components/screens/GeneratorScreen";
 import { SettingsScreen } from "@/components/screens/SettingsScreen";
 import { OmniStudioScreen } from "@/components/screens/OmniStudio";
+import { AudioLibraryScreen } from "@/components/screens/AudioLibrary";
 import { AvatarScreen } from "@/components/screens/AvatarScreen";
 import { useOmniProjects } from "@/hooks/useOmniStudio";
 import { useOmniProviderPreference } from "@/hooks/useOmniProviderPreference";
@@ -683,6 +684,8 @@ export default function CuratorDashboard() {
               omniGenerationProvider={omniGenerationProvider}
             />
           )}
+
+          {screen === "audio" && <AudioLibraryScreen />}
 
           {screen === "avatar" && (
             <AvatarScreen

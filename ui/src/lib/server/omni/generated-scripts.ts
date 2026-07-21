@@ -1,4 +1,5 @@
 import pool from "@/lib/db";
+import { normalizeAudioMood } from "@/lib/audio-library/moods";
 import { extractOpenRouterCostSummaryFromSnapshot, summarizeOpenRouterUsage } from "@/lib/omni/openrouter-cost";
 import type { OmniGeneratedScript, OmniPromptPreviewSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
@@ -23,6 +24,7 @@ function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
     source_legacy_client_id:
       row.source_legacy_client_id === null ? null : Number(row.source_legacy_client_id),
     director_analysis_id: row.director_analysis_id === null ? null : Number(row.director_analysis_id),
+    background_audio_mood: normalizeAudioMood(row.background_audio_mood),
   };
 }
 
@@ -169,6 +171,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     openrouter_usage: openRouterUsage,
     openrouter_cost: openRouterCost,
     director_analysis_id: directorAnalysis?.id || null,
+    background_audio_mood: normalizeAudioMood(generated.payload.background_audio_mood),
     director_analysis_status: directorAnalysis?.director_analysis_status || "not_requested",
     director_analysis: directorBrief,
     director_video_url: directorAnalysis?.stored_video_url || directorAnalysis?.resolved_video_url || null,
@@ -212,12 +215,13 @@ export async function createGeneratedScriptFromLegacy(input: {
        caption,
        cta_keyword,
        lead_magnet,
+       background_audio_mood,
        source_snapshot,
        product_snapshot,
        model,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13::jsonb, $14, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb, $15, CURRENT_TIMESTAMP)
      RETURNING *`,
     [
       input.projectId,
@@ -231,6 +235,7 @@ export async function createGeneratedScriptFromLegacy(input: {
       generated.payload.caption || null,
       generated.payload.cta_keyword || null,
       generated.payload.lead_magnet || null,
+      normalizeAudioMood(generated.payload.background_audio_mood),
       JSON.stringify(sourceSnapshot),
       JSON.stringify(productSnapshot),
       model,

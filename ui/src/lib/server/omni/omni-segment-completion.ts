@@ -9,6 +9,7 @@ import { uploadOmniFinalVideo, uploadOmniVideoBufferToS3 } from "./omni-video-st
 import { createContinuityFrameAsset } from "./omni-frame-continuity";
 import { downloadProviderVideo, type ProviderTask } from "./omni-provider-tasks";
 import { startOmniReelSubtitlesIfEnabled } from "./omni-reel-subtitles";
+import { mixBackgroundAudioForReel } from "./omni-background-audio";
 
 export async function storeCompletedSegment(input: {
   projectId: number;
@@ -75,11 +76,16 @@ export async function stitchAndStoreReel(input: {
   const segmentBuffers = await Promise.all(input.segments.map(loadSegmentBuffer));
   const stitched = await stitchOmniSegments({ reelId: input.reel.id, segmentBuffers });
   try {
+    const audio = await tryMixBackgroundAudio({
+      reel: input.reel,
+      sourceVideoPath: stitched.outputPath,
+      workdir: stitched.workdir,
+    });
     const stored = await uploadOmniFinalVideo({
       project,
       product,
       reelId: input.reel.id,
-      localFilePath: stitched.outputPath,
+      localFilePath: audio.outputPath,
     });
 
     await pool.query(
@@ -92,6 +98,11 @@ export async function stitchAndStoreReel(input: {
            yandex_public_url = $5,
            yandex_status = $6,
            yandex_error = $7,
+           background_audio_track_id = $8,
+           background_audio_status = $9,
+           background_audio_url = $10,
+           background_audio_error = $11,
+           background_audio_track_snapshot = $12::jsonb,
            subtitles_status = 'not_requested',
            subtitled_video_url = NULL,
            subtitles_error = NULL,
@@ -107,6 +118,11 @@ export async function stitchAndStoreReel(input: {
         stored.yandexPublicUrl,
         stored.yandexStatus,
         stored.yandexError,
+        audio.track?.id || null,
+        audio.status,
+        audio.track?.file_url || null,
+        audio.error,
+        audio.track ? JSON.stringify(audio.track) : null,
       ]
     );
     await startOmniReelSubtitlesIfEnabled({ reelId: input.reel.id });
@@ -114,6 +130,43 @@ export async function stitchAndStoreReel(input: {
     if (stitched?.workdir) {
       await rm(stitched.workdir, { recursive: true, force: true }).catch(() => {});
     }
+  }
+}
+
+async function tryMixBackgroundAudio(input: {
+  reel: OmniReel;
+  sourceVideoPath: string;
+  workdir: string;
+}) {
+  await pool.query(
+    `UPDATE omni_reels
+     SET background_audio_status = 'mixing',
+         background_audio_error = NULL,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [input.reel.id]
+  );
+
+  try {
+    const result = await mixBackgroundAudioForReel({
+      reelId: input.reel.id,
+      mood: input.reel.background_audio_mood,
+      sourceVideoPath: input.sourceVideoPath,
+      workdir: input.workdir,
+    });
+    return {
+      outputPath: result.outputPath,
+      status: result.status,
+      track: result.track,
+      error: result.status === "skipped" ? result.reason : null,
+    };
+  } catch (error) {
+    return {
+      outputPath: input.sourceVideoPath,
+      status: "failed" as const,
+      track: null,
+      error: error instanceof Error ? error.message : "Background audio mix failed",
+    };
   }
 }
 

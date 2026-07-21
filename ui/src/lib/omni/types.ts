@@ -1,4 +1,6 @@
 import type { WordTimestamp } from "@/types";
+import type { AudioMood } from "@/lib/audio-library/moods";
+import type { AudioTrack } from "@/lib/audio-library/types";
 import type { OmniSubtitleSettings, OmniSubtitleStatus } from "./subtitle-settings";
 
 export type OmniProjectStatus = "active" | "archived";
@@ -117,6 +119,7 @@ export interface OmniGeneratedScript {
   caption: string | null;
   cta_keyword: string | null;
   lead_magnet: string | null;
+  background_audio_mood: AudioMood | null;
   source_snapshot: Record<string, unknown> | null;
   product_snapshot: Record<string, unknown> | null;
   model: string | null;
@@ -177,6 +180,12 @@ export interface OmniReel {
   avatar_snapshot: Record<string, unknown> | null;
   creative_strategy: OmniCreativeStrategy | null;
   prompt_contract_version: string | null;
+  background_audio_mood: AudioMood | null;
+  background_audio_track_id?: number | null;
+  background_audio_status?: "not_selected" | "selected" | "mixing" | "completed" | "skipped" | "failed" | null;
+  background_audio_url?: string | null;
+  background_audio_error?: string | null;
+  background_audio_track_snapshot?: AudioTrack | null;
   stitch_status: "not_ready" | "ready" | "queued" | "stitching" | "completed" | "failed";
   final_video_url: string | null;
   final_s3_url?: string | null;

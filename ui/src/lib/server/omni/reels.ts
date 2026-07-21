@@ -1,4 +1,5 @@
 import pool from "@/lib/db";
+import { detectAudioMoodFromText, normalizeAudioMood } from "@/lib/audio-library/moods";
 import { OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
@@ -20,6 +21,11 @@ function normalizeReel(row: OmniReel): OmniReel {
       row.source_generated_script_id === null ? null : Number(row.source_generated_script_id),
     source_legacy_scenario_id:
       row.source_legacy_scenario_id === null ? null : Number(row.source_legacy_scenario_id),
+    background_audio_mood: normalizeAudioMood(row.background_audio_mood),
+    background_audio_track_id:
+      row.background_audio_track_id === null || row.background_audio_track_id === undefined
+        ? null
+        : Number(row.background_audio_track_id),
   };
 }
 
@@ -92,6 +98,10 @@ export async function createOmniReel(input: {
   const sourceScenarioDirectorBrief =
     sourceScenarioAnalysis?.director_analysis_status === "completed" ? sourceScenarioAnalysis.director_analysis_json : null;
   const scriptText = resolvedGeneratedScript?.script || sourceScenario?.script || brief || "";
+  const backgroundAudioMood = normalizeAudioMood(
+    resolvedGeneratedScript?.background_audio_mood,
+    detectAudioMoodFromText(scriptText)
+  );
   const durationRange = await resolveOmniDurationRange({
     project,
     product,
@@ -193,10 +203,12 @@ export async function createOmniReel(input: {
          avatar_snapshot,
          creative_strategy,
          prompt_contract_version,
+         background_audio_mood,
+         background_audio_status,
          stitch_status,
          updated_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, 'not_ready', CURRENT_TIMESTAMP)
+       VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, 'not_selected', 'not_ready', CURRENT_TIMESTAMP)
        RETURNING *`,
       [
         input.projectId,
@@ -211,6 +223,7 @@ export async function createOmniReel(input: {
         JSON.stringify(avatarSnapshot),
         JSON.stringify(creativeStrategy),
         creativeStrategy?.version || null,
+        backgroundAudioMood,
       ]
     );
     const reel = reelResult.rows[0];

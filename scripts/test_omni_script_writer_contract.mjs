@@ -125,6 +125,8 @@ try {
   assert.ok(prompt.includes("Не пиши псевдовопросы"), "prompt must ban pseudo questions");
   assert.ok(prompt.includes("Не добавляй субтитры"), "prompt must ban provider subtitles");
   assert.ok(prompt.includes("Поле script должно совпадать"), "script must match beat voiceovers");
+  assert.ok(prompt.includes('"background_audio_mood"'), "prompt must request background audio mood");
+  assert.ok(prompt.includes("energetic, calm, dramatic, inspiring, playful, serious"), "prompt must constrain mood enum");
   assert.ok(prompt.includes("Целевая длительность итогового ролика: 30-30 сек"), "prompt must include configured duration range");
   assert.ok(prompt.includes("60-72 слов"), "prompt must include computed word range");
   assert.ok(MAX_SCRIPT_GENERATION_ATTEMPTS >= 5, "script writer should retry enough times before asking the user");

@@ -1,4 +1,5 @@
 import type { CtaMode, OmniScriptBeatCue } from "@/lib/omni/creative-contract";
+import { detectAudioMoodFromText, normalizeAudioMood, type AudioMood } from "@/lib/audio-library/moods";
 import { normalizeOpenRouterUsage, type OpenRouterUsageRecord } from "@/lib/omni/openrouter-cost";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { formatScenarioScript } from "@/lib/scenario-text";
@@ -37,6 +38,7 @@ export type GeneratedScriptResultPayload = {
   caption: string;
   cta_keyword: string;
   lead_magnet: string;
+  background_audio_mood: AudioMood;
 };
 
 export async function generateScript(input: {
@@ -146,6 +148,7 @@ async function requestScriptOnce(
     caption: clean(parsed.caption),
     cta_keyword: clean(parsed.cta_keyword),
     lead_magnet: clean(parsed.lead_magnet),
+    background_audio_mood: normalizeAudioMood(parsed.background_audio_mood, detectAudioMoodFromText(script)),
   };
 
   const qualityCheck = validateViralScriptContract({

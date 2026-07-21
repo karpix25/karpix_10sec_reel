@@ -8,6 +8,7 @@ export type GeneratedScriptPayload = {
   caption?: string;
   cta_keyword?: string;
   lead_magnet?: string;
+  background_audio_mood?: string;
 };
 
 export function parseAndRepairJson(content: string): GeneratedScriptPayload {
