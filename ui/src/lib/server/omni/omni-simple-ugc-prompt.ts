@@ -10,6 +10,13 @@ import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { renderScriptBeatGuidance } from "./script-beat-plan";
 import { OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT } from "./omni-scene-safety-contract";
 import type { OmniGenerationContinuityDirection } from "./omni-generation-continuity";
+import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
+import {
+  applyWardrobeSourceToReferenceLock,
+  renderAvatarWardrobeLine,
+  renderAvatarWardrobeSourceRule,
+  shouldUseAvatarWardrobe,
+} from "./omni-wardrobe-contract";
 
 export function renderSimpleFullBodyUgcPrompt(input: {
   plan: OmniSegmentCreativePlan;
@@ -22,13 +29,26 @@ export function renderSimpleFullBodyUgcPrompt(input: {
   directorGuidance?: string | null;
   directorBrief?: DirectorBrief | null;
   referencePolicy?: ReferenceTransferPolicy;
+  wardrobeSource?: OmniWardrobeSource;
   continuityDirection?: OmniGenerationContinuityDirection;
 }) {
   const duration = input.plan.beats[2]?.endSeconds || 10;
   const wordCount = input.plan.voiceoverText.split(/\s+/).filter(Boolean).length;
   const referencePolicy = input.referencePolicy || { mode: "full_reference" as const, omitRawDirectorGuidance: false };
   const directorScene = buildDirectorSceneContract(input.directorBrief || null, referencePolicy);
-  const scriptBeatGuidance = renderScriptBeatGuidance(input.plan.scriptBeats);
+  const wardrobeSource = normalizeOmniWardrobeSource(input.wardrobeSource);
+  const useAvatarWardrobe = shouldUseAvatarWardrobe(wardrobeSource);
+  const referenceLockLine = directorScene
+    ? applyWardrobeSourceToReferenceLock({ referenceLockLine: directorScene.referenceLockLine, wardrobeSource })
+    : null;
+  const wardrobeLine = useAvatarWardrobe
+    ? renderAvatarWardrobeLine(input.characterContract)
+    : directorScene?.wardrobeLine ||
+      `${input.characterContract.clothingLine}. Use solid matte colors only; no stripes, checks, brand marks, or logos.`;
+  const sourceRuleLine = useAvatarWardrobe
+    ? renderAvatarWardrobeSourceRule(input.characterContract)
+    : input.characterContract.sourceRuleLine;
+  const scriptBeatGuidance = renderScriptBeatGuidance(input.plan.scriptBeats, { wardrobeSource });
   const talkingHead = input.plan.lifeFormatId === "talking_head_cutaways";
   const props = input.plan.continuityProps
     .map((item) => `${item.name}: ${item.appearance}; начальная позиция: ${item.initialPosition}`)
@@ -39,7 +59,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
 
   return [
     `Raw vertical video recording, 9:16 aspect ratio, ${duration.toFixed(0)}s duration.`,
-    directorScene?.referenceLockLine ||
+    referenceLockLine ||
       "REFERENCE LOCK: no external director reference is available; use a clean realistic UGC scene with no subtitles or overlays.",
     directorScene?.framingLine ||
       "FRAMING: raw smartphone camera recording, stable portrait composition, person clearly visible, no forced full-body framing.",
@@ -55,8 +75,8 @@ export function renderSimpleFullBodyUgcPrompt(input: {
       : []),
     directorScene?.sceneLine || `SCENE: ${input.strategy.setting}.`,
     `ГЛАВНЫЙ ПЕРСОНАЖ: ${input.characterContract.identityLine}.`,
-    `ОДЕЖДА: ${directorScene?.wardrobeLine || `${input.characterContract.clothingLine}. Use solid matte colors only; no stripes, checks, brand marks, or logos.`}`,
-    `ИСТОЧНИКИ ОБРАЗА: ${input.characterContract.sourceRuleLine}.`,
+    `ОДЕЖДА: ${wardrobeLine}`,
+    `ИСТОЧНИКИ ОБРАЗА: ${sourceRuleLine}.`,
     `ПРОДУКТ: ${input.productName}. ${productLine(input.plan.productRole)}`,
     ...(input.productVisualPassport ? [input.productVisualPassport] : []),
     directorScene?.propPassportLine || `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,

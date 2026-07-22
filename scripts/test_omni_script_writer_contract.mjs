@@ -129,6 +129,56 @@ try {
   assert.ok(prompt.includes("energetic, calm, dramatic, inspiring, playful, serious"), "prompt must constrain mood enum");
   assert.ok(prompt.includes("Целевая длительность итогового ролика: 30-30 сек"), "prompt must include configured duration range");
   assert.ok(prompt.includes("60-72 слов"), "prompt must include computed word range");
+
+  const avatarWardrobePrompt = buildPrompt({
+    projectName: "Omni Reels",
+    targetAudience: "женщины, уход за собой",
+    brandVoice: "живой бытовой",
+    productName: "Апельсиновый коллаген",
+    productDescription: "Коллаген в желе для кожи, волос и ногтей",
+    productReferenceNotes: "оранжевая упаковка",
+    ctaMode: "article_in_description",
+    ctaValue: null,
+    sourceScenario: {
+      id: 2924,
+      script: "Хочешь сияющую кожу и крепкие ногти? Тогда тебе нужен коллаген!",
+    },
+    directorBrief: {
+      visual_hook: { action: "Presenter talks to camera", retention_trigger: "Blue-lit direct address" },
+      atmosphere: {
+        mood: "Confident",
+        lighting: "Cool blue background glow",
+        color_grading: "Blue contrast",
+        setting: "Blue-lit home background",
+      },
+      clothing: {
+        style: "Black sleeveless fitted top",
+        color_palette: ["black"],
+        fit_details: "Clean fitted silhouette",
+      },
+      camera: {
+        shot_types: ["Medium shot"],
+        angles: ["Eye-level"],
+        movements: ["Static"],
+        stabilization: "Tripod",
+      },
+      montage_rhythm: {
+        cut_pace: "Continuous talking head",
+        beat_sync: "Cuts follow speech",
+        transition_style: ["Hard cut"],
+      },
+      action_beats: [{ timestamp_sec: 0, action_description: "Looks into camera", actor_gesture: "Open palms" }],
+      reusable_mechanics: {
+        visual_mechanics: ["Direct-to-camera talking head"],
+        safe_zones_for_elements: "",
+        looping_pattern: "Return to same setup",
+      },
+    },
+    wardrobeSource: "avatar_reference",
+  });
+  assert.ok(avatarWardrobePrompt.includes("всегда берется из аватара"), "avatar wardrobe mode must guide script visuals to avatar outfit");
+  assert.ok(avatarWardrobePrompt.includes("в одежде аватара"), "avatar wardrobe mode must use avatar outfit JSON example");
+  assert.ok(!avatarWardrobePrompt.includes("- Одежда: Black sleeveless fitted top"), "avatar wardrobe mode must not pass raw reference wardrobe into writer guidance");
   assert.ok(MAX_SCRIPT_GENERATION_ATTEMPTS >= 5, "script writer should retry enough times before asking the user");
   assert.ok(
     isRetryableScriptGenerationError(new Error("Сценарий отклонен: слишком короткий для выбранной длины ролика (45 слов). Нужно 60-72 слов для 30-30 сек.")),

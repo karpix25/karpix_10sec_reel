@@ -1,8 +1,16 @@
 import pool from "@/lib/db";
 import { OmniProject } from "@/lib/omni/types";
+import { normalizeOmniWardrobeSource } from "../../omni/wardrobe-source";
 import { ensureOmniSchema } from "./schema";
 
 type ProjectRow = OmniProject;
+
+function normalizeProject(row: ProjectRow): OmniProject {
+  return {
+    ...row,
+    wardrobe_source: normalizeOmniWardrobeSource(row.wardrobe_source),
+  };
+}
 
 function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -16,7 +24,7 @@ export async function listOmniProjects() {
      WHERE status <> 'archived'
      ORDER BY updated_at DESC, id DESC`
   );
-  return rows;
+  return rows.map(normalizeProject);
 }
 
 export async function createOmniProject(input: {
@@ -62,7 +70,7 @@ export async function createOmniProject(input: {
     ]
   );
 
-  return rows[0];
+  return normalizeProject(rows[0]);
 }
 
 export async function updateOmniProjectProfile(input: {
@@ -70,6 +78,7 @@ export async function updateOmniProjectProfile(input: {
   name?: unknown;
   targetAudience?: unknown;
   brandVoice?: unknown;
+  wardrobeSource?: unknown;
 }) {
   await ensureOmniSchema();
   const current = await getOmniProject(input.projectId);
@@ -80,6 +89,7 @@ export async function updateOmniProjectProfile(input: {
   const hasName = input.name !== undefined;
   const hasTargetAudience = input.targetAudience !== undefined;
   const hasBrandVoice = input.brandVoice !== undefined;
+  const hasWardrobeSource = input.wardrobeSource !== undefined;
   const nextName = hasName ? normalizeText(input.name) : current.name;
   if (!nextName) {
     throw new Error("Project name is required");
@@ -90,6 +100,7 @@ export async function updateOmniProjectProfile(input: {
      SET name = $2,
          target_audience = $3,
          brand_voice = $4,
+         wardrobe_source = $5,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1 AND status <> 'archived'
      RETURNING *`,
@@ -98,6 +109,7 @@ export async function updateOmniProjectProfile(input: {
       nextName,
       hasTargetAudience ? normalizeText(input.targetAudience) || null : current.target_audience,
       hasBrandVoice ? normalizeText(input.brandVoice) || null : current.brand_voice,
+      hasWardrobeSource ? normalizeOmniWardrobeSource(input.wardrobeSource) : current.wardrobe_source,
     ]
   );
 
@@ -105,11 +117,11 @@ export async function updateOmniProjectProfile(input: {
     throw new Error("Omni client project not found");
   }
 
-  return rows[0];
+  return normalizeProject(rows[0]);
 }
 
 export async function getOmniProject(projectId: number) {
   await ensureOmniSchema();
   const { rows } = await pool.query<ProjectRow>("SELECT * FROM omni_projects WHERE id = $1 LIMIT 1", [projectId]);
-  return rows[0] || null;
+  return rows[0] ? normalizeProject(rows[0]) : null;
 }

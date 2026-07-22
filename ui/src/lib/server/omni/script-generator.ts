@@ -1,6 +1,7 @@
 import type { CtaMode, OmniScriptBeatCue } from "@/lib/omni/creative-contract";
 import { detectAudioMoodFromText, normalizeAudioMood, type AudioMood } from "@/lib/audio-library/moods";
 import { normalizeOpenRouterUsage, type OpenRouterUsageRecord } from "@/lib/omni/openrouter-cost";
+import type { OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { formatScenarioScript } from "@/lib/scenario-text";
 import type { DirectorBrief } from "./director-analysis-types";
@@ -54,6 +55,7 @@ export async function generateScript(input: {
   ctaValue: string | null;
   sourceScenario: OmniLegacyScenario;
   directorBrief?: DirectorBrief | null;
+  wardrobeSource?: OmniWardrobeSource;
   durationRange?: OmniDurationRange;
 }): Promise<{
   payload: GeneratedScriptResultPayload;

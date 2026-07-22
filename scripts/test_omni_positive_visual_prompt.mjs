@@ -232,6 +232,19 @@ try {
     "director-based prompts must not leak preset props, preset settings, or generic framing/editing"
   );
 
+  process.env.OMNI_PROVIDER_PROMPT_STYLE = "simple_full_body";
+  const avatarWardrobePrompts = buildOmniSegmentPrompts({
+    ...directorInput,
+    wardrobeSource: "avatar_reference",
+  });
+  delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
+  const avatarWardrobeJoinedPrompt = avatarWardrobePrompts.map((item) => item.prompt).join("\n");
+  assert.ok(avatarWardrobeJoinedPrompt.includes("AVATAR WARDROBE LOCK:"), "avatar wardrobe mode must lock outfit to avatar");
+  assert.ok(avatarWardrobeJoinedPrompt.includes("бежевом свитере"), "avatar wardrobe mode must preserve avatar clothing notes");
+  assert.ok(avatarWardrobeJoinedPrompt.includes("WARDROBE EXCEPTION"), "avatar wardrobe mode must override reference wardrobe transfer");
+  assert.ok(avatarWardrobeJoinedPrompt.includes("ignore its wardrobe"), "avatar wardrobe source rule must reach provider prompt");
+  assert.ok(!avatarWardrobeJoinedPrompt.includes("WARDROBE: Minimalist fitted black top"), "avatar wardrobe mode must remove raw director wardrobe guidance");
+
   const irrelevantDirectorBrief = {
     visual_hook: {
       action: "Direct-to-camera presenter address intercut with tactile, close-up food assembly B-roll.",

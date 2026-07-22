@@ -15,6 +15,7 @@ import {
   OmniReelSegment,
 } from "@/lib/omni/types";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
+import type { OmniWardrobeSource } from "@/lib/omni/wardrobe-source";
 import type { CtaMode } from "@/lib/omni/creative-contract";
 
 type ReelsPayload = {
@@ -39,6 +40,7 @@ export type UpdateOmniProjectProfilePayload = {
   name?: string;
   targetAudience?: string;
   brandVoice?: string;
+  wardrobeSource?: OmniWardrobeSource;
 };
 
 export type CreateOmniProductPayload = {
@@ -157,6 +159,7 @@ export function useUpdateOmniProjectProfile() {
         projects?.map((project) => (project.id === updatedProject.id ? updatedProject : project)) || projects
       );
       queryClient.invalidateQueries({ queryKey: ["omni-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });
     },
   });
 }
@@ -338,7 +341,6 @@ export function useOmniStudio(
   const queryClient = useQueryClient();
 
   const projectsQuery = useOmniProjects();
-
   const productsQuery = useOmniProducts(projectId);
 
   const legacyScenariosQuery = useQuery<{ data: OmniLegacyScenario[]; totalCount: number }>({
@@ -408,6 +410,8 @@ export function useOmniStudio(
   const generatedScriptsQuery = useOmniGeneratedScripts(projectId, productId);
 
   const createProjectMutation = useCreateOmniProject();
+
+  const updateProjectMutation = useUpdateOmniProjectProfile();
 
   const createProductMutation = useCreateOmniProduct();
 
@@ -481,6 +485,7 @@ export function useOmniStudio(
     reelsQuery,
     generatedScriptsQuery,
     createProjectMutation,
+    updateProjectMutation,
     createProductMutation,
     analyzeProductReferenceMutation,
     createAvatarMutation,

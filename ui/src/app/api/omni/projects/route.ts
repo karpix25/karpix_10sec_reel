@@ -52,6 +52,7 @@ export async function PATCH(request: Request) {
         name: body.name,
         targetAudience: body.targetAudience,
         brandVoice: body.brandVoice,
+        wardrobeSource: body.wardrobeSource,
       })
     );
   } catch (error) {
