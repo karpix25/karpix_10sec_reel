@@ -46,6 +46,7 @@ try {
 
   const {
     normalizeProductVisualProfile,
+    renderProductPhysicalityContract,
     renderProductVisualProfileForPrompt,
   } = require(findFile(compiled, "product-visual-profile.js"));
   const { analyzeProductReferenceImages } = require(findFile(compiled, "openrouter-product-analysis-client.js"));
@@ -96,6 +97,12 @@ try {
   assert.ok(passport.includes("Show the product as a slim matte orange collagen sachet"));
   assert.ok(passport.includes("reference image and this product passport as the exact source of truth"));
   assert.ok(passport.includes("Do not alter package type, silhouette, cap or lid color, label layout"));
+
+  const physicality = renderProductPhysicalityContract(profile);
+  assert.ok(physicality.includes("PRODUCT PHYSICALITY:"), "product physicality contract must use a stable marker");
+  assert.ok(physicality.includes("casts contact shadows"), "product physicality must require contact shadows");
+  assert.ok(physicality.includes("fingers may partially occlude"), "product physicality must require hand occlusion");
+  assert.ok(physicality.includes("perspective, label angle, shadows, and highlights move together"), "product physicality must require coherent motion cues");
 
   process.env.OPENROUTER_API_KEY = "test-key";
   process.env.OMNI_DIRECTOR_ANALYSIS_MODEL = "minimax/minimax-m3";
@@ -153,6 +160,17 @@ try {
   assert.ok(joinedPrompt.includes("REFERENCE SCENE PASSPORT:"), "director scene passport must remain separate");
   assert.ok(joinedPrompt.includes("PRODUCT ACTION:"), "visible product segments must receive a physical product action");
   assert.ok(joinedPrompt.includes("PHYSICAL CAUSALITY:"), "visible product segments must receive physical causality guidance");
+  assert.ok(joinedPrompt.includes("PRODUCT PHYSICALITY:"), "visible product segments must receive real-object physicality guidance");
+  assert.ok(joinedPrompt.includes("contact shadows"), "product physicality must include contact shadows");
+  assert.ok(joinedPrompt.includes("partially occlude the package"), "product physicality must include finger occlusion");
+  assert.ok(joinedPrompt.includes("perspective, label angle, shadows, and highlights move together"), "product physicality must bind perspective and highlights");
+  assert.ok(
+    prompts
+      .filter((item) => item.creativePlan.productRole !== "hidden")
+      .every((item) => countMatches(item.prompt, "PRODUCT PHYSICALITY:") === 1),
+    "visible product prompts must include exactly one physicality contract"
+  );
+  assert.ok(!/appears from nowhere/iu.test(joinedPrompt.replace(/never appears from nowhere/giu, "")), "prompt must not allow product teleporting");
   assert.ok(joinedPrompt.includes("orange sachet body"), "product-specific preservation rules must reach provider prompt");
   assert.ok(joinedPrompt.includes("do not turn it into a bottle or jar"), "product-specific negative rules must reach provider prompt");
   assert.ok(joinedPrompt.includes("reference image and this product passport as the exact source of truth"));
@@ -307,4 +325,8 @@ function findFile(dir, fileName) {
     if (entry.name === fileName) return path;
   }
   throw new Error(`Could not find ${fileName} in ${dir}`);
+}
+
+function countMatches(value, needle) {
+  return value.split(needle).length - 1;
 }

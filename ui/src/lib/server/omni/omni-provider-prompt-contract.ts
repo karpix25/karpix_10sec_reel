@@ -1,4 +1,5 @@
 import { OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT } from "./omni-scene-safety-contract";
+import { renderOmniNaturalismContract } from "./omni-naturalism-contract";
 
 export const OMNI_PROVIDER_PROMPT_STYLES = ["structured", "simple_full_body"] as const;
 
@@ -6,7 +7,8 @@ export type OmniProviderPromptStyle = (typeof OMNI_PROVIDER_PROMPT_STYLES)[numbe
 
 export const OMNI_CLEAN_FRAME_PROMPT =
   [
-    "Кадр выглядит как чистое сырое видео напрямую с сенсора камеры: полный экран, реальная сцена, человек, локация, предметы и естественный свет.",
+    "Кадр выглядит как сырая бытовая видеозапись напрямую с сенсора камеры: полный экран, реальная сцена, человек, локация, предметы и естественный свет.",
+    renderOmniNaturalismContract(),
     "В кадре полностью отсутствуют любые элементы интерфейса, водяные знаки, наложенный текст, субтитры, кнопки или логотипы.",
     "Графическая рамка разрешена только если reference layout явно требует бумажную обводку cutout-аватара.",
     OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,

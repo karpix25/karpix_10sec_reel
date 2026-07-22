@@ -14,6 +14,7 @@ export type ReferenceTransferPolicy = {
 type DomainId =
   | "beauty_supplement"
   | "meal_prep"
+  | "medical_wellness"
   | "fitness"
   | "office"
   | "fashion"
@@ -32,7 +33,11 @@ const DOMAIN_RULES: readonly DomainRule[] = [
   },
   {
     id: "meal_prep",
-    pattern: /рацион|калори|еда|питани|кухн|контейнер|весы|мяс|куриц|салат|доставк|meal|food|kitchen|container|scale|meat|chicken|greens|delivery|portion/iu,
+    pattern: /аэрогрил|грил|рацион|калори|еда|питани|кухн|контейнер|весы|мяс|куриц|салат|доставк|air\s*fryer|grill|meal|food|kitchen|container|scale|meat|chicken|greens|delivery|portion/iu,
+  },
+  {
+    id: "medical_wellness",
+    pattern: /clinical|wellness office|medical|doctor|clinic|hospital|stethoscope|scrubs|treatment room|exam room|vertical blinds|клиник|медицин|стетоскоп|врач|кабинет|жалюзи/iu,
   },
   {
     id: "fitness",
@@ -59,6 +64,9 @@ const DOMAIN_RULES: readonly DomainRule[] = [
 const STRONG_FOREIGN_PROCESS =
   /gloved hands|staff|workers|assembly|packing|scale|container|commercial|prep table|digital scale|перчат|работник|сборк|упаков|весы|контейнер|цех|производств/iu;
 
+const STRONG_FOREIGN_WORLD =
+  /clinical|wellness office|medical|doctor|clinic|hospital|stethoscope|scrubs|treatment room|exam room|vertical blinds|клиник|медицин|стетоскоп|врач|кабинет|жалюзи/iu;
+
 export function buildReferenceTransferPolicy(input: {
   directorBrief: DirectorBrief | null;
   productName: string;
@@ -79,6 +87,7 @@ export function buildReferenceTransferPolicy(input: {
   const referenceDomains = detectDomains(referenceText);
   const hasDomainOverlap = [...referenceDomains].some((domain) => productDomains.has(domain));
   const hasForeignProcess = STRONG_FOREIGN_PROCESS.test(referenceText);
+  const hasForeignWorld = STRONG_FOREIGN_WORLD.test(referenceText);
   const isProductCollageReference =
     isCollagePictureInPictureReference(input.directorBrief) &&
     referenceUsesProductOrScienceBackground(input.directorBrief);
@@ -88,6 +97,9 @@ export function buildReferenceTransferPolicy(input: {
   }
 
   if (productDomains.size && referenceDomains.size && !hasDomainOverlap) {
+    return { mode: "style_only", omitRawDirectorGuidance: true };
+  }
+  if (hasForeignWorld && productDomains.size && !hasDomainOverlap) {
     return { mode: "style_only", omitRawDirectorGuidance: true };
   }
   if (hasForeignProcess && productDomains.has("beauty_supplement") && referenceDomains.has("meal_prep")) {
@@ -108,6 +120,9 @@ function getDirectorReferenceText(brief: DirectorBrief) {
     brief.visual_hook.retention_trigger,
     brief.atmosphere.mood,
     brief.atmosphere.setting,
+    ...brief.prop_sources,
+    ...brief.hand_object_interactions,
+    ...brief.motion_continuity,
     ...brief.action_beats.flatMap((beat) => [beat.action_description, beat.actor_gesture]),
     ...brief.reusable_mechanics.visual_mechanics,
     brief.reusable_mechanics.looping_pattern,

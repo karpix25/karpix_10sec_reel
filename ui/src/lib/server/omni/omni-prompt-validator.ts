@@ -45,6 +45,12 @@ export function validateOmniSegmentPrompt(input: {
   if (countExactVoiceoverReplicaLines(input.prompt, input.plan.voiceoverText) !== 1) {
     errors.push("exact_voiceover_must_appear_once");
   }
+  if (countNormalizedOccurrences(input.prompt, input.plan.voiceoverText) !== 1) {
+    errors.push("voiceover_text_must_appear_once_in_prompt");
+  }
+  if (/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?(?:^|\s)речь\s*-/imu.test(input.prompt)) {
+    errors.push("script_beats_must_not_include_spoken_text");
+  }
   if (hasForbiddenOmniScriptSymbols(input.plan.voiceoverText)) {
     errors.push("voiceover_contains_long_dash_or_emoji");
   }
@@ -127,6 +133,21 @@ export function validateVoiceoverSequence(expectedScript: string, plans: readonl
   return reconstructed === normalize(expectedScript);
 }
 
+export function validatePromptVoiceoverIsolation(
+  prompts: readonly { prompt: string; voiceoverText: string; index?: number }[]
+) {
+  const errors: string[] = [];
+  prompts.forEach((item, itemIndex) => {
+    prompts.forEach((other, otherIndex) => {
+      if (itemIndex === otherIndex || !other.voiceoverText.trim()) return;
+      if (countNormalizedOccurrences(item.prompt, other.voiceoverText) > 0) {
+        errors.push(`segment_${item.index || itemIndex + 1}_contains_voiceover_from_${other.index || otherIndex + 1}`);
+      }
+    });
+  });
+  return errors;
+}
+
 function hasContinuousTimeline(plan: OmniSegmentCreativePlan) {
   const [first, second, third] = plan.beats;
   return first.startSeconds === 0 && first.endSeconds === second.startSeconds &&
@@ -151,6 +172,13 @@ function countPromptMarker(prompt: string, marker: string) {
 
 function normalize(value: string) {
   return value.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+}
+
+function countNormalizedOccurrences(haystack: string, needle: string) {
+  const normalizedHaystack = normalize(haystack);
+  const normalizedNeedle = normalize(needle);
+  if (!normalizedNeedle) return 0;
+  return normalizedHaystack.split(normalizedNeedle).length - 1;
 }
 
 function isAdvertisingProductDisplay(action: string) {

@@ -20,14 +20,18 @@ import {
   selectScriptBeatsForSegment,
 } from "./script-beat-plan";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
-import { validateOmniSegmentPrompt, validateVoiceoverSequence } from "./omni-prompt-validator";
+import {
+  validateOmniSegmentPrompt,
+  validatePromptVoiceoverIsolation,
+  validateVoiceoverSequence,
+} from "./omni-prompt-validator";
 import { getOmniSegmentWordBudget } from "./omni-duration-planner";
 import { assertOmniCtaContract } from "./omni-cta-contract";
 import {
   buildOmniGenerationContinuityDirection,
   type OmniGenerationContinuityState,
 } from "./omni-generation-continuity";
-import { repairVoiceSegmentBoundaryRepeats } from "./omni-speech-boundary";
+import { repairScriptBeatBoundaryRepeats, repairVoiceSegmentBoundaryRepeats } from "./omni-speech-boundary";
 import { buildOmniCharacterContract, type OmniCharacterContract } from "./omni-character-contract";
 import {
   isTalkingHeadCutawayFormat,
@@ -51,6 +55,7 @@ import {
   buildProductVisualProfileFromText,
   extractProductVisualProfileFromSnapshot,
   normalizeProductVisualProfile,
+  renderProductPhysicalityContract,
   renderProductVisualProfileForPrompt,
 } from "./product-visual-profile";
 
@@ -109,7 +114,10 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   const segmentDurationsSeconds = voiceSegments.map((_, index) =>
     input.segmentDurationsSeconds?.[index] || input.segmentSeconds
   );
-  const scriptPlan = extractGeneratedScriptBeatPlanFromSnapshot(input.generatedScript?.source_snapshot);
+  const scriptPlanRepair = repairScriptBeatBoundaryRepeats(
+    extractGeneratedScriptBeatPlanFromSnapshot(input.generatedScript?.source_snapshot)
+  );
+  const scriptPlan = scriptPlanRepair.plan;
 
   const productReference = getPrimaryReference(input.product.product_refs);
   const productVisualProfile = resolveProductVisualProfile({
@@ -117,6 +125,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     generatedScript: input.generatedScript,
   });
   const productVisualPassport = renderProductVisualProfileForPrompt(productVisualProfile);
+  const productPhysicalityContract = renderProductPhysicalityContract(productVisualProfile);
   const avatarReference = input.avatar?.reference_url || null;
   const characterContract = buildOmniCharacterContract({
     product: input.product,
@@ -196,6 +205,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
           characterContract,
           productName: input.product.name,
           productVisualPassport: segmentProductVisualPassport,
+          productPhysicalityContract,
           segmentIndex,
           segmentCount: input.segmentCount,
           directorGuidance: safeDirectorGuidance,
@@ -215,6 +225,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
           referencePolicy,
           wardrobeSource,
           segmentProductVisualPassport,
+          productPhysicalityContract,
           continuityDirection.promptLines
         );
     const validation = validateOmniSegmentPrompt({
@@ -239,6 +250,10 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     previousContinuityState = continuityDirection.nextState;
   }
 
+  const voiceoverIsolationErrors = validatePromptVoiceoverIsolation(prompts);
+  if (voiceoverIsolationErrors.length) {
+    throw new Error(`Omni segment prompts leak neighbor speech: ${voiceoverIsolationErrors.join(", ")}`);
+  }
   if (!validateVoiceoverSequence(scriptText, prompts.map((item) => item.creativePlan))) {
     throw new Error("Omni voiceover segmentation changed the source script");
   }
@@ -256,6 +271,7 @@ function renderSegmentPrompt(
   referencePolicy: ReferenceTransferPolicy,
   wardrobeSource: OmniWardrobeSource,
   productVisualPassport: string | null,
+  productPhysicalityContract: string | null,
   continuityLines: readonly string[]
 ) {
   const directorScene = buildDirectorSceneContract(directorBrief, referencePolicy);
@@ -299,6 +315,7 @@ function renderSegmentPrompt(
     ...(directorGuidance ? [`РЕЖИССУРА ОРИГИНАЛА:\n${directorGuidance}`] : []),
     directorScene?.propPassportLine || `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     ...(productVisualPassport ? [productVisualPassport] : []),
+    ...(productPhysicalityContract && plan.productRole !== "hidden" ? [productPhysicalityContract] : []),
     ...continuityLines,
     `ТИП ХУКА: ${strategy.hookType}. ${strategy.hookRule}`,
     talkingHead
@@ -311,8 +328,8 @@ function renderSegmentPrompt(
     ...plan.beats.map((beat) => `${beat.startSeconds.toFixed(1)}-${beat.endSeconds.toFixed(1)} сек: ${beat.action}.`),
     `РОЛЬ ПРОДУКТА: ${productRoleInstruction(plan.productRole)}`,
     talkingHead
-      ? "РЕЧЬ: произнести только точную реплику один раз, без добавлений, повторов и субтитров; во время короткой перебивки речь продолжает звучать как voiceover, без попытки синхронизировать губы вне кадра лица."
-      : "РЕЧЬ: произнести только точную реплику один раз, без добавлений, повторов и субтитров; речь продолжается между состояниями действия.",
+      ? "РЕЧЬ: произнести полную точную реплику текущей части ровно один раз, без перефразирования, пропусков, рестарта, продолжения соседней части и субтитров; во время короткой перебивки речь продолжает звучать как voiceover, без попытки синхронизировать губы вне кадра лица."
+      : "РЕЧЬ: произнести полную точную реплику текущей части ровно один раз, без перефразирования, пропусков, рестарта, продолжения соседней части и субтитров; речь продолжается между состояниями действия.",
     talkingHead
       ? `МОНТАЖНАЯ НЕПРЕРЫВНОСТЬ: тот же человек, одежда, свет и локация. Перебивки короткие, спокойные, без новых персонажей и без сложных действий руками. Предметы из паспорта не меняют цвет, материал, форму, размер, детали и количество. Нельзя заменять, перекрашивать, дублировать или самовольно убирать предметы. Разрешены монтажные склейки между лицом и insert-кадром; не строить одно непрерывное бытовое действие. ${continuity}`
       : `НЕПРЕРЫВНОСТЬ: тот же человек, одежда, свет, локация и все предметы из паспорта. Цвет, материал, форма, размер, детали и количество каждого предмета неизменны. Нельзя заменять, перекрашивать, дублировать или самовольно убирать предметы. Их положение меняется только по перечисленным действиям. Первый кадр этой части точно продолжает финальные позиции предыдущей части. Один телефонный кадр без перебивок и рекламных крупных планов. ${continuity}`,
@@ -375,9 +392,9 @@ function segmentMentionsProduct(input: {
 
 function productRoleInstruction(role: ProductRole) {
   if (role === "hidden") return "продукт и упаковка не появляются; интерес создают история и результат.";
-  if (role === "background_prop") return "продукт существует как реальный предмет в сцене; когда виден, получает одно спокойное движение рукой или камерой без акцента на логотипе.";
-  if (role === "brief_demo") return "один короткий физический показ по смыслу реплики: взять с поверхности, слегка повернуть, вернуть обратно без рекламного крупного плана.";
-  return "использовать продукт как реальный предмет рутины; двигать только руками, не открывать, не есть, не пить и не наносить во время речи.";
+  if (role === "background_prop") return "продукт существует как реальный предмет в сцене; когда виден, получает одно спокойное движение рукой или камерой, с контактной тенью и частичным перекрытием пальцами без акцента на логотипе.";
+  if (role === "brief_demo") return "один короткий физический показ по смыслу реплики: взять с поверхности, слегка повернуть с изменением перспективы и блика, вернуть обратно без рекламного крупного плана.";
+  return "использовать продукт как реальный предмет рутины; двигать только руками, сохранять вес, тени и контакт с поверхностью, не открывать, не есть, не пить и не наносить во время речи.";
 }
 
 function selectReferenceUrl(

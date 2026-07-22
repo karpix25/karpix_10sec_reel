@@ -1,4 +1,5 @@
 import type { OmniSegmentCreativePlan, ProductRole } from "@/lib/omni/creative-contract";
+import { compactPromptPhrase } from "./omni-scene-world-sanitizer";
 
 export type OmniGenerationContinuityState = {
   segmentIndex: number;
@@ -33,13 +34,13 @@ export function buildOmniGenerationContinuityDirection(
     talkingHead: input.talkingHead,
   });
   const sceneStart = input.previousState
-    ? `Start from previous final state: ${input.previousState.sceneState}; product state: ${input.previousState.productState}.`
+    ? `Start from previous final state: ${compactContinuityState(input.previousState.sceneState)}; product state: ${compactContinuityState(input.previousState.productState)}.`
     : `Start with the scene already established: ${describeInitialScene(input.plan)}.`;
   const nextState = {
     segmentIndex: input.segmentIndex,
-    productState: productAction.endState,
+    productState: compactContinuityState(productAction.endState),
     sceneState: describeSceneEnd(input.plan, productAction.endState),
-    lastAction: input.plan.beats[2]?.action || productAction.actionLine,
+    lastAction: compactContinuityState(input.plan.beats[2]?.action || productAction.actionLine),
   };
 
   return {
@@ -102,12 +103,17 @@ function buildProductAction(input: {
 
 function describeInitialScene(plan: OmniSegmentCreativePlan) {
   const props = plan.continuityProps
-    .map((item) => `${item.name} at ${item.initialPosition}`)
+    .slice(0, 3)
+    .map((item) => `${compactContinuityState(item.name, 48)} at ${compactContinuityState(item.initialPosition, 72)}`)
     .join(", ");
   return props || "same person, outfit, lighting, and room are visible before the first word";
 }
 
 function describeSceneEnd(plan: OmniSegmentCreativePlan, productState: string) {
-  const finalBeat = plan.beats[2]?.action || "the action settles";
-  return `${finalBeat}; ${productState}`;
+  const finalBeat = compactContinuityState(plan.beats[2]?.action || "the action settles");
+  return `${finalBeat}; ${compactContinuityState(productState)}`;
+}
+
+function compactContinuityState(text: string, maxLength = 130) {
+  return compactPromptPhrase(text, maxLength) || "stable established state";
 }
