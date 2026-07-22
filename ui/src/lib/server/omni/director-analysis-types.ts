@@ -32,6 +32,10 @@ export type DirectorBrief = {
     action_description: string;
     actor_gesture: string;
   }>;
+  prop_sources: string[];
+  hand_object_interactions: string[];
+  motion_continuity: string[];
+  reference_action_style: string;
   reusable_mechanics: {
     visual_mechanics: string[];
     safe_zones_for_elements: string;
@@ -114,6 +118,10 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
     action_beats: Array.isArray(candidate.action_beats)
       ? candidate.action_beats.map(normalizeActionBeat).filter((beat): beat is DirectorBrief["action_beats"][number] => Boolean(beat))
       : [],
+    prop_sources: stringArray(candidate.prop_sources),
+    hand_object_interactions: stringArray(candidate.hand_object_interactions),
+    motion_continuity: stringArray(candidate.motion_continuity),
+    reference_action_style: stringValue(candidate.reference_action_style),
     reusable_mechanics: {
       visual_mechanics: stringArray(mechanics.visual_mechanics),
       safe_zones_for_elements: stringValue(mechanics.safe_zones_for_elements),

@@ -54,7 +54,7 @@ export function buildDirectorSceneContract(
         "REFERENCE LOCK:",
         "use the original reference only for transferable direction: main-presenter wardrobe, background color mood, lighting feel, camera framing, camera movement, gesture confidence, and edit rhythm.",
         "Do not copy unrelated B-roll locations, props, tools, hands-only process shots, uniforms from supporting workers, or another product category.",
-        "Replace every product/process insert with the new product reference in a clean static cutaway.",
+        "Replace every product/process insert with the new product reference as a calm physical product insert with visible object placement or hand contact.",
       ].join(" "),
       framingLine: [
         "REFERENCE FRAMING:",
@@ -87,14 +87,14 @@ export function buildDirectorSceneContract(
       actionLine: [
         "REFERENCE ACTION DNA:",
         "keep the reference pattern of presenter explanation plus short visual insert.",
-        "Rewrite all unrelated process shots into calm product cutaways: the new product on a clean surface, visible packaging, stable framing, no extra hands unless needed for scale.",
+        "Rewrite all unrelated process shots into calm product inserts: the new product starts on a clean surface, a visible hand may place or adjust it once, packaging stays recognizable.",
         "Do not show another product, another workflow, or unrelated objects from the original reference.",
       ].join(" "),
       propPassportLine: [
         "REFERENCE SCENE PASSPORT:",
         "stable presenter background plus the new product only;",
         "the original reference product/process is not a prop source;",
-        "when a cutaway appears, show the new product reference clearly on a clean surface.",
+        "when a cutaway appears, show the new product reference as a real prop on a clean surface with one simple physical movement.",
       ].join(" "),
       cleanFrameLine: undefined,
     };

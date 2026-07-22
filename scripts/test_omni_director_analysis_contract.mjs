@@ -92,6 +92,10 @@ try {
       camera: { shot_types: ["medium-wide", "detail insert"], angles: ["eye-level"], movements: ["tiny handheld push-in"], stabilization: "handheld but readable" },
       montage_rhythm: { cut_pace: "4 quick cuts in 10 seconds", beat_sync: "cuts follow spoken beats", transition_style: ["jump cut"] },
       action_beats: [{ timestamp_sec: 0, action_description: "steps into frame", actor_gesture: "raises product to chest level" }],
+      prop_sources: ["product starts on the counter before the presenter touches it"],
+      hand_object_interactions: ["right hand picks up the product and rotates it once"],
+      motion_continuity: ["object movement follows visible hand contact and returns to the counter"],
+      reference_action_style: "talking-head explanation with one physical product insert",
       reusable_mechanics: {
         visual_mechanics: ["start already moving", "cut on each new claim"],
         safe_zones_for_elements: "bottom captions area",
@@ -100,9 +104,14 @@ try {
     },
   });
   assert.ok(brief);
+  assert.equal(brief.prop_sources[0], "product starts on the counter before the presenter touches it");
+  assert.equal(brief.hand_object_interactions[0], "right hand picks up the product and rotates it once");
+  assert.equal(brief.motion_continuity[0], "object movement follows visible hand contact and returns to the counter");
   const rendered = renderDirectorBriefForOmniPrompt(brief);
   assert.ok(rendered.includes("full-body presenter"));
   assert.ok(rendered.includes("4 quick cuts"));
+  assert.ok(rendered.includes("HAND-PROP DNA: right hand picks up the product"));
+  assert.ok(rendered.includes("MOTION CONTINUITY: object movement follows visible hand contact"));
   assert.ok(!rendered.includes("bottom captions area"), "post-production safe zones must not reach provider prompt");
   assert.ok(!/\b(?:Instagram|Reels|TikTok|Shorts)\b/u.test(rendered), "platform imprint terms must not be rendered");
 
@@ -212,7 +221,7 @@ try {
     directorBrief: brief,
     referencePolicy: irrelevantPolicy,
   });
-  assert.ok(styleOnlyPrompt.includes("new product reference in a clean static cutaway"));
+  assert.ok(styleOnlyPrompt.includes("new product reference as a calm physical product insert"));
   assert.ok(styleOnlyPrompt.includes("small kitchen"), "safe presenter background can still transfer in style-only mode");
   assert.ok(!/food assembly|sliced meat|plastic container|digital scale|bottom captions area/u.test(styleOnlyPrompt));
 

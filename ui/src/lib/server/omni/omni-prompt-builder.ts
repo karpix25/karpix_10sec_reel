@@ -8,7 +8,6 @@ import type {
   OmniSegmentCreativePlan,
   ProductRole,
 } from "@/lib/omni/creative-contract";
-import { getOmniLifeFormat } from "./omni-life-formats";
 import { extractDirectorBriefFromSnapshot, type DirectorBrief } from "./director-analysis-types";
 import { renderDirectorBriefForOmniPrompt } from "./director-analysis-prompt";
 import { buildDirectorSceneContract } from "./director-scene-contract";
@@ -17,19 +16,23 @@ import { splitScriptIntoVoiceSegments, type VoiceSegment } from "./omni-script-s
 import {
   extractGeneratedScriptBeatPlanFromSnapshot,
   renderScriptBeatGuidance,
-  sanitizeProviderVisualCue,
   selectScriptBeatsForSegment,
 } from "./script-beat-plan";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
 import { validateOmniSegmentPrompt, validateVoiceoverSequence } from "./omni-prompt-validator";
 import { getOmniSegmentWordBudget } from "./omni-duration-planner";
 import { assertOmniCtaContract } from "./omni-cta-contract";
+import {
+  buildOmniGenerationContinuityDirection,
+  type OmniGenerationContinuityState,
+} from "./omni-generation-continuity";
+import { repairVoiceSegmentBoundaryRepeats } from "./omni-speech-boundary";
 import { buildOmniCharacterContract, type OmniCharacterContract } from "./omni-character-contract";
 import {
-  buildTalkingHeadCreativePlan,
   isTalkingHeadCutawayFormat,
   OMNI_TALKING_HEAD_SYSTEM_PROMPT,
 } from "./omni-talking-head-format";
+import { buildSegmentCreativePlan } from "./omni-segment-creative-plan";
 import {
   isSimpleFullBodyProviderPromptStyle,
   OMNI_PROVIDER_CONTINUOUS_SYSTEM_PROMPT,
@@ -77,15 +80,21 @@ export const OMNI_PROMPT_WRITER_SYSTEM_PROMPT =
   OMNI_PROVIDER_CONTINUOUS_SYSTEM_PROMPT;
 
 export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegmentPrompt[] {
-  const scriptText = sanitizeOmniScriptText(input.generatedScript?.script || input.legacyTranscript || input.brief || "");
+  let scriptText = sanitizeOmniScriptText(input.generatedScript?.script || input.legacyTranscript || input.brief || "");
   assertOmniScriptTextContract(scriptText);
-  const voiceSegments = input.voiceSegments?.length
+  const rawVoiceSegments = input.voiceSegments?.length
     ? [...input.voiceSegments]
     : splitScriptIntoVoiceSegments(
         scriptText,
         input.segmentCount,
         getOmniSegmentWordBudget(input.segmentSeconds)
       );
+  const boundaryRepair = repairVoiceSegmentBoundaryRepeats(rawVoiceSegments);
+  const voiceSegments = boundaryRepair.segments;
+  if (boundaryRepair.repair.changed) {
+    scriptText = sanitizeOmniScriptText(boundaryRepair.scriptText);
+    assertOmniScriptTextContract(scriptText);
+  }
   if (voiceSegments.length !== input.segmentCount) {
     throw new Error(`Script is too short for ${input.segmentCount} exact-speech Omni segments`);
   }
@@ -131,6 +140,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   });
   assertOmniCtaContract(scriptText, strategy);
   const prompts: OmniSegmentPrompt[] = [];
+  let previousContinuityState: OmniGenerationContinuityState | null = null;
 
   for (let index = 0; index < voiceSegments.length; index += 1) {
     const segmentIndex = index + 1;
@@ -158,6 +168,15 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentSeconds,
       scriptBeats: segmentScriptBeats,
     }), layoutContract);
+    const talkingHead = isTalkingHeadCutawayFormat(strategy.lifeFormatId);
+    const continuityDirection = buildOmniGenerationContinuityDirection({
+      plan,
+      productName: input.product.name,
+      segmentIndex,
+      segmentCount: input.segmentCount,
+      previousState: previousContinuityState,
+      talkingHead,
+    });
     const prompt = isSimpleFullBodyProviderPromptStyle()
       ? renderSimpleFullBodyUgcPrompt({
           plan,
@@ -170,6 +189,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
           directorGuidance,
           directorBrief,
           referencePolicy,
+          continuityDirection,
         })
       : renderSegmentPrompt(
           plan,
@@ -180,7 +200,8 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
           directorGuidance,
           directorBrief,
           referencePolicy,
-          segmentProductVisualPassport
+          segmentProductVisualPassport,
+          continuityDirection.promptLines
         );
     const validation = validateOmniSegmentPrompt({
       prompt,
@@ -201,82 +222,13 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       creativePlan: plan,
       validation,
     });
+    previousContinuityState = continuityDirection.nextState;
   }
 
   if (!validateVoiceoverSequence(scriptText, prompts.map((item) => item.creativePlan))) {
     throw new Error("Omni voiceover segmentation changed the source script");
   }
   return prompts;
-}
-
-function buildSegmentCreativePlan(input: {
-  segmentIndex: number;
-  voiceoverText: string;
-  strategy: OmniCreativeStrategy;
-  productRole: ProductRole;
-  segmentCount: number;
-  segmentSeconds: number;
-  scriptBeats: OmniScriptBeatCue[];
-}): OmniSegmentCreativePlan {
-  const format = getOmniLifeFormat(input.strategy.lifeFormatId);
-  const sceneArc = input.strategy.visualStyle?.sceneArc ||
-    format.sceneArcs.find((candidate) => candidate.setting === input.strategy.setting) ||
-    format.sceneArcs[0];
-  if (!sceneArc) throw new Error(`Omni life format ${format.id} has no scene arc`);
-  const stateIndexes = getSceneStateIndexes(input.segmentIndex, input.segmentCount);
-  const [opening, middle, closing] = stateIndexes.map((stateIndex) => sceneArc.states[stateIndex]);
-  if (isTalkingHeadCutawayFormat(input.strategy.lifeFormatId)) {
-    return addScriptBeatCues(buildTalkingHeadCreativePlan({ ...input, opening, closing }), input.scriptBeats);
-  }
-  const hookOpening = input.segmentIndex === 1
-    ? buildHookOpening(input.strategy, opening)
-    : `без сброса сцены продолжает из предыдущего положения: ${lowerFirst(opening)}`;
-  const safeClosing = productClosingAction(closing, input.productRole);
-  const timing = buildContinuousActionTiming(input.segmentSeconds);
-
-  return addScriptBeatCues({
-    segmentIndex: input.segmentIndex,
-    lifeFormatId: input.strategy.lifeFormatId,
-    speechStartsAtSeconds: 0,
-    voiceoverText: input.voiceoverText,
-    productRole: input.productRole,
-    continuityProps: input.strategy.continuityProps,
-    scriptBeats: input.scriptBeats,
-    beats: [
-      { startSeconds: 0, endSeconds: timing.openingEndSeconds, action: hookOpening },
-      { startSeconds: timing.openingEndSeconds, endSeconds: timing.middleEndSeconds, action: middle },
-      { startSeconds: timing.middleEndSeconds, endSeconds: input.segmentSeconds, action: safeClosing },
-    ],
-  }, input.scriptBeats);
-}
-
-function buildContinuousActionTiming(segmentSeconds: number) {
-  const openingEndSeconds = clamp(roundOne(segmentSeconds * 0.3), 1, segmentSeconds - 2);
-  const middleEndSeconds = clamp(roundOne(segmentSeconds * 0.7), openingEndSeconds + 0.8, segmentSeconds - 0.5);
-  return {
-    openingEndSeconds: roundOne(openingEndSeconds),
-    middleEndSeconds: roundOne(middleEndSeconds),
-  };
-}
-
-function buildHookOpening(strategy: OmniCreativeStrategy, baseAction: string) {
-  const action = lowerFirst(baseAction);
-  if (strategy.hookType === "problem_in_action") {
-    return `${action}, причем неудобство из первых слов уже заметно в этом движении`;
-  }
-  if (strategy.hookType === "result_first") {
-    return `${action}, а результат из первых слов уже виден в состоянии героя и не требует отдельной демонстрации`;
-  }
-  if (strategy.hookType === "contrast") {
-    return `${action}, начиная со старого состояния, прямо названного в первых словах`;
-  }
-  if (strategy.hookType === "broken_expectation") {
-    return `${action}, но ожидаемый ход этого действия сразу нарушается по смыслу первых слов`;
-  }
-  if (strategy.hookType === "unexpected_object") {
-    return `${action} с единственным неожиданным предметом, прямо названным в первых словах`;
-  }
-  return `${action}, и это одно движение руками физически подтверждает первые слова`;
 }
 
 function renderSegmentPrompt(
@@ -288,7 +240,8 @@ function renderSegmentPrompt(
   directorGuidance: string | null,
   directorBrief: DirectorBrief | null,
   referencePolicy: ReferenceTransferPolicy,
-  productVisualPassport: string | null
+  productVisualPassport: string | null,
+  continuityLines: readonly string[]
 ) {
   const directorScene = buildDirectorSceneContract(directorBrief, referencePolicy);
   const scriptBeatGuidance = renderScriptBeatGuidance(plan.scriptBeats);
@@ -321,6 +274,7 @@ function renderSegmentPrompt(
     ...(directorGuidance ? [`РЕЖИССУРА ОРИГИНАЛА:\n${directorGuidance}`] : []),
     directorScene?.propPassportLine || `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     ...(productVisualPassport ? [productVisualPassport] : []),
+    ...continuityLines,
     `ТИП ХУКА: ${strategy.hookType}. ${strategy.hookRule}`,
     talkingHead
       ? "СТАРТ РЕЧИ: первое слово точной реплики звучит на 0.0 секунде в кадре говорящей головы; лицо уже видно, герой смотрит в камеру. До него нет паузы, улыбки, вдоха, приветствия или подготовки."
@@ -387,35 +341,9 @@ function segmentMentionsProduct(input: {
 
 function productRoleInstruction(role: ProductRole) {
   if (role === "hidden") return "продукт и упаковка не появляются; интерес создают история и результат.";
-  if (role === "background_prop") return "продукт естественно лежит в сцене без акцента на логотипе и без позирования.";
-  if (role === "brief_demo") return "один короткий показ по смыслу реплики, без рекламного крупного плана.";
-  return "после последнего слова один раз взять продукт или убрать его; не открывать, не есть, не пить и не наносить в этом сегменте.";
-}
-
-function productClosingAction(action: string, role: ProductRole) {
-  if (role === "hidden" || role === "background_prop") return action;
-  if (role === "brief_demo") return "только после последнего слова берет продукт с поверхности и один раз показывает без крупного плана";
-  return "только после последнего слова берет продукт с поверхности и оставляет в руке, не открывая и не употребляя";
-}
-
-function addScriptBeatCues(
-  plan: OmniSegmentCreativePlan,
-  scriptBeats: readonly OmniScriptBeatCue[]
-): OmniSegmentCreativePlan {
-  if (!scriptBeats.length) return plan;
-  const visualCues = scriptBeats.map((beat) => beat.visualCue).filter(Boolean);
-  if (!visualCues.length) return { ...plan, scriptBeats };
-  return {
-    ...plan,
-    scriptBeats,
-    beats: plan.beats.map((beat, index) => {
-      const cue = sanitizeProviderVisualCue(visualCues[Math.min(index, visualCues.length - 1)] || "");
-      return {
-        ...beat,
-        action: cue ? `${beat.action}. Сценарный visual cue: ${cue}` : beat.action,
-      };
-    }) as unknown as OmniSegmentCreativePlan["beats"],
-  };
+  if (role === "background_prop") return "продукт существует как реальный предмет в сцене; когда виден, получает одно спокойное движение рукой или камерой без акцента на логотипе.";
+  if (role === "brief_demo") return "один короткий физический показ по смыслу реплики: взять с поверхности, слегка повернуть, вернуть обратно без рекламного крупного плана.";
+  return "использовать продукт как реальный предмет рутины; двигать только руками, не открывать, не есть, не пить и не наносить во время речи.";
 }
 
 function selectReferenceUrl(
@@ -425,29 +353,6 @@ function selectReferenceUrl(
 ) {
   if (role === "hidden") return avatarReference;
   return productReference?.url || avatarReference;
-}
-
-function getSceneStateIndexes(segmentIndex: number, segmentCount: number): [number, number, number] {
-  if (segmentCount <= 3) {
-    const start = (segmentIndex - 1) * 3;
-    return [start, start + 1, start + 2];
-  }
-  const first = Math.round(((segmentIndex - 1) * 8) / segmentCount);
-  const last = Math.round((segmentIndex * 8) / segmentCount);
-  const middle = Math.round((first + last) / 2);
-  return [first, middle, last];
-}
-
-function lowerFirst(value: string) {
-  return value ? value[0].toLowerCase() + value.slice(1) : value;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
-
-function roundOne(value: number) {
-  return Math.round(value * 10) / 10;
 }
 
 function countWords(value: string) {
