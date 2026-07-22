@@ -10,13 +10,10 @@ import type {
   ProductRole,
 } from "@/lib/omni/creative-contract";
 import { extractDirectorBriefFromSnapshot, type DirectorBrief } from "./director-analysis-types";
-import { renderDirectorBriefForOmniPrompt } from "./director-analysis-prompt";
-import { buildDirectorSceneContract } from "./director-scene-contract";
 import { selectOmniCreativeStrategy } from "./omni-format-selector";
 import { splitScriptIntoVoiceSegments, type VoiceSegment } from "./omni-script-segmentation";
 import {
   extractGeneratedScriptBeatPlanFromSnapshot,
-  renderScriptBeatGuidance,
   selectScriptBeatsForSegment,
 } from "./script-beat-plan";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
@@ -32,25 +29,12 @@ import {
   type OmniGenerationContinuityState,
 } from "./omni-generation-continuity";
 import { repairScriptBeatBoundaryRepeats, repairVoiceSegmentBoundaryRepeats } from "./omni-speech-boundary";
-import { buildOmniCharacterContract, type OmniCharacterContract } from "./omni-character-contract";
-import {
-  isTalkingHeadCutawayFormat,
-  OMNI_TALKING_HEAD_SYSTEM_PROMPT,
-} from "./omni-talking-head-format";
+import { buildOmniCharacterContract } from "./omni-character-contract";
+import { isTalkingHeadCutawayFormat } from "./omni-talking-head-format";
 import { buildSegmentCreativePlan } from "./omni-segment-creative-plan";
-import {
-  isSimpleFullBodyProviderPromptStyle,
-  OMNI_PROVIDER_CONTINUOUS_SYSTEM_PROMPT,
-} from "./omni-provider-prompt-contract";
-import { renderSimpleFullBodyUgcPrompt } from "./omni-simple-ugc-prompt";
-import { buildReferenceTransferPolicy, type ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
+import { renderCompactSegmentPrompt } from "./omni-compact-segment-prompt";
+import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { applyDirectorLayoutToPlan, buildDirectorLayoutContract } from "./director-layout-contract";
-import {
-  applyWardrobeSourceToReferenceLock,
-  renderAvatarWardrobeLine,
-  renderAvatarWardrobeSourceRule,
-  shouldUseAvatarWardrobe,
-} from "./omni-wardrobe-contract";
 import {
   buildProductVisualProfileFromText,
   extractProductVisualProfileFromSnapshot,
@@ -88,9 +72,6 @@ type BuildOmniPromptsInput = {
   ctaValue?: string | null;
   recentFormatIds?: readonly LifeFormatId[];
 };
-
-export const OMNI_PROMPT_WRITER_SYSTEM_PROMPT =
-  OMNI_PROVIDER_CONTINUOUS_SYSTEM_PROMPT;
 
 export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegmentPrompt[] {
   let scriptText = sanitizeOmniScriptText(input.generatedScript?.script || input.legacyTranscript || input.brief || "");
@@ -141,12 +122,6 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     productReferenceNotes: input.product.product_reference_notes,
     hasProductReference: Boolean(productReference),
   });
-  const directorGuidance = referencePolicy.omitRawDirectorGuidance
-    ? null
-    : renderDirectorBriefForOmniPrompt(directorBrief);
-  const safeDirectorGuidance = shouldUseAvatarWardrobe(wardrobeSource)
-    ? removeDirectorWardrobeGuidance(directorGuidance)
-    : directorGuidance;
   const layoutContract = buildDirectorLayoutContract(directorBrief, referencePolicy);
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,
@@ -166,6 +141,8 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   for (let index = 0; index < voiceSegments.length; index += 1) {
     const segmentIndex = index + 1;
     const segmentSeconds = segmentDurationsSeconds[index] || input.segmentSeconds;
+    const segmentStartSeconds = sumDurationsBefore(segmentDurationsSeconds, index);
+    const segmentEndSeconds = segmentStartSeconds + segmentSeconds;
     const segmentRole = getSegmentRole(segmentIndex, input.segmentCount);
     const segmentScriptBeats = selectScriptBeatsForSegment(scriptPlan, segmentIndex, input.segmentCount);
     const baseProductRole = getSegmentProductRole(
@@ -198,36 +175,22 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       previousState: previousContinuityState,
       talkingHead,
     });
-    const prompt = isSimpleFullBodyProviderPromptStyle()
-      ? renderSimpleFullBodyUgcPrompt({
-          plan,
-          strategy,
-          characterContract,
-          productName: input.product.name,
-          productVisualPassport: segmentProductVisualPassport,
-          productPhysicalityContract,
-          segmentIndex,
-          segmentCount: input.segmentCount,
-          directorGuidance: safeDirectorGuidance,
-          directorBrief,
-          referencePolicy,
-          wardrobeSource,
-          continuityDirection,
-        })
-      : renderSegmentPrompt(
-          plan,
-          strategy,
-          characterContract,
-          segmentIndex,
-          input.segmentCount,
-          safeDirectorGuidance,
-          directorBrief,
-          referencePolicy,
-          wardrobeSource,
-          segmentProductVisualPassport,
-          productPhysicalityContract,
-          continuityDirection.promptLines
-        );
+    const prompt = renderCompactSegmentPrompt({
+      plan,
+      strategy,
+      characterContract,
+      productName: input.product.name,
+      productVisualPassport: segmentProductVisualPassport,
+      productPhysicalityContract,
+      segmentIndex,
+      segmentCount: input.segmentCount,
+      directorBrief,
+      referencePolicy,
+      wardrobeSource,
+      continuityDirection,
+      segmentStartSeconds,
+      segmentEndSeconds,
+    });
     const validation = validateOmniSegmentPrompt({
       prompt,
       plan,
@@ -258,92 +221,6 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     throw new Error("Omni voiceover segmentation changed the source script");
   }
   return prompts;
-}
-
-function renderSegmentPrompt(
-  plan: OmniSegmentCreativePlan,
-  strategy: OmniCreativeStrategy,
-  characterContract: OmniCharacterContract,
-  segmentIndex: number,
-  segmentCount: number,
-  directorGuidance: string | null,
-  directorBrief: DirectorBrief | null,
-  referencePolicy: ReferenceTransferPolicy,
-  wardrobeSource: OmniWardrobeSource,
-  productVisualPassport: string | null,
-  productPhysicalityContract: string | null,
-  continuityLines: readonly string[]
-) {
-  const directorScene = buildDirectorSceneContract(directorBrief, referencePolicy);
-  const useAvatarWardrobe = shouldUseAvatarWardrobe(wardrobeSource);
-  const referenceLockLine = directorScene
-    ? applyWardrobeSourceToReferenceLock({ referenceLockLine: directorScene.referenceLockLine, wardrobeSource })
-    : null;
-  const wardrobeLine = useAvatarWardrobe
-    ? renderAvatarWardrobeLine(characterContract)
-    : directorScene?.wardrobeLine || characterContract.clothingLine;
-  const sourceRuleLine = useAvatarWardrobe
-    ? renderAvatarWardrobeSourceRule(characterContract)
-    : characterContract.sourceRuleLine;
-  const scriptBeatGuidance = renderScriptBeatGuidance(plan.scriptBeats, { wardrobeSource });
-  const talkingHead = isTalkingHeadCutawayFormat(strategy.lifeFormatId);
-  const continuity = segmentIndex < segmentCount
-    ? talkingHead
-      ? "Следующая часть может начаться новым монтажным кадром без продолжения позы или движения."
-      : "Закончить в устойчивом положении, с которого следующая часть продолжит эту же ситуацию."
-    : "Завершить точную реплику без дополнительной фразы или нового CTA.";
-  const props = plan.continuityProps
-    .map((item) => `${item.name}: ${item.appearance}; начальная позиция: ${item.initialPosition}`)
-    .join(" | ");
-  return [
-    talkingHead ? OMNI_TALKING_HEAD_SYSTEM_PROMPT : OMNI_PROMPT_WRITER_SYSTEM_PROMPT,
-    `Часть ${segmentIndex} из ${segmentCount}.`,
-    ...(directorScene && referenceLockLine ? [referenceLockLine, directorScene.framingLine] : []),
-    ...(directorScene?.layoutLine ? [directorScene.layoutLine] : []),
-    ...(talkingHead ? [
-      "ФОРМАТ: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Основной кадр - лицо героя в камеру; перебивка - короткий спокойный insert без хореографии руками.",
-    ] : []),
-    directorScene?.sceneLine || `ЖИЗНЕННАЯ СИТУАЦИЯ: ${strategy.providerFormatDescription}. Место: ${strategy.setting}.`,
-    `ГЛАВНЫЙ ПЕРСОНАЖ: ${characterContract.identityLine}.`,
-    `ОДЕЖДА: ${wardrobeLine}.`,
-    `ИСТОЧНИКИ ОБРАЗА: ${sourceRuleLine}.`,
-    ...(strategy.visualStyle && !directorScene ? [
-      `ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА: ${strategy.visualStyle.label}; ${strategy.visualStyle.visualTone}.`,
-      `КАМЕРА И СВЕТ: ${strategy.visualStyle.cameraLanguage}; ${strategy.visualStyle.lighting}.`,
-    ] : []),
-    ...(directorScene ? [directorScene.cameraLightLine, directorScene.editingLine] : []),
-    ...(directorGuidance ? [`РЕЖИССУРА ОРИГИНАЛА:\n${directorGuidance}`] : []),
-    directorScene?.propPassportLine || `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
-    ...(productVisualPassport ? [productVisualPassport] : []),
-    ...(productPhysicalityContract && plan.productRole !== "hidden" ? [productPhysicalityContract] : []),
-    ...continuityLines,
-    `ТИП ХУКА: ${strategy.hookType}. ${strategy.hookRule}`,
-    talkingHead
-      ? "СТАРТ РЕЧИ: первое слово точной реплики звучит на 0.0 секунде в кадре говорящей головы; лицо уже видно, герой смотрит в камеру. До него нет паузы, улыбки, вдоха, приветствия или подготовки."
-      : "СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде одновременно с уже начавшимся действием. До него нет паузы, улыбки, вдоха, приветствия или подготовки.",
-    `ТОЧНАЯ РЕПЛИКА: "${plan.voiceoverText}"`,
-    ...(scriptBeatGuidance ? [scriptBeatGuidance] : []),
-    ...(directorScene ? [directorScene.actionLine] : []),
-    talkingHead ? "ТРИ КАДРА ОДНОЙ ЧАСТИ:" : "ТРИ СОСТОЯНИЯ ОДНОГО МИНИ-ДЕЙСТВИЯ:",
-    ...plan.beats.map((beat) => `${beat.startSeconds.toFixed(1)}-${beat.endSeconds.toFixed(1)} сек: ${beat.action}.`),
-    `РОЛЬ ПРОДУКТА: ${productRoleInstruction(plan.productRole)}`,
-    talkingHead
-      ? "РЕЧЬ: произнести полную точную реплику текущей части ровно один раз, без перефразирования, пропусков, рестарта, продолжения соседней части и субтитров; во время короткой перебивки речь продолжает звучать как voiceover, без попытки синхронизировать губы вне кадра лица."
-      : "РЕЧЬ: произнести полную точную реплику текущей части ровно один раз, без перефразирования, пропусков, рестарта, продолжения соседней части и субтитров; речь продолжается между состояниями действия.",
-    talkingHead
-      ? `МОНТАЖНАЯ НЕПРЕРЫВНОСТЬ: тот же человек, одежда, свет и локация. Перебивки короткие, спокойные, без новых персонажей и без сложных действий руками. Предметы из паспорта не меняют цвет, материал, форму, размер, детали и количество. Нельзя заменять, перекрашивать, дублировать или самовольно убирать предметы. Разрешены монтажные склейки между лицом и insert-кадром; не строить одно непрерывное бытовое действие. ${continuity}`
-      : `НЕПРЕРЫВНОСТЬ: тот же человек, одежда, свет, локация и все предметы из паспорта. Цвет, материал, форма, размер, детали и количество каждого предмета неизменны. Нельзя заменять, перекрашивать, дублировать или самовольно убирать предметы. Их положение меняется только по перечисленным действиям. Первый кадр этой части точно продолжает финальные позиции предыдущей части. Один телефонный кадр без перебивок и рекламных крупных планов. ${continuity}`,
-    `ЗАПРЕЩЕНО: ${[...strategy.forbiddenMotifs, ...strategy.safetyRules].join("; ")}.`,
-  ].join("\n");
-}
-
-function removeDirectorWardrobeGuidance(guidance: string | null) {
-  if (!guidance) return null;
-  return guidance
-    .split("\n")
-    .filter((line) => !/^\s*(?:WARDROBE:|- Одежда:)/iu.test(line))
-    .join("\n")
-    .trim() || null;
 }
 
 function getSegmentProductRole(
@@ -390,13 +267,6 @@ function segmentMentionsProduct(input: {
   );
 }
 
-function productRoleInstruction(role: ProductRole) {
-  if (role === "hidden") return "продукт и упаковка не появляются; интерес создают история и результат.";
-  if (role === "background_prop") return "продукт существует как реальный предмет в сцене; когда виден, получает одно спокойное движение рукой или камерой, с контактной тенью и частичным перекрытием пальцами без акцента на логотипе.";
-  if (role === "brief_demo") return "один короткий физический показ по смыслу реплики: взять с поверхности, слегка повернуть с изменением перспективы и блика, вернуть обратно без рекламного крупного плана.";
-  return "использовать продукт как реальный предмет рутины; двигать только руками, сохранять вес, тени и контакт с поверхностью, не открывать, не есть, не пить и не наносить во время речи.";
-}
-
 function selectReferenceUrl(
   role: ProductRole,
   avatarReference: string | null,
@@ -408,6 +278,10 @@ function selectReferenceUrl(
 
 function countWords(value: string) {
   return value.split(/\s+/).filter(Boolean).length;
+}
+
+function sumDurationsBefore(durations: readonly number[], index: number) {
+  return durations.slice(0, index).reduce((sum, value) => sum + value, 0);
 }
 
 function getPrimaryReference(refs: OmniReferenceAsset[]) {

@@ -47,10 +47,10 @@ try {
   for (const item of prompts) {
     assert.equal(normalizedCount(item.prompt, item.voiceoverText), 1);
     assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/iu.test(item.prompt));
-    assert.ok(
-      item.prompt.includes("полную точную реплику текущей части") ||
-        item.prompt.includes("complete exact quote for this segment")
-    );
+    assert.ok(item.prompt.includes("The avatar says:"), "compact speech line must name the current spoken text");
+    assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
+    assert.ok(!item.prompt.includes(`"${item.voiceoverText}"`), "spoken text must not be wrapped in quotes");
+    assert.ok(item.prompt.includes("Say only the current part once"), "compact speech rule must isolate the current part");
   }
   assert.equal(normalizedCount(prompts[0].prompt, prompts[1].voiceoverText), 0);
   assert.equal(normalizedCount(prompts[1].prompt, prompts[0].voiceoverText), 0);

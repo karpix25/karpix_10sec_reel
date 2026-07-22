@@ -99,23 +99,21 @@ try {
   assert.equal(prompts[0].referenceUrl, "https://example.com/avatar.png");
   assert.equal(prompts[1].referenceUrl, "https://example.com/product.png");
   assert.equal(prompts[2].referenceUrl, "https://example.com/product.png");
-  assert.ok(joinedPrompt.includes("ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА:"), "positive visual style must be rendered");
-  assert.ok(joinedPrompt.includes("КАМЕРА И СВЕТ:"), "camera and light must be rendered");
-  assert.ok(joinedPrompt.includes("сырая бытовая видеозапись напрямую с сенсора камеры"), "raw home-footage provider contract must be rendered");
+  assert.ok(joinedPrompt.includes("RAW VERTICAL VIDEO:"), "compact provider prompt must be rendered");
+  assert.ok(/CAMERA(?:\/LIGHT)?:|Camera:/u.test(joinedPrompt), "camera guidance must be rendered");
   assert.ok(
     prompts.every((item) => countMatches(item.prompt, "NATURAL PHONE FOOTAGE:") === 1),
-    "naturalism contract must be rendered exactly once per structured prompt"
+    "naturalism contract must be rendered exactly once per prompt"
   );
-  assert.ok(joinedPrompt.includes("интерфейс") || joinedPrompt.includes("interface overlays"), "clean-frame provider contract must block UI overlays");
+  assert.ok(/интерфейс|interface|overlay/iu.test(joinedPrompt), "clean-frame provider contract must block UI overlays");
   assert.ok(joinedPrompt.includes("ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ"), "talking-head cutaway format must be rendered");
-  assert.ok(joinedPrompt.includes("ТРИ КАДРА ОДНОЙ ЧАСТИ:"), "talking-head prompt must use shot-based structure");
-  assert.ok(joinedPrompt.includes("во время короткой перебивки речь продолжает звучать как voiceover"), "cutaway voiceover rule must be rendered");
+  assert.ok(joinedPrompt.includes("SCENE ACTION:"), "talking-head prompt must use compact shot action structure");
+  assert.ok(joinedPrompt.includes("Say only the current part once"), "speech isolation rule must be rendered");
   assert.ok(!joinedPrompt.includes("Один телефонный кадр без перебивок"), "old no-cutaway contract must not reach talking-head prompt");
   assert.ok(!joinedPrompt.includes("ТРИ СОСТОЯНИЯ ОДНОГО МИНИ-ДЕЙСТВИЯ"), "old action-state label must not reach talking-head prompt");
-  assert.ok(joinedPrompt.includes("ГЛАВНЫЙ ПЕРСОНАЖ:"), "main character contract must be rendered");
-  assert.ok(joinedPrompt.includes("ОДЕЖДА:"), "clothing contract must be rendered");
+  assert.ok(joinedPrompt.includes("CHARACTER:"), "main character contract must be rendered");
+  assert.ok(/WARDROBE:|Wardrobe:|ОДЕЖДА:/u.test(joinedPrompt), "clothing contract must be rendered");
   assert.ok(joinedPrompt.includes("бежевом свитере"), "specific clothing notes must reach provider prompt");
-  assert.ok(joinedPrompt.includes("image_urls задают продукт, а не одежду героя"), "product images must not define hero clothing");
   assert.ok(!joinedPrompt.includes("НЕ ИСПОЛЬЗОВАТЬ КАК ДЕФОЛТ"), "internal anti-default guard must not reach provider prompt");
   assert.ok(!/\b(?:Reels?|Instagram|TikTok|Shorts)\b/u.test(joinedPrompt), "platform names must not reach provider prompt");
   assert.ok(!/спокойный коридор как универсальная сцена|связка ключей как обязательный реквизит/u.test(joinedPrompt));
@@ -125,7 +123,7 @@ try {
   const fullBodyPrompts = buildOmniSegmentPrompts(baseInput);
   delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
   const fullBodyJoinedPrompt = fullBodyPrompts.map((item) => item.prompt).join("\n");
-  assert.ok(fullBodyJoinedPrompt.includes("Raw vertical video recording"), "simple provider prompt must be rendered");
+  assert.ok(fullBodyJoinedPrompt.includes("RAW VERTICAL VIDEO:"), "simple provider prompt must be rendered");
   assert.ok(
     fullBodyPrompts.every((item) => countMatches(item.prompt, "NATURAL PHONE FOOTAGE:") === 1),
     "naturalism contract must be rendered exactly once per simple provider prompt"
@@ -136,10 +134,9 @@ try {
     "simple provider prompt must not use sterile render-biased wording"
   );
   assert.ok(!/medium-wide full-body shot|head to shoes|head to knees/u.test(fullBodyJoinedPrompt), "generic full-body framing must not be forced");
-  assert.ok(fullBodyJoinedPrompt.includes("no long pauses"), "simple provider prompt must prevent dead air");
-  assert.ok(/do not invent unrelated filler actions/iu.test(fullBodyJoinedPrompt), "simple provider prompt must prevent filler actions");
-  assert.ok(fullBodyJoinedPrompt.includes("No on-screen text"), "simple provider prompt must explicitly prevent generated overlays");
-  assert.ok(fullBodyJoinedPrompt.includes("ТОЧНАЯ РЕПЛИКА"), "exact Russian quote must be preserved");
+  assert.ok(fullBodyJoinedPrompt.includes("Say only the current part once"), "simple provider prompt must isolate speech");
+  assert.ok(fullBodyJoinedPrompt.includes("CLEAN FRAME:"), "simple provider prompt must explicitly prevent generated overlays");
+  assert.ok(fullBodyJoinedPrompt.includes("The avatar says:"), "exact Russian quote must be preserved");
   assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/u.test(fullBodyJoinedPrompt), "script beat guidance must remain visual-only");
   assert.ok(
     fullBodyPrompts.every((item) => countMatchesNormalized(item.prompt, item.voiceoverText) === 1),
@@ -175,7 +172,18 @@ try {
       style: "Minimalist fitted black top.",
       color_palette: ["black"],
       fit_details: "Long-sleeve high-neckline fitted outfit with simple jewelry.",
+      source: "main presenter",
+      adaptation_notes: "adapt the fitted black top to the avatar gender/body while preserving the minimalist formal mood",
     },
+    location_timeline: [
+      {
+        start_sec: 0,
+        end_sec: 10,
+        setting: "Indoor room with a warm solid-colored wall and a hint of curtain in the background.",
+        environment: "intimate professional talking-head room",
+        lighting: "Soft warm directional light on the face.",
+      },
+    ],
     camera: {
       shot_types: ["Medium close-up", "Wide B-roll insert"],
       angles: ["Eye-level"],
@@ -207,15 +215,14 @@ try {
   const directorPrompts = buildOmniSegmentPrompts(directorInput);
   delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
   const directorJoinedPrompt = directorPrompts.map((item) => item.prompt).join("\n");
-  assert.ok(directorJoinedPrompt.includes("REFERENCE SCENE:"), "director scene must override preset scene");
-  assert.ok(directorJoinedPrompt.includes("REFERENCE LOCK:"), "director prompt must lock to reference direction");
-  assert.ok(directorJoinedPrompt.includes("REFERENCE FRAMING: Medium close-up, Wide B-roll insert"), "director framing must reach provider prompt");
+  assert.ok(/REFERENCE PART|LOCATION NOW/u.test(directorJoinedPrompt), "director prompt must lock to reference direction");
+  assert.ok(/CAMERA(?:\/LIGHT)?:|Camera:/u.test(directorJoinedPrompt), "director framing must reach provider prompt");
   assert.ok(directorJoinedPrompt.includes("warm solid-colored wall"), "reference environment must reach provider prompt");
   assert.ok(directorJoinedPrompt.includes("Minimalist fitted black top"), "reference wardrobe must reach provider prompt");
   assert.ok(directorJoinedPrompt.includes("Soft warm directional light"), "reference lighting must reach provider prompt");
-  assert.ok(directorJoinedPrompt.includes("REFERENCE EDITING: Slow to medium talking-head rhythm"), "reference editing rhythm must reach provider prompt");
-  assert.ok(directorJoinedPrompt.includes("replace any original product or brand with the new product"), "only product replacement exception must reach provider prompt");
-  assert.ok(directorJoinedPrompt.includes("REFERENCE SCENE PASSPORT:"), "reference prop passport must replace preset props");
+  assert.ok(!directorJoinedPrompt.includes("REFERENCE EDITING:"), "reference editing rhythm must not reach provider prompt");
+  assert.ok(!directorJoinedPrompt.includes("Slow to medium talking-head rhythm"), "reference montage rhythm must not be copied");
+  assert.ok(directorJoinedPrompt.includes("PROP CONTINUITY:"), "compact prompt must keep prop continuity");
   assert.ok(directorJoinedPrompt.includes("filming equipment is never visible"), "director prompts must ban visible filming gear");
   assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(directorJoinedPrompt), "raw tripod/gimbal support wording must not reach director prompts");
   assert.ok(
@@ -230,10 +237,9 @@ try {
   });
   delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
   const avatarWardrobeJoinedPrompt = avatarWardrobePrompts.map((item) => item.prompt).join("\n");
-  assert.ok(avatarWardrobeJoinedPrompt.includes("AVATAR WARDROBE LOCK:"), "avatar wardrobe mode must lock outfit to avatar");
+  assert.ok(avatarWardrobeJoinedPrompt.includes("use the avatar outfit only"), "avatar wardrobe mode must lock outfit to avatar");
   assert.ok(avatarWardrobeJoinedPrompt.includes("бежевом свитере"), "avatar wardrobe mode must preserve avatar clothing notes");
-  assert.ok(avatarWardrobeJoinedPrompt.includes("WARDROBE EXCEPTION"), "avatar wardrobe mode must override reference wardrobe transfer");
-  assert.ok(avatarWardrobeJoinedPrompt.includes("ignore its wardrobe"), "avatar wardrobe source rule must reach provider prompt");
+  assert.ok(avatarWardrobeJoinedPrompt.includes("ignore clothing from the reference video"), "avatar wardrobe source rule must reach provider prompt");
   assert.ok(!avatarWardrobeJoinedPrompt.includes("WARDROBE: Minimalist fitted black top"), "avatar wardrobe mode must remove raw director wardrobe guidance");
 
   const irrelevantDirectorBrief = {
@@ -285,22 +291,10 @@ try {
   const irrelevantPrompts = buildOmniSegmentPrompts(irrelevantInput);
   delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
   const irrelevantJoinedPrompt = irrelevantPrompts.map((item) => item.prompt).join("\n");
-  assert.ok(
-    irrelevantJoinedPrompt.includes("use the original reference only for transferable direction"),
-    "irrelevant references must be downgraded to style-only transfer"
-  );
-  assert.ok(
-    irrelevantJoinedPrompt.includes("new product reference as a lived-in physical product insert"),
-    "irrelevant reference inserts must be remapped to a dynamic physical product insert"
-  );
-  assert.ok(
-    irrelevantPrompts.some((item) => item.creativePlan.productRole !== "hidden"),
-    "style-only references must still keep at least one visible product segment"
-  );
-  assert.ok(
-    irrelevantPrompts.some((item) => item.referenceUrl === "https://example.com/product.png"),
-    "style-only visible product segment must use the product reference"
-  );
+  assert.ok(irrelevantJoinedPrompt.includes("main presenter setup") || irrelevantJoinedPrompt.includes("omit unrelated reference-world"), "irrelevant references must be downgraded to style-only transfer");
+  assert.ok(irrelevantJoinedPrompt.includes("physical product moments") || irrelevantJoinedPrompt.includes("real object in the scene"), "irrelevant reference inserts must be remapped to a dynamic physical product insert");
+  assert.ok(irrelevantPrompts.some((item) => item.creativePlan.productRole !== "hidden"), "style-only references must still keep at least one visible product segment");
+  assert.ok(irrelevantPrompts.some((item) => item.referenceUrl === "https://example.com/product.png"), "style-only visible product segment must use the product reference");
   assert.ok(
     !/commercial kitchen|food assembly|sliced meat|plastic container|digital scale|food prep actions|ASMR-style close-ups of food/u.test(irrelevantJoinedPrompt),
     "style-only prompt must not leak unrelated reference B-roll objects or processes"
@@ -366,7 +360,7 @@ try {
   delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
   const clinicalConflictJoinedPrompt = clinicalConflictPrompts.map((item) => item.prompt).join("\n");
   assert.ok(
-    clinicalConflictJoinedPrompt.includes("use the original reference only for transferable direction"),
+    /Transfer only the presenter setup and visual feel|omit unrelated reference-world|main presenter setup/iu.test(clinicalConflictJoinedPrompt),
     "clinical reference must be downgraded to style-only for kitchen air-fryer prompt"
   );
   assert.ok(

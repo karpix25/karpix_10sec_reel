@@ -1,4 +1,4 @@
-import type { DirectorBrief } from "./director-analysis-types";
+import type { DirectorBrief, DirectorLocationTimelineItem } from "./director-analysis-types";
 import { buildDirectorLayoutContract } from "./director-layout-contract";
 import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import {
@@ -10,6 +10,7 @@ import {
   sanitizeReferenceActionDna,
   sanitizeReferenceWorldText,
 } from "./omni-scene-world-sanitizer";
+import { selectDirectorLocationForSegment } from "./omni-reference-brief";
 
 export type DirectorSceneContract = {
   referenceLockLine: string;
@@ -24,23 +25,27 @@ export type DirectorSceneContract = {
   cleanFrameLine?: string;
 };
 
+type DirectorSceneContractOptions = {
+  segmentStartSeconds?: number;
+  segmentEndSeconds?: number;
+};
+
+type DirectorLocationRange = DirectorLocationTimelineItem;
+
 export function buildDirectorSceneContract(
   brief: DirectorBrief | null,
-  policy: ReferenceTransferPolicy = { mode: "full_reference", omitRawDirectorGuidance: false }
+  policy: ReferenceTransferPolicy = { mode: "full_reference", omitRawDirectorGuidance: false },
+  options: DirectorSceneContractOptions = {}
 ): DirectorSceneContract | null {
   if (!brief) return null;
 
   const wardrobe = [
     brief.clothing.style,
     brief.clothing.fit_details,
+    brief.clothing.adaptation_notes,
     brief.clothing.color_palette.length ? `colors: ${brief.clothing.color_palette.join(", ")}` : "",
   ].filter(Boolean).join("; ");
   const camera = buildCameraDescription(brief);
-  const editing = [
-    brief.montage_rhythm.cut_pace,
-    brief.montage_rhythm.beat_sync,
-    brief.montage_rhythm.transition_style.length ? `transitions: ${brief.montage_rhythm.transition_style.join(", ")}` : "",
-  ].filter(Boolean).join("; ");
   const actionDna = brief.action_beats
     .map((beat) => `${beat.timestamp_sec}s: ${beat.action_description}; ${beat.actor_gesture}`)
     .filter(Boolean)
@@ -49,21 +54,26 @@ export function buildDirectorSceneContract(
     brief.reusable_mechanics.visual_mechanics.join("; "),
     brief.reusable_mechanics.looping_pattern ? `loop: ${brief.reusable_mechanics.looping_pattern}` : "",
   ].filter(Boolean).join("; ");
-  const safeReferenceScene = buildSafeFullReferenceScene(brief);
+  const segmentLocation = selectDirectorLocationForSegment({
+    brief,
+    segmentStartSeconds: options.segmentStartSeconds || 0,
+    segmentEndSeconds: options.segmentEndSeconds || options.segmentStartSeconds || 0,
+  });
+  const safeReferenceScene = buildSafeFullReferenceScene(brief, segmentLocation);
   const safeReferenceLighting = getTransferableLighting(brief);
   const safeActionDna = sanitizeReferenceActionDna(
     [actionDna, mechanics].filter(Boolean).join("; "),
-    "main presenter explains to camera with the reference pacing, gesture confidence, and simple insert rhythm; omit unrelated reference-world objects."
+    "main presenter explains to camera with natural gesture confidence and simple product-relevant inserts; omit unrelated reference-world objects."
   );
   const layoutContract = buildDirectorLayoutContract(brief, policy);
 
   if (policy.mode === "style_only") {
-    const transferableScene = buildTransferableStyleOnlyScene(brief);
+    const transferableScene = buildTransferableStyleOnlyScene(brief, segmentLocation);
     const transferableWardrobe = buildTransferableStyleOnlyWardrobe(brief, wardrobe);
     return {
       referenceLockLine: [
         "REFERENCE LOCK:",
-        "use the original reference only for transferable direction: main-presenter wardrobe, background color mood, lighting feel, camera framing, camera movement, gesture confidence, and edit rhythm.",
+        "use the original reference only for transferable direction: main-presenter wardrobe style, background color mood, lighting feel, camera framing, camera movement, and gesture confidence.",
         "Do not copy unrelated B-roll locations, props, tools, hands-only process shots, uniforms from supporting workers, or another product category.",
         "Replace every product/process insert with the new product reference as a lived-in physical product insert with visible object placement or hand contact.",
       ].join(" "),
@@ -91,9 +101,9 @@ export function buildDirectorSceneContract(
         "do not copy supporting-character outfit details, brand marks, or clothing from unrelated cutaways.",
       ].filter(Boolean).join(" "),
       editingLine: [
-        "REFERENCE EDITING:",
-        "match the reference pacing and transition feel at a high level.",
-        "Use the same explain-and-show rhythm, but every insert must be relevant to the spoken script and the new product.",
+        "EDITING:",
+        "use simple clean cuts only when they help the product story.",
+        "Do not copy the reference speech tempo or edit rhythm.",
       ].filter(Boolean).join(" "),
       actionLine: [
         "REFERENCE ACTION DNA:",
@@ -114,7 +124,7 @@ export function buildDirectorSceneContract(
   return {
     referenceLockLine: [
       "REFERENCE LOCK:",
-      "match the original reference direction for wardrobe, lighting, camera framing, camera movement, edit rhythm, gestures, and environment.",
+      "match the original reference direction for adapted wardrobe style, lighting, camera framing, camera movement, gestures, and environment.",
       "Only two changes are allowed: remove all subtitles/overlays/interface elements, and replace any original product or brand with the new product.",
     ].join(" "),
     framingLine: [
@@ -136,17 +146,17 @@ export function buildDirectorSceneContract(
     wardrobeLine: [
       "REFERENCE WARDROBE:",
       wardrobe,
-      "match the reference outfit style, fit, color palette, and formality on the new character; face and body identity still come from the character_id/reference image.",
+      "adapt the reference outfit style, fit, color palette, and formality to the avatar gender/body; face and body identity still come from the character_id/reference image.",
     ].filter(Boolean).join(" "),
     editingLine: [
-      "REFERENCE EDITING:",
-      editing,
-      "match this edit rhythm and transition style; do not add extra fast cuts, subtitles, captions, or interface overlays.",
+      "EDITING:",
+      "use simple natural cuts that fit the new product and current spoken line.",
+      "Do not copy the reference speech tempo or edit rhythm; do not add subtitles, captions, or interface overlays.",
     ].filter(Boolean).join(" "),
     actionLine: layoutContract?.actionLine || [
       "REFERENCE ACTION DNA:",
       safeActionDna,
-      "adapt only the spoken script and product identity; keep gestures, posture, pacing, and camera mechanics from the reference.",
+      "adapt the spoken script and product identity; keep gestures, posture, camera mechanics, and location continuity from the reference.",
     ].filter(Boolean).join(" "),
     propPassportLine: layoutContract?.propPassportLine || [
       "REFERENCE SCENE PASSPORT:",
@@ -170,8 +180,10 @@ function buildCameraDescription(brief: DirectorBrief) {
   ].filter(Boolean).join("; ");
 }
 
-function buildTransferableStyleOnlyScene(brief: DirectorBrief) {
-  const setting = brief.atmosphere.setting || "";
+function buildTransferableStyleOnlyScene(brief: DirectorBrief, location: DirectorLocationRange | null) {
+  const setting = location?.setting || brief.atmosphere.setting || "";
+  const environment = location?.environment || brief.atmosphere.mood;
+  const lighting = location?.lighting || brief.atmosphere.lighting;
   const fallback =
     "keep only the main presenter setup and background color mood from the reference; omit unrelated B-roll locations and reference-world decor.";
   const safeSetting = hasForeignReferenceWorld(setting)
@@ -179,26 +191,26 @@ function buildTransferableStyleOnlyScene(brief: DirectorBrief) {
     : `match the main presenter background from the reference: ${sanitizeReferenceWorldText(setting, fallback)}`;
   return [
     safeSetting,
-    `mood: ${sanitizeReferenceWorldText(brief.atmosphere.mood, "direct, informative, natural")}`,
-    `light: ${getTransferableLighting(brief)}`,
+    `environment: ${sanitizeReferenceWorldText(environment, "direct, informative, natural")}`,
+    `light: ${sanitizeReferenceWorldText(lighting, "copy only the main-presenter light quality")}`,
     `grade: ${sanitizeReferenceWorldText(brief.atmosphere.color_grading, "natural phone color with the reference contrast level")}`,
   ].filter(Boolean).join("; ");
 }
 
-function buildSafeFullReferenceScene(brief: DirectorBrief) {
+function buildSafeFullReferenceScene(brief: DirectorBrief, location: DirectorLocationRange | null) {
   const setting = sanitizeReferenceWorldText(
-    brief.atmosphere.setting,
+    location?.setting || brief.atmosphere.setting,
     "main presenter setup from the reference, stripped of unrelated set-specific decor and tools"
   );
-  const mood = sanitizeReferenceWorldText(brief.atmosphere.mood, "direct, informative, natural");
-  const lighting = getTransferableLighting(brief);
+  const environment = sanitizeReferenceWorldText(location?.environment || brief.atmosphere.mood, "direct, informative, natural");
+  const lighting = sanitizeReferenceWorldText(location?.lighting || brief.atmosphere.lighting, "copy the main-presenter light direction, contrast, softness, and color mood");
   const grade = sanitizeReferenceWorldText(
     brief.atmosphere.color_grading,
     "natural phone color with the reference contrast level"
   );
   return [
     setting,
-    `mood: ${mood}`,
+    `environment: ${environment}`,
     `light: ${lighting}`,
     `grade: ${grade}`,
   ].filter(Boolean).join("; ");
@@ -220,6 +232,7 @@ function buildTransferableStyleOnlyWardrobe(brief: DirectorBrief, fullWardrobe: 
     return [
       "match the main presenter's outfit from the reference:",
       fullWardrobe,
+      "adapt gendered garments to the avatar gender/body while keeping formality, color mood, and silhouette.",
       "face and body identity still come from the character_id/reference image.",
     ].filter(Boolean).join(" ");
   }
