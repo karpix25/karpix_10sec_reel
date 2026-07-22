@@ -1,5 +1,13 @@
 export type DirectorAnalysisStatus = "pending" | "processing" | "completed" | "failed";
 
+export type DirectorLocationTimelineItem = {
+  start_sec: number;
+  end_sec: number;
+  setting: string;
+  environment: string;
+  lighting: string;
+};
+
 export type DirectorBrief = {
   visual_hook: {
     action: string;
@@ -15,7 +23,10 @@ export type DirectorBrief = {
     style: string;
     color_palette: string[];
     fit_details: string;
+    source: string;
+    adaptation_notes?: string;
   };
+  location_timeline?: DirectorLocationTimelineItem[];
   camera: {
     shot_types: string[];
     angles: string[];
@@ -103,7 +114,12 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
       style: stringValue(clothing.style),
       color_palette: stringArray(clothing.color_palette),
       fit_details: stringValue(clothing.fit_details),
+      source: stringValue(clothing.source) || "main presenter wardrobe style from reference video",
+      adaptation_notes: stringValue(clothing.adaptation_notes),
     },
+    location_timeline: Array.isArray(candidate.location_timeline)
+      ? candidate.location_timeline.map(normalizeLocationTimelineItem).filter((item): item is DirectorLocationTimelineItem => Boolean(item))
+      : [],
     camera: {
       shot_types: stringArray(camera.shot_types),
       angles: stringArray(camera.angles),
@@ -151,6 +167,23 @@ function normalizeActionBeat(value: unknown) {
     timestamp_sec: Number(value.timestamp_sec || 0) || 0,
     action_description: action,
     actor_gesture: gesture,
+  };
+}
+
+function normalizeLocationTimelineItem(value: unknown) {
+  if (!isRecord(value)) return null;
+  const setting = stringValue(value.setting);
+  const environment = stringValue(value.environment);
+  const lighting = stringValue(value.lighting);
+  if (!setting && !environment && !lighting) return null;
+  const start = Number(value.start_sec || value.start_seconds || value.timestamp_start_sec || 0) || 0;
+  const end = Number(value.end_sec || value.end_seconds || value.timestamp_end_sec || start) || start;
+  return {
+    start_sec: Math.max(0, start),
+    end_sec: Math.max(Math.max(0, start), end),
+    setting,
+    environment,
+    lighting,
   };
 }
 

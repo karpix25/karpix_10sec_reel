@@ -88,7 +88,17 @@ try {
     director_brief: {
       visual_hook: { action: "full-body presenter steps into a bright kitchen", retention_trigger: "movement starts before the first word" },
       atmosphere: { mood: "warm and fast", lighting: "bright domestic daylight", color_grading: "clean natural contrast", setting: "small kitchen" },
-      clothing: { style: "casual fitted home outfit", color_palette: ["white", "sage"], fit_details: "clean silhouette, hands visible" },
+      clothing: {
+        style: "casual fitted home outfit",
+        color_palette: ["white", "sage"],
+        fit_details: "clean silhouette, hands visible",
+        source: "main presenter",
+        adaptation_notes: "adapt casual home outfit to avatar gender/body while preserving white and sage palette",
+      },
+      location_timeline: [
+        { start_sec: 0, end_sec: 8, setting: "small kitchen", environment: "warm home counter", lighting: "bright domestic daylight" },
+        { start_sec: 8, end_sec: 16, setting: "near kitchen table", environment: "same home, closer product surface", lighting: "bright domestic daylight" },
+      ],
       camera: { shot_types: ["medium-wide", "detail insert"], angles: ["eye-level"], movements: ["tiny handheld push-in"], stabilization: "handheld but readable" },
       montage_rhythm: { cut_pace: "4 quick cuts in 10 seconds", beat_sync: "cuts follow spoken beats", transition_style: ["jump cut"] },
       action_beats: [{ timestamp_sec: 0, action_description: "steps into frame", actor_gesture: "raises product to chest level" }],
@@ -109,7 +119,8 @@ try {
   assert.equal(brief.motion_continuity[0], "object movement follows visible hand contact and returns to the counter");
   const rendered = renderDirectorBriefForOmniPrompt(brief);
   assert.ok(rendered.includes("full-body presenter"));
-  assert.ok(rendered.includes("4 quick cuts"));
+  assert.ok(!rendered.includes("4 quick cuts"), "reference montage rhythm must not reach provider prompt");
+  assert.ok(rendered.includes("LOCATION TIMELINE"));
   assert.ok(rendered.includes("HAND-PROP DNA: right hand picks up the product"));
   assert.ok(rendered.includes("MOTION CONTINUITY: object movement follows visible hand contact"));
   assert.ok(!rendered.includes("bottom captions area"), "post-production safe zones must not reach provider prompt");
@@ -128,7 +139,12 @@ try {
         style: "casual professional neutral top",
         color_palette: ["black"],
         fit_details: "long-sleeve fitted high-neckline top",
+        source: "main presenter",
+        adaptation_notes: "adapt neutral professional top to avatar gender/body",
       },
+      location_timeline: [
+        { start_sec: 0, end_sec: 10, setting: "plain indoor wall", environment: "authoritative direct-to-camera room", lighting: "flat even frontal light" },
+      ],
       camera: {
         shot_types: ["medium close-up", "close-up"],
         angles: ["eye-level"],
@@ -174,15 +190,15 @@ try {
     segmentCount: 2,
     directorBrief: closeUpBrief,
   });
-  assert.ok(simplePrompt.includes("REFERENCE LOCK:"), "director prompt must lock to reference direction");
-  assert.ok(simplePrompt.includes("REFERENCE FRAMING: medium close-up, close-up"), "director framing must reach provider prompt");
-  assert.ok(simplePrompt.includes("REFERENCE WARDROBE: casual professional neutral top"), "director wardrobe must reach provider prompt");
-  assert.ok(simplePrompt.includes("REFERENCE EDITING: single continuous take or very minimal cutting"), "director editing must reach provider prompt");
+  assert.ok(simplePrompt.includes("LOCATION"), "director prompt must render location guidance");
+  assert.ok(simplePrompt.includes("CAMERA/LIGHT: medium close-up, close-up"), "director framing must reach provider prompt");
+  assert.ok(simplePrompt.includes("WARDROBE: adapt main presenter"), "director wardrobe must reach provider prompt");
+  assert.ok(!simplePrompt.includes("REFERENCE EDITING:"), "director editing rhythm must not reach provider prompt");
+  assert.ok(!simplePrompt.includes("single continuous take or very minimal cutting"), "reference montage rhythm must not be copied");
   assert.ok(simplePrompt.includes("stable locked-off camera framing"), "tripod stabilization should become stable off-camera framing");
   assert.ok(simplePrompt.includes("filming equipment is never visible"), "director prompt must ban visible filming gear");
   assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(simplePrompt), "raw tripod wording must not reach provider prompt");
-  assert.ok(simplePrompt.includes("replace any original product or brand with the new product"));
-  assert.ok(simplePrompt.includes("replace it with this product while preserving the same placement, timing, framing"));
+  assert.ok(simplePrompt.includes("PRODUCT: Апельсиновый коллаген"));
   assert.ok(!/medium-wide full-body|head to shoes|4-6 quick cuts|fast-paced realistic montage/u.test(simplePrompt));
 
   const irrelevantPolicy = buildReferenceTransferPolicy({
@@ -221,7 +237,7 @@ try {
     directorBrief: brief,
     referencePolicy: irrelevantPolicy,
   });
-  assert.ok(styleOnlyPrompt.includes("new product reference as a lived-in physical product insert"));
+  assert.ok(styleOnlyPrompt.includes("physical product moments"));
   assert.ok(styleOnlyPrompt.includes("small kitchen"), "safe presenter background can still transfer in style-only mode");
   assert.ok(!/food assembly|sliced meat|plastic container|digital scale|bottom captions area/u.test(styleOnlyPrompt));
 

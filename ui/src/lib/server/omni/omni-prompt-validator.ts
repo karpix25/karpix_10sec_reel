@@ -39,10 +39,10 @@ export function validateOmniSegmentPrompt(input: {
     .join(" ");
   const usesReferenceScenePassport = input.prompt.includes(REFERENCE_SCENE_PASSPORT_MARKER);
 
-  if (input.plan.speechStartsAtSeconds !== 0 || !input.prompt.includes("0.0 секунде")) {
+  if (input.plan.speechStartsAtSeconds !== 0 || !/(0\.0\s*секунде|frame 0)/iu.test(input.prompt)) {
     errors.push("speech_must_start_at_zero");
   }
-  if (countExactVoiceoverReplicaLines(input.prompt, input.plan.voiceoverText) !== 1) {
+  if (countVoiceoverInstructionLines(input.prompt, input.plan.voiceoverText) !== 1) {
     errors.push("exact_voiceover_must_appear_once");
   }
   if (countNormalizedOccurrences(input.prompt, input.plan.voiceoverText) !== 1) {
@@ -54,16 +54,20 @@ export function validateOmniSegmentPrompt(input: {
   if (hasForbiddenOmniScriptSymbols(input.plan.voiceoverText)) {
     errors.push("voiceover_contains_long_dash_or_emoji");
   }
-  if (!input.prompt.includes("ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ:") && !usesReferenceScenePassport) {
+  if (
+    !input.prompt.includes("ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ:") &&
+    !input.prompt.includes("PROP CONTINUITY:") &&
+    !usesReferenceScenePassport
+  ) {
     errors.push("continuity_prop_passport_required");
   }
-  if (!input.prompt.includes("ГЛАВНЫЙ ПЕРСОНАЖ:")) {
+  if (!/(ГЛАВНЫЙ ПЕРСОНАЖ:|CHARACTER:)/iu.test(input.prompt)) {
     errors.push("main_character_contract_required");
   }
-  if (!input.prompt.includes("ОДЕЖДА:")) {
+  if (!/(ОДЕЖДА:|WARDROBE:|Wardrobe:)/iu.test(input.prompt)) {
     errors.push("clothing_contract_required");
   }
-  if (!input.prompt.includes("ИСТОЧНИКИ ОБРАЗА:")) {
+  if (!/(ИСТОЧНИКИ ОБРАЗА:|REFERENCE:|REFERENCE PART|PART\s+\d+\/\d+)/iu.test(input.prompt)) {
     errors.push("character_source_contract_required");
   }
   if (input.requiresProductVisualPassport && !input.prompt.includes(PRODUCT_VISUAL_PASSPORT_MARKER)) {
@@ -78,7 +82,7 @@ export function validateOmniSegmentPrompt(input: {
   if (RAW_VISIBLE_FILMING_SUPPORT_PATTERN.test(input.prompt)) {
     errors.push("raw_visible_filming_support_leaked");
   }
-  if (!usesReferenceScenePassport) {
+  if (!usesReferenceScenePassport && !input.prompt.includes("PROP CONTINUITY:")) {
     for (const item of input.plan.continuityProps) {
       if (!input.prompt.includes(item.name) || !input.prompt.includes(item.appearance)) {
         errors.push("continuity_prop_details_missing");
@@ -158,12 +162,17 @@ function getFirstSentenceWordCount(text: string) {
   return (text.split(/[.!?]/, 1)[0] || text).split(/\s+/).filter(Boolean).length;
 }
 
-function countExactVoiceoverReplicaLines(prompt: string, voiceoverText: string) {
+function countVoiceoverInstructionLines(prompt: string, voiceoverText: string) {
   const exactQuote = `"${voiceoverText}"`;
-  return prompt
+  const legacyCount = prompt
     .split("\n")
     .filter((line) => line.trim().startsWith("ТОЧНАЯ РЕПЛИКА"))
     .filter((line) => line.includes(exactQuote)).length;
+  const compactCount = prompt
+    .split("\n")
+    .filter((line) => line.trim().startsWith("The avatar says:"))
+    .filter((line) => normalize(line).includes(normalize(voiceoverText))).length;
+  return legacyCount + compactCount;
 }
 
 function countPromptMarker(prompt: string, marker: string) {
