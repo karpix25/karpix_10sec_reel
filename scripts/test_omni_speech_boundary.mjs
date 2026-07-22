@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
@@ -29,8 +29,12 @@ try {
   const {
     repairScriptBeatBoundaryRepeats,
     repairVoiceSegmentBoundaryRepeats,
-  } = require(join(output, "omni-speech-boundary.js"));
-  const { reconstructVoiceSegments } = require(join(output, "omni-script-segmentation.js"));
+  } = require(findFile(output, "omni-speech-boundary.js"));
+  const {
+    reconstructVoiceSegments,
+    splitScriptIntoVoiceSegments,
+  } = require(findFile(output, "omni-script-segmentation.js"));
+  const { renderScriptBeatGuidance } = require(findFile(output, "script-beat-plan.js"));
 
   const ru = repairVoiceSegmentBoundaryRepeats([
     { index: 1, text: "Коллаген проще принимать каждый день.", wordCount: 5 },
@@ -74,7 +78,52 @@ try {
   assert.equal(planRepair.plan.beats[1].voiceover, "это занимает минуту.");
   assert.equal(planRepair.scriptText, "Коллаген проще принимать каждый день. это занимает минуту.");
 
+  const guidance = renderScriptBeatGuidance([
+    {
+      stage: "body",
+      visualCue: "герой показывает продукт на кухне",
+      voiceover: "Эта фраза должна быть только в точной реплике.",
+    },
+  ]);
+  assert.ok(guidance.includes("СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ"));
+  assert.ok(guidance.includes("визуально - герой показывает продукт на кухне"));
+  assert.ok(!guidance.includes("речь -"), "script beat guidance must not render spoken text");
+  assert.ok(!guidance.includes("Эта фраза должна быть только в точной реплике"));
+
+  const airFryerSegments = splitScriptIntoVoiceSegments(
+    "Вы все еще думаете, что полезная еда это скучно? На самом деле, с аэрогрилем можно готовить сочные блюда без лишнего жира. Например, курица или овощи получаются с хрустящей корочкой, но без капли масла. Это идеальный способ питаться правильно, сохраняя вкус и все полезные свойства продуктов. Вы забудете о скучных диетах. Он станет вашим незаменимым помощником на кухне. Артикул аэрогриля можно найти в описании.",
+    4,
+    19
+  );
+  assert.ok(
+    !airFryerSegments.some((segment) => /(?:можно|можно готовить|готовить сочные)$/iu.test(segment.text)),
+    "voice segmentation must not cut after incomplete predicate phrase"
+  );
+  assert.ok(
+    airFryerSegments.some((segment) => /можно готовить сочные блюда/iu.test(segment.text)),
+    "the complete predicate-object phrase must stay inside one segment"
+  );
+  assert.equal(
+    reconstructVoiceSegments(airFryerSegments),
+    "Вы все еще думаете, что полезная еда это скучно? На самом деле, с аэрогрилем можно готовить сочные блюда без лишнего жира. Например, курица или овощи получаются с хрустящей корочкой, но без капли масла. Это идеальный способ питаться правильно, сохраняя вкус и все полезные свойства продуктов. Вы забудете о скучных диетах. Он станет вашим незаменимым помощником на кухне. Артикул аэрогриля можно найти в описании."
+  );
+
   console.log("Omni speech boundary regression checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
+}
+
+function findFile(dir, fileName) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      try {
+        return findFile(path, fileName);
+      } catch {
+        continue;
+      }
+    }
+    if (entry.name === fileName) return path;
+  }
+  throw new Error(`Could not find ${fileName} in ${dir}`);
 }

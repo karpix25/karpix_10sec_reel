@@ -91,6 +91,16 @@ export function renderProductVisualProfileForPrompt(profile: ProductVisualProfil
   ].filter(Boolean).join("\n");
 }
 
+export function renderProductPhysicalityContract(profile: ProductVisualProfile | null) {
+  if (!profile) return "";
+  return [
+    "PRODUCT PHYSICALITY:",
+    "- Show the product as a real object in the room: it casts contact shadows, touches the table or hand, and never appears from nowhere.",
+    "- When held, fingers may partially occlude the package; when rotated, perspective, label angle, shadows, and highlights move together.",
+    "- Keep material finish tactile and imperfect: small crinkles, surface texture, edge thickness, and reflections match the product passport.",
+  ].join("\n");
+}
+
 export function renderProductVisualProfileSummary(profile: ProductVisualProfile | null) {
   if (!profile) return "";
   return profile.prompt_summary || buildPromptSummary(profile);

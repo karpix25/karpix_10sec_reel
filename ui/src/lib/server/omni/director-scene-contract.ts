@@ -5,6 +5,11 @@ import {
   OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
   sanitizeCameraStabilizationForPrompt,
 } from "./omni-scene-safety-contract";
+import {
+  hasForeignReferenceWorld,
+  sanitizeReferenceActionDna,
+  sanitizeReferenceWorldText,
+} from "./omni-scene-world-sanitizer";
 
 export type DirectorSceneContract = {
   referenceLockLine: string;
@@ -44,6 +49,12 @@ export function buildDirectorSceneContract(
     brief.reusable_mechanics.visual_mechanics.join("; "),
     brief.reusable_mechanics.looping_pattern ? `loop: ${brief.reusable_mechanics.looping_pattern}` : "",
   ].filter(Boolean).join("; ");
+  const safeReferenceScene = buildSafeFullReferenceScene(brief);
+  const safeReferenceLighting = getTransferableLighting(brief);
+  const safeActionDna = sanitizeReferenceActionDna(
+    [actionDna, mechanics].filter(Boolean).join("; "),
+    "main presenter explains to camera with the reference pacing, gesture confidence, and simple insert rhythm; omit unrelated reference-world objects."
+  );
   const layoutContract = buildDirectorLayoutContract(brief, policy);
 
   if (policy.mode === "style_only") {
@@ -54,7 +65,7 @@ export function buildDirectorSceneContract(
         "REFERENCE LOCK:",
         "use the original reference only for transferable direction: main-presenter wardrobe, background color mood, lighting feel, camera framing, camera movement, gesture confidence, and edit rhythm.",
         "Do not copy unrelated B-roll locations, props, tools, hands-only process shots, uniforms from supporting workers, or another product category.",
-        "Replace every product/process insert with the new product reference as a calm physical product insert with visible object placement or hand contact.",
+        "Replace every product/process insert with the new product reference as a lived-in physical product insert with visible object placement or hand contact.",
       ].join(" "),
       framingLine: [
         "REFERENCE FRAMING:",
@@ -71,7 +82,7 @@ export function buildDirectorSceneContract(
         "REFERENCE CAMERA AND LIGHT:",
         camera,
         `match the reference lighting quality on the presenter: ${getTransferableLighting(brief)}`,
-        "product inserts must use clean light that makes the new product image recognizable.",
+        "product inserts must use believable room light that keeps the new product image recognizable.",
         OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
       ].filter(Boolean).join(" "),
       wardrobeLine: [
@@ -87,14 +98,14 @@ export function buildDirectorSceneContract(
       actionLine: [
         "REFERENCE ACTION DNA:",
         "keep the reference pattern of presenter explanation plus short visual insert.",
-        "Rewrite all unrelated process shots into calm product inserts: the new product starts on a clean surface, a visible hand may place or adjust it once, packaging stays recognizable.",
+        "Rewrite all unrelated process shots into lived-in product inserts: the new product starts on a real table, shelf, bag, or hand, a visible hand may place or adjust it once, packaging stays recognizable.",
         "Do not show another product, another workflow, or unrelated objects from the original reference.",
       ].join(" "),
       propPassportLine: [
         "REFERENCE SCENE PASSPORT:",
         "stable presenter background plus the new product only;",
         "the original reference product/process is not a prop source;",
-        "when a cutaway appears, show the new product reference as a real prop on a clean surface with one simple physical movement.",
+        "when a cutaway appears, show the new product reference as a real prop on an ordinary surface or in hand with one simple physical movement.",
       ].join(" "),
       cleanFrameLine: undefined,
     };
@@ -114,15 +125,12 @@ export function buildDirectorSceneContract(
     layoutLine: layoutContract?.layoutLine,
     sceneLine: [
       "REFERENCE SCENE:",
-      brief.atmosphere.setting,
-      `mood: ${brief.atmosphere.mood}`,
-      `light: ${brief.atmosphere.lighting}`,
-      `grade: ${brief.atmosphere.color_grading}`,
+      safeReferenceScene,
     ].filter(Boolean).join(" "),
     cameraLightLine: [
       "REFERENCE CAMERA AND LIGHT:",
       camera,
-      `lighting must follow the reference: ${brief.atmosphere.lighting}`,
+      `lighting must follow the reference: ${safeReferenceLighting}`,
       OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
     ].filter(Boolean).join(" "),
     wardrobeLine: [
@@ -137,8 +145,7 @@ export function buildDirectorSceneContract(
     ].filter(Boolean).join(" "),
     actionLine: layoutContract?.actionLine || [
       "REFERENCE ACTION DNA:",
-      actionDna,
-      mechanics,
+      safeActionDna,
       "adapt only the spoken script and product identity; keep gestures, posture, pacing, and camera mechanics from the reference.",
     ].filter(Boolean).join(" "),
     propPassportLine: layoutContract?.propPassportLine || [
@@ -151,11 +158,8 @@ export function buildDirectorSceneContract(
   };
 }
 
-const FOREIGN_PROCESS_PATTERN =
-  /commercial kitchen|industrial|sterile|stainless-steel|food assembly|food prep|prep table|container|digital scale|sliced meat|gloved hands|staff|workers|цех|производств|контейнер|весы|перчат|работник|сборк|упаков/iu;
-
 const SUPPORTING_WARDROBE_PATTERN =
-  /staff|workers|gloves|nitrile|culinary|medical uniform|uniform|перчат|работник|униформ|медицинск|повар/iu;
+  /staff|workers|gloves|nitrile|culinary|medical uniform|uniform|lab coat|doctor|nurse|scrubs|перчат|работник|униформ|медицинск|врач|медсестр|повар/iu;
 
 function buildCameraDescription(brief: DirectorBrief) {
   return [
@@ -168,23 +172,47 @@ function buildCameraDescription(brief: DirectorBrief) {
 
 function buildTransferableStyleOnlyScene(brief: DirectorBrief) {
   const setting = brief.atmosphere.setting || "";
-  const safeSetting = FOREIGN_PROCESS_PATTERN.test(setting)
+  const fallback =
+    "keep only the main presenter setup and background color mood from the reference; omit unrelated B-roll locations and reference-world decor.";
+  const safeSetting = hasForeignReferenceWorld(setting)
     ? "keep only the main presenter setup and background color mood from the reference; omit unrelated B-roll locations and process rooms."
-    : `match the main presenter background from the reference: ${setting}`;
+    : `match the main presenter background from the reference: ${sanitizeReferenceWorldText(setting, fallback)}`;
   return [
     safeSetting,
-    `mood: ${brief.atmosphere.mood}`,
+    `mood: ${sanitizeReferenceWorldText(brief.atmosphere.mood, "direct, informative, natural")}`,
     `light: ${getTransferableLighting(brief)}`,
-    `grade: ${brief.atmosphere.color_grading}`,
+    `grade: ${sanitizeReferenceWorldText(brief.atmosphere.color_grading, "natural phone color with the reference contrast level")}`,
+  ].filter(Boolean).join("; ");
+}
+
+function buildSafeFullReferenceScene(brief: DirectorBrief) {
+  const setting = sanitizeReferenceWorldText(
+    brief.atmosphere.setting,
+    "main presenter setup from the reference, stripped of unrelated set-specific decor and tools"
+  );
+  const mood = sanitizeReferenceWorldText(brief.atmosphere.mood, "direct, informative, natural");
+  const lighting = getTransferableLighting(brief);
+  const grade = sanitizeReferenceWorldText(
+    brief.atmosphere.color_grading,
+    "natural phone color with the reference contrast level"
+  );
+  return [
+    setting,
+    `mood: ${mood}`,
+    `light: ${lighting}`,
+    `grade: ${grade}`,
   ].filter(Boolean).join("; ");
 }
 
 function getTransferableLighting(brief: DirectorBrief) {
   const lighting = brief.atmosphere.lighting || "";
-  if (FOREIGN_PROCESS_PATTERN.test(lighting)) {
-    return "copy only the main-presenter light direction, contrast, softness, and color mood; omit unrelated process-room or industrial lighting";
+  if (hasForeignReferenceWorld(lighting)) {
+    return "copy only the main-presenter light direction, contrast, softness, and color mood; omit unrelated set-specific lighting";
   }
-  return lighting;
+  return sanitizeReferenceWorldText(
+    lighting,
+    "copy the main-presenter light direction, contrast, softness, and color mood"
+  );
 }
 
 function buildTransferableStyleOnlyWardrobe(brief: DirectorBrief, fullWardrobe: string) {

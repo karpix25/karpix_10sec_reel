@@ -83,14 +83,14 @@ export function renderScriptBeatCue(
   const useAvatarWardrobe = normalizeOmniWardrobeSource(options.wardrobeSource) === "avatar_reference";
   const lines = beats.map((beat, index) => {
     const stage = beat.stage ? `${beat.stage}: ` : "";
-    return `${index + 1}. ${stage}визуально - ${sanitizeProviderVisualCue(beat.visualCue)}; речь - "${beat.voiceover}"`;
+    return `${index + 1}. ${stage}визуально - ${sanitizeProviderVisualCue(beat.visualCue)}`;
   });
   return [
     "СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:",
     ...lines,
     useAvatarWardrobe
-      ? "Следуй этим визуальным подсказкам внутри референсного света, фона и камеры; если внутри подсказки упомянута одежда reference-видео, игнорируй её и сохраняй outfit аватара. Не добавляй субтитры или текст на экран."
-      : "Следуй этим визуальным подсказкам внутри референсного света, одежды, фона и камеры; не добавляй субтитры или текст на экран.",
+      ? "Эти биты описывают только картинку, жесты и монтаж. Речь брать только из строки ТОЧНАЯ РЕПЛИКА. Если внутри подсказки упомянута одежда reference-видео, игнорируй её и сохраняй outfit аватара. Не добавляй субтитры или текст на экран."
+      : "Эти биты описывают только картинку, жесты и монтаж. Речь брать только из строки ТОЧНАЯ РЕПЛИКА. Не добавляй субтитры или текст на экран.",
   ].join("\n");
 }
 

@@ -10,6 +10,7 @@ import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { renderScriptBeatGuidance } from "./script-beat-plan";
 import { OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT } from "./omni-scene-safety-contract";
 import type { OmniGenerationContinuityDirection } from "./omni-generation-continuity";
+import { renderOmniNaturalismContract } from "./omni-naturalism-contract";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 import {
   applyWardrobeSourceToReferenceLock,
@@ -24,6 +25,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
   characterContract: OmniCharacterContract;
   productName: string;
   productVisualPassport?: string | null;
+  productPhysicalityContract?: string | null;
   segmentIndex: number;
   segmentCount: number;
   directorGuidance?: string | null;
@@ -44,7 +46,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
   const wardrobeLine = useAvatarWardrobe
     ? renderAvatarWardrobeLine(input.characterContract)
     : directorScene?.wardrobeLine ||
-      `${input.characterContract.clothingLine}. Use solid matte colors only; no stripes, checks, brand marks, or logos.`;
+      `${input.characterContract.clothingLine}. Use real fabric texture and ordinary wrinkles; no brand marks or logos.`;
   const sourceRuleLine = useAvatarWardrobe
     ? renderAvatarWardrobeSourceRule(input.characterContract)
     : input.characterContract.sourceRuleLine;
@@ -59,12 +61,13 @@ export function renderSimpleFullBodyUgcPrompt(input: {
 
   return [
     `Raw vertical video recording, 9:16 aspect ratio, ${duration.toFixed(0)}s duration.`,
+    renderOmniNaturalismContract(),
     referenceLockLine ||
-      "REFERENCE LOCK: no external director reference is available; use a clean realistic UGC scene with no subtitles or overlays.",
+      "REFERENCE LOCK: no external director reference is available; use an ordinary real-life UGC room with no subtitles or overlays.",
     directorScene?.framingLine ||
-      "FRAMING: raw smartphone camera recording, stable portrait composition, person clearly visible, no forced full-body framing.",
+      "FRAMING: raw smartphone camera recording, steady enough to watch but still human, person clearly visible, no forced full-body framing.",
     ...(directorScene?.layoutLine ? [directorScene.layoutLine] : []),
-    directorScene?.cameraLightLine || "CAMERA: raw smartphone camera recording, slight natural breathing movement, bright domestic light, high quality sensor output.",
+    directorScene?.cameraLightLine || "CAMERA: raw smartphone camera recording, slight natural breathing movement, believable room light with soft falloff and tiny exposure shifts.",
     directorScene?.editingLine ||
       "EDITING RHYTHM: simple clean cuts only when needed; no subtitles, captions, progress bars, or interface overlays.",
     ...(talkingHead
@@ -79,13 +82,14 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     `ИСТОЧНИКИ ОБРАЗА: ${sourceRuleLine}.`,
     `ПРОДУКТ: ${input.productName}. ${productLine(input.plan.productRole)}`,
     ...(input.productVisualPassport ? [input.productVisualPassport] : []),
+    ...(input.productPhysicalityContract && input.plan.productRole !== "hidden" ? [input.productPhysicalityContract] : []),
     directorScene?.propPassportLine || `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
     ...(input.continuityDirection?.promptLines || []),
     `СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде; герой уже стоит в кадре и смотрит в камеру.`,
     `ТОЧНАЯ РЕПЛИКА (${wordCount} слов): "${input.plan.voiceoverText}"`,
     ...(scriptBeatGuidance ? [scriptBeatGuidance] : []),
     `SHOT PLAN:\n${renderShotPlan(input.plan)}`,
-    "SPEECH TIMING: Russian, energetic delivery; the exact quote should occupy almost the whole clip with no long pauses between phrases. Speak only the exact quote once, no subtitles.",
+    "SPEECH TIMING: Russian, energetic delivery; the exact quote should occupy almost the whole clip with no long pauses between phrases. Speak the complete exact quote for this segment once only; do not paraphrase, skip words, restart, continue a neighboring segment, or add subtitles.",
     directorScene?.actionLine ||
       "ACTION: keep it simple and tied to speech; do not invent unrelated filler actions.",
     `CONTINUITY: same person, outfit, room, light, product appearance, and prop layout across the segment. ${continuity}`,
@@ -102,9 +106,9 @@ function renderShotPlan(plan: OmniSegmentCreativePlan) {
 }
 
 function productLine(role: ProductRole) {
-  if (role === "hidden") return "Do not show the product in this segment; keep the story personal.";
+  if (role === "hidden") return "Do not show the product in this segment; keep the story personal. Never introduce it as a pasted image, overlay, or sudden object.";
   if (role === "background_prop") {
-    return "Use it as a real physical prop in the scene, with subtle hand-driven movement when visible. If the original reference has a visible main product, replace it with this product while preserving the same placement, timing, framing, and visual importance.";
+    return "Use it as a real physical prop in the scene, with subtle hand-driven movement, contact shadows, finger occlusion, and visible cause for every movement when visible. If the original reference has a visible main product, replace it with this product while preserving the same placement, timing, framing, and visual importance.";
   }
-  return "Use it as a real physical prop, not as an overlay or still image. If the original reference shows a held or demonstrated product, replace that original product with this product while preserving the same gesture, timing, framing, and naturalness.";
+  return "Use it as a real physical prop, not as an overlay or still image. Keep contact shadows, hand occlusion, gravity, and perspective change visible. If the original reference shows a held or demonstrated product, replace that original product with this product while preserving the same gesture, timing, framing, and naturalness.";
 }

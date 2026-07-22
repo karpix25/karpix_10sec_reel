@@ -41,7 +41,6 @@ try {
   copyFileSync(contractOutput, aliasContract);
 
   const { buildOmniSegmentPrompts } = require(findFile(compiled, "omni-prompt-builder.js"));
-  const { validateOmniSegmentPrompt } = require(findFile(compiled, "omni-prompt-validator.js"));
   const baseInput = {
     generatedScript: {
       id: 1,
@@ -102,7 +101,12 @@ try {
   assert.equal(prompts[2].referenceUrl, "https://example.com/product.png");
   assert.ok(joinedPrompt.includes("ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА:"), "positive visual style must be rendered");
   assert.ok(joinedPrompt.includes("КАМЕРА И СВЕТ:"), "camera and light must be rendered");
-  assert.ok(joinedPrompt.includes("чистое сырое видео напрямую с сенсора камеры"), "clean-frame provider contract must be rendered");
+  assert.ok(joinedPrompt.includes("сырая бытовая видеозапись напрямую с сенсора камеры"), "raw home-footage provider contract must be rendered");
+  assert.ok(
+    prompts.every((item) => countMatches(item.prompt, "NATURAL PHONE FOOTAGE:") === 1),
+    "naturalism contract must be rendered exactly once per structured prompt"
+  );
+  assert.ok(joinedPrompt.includes("интерфейс") || joinedPrompt.includes("interface overlays"), "clean-frame provider contract must block UI overlays");
   assert.ok(joinedPrompt.includes("ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ"), "talking-head cutaway format must be rendered");
   assert.ok(joinedPrompt.includes("ТРИ КАДРА ОДНОЙ ЧАСТИ:"), "talking-head prompt must use shot-based structure");
   assert.ok(joinedPrompt.includes("во время короткой перебивки речь продолжает звучать как voiceover"), "cutaway voiceover rule must be rendered");
@@ -117,48 +121,35 @@ try {
   assert.ok(!/спокойный коридор как универсальная сцена|связка ключей как обязательный реквизит/u.test(joinedPrompt));
   assert.ok(!/полотенц|сумк|ключ|органайзер|шоппер/u.test(joinedPrompt), "talking-head prompts must not use old default props");
 
-  const duplicateVoiceoverValidation = validateOmniSegmentPrompt({
-    prompt: [
-      "ГЛАВНЫЙ ПЕРСОНАЖ: тот же герой.",
-      "ОДЕЖДА: та же одежда.",
-      "ИСТОЧНИКИ ОБРАЗА: avatar reference.",
-      "ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ:",
-      "СТАРТ РЕЧИ: первое слово точной реплики звучит на 0.0 секунде.",
-      'ТОЧНАЯ РЕПЛИКА: "Повтори эту фразу один раз."',
-      'СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ: речь - "Повтори эту фразу один раз."',
-    ].join("\n"),
-    plan: {
-      segmentIndex: 1,
-      lifeFormatId: "talking_head_cutaways",
-      speechStartsAtSeconds: 0,
-      voiceoverText: "Повтори эту фразу один раз.",
-      productRole: "hidden",
-      continuityProps: [],
-      scriptBeats: [],
-      beats: [
-        { startSeconds: 0, endSeconds: 2, action: "говорит в камеру" },
-        { startSeconds: 2, endSeconds: 3, action: "короткая перебивка" },
-        { startSeconds: 3, endSeconds: 4, action: "возврат к лицу" },
-      ],
-    },
-  });
-  assert.ok(
-    !duplicateVoiceoverValidation.errors.includes("exact_voiceover_must_appear_once"),
-    "script beat guidance may repeat the quote without becoming a second exact replica line"
-  );
-
   process.env.OMNI_PROVIDER_PROMPT_STYLE = "simple_full_body";
   const fullBodyPrompts = buildOmniSegmentPrompts(baseInput);
   delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
   const fullBodyJoinedPrompt = fullBodyPrompts.map((item) => item.prompt).join("\n");
   assert.ok(fullBodyJoinedPrompt.includes("Raw vertical video recording"), "simple provider prompt must be rendered");
+  assert.ok(
+    fullBodyPrompts.every((item) => countMatches(item.prompt, "NATURAL PHONE FOOTAGE:") === 1),
+    "naturalism contract must be rendered exactly once per simple provider prompt"
+  );
+  assert.ok(fullBodyJoinedPrompt.includes("real skin texture"), "naturalism contract must steer away from plastic skin");
+  assert.ok(
+    !/clean realistic UGC scene|solid matte colors only|high quality sensor output|bright domestic light/u.test(fullBodyJoinedPrompt),
+    "simple provider prompt must not use sterile render-biased wording"
+  );
   assert.ok(!/medium-wide full-body shot|head to shoes|head to knees/u.test(fullBodyJoinedPrompt), "generic full-body framing must not be forced");
   assert.ok(fullBodyJoinedPrompt.includes("no long pauses"), "simple provider prompt must prevent dead air");
   assert.ok(/do not invent unrelated filler actions/iu.test(fullBodyJoinedPrompt), "simple provider prompt must prevent filler actions");
   assert.ok(fullBodyJoinedPrompt.includes("No on-screen text"), "simple provider prompt must explicitly prevent generated overlays");
   assert.ok(fullBodyJoinedPrompt.includes("ТОЧНАЯ РЕПЛИКА"), "exact Russian quote must be preserved");
+  assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/u.test(fullBodyJoinedPrompt), "script beat guidance must remain visual-only");
+  assert.ok(
+    fullBodyPrompts.every((item) => countMatchesNormalized(item.prompt, item.voiceoverText) === 1),
+    "each simple provider prompt must contain its own voiceover exactly once"
+  );
   assert.ok(fullBodyJoinedPrompt.includes("PRODUCT ACTION:"), "visible product prompts must describe physical product action");
   assert.ok(fullBodyJoinedPrompt.includes("PHYSICAL CAUSALITY:"), "visible product prompts must describe object movement cause");
+  assert.ok(fullBodyJoinedPrompt.includes("PRODUCT PHYSICALITY:"), "visible product prompts must describe real-object physical cues");
+  assert.ok(fullBodyJoinedPrompt.includes("contact shadows"), "visible product prompts must describe contact shadows");
+  assert.ok(fullBodyJoinedPrompt.includes("partially occlude"), "visible product prompts must allow finger occlusion");
   assert.ok(!/\b(?:Reels?|Instagram|TikTok|Shorts)\b/u.test(fullBodyJoinedPrompt), "platform names must not reach simple provider prompt");
   assert.ok(
     fullBodyPrompts.some((item) => item.creativePlan.productRole !== "hidden"),
@@ -299,7 +290,7 @@ try {
     "irrelevant references must be downgraded to style-only transfer"
   );
   assert.ok(
-    irrelevantJoinedPrompt.includes("new product reference as a calm physical product insert"),
+    irrelevantJoinedPrompt.includes("new product reference as a lived-in physical product insert"),
     "irrelevant reference inserts must be remapped to a dynamic physical product insert"
   );
   assert.ok(
@@ -315,6 +306,73 @@ try {
     "style-only prompt must not leak unrelated reference B-roll objects or processes"
   );
   assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(irrelevantJoinedPrompt), "style-only prompts must sanitize tripod/gimbal wording");
+
+  const clinicalKitchenConflictBrief = {
+    visual_hook: {
+      action: "Doctor in a wellness office talks to camera with a stethoscope visible.",
+      retention_trigger: "Clinical authority direct address.",
+    },
+    atmosphere: {
+      mood: "Clinical authority with warm approachable energy.",
+      lighting: "Soft natural daylight from window left.",
+      color_grading: "Clean bright whites with green plant accents.",
+      setting: "Indoor clinical wellness office with vertical blinds, trailing green plants, white walls, and a stethoscope on chest.",
+    },
+    clothing: {
+      style: "medical coat with stethoscope",
+      color_palette: ["white", "green"],
+      fit_details: "clinical presenter outfit",
+    },
+    camera: {
+      shot_types: ["medium close-up"],
+      angles: ["eye-level"],
+      movements: ["static"],
+      stabilization: "handheld but readable",
+    },
+    montage_rhythm: {
+      cut_pace: "steady direct-to-camera rhythm",
+      beat_sync: "speech cadence",
+      transition_style: ["hard cut"],
+    },
+    action_beats: [
+      { timestamp_sec: 0, action_description: "doctor gestures near stethoscope", actor_gesture: "hands near chest" },
+    ],
+    reusable_mechanics: {
+      visual_mechanics: ["clinical authority talking head", "doctor gestures"],
+      safe_zones_for_elements: "",
+      looping_pattern: "return to clinical office presenter.",
+    },
+  };
+  process.env.OMNI_PROVIDER_PROMPT_STYLE = "simple_full_body";
+  const clinicalConflictPrompts = buildOmniSegmentPrompts({
+    ...baseInput,
+    generatedScript: {
+      ...baseInput.generatedScript,
+      script: "Аэрогриль помогает готовить сочные блюда без лишнего масла. Курица и овощи получаются с хрустящей корочкой. Артикул можно найти в описании.",
+      source_snapshot: { director_analysis: clinicalKitchenConflictBrief },
+    },
+    product: {
+      ...baseInput.product,
+      name: "АЭРОГРИЛЛЬ",
+      description: "Кухонный аэрогриль для полезной еды, курицы и овощей",
+      product_reference_notes: "Показывать на кухне рядом с едой",
+    },
+    avatar: {
+      ...baseInput.avatar,
+      prompt: "Спортивный мужчина в фартуке на кухне.",
+    },
+    wardrobeSource: "avatar_reference",
+  });
+  delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
+  const clinicalConflictJoinedPrompt = clinicalConflictPrompts.map((item) => item.prompt).join("\n");
+  assert.ok(
+    clinicalConflictJoinedPrompt.includes("use the original reference only for transferable direction"),
+    "clinical reference must be downgraded to style-only for kitchen air-fryer prompt"
+  );
+  assert.ok(
+    !/clinical|wellness office|stethoscope|vertical blinds|green plants|doctor|medical coat/iu.test(clinicalConflictJoinedPrompt),
+    "kitchen air-fryer prompt must not leak clinical reference world"
+  );
 
   const blueBackgroundDirectorBrief = {
     visual_hook: {
@@ -412,6 +470,18 @@ try {
   console.log("Omni positive visual prompt regression checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
+}
+
+function countMatches(value, needle) {
+  return value.split(needle).length - 1;
+}
+
+function countMatchesNormalized(value, needle) {
+  return normalize(value).split(normalize(needle)).length - 1;
+}
+
+function normalize(value) {
+  return String(value || "").toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
 }
 
 function findFile(dir, fileName) {

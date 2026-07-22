@@ -221,7 +221,7 @@ try {
     directorBrief: brief,
     referencePolicy: irrelevantPolicy,
   });
-  assert.ok(styleOnlyPrompt.includes("new product reference as a calm physical product insert"));
+  assert.ok(styleOnlyPrompt.includes("new product reference as a lived-in physical product insert"));
   assert.ok(styleOnlyPrompt.includes("small kitchen"), "safe presenter background can still transfer in style-only mode");
   assert.ok(!/food assembly|sliced meat|plastic container|digital scale|bottom captions area/u.test(styleOnlyPrompt));
 

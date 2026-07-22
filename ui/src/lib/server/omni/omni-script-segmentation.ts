@@ -16,6 +16,8 @@ const BAD_ENDINGS = new Set([
   "или",
   "к",
   "как",
+  "можете",
+  "можно",
   "на",
   "но",
   "о",
@@ -30,6 +32,8 @@ const BAD_ENDINGS = new Set([
   "у",
   "что",
   "чтобы",
+  "позволяет",
+  "помогает",
 ]);
 
 const PROTECTED_PHRASES = [
@@ -37,6 +41,13 @@ const PROTECTED_PHRASES = [
   /код(?:\s+\S+){0,5}\s+(?:в|под)\s+(?:описании|видео)/giu,
   /(?:напиши|напишите|оставь|оставьте)(?:\s+\S+){0,4}\s+в\s+комментариях/giu,
   /кодовое\s+слово\s+[«"]?\S+[»"]?/giu,
+];
+
+const INCOMPLETE_ENDING_PATTERNS = [
+  /(?:^|\s)(?:можно|можете|позволяет|помогает|начинает|продолжает|хочется|нужно|важно)\s+(?:готовить|сделать|получить|найти|добавить|использовать|сохранить|убрать|заменить)[,.!?;:»"]?$/iu,
+  /(?:^|\s)(?:готовить|получить|сделать|создать|добавить|показать)\s+[\p{L}-]+(?:ые|ие|ую|ое|ый|ий|ая|яя|ой|ий)[,.!?;:»"]?$/iu,
+  /(?:^|\s)(?:это|такой|такая|такое|он|она|они)\s+(?:становится|станет|помогает|позволяет|дает|даёт)[,.!?;:»"]?$/iu,
+  /(?:^|\s)(?:для|тем|тех|если|когда|потому|поэтому|например)[,.!?;:»"]?$/iu,
 ];
 
 const DEFAULT_SEGMENT_SOFT_WORD_LIMIT = 24;
@@ -171,7 +182,10 @@ function solveBoundaries(
       if (maxWordsPerSegment && end - start > maxWordsPerSegment) break;
       const tail = solve(end, remaining - 1);
       if (!tail) continue;
-      const score = segmentPenalty(tokens, start, end, target) + boundaryPenalty(tokens[end - 1].value) + tail.score;
+      const score = segmentPenalty(tokens, start, end, target) +
+        boundaryPenalty(tokens[end - 1].value) +
+        boundaryContextPenalty(tokens, end) +
+        tail.score;
       if (!best || score < best.score) best = { score, boundaries: [end, ...tail.boundaries] };
     }
     memo.set(key, best);
@@ -197,4 +211,9 @@ function boundaryPenalty(value: string) {
   if (/[.!?][»"]?$/.test(value)) return -20;
   if (/[,;:][»"]?$/.test(value)) return -7;
   return 0;
+}
+
+function boundaryContextPenalty(tokens: Token[], end: number) {
+  const context = tokens.slice(Math.max(0, end - 5), end).map((token) => token.value).join(" ");
+  return INCOMPLETE_ENDING_PATTERNS.some((pattern) => pattern.test(context)) ? 180 : 0;
 }
