@@ -16,6 +16,12 @@ export interface OmniProject {
   brand_voice: string | null;
   legacy_client_id: number | null;
   status: OmniProjectStatus;
+  auto_generate_reels: boolean;
+  daily_reel_limit: number;
+  project_reel_limit: number;
+  automation_started_job_count: number;
+  automation_stopped_at: string | null;
+  automation_stop_reason: string | null;
   telegram_chat_id: string | null;
   telegram_topic_id: string | null;
   created_at: string;
