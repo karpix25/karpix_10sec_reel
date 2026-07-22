@@ -151,6 +151,8 @@ try {
     "every active-product segment prompt must include the product visual passport"
   );
   assert.ok(joinedPrompt.includes("REFERENCE SCENE PASSPORT:"), "director scene passport must remain separate");
+  assert.ok(joinedPrompt.includes("PRODUCT ACTION:"), "visible product segments must receive a physical product action");
+  assert.ok(joinedPrompt.includes("PHYSICAL CAUSALITY:"), "visible product segments must receive physical causality guidance");
   assert.ok(joinedPrompt.includes("orange sachet body"), "product-specific preservation rules must reach provider prompt");
   assert.ok(joinedPrompt.includes("do not turn it into a bottle or jar"), "product-specific negative rules must reach provider prompt");
   assert.ok(joinedPrompt.includes("reference image and this product passport as the exact source of truth"));

@@ -21,6 +21,7 @@ const TALKING_HEAD_FORBIDDEN_DEFAULT_PROPS =
   /полотенц|сумк|ключ|органайзер|шоппер|комод|скамь|лавк|чехол/iu;
 const REFERENCE_SCENE_PASSPORT_MARKER = "REFERENCE SCENE PASSPORT:";
 const PRODUCT_VISUAL_PASSPORT_MARKER = "PRODUCT VISUAL PASSPORT:";
+const PRODUCT_ACTION_MARKER = "PRODUCT ACTION:";
 const RAW_VISIBLE_FILMING_SUPPORT_PATTERN =
   /(?:fixed\s+phone\s+or\s+tripod|fixed\s+mount\s+or\s+tripod|locked-off\s+tripod|tripod\s+(?:framing|for|or|and)|gimbal,\s*very\s+steady|штатив(?:н|ом|а|е)?\s+(?:кадр|съем|съём)|стойк[аи]\s+света\s+в\s+кадр)/iu;
 
@@ -61,6 +62,12 @@ export function validateOmniSegmentPrompt(input: {
   }
   if (input.requiresProductVisualPassport && !input.prompt.includes(PRODUCT_VISUAL_PASSPORT_MARKER)) {
     errors.push("product_visual_passport_required");
+  }
+  if (input.plan.productRole !== "hidden" && !input.prompt.includes(PRODUCT_ACTION_MARKER)) {
+    errors.push("visible_product_action_required");
+  }
+  if (countPromptMarker(input.prompt, PRODUCT_ACTION_MARKER) > 1) {
+    errors.push("product_action_must_appear_once");
   }
   if (RAW_VISIBLE_FILMING_SUPPORT_PATTERN.test(input.prompt)) {
     errors.push("raw_visible_filming_support_leaked");
@@ -136,6 +143,10 @@ function countExactVoiceoverReplicaLines(prompt: string, voiceoverText: string) 
     .split("\n")
     .filter((line) => line.trim().startsWith("ТОЧНАЯ РЕПЛИКА"))
     .filter((line) => line.includes(exactQuote)).length;
+}
+
+function countPromptMarker(prompt: string, marker: string) {
+  return prompt.split("\n").filter((line) => line.includes(marker)).length;
 }
 
 function normalize(value: string) {

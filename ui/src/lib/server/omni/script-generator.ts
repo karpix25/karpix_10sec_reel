@@ -20,6 +20,7 @@ import {
   deriveVoiceoverScriptFromPlan,
   normalizeGeneratedScriptBeatPlan,
 } from "./script-beat-plan";
+import { repairScriptBeatBoundaryRepeats } from "./omni-speech-boundary";
 import {
   buildScriptRetryFeedback,
   isRetryableScriptGenerationError,
@@ -132,8 +133,13 @@ async function requestScriptOnce(
   const rawScriptFromModel = String(rawScriptSource || "");
   const rawScript = sanitizeOmniScriptText(formatScenarioScript(rawScriptSource));
   if (!rawScript) throw new Error("Script model returned empty script");
-  const script = ensureOmniScriptCta(rawScript, input.ctaMode, input.ctaValue);
-  const persistedScriptPlan = appendCtaToLastBeat(scriptPlan, rawScript, script);
+  let script = ensureOmniScriptCta(rawScript, input.ctaMode, input.ctaValue);
+  let persistedScriptPlan = appendCtaToLastBeat(scriptPlan, rawScript, script);
+  const boundaryRepair = repairScriptBeatBoundaryRepeats(persistedScriptPlan);
+  if (boundaryRepair.repair.changed && boundaryRepair.plan && boundaryRepair.scriptText) {
+    persistedScriptPlan = boundaryRepair.plan;
+    script = sanitizeOmniScriptText(boundaryRepair.scriptText);
+  }
   assertOmniScriptTextContract(script);
 
   const clean = (value: unknown) => sanitizeOmniScriptText(String(value || ""));

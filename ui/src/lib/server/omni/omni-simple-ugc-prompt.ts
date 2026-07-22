@@ -9,6 +9,7 @@ import { buildDirectorSceneContract } from "./director-scene-contract";
 import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { renderScriptBeatGuidance } from "./script-beat-plan";
 import { OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT } from "./omni-scene-safety-contract";
+import type { OmniGenerationContinuityDirection } from "./omni-generation-continuity";
 
 export function renderSimpleFullBodyUgcPrompt(input: {
   plan: OmniSegmentCreativePlan;
@@ -21,6 +22,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
   directorGuidance?: string | null;
   directorBrief?: DirectorBrief | null;
   referencePolicy?: ReferenceTransferPolicy;
+  continuityDirection?: OmniGenerationContinuityDirection;
 }) {
   const duration = input.plan.beats[2]?.endSeconds || 10;
   const wordCount = input.plan.voiceoverText.split(/\s+/).filter(Boolean).length;
@@ -46,7 +48,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     directorScene?.editingLine ||
       "EDITING RHYTHM: simple clean cuts only when needed; no subtitles, captions, progress bars, or interface overlays.",
     ...(talkingHead
-      ? ["FORMAT: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Main shot is face-to-camera; cutaway is short, static, and tied to the script."]
+      ? ["FORMAT: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Main shot is face-to-camera; cutaway is short, calm, and tied to the script with real object placement or hand contact."]
       : []),
     ...(input.directorGuidance && !referencePolicy.omitRawDirectorGuidance
       ? [`REFERENCE VIDEO DIRECTION:\n${input.directorGuidance}`]
@@ -58,6 +60,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
     `ПРОДУКТ: ${input.productName}. ${productLine(input.plan.productRole)}`,
     ...(input.productVisualPassport ? [input.productVisualPassport] : []),
     directorScene?.propPassportLine || `ПАСПОРТ РЕКВИЗИТА ДЛЯ ВСЕХ ЧАСТЕЙ: ${props}.`,
+    ...(input.continuityDirection?.promptLines || []),
     `СТАРТ РЕЧИ: первое слово точной реплики звучит в первом кадре на 0.0 секунде; герой уже стоит в кадре и смотрит в камеру.`,
     `ТОЧНАЯ РЕПЛИКА (${wordCount} слов): "${input.plan.voiceoverText}"`,
     ...(scriptBeatGuidance ? [scriptBeatGuidance] : []),
@@ -81,7 +84,7 @@ function renderShotPlan(plan: OmniSegmentCreativePlan) {
 function productLine(role: ProductRole) {
   if (role === "hidden") return "Do not show the product in this segment; keep the story personal.";
   if (role === "background_prop") {
-    return "If the original reference has a visible main product, replace it with this product while preserving the same placement, timing, framing, and visual importance; otherwise keep it as a quiet background product without inventing a product demo.";
+    return "Use it as a real physical prop in the scene, with subtle hand-driven movement when visible. If the original reference has a visible main product, replace it with this product while preserving the same placement, timing, framing, and visual importance.";
   }
-  return "If the original reference shows a held or demonstrated product, replace that original product with this product while preserving the same gesture, timing, framing, and naturalness.";
+  return "Use it as a real physical prop, not as an overlay or still image. If the original reference shows a held or demonstrated product, replace that original product with this product while preserving the same gesture, timing, framing, and naturalness.";
 }

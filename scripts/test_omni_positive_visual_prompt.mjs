@@ -157,6 +157,8 @@ try {
   assert.ok(/do not invent unrelated filler actions/iu.test(fullBodyJoinedPrompt), "simple provider prompt must prevent filler actions");
   assert.ok(fullBodyJoinedPrompt.includes("No on-screen text"), "simple provider prompt must explicitly prevent generated overlays");
   assert.ok(fullBodyJoinedPrompt.includes("ТОЧНАЯ РЕПЛИКА"), "exact Russian quote must be preserved");
+  assert.ok(fullBodyJoinedPrompt.includes("PRODUCT ACTION:"), "visible product prompts must describe physical product action");
+  assert.ok(fullBodyJoinedPrompt.includes("PHYSICAL CAUSALITY:"), "visible product prompts must describe object movement cause");
   assert.ok(!/\b(?:Reels?|Instagram|TikTok|Shorts)\b/u.test(fullBodyJoinedPrompt), "platform names must not reach simple provider prompt");
   assert.ok(
     fullBodyPrompts.some((item) => item.creativePlan.productRole !== "hidden"),
@@ -284,8 +286,8 @@ try {
     "irrelevant references must be downgraded to style-only transfer"
   );
   assert.ok(
-    irrelevantJoinedPrompt.includes("new product reference in a clean static cutaway"),
-    "irrelevant reference inserts must be remapped to the new product"
+    irrelevantJoinedPrompt.includes("new product reference as a calm physical product insert"),
+    "irrelevant reference inserts must be remapped to a dynamic physical product insert"
   );
   assert.ok(
     irrelevantPrompts.some((item) => item.creativePlan.productRole !== "hidden"),

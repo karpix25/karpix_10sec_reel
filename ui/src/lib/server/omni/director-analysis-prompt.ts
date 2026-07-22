@@ -1,7 +1,7 @@
 import type { DirectorBrief } from "./director-analysis-types";
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v1";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v2";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
@@ -16,7 +16,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
   return [
     "Analyze the attached video and transcript.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "visual_hook, atmosphere, clothing, camera, montage_rhythm, action_beats, reusable_mechanics.",
+    "visual_hook, atmosphere, clothing, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -35,6 +35,8 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
 
 export function renderDirectorBriefForScriptPrompt(brief: DirectorBrief | null) {
   if (!brief) return "";
+  const handObjectInteractions = brief.hand_object_interactions || [];
+  const motionContinuity = brief.motion_continuity || [];
   return [
     "Режиссерский анализ оригинального видео:",
     `- Визуальный хук: ${brief.visual_hook.action}; удержание: ${brief.visual_hook.retention_trigger}.`,
@@ -42,6 +44,10 @@ export function renderDirectorBriefForScriptPrompt(brief: DirectorBrief | null) 
     `- Одежда: ${brief.clothing.style}; палитра: ${brief.clothing.color_palette.join(", ") || "не указана"}.`,
     `- Камера: ${brief.camera.shot_types.join(", ")}; движения: ${brief.camera.movements.join(", ") || "минимальные"}.`,
     `- Монтаж: ${brief.montage_rhythm.cut_pace}; переходы: ${brief.montage_rhythm.transition_style.join(", ") || "простые склейки"}.`,
+    handObjectInteractions.length
+      ? `- Руки и предметы: ${handObjectInteractions.join("; ")}.`
+      : "",
+    motionContinuity.length ? `- Физика движения: ${motionContinuity.join("; ")}.` : "",
     `- Механика: ${brief.reusable_mechanics.visual_mechanics.join("; ")}.`,
     "Используй это как режиссуру и атмосферу для нового сценария, но не копируй личность автора, бренд, логотипы, интерфейсы и точную сцену.",
   ].join("\n");
@@ -49,6 +55,8 @@ export function renderDirectorBriefForScriptPrompt(brief: DirectorBrief | null) 
 
 export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
   if (!brief) return null;
+  const handObjectInteractions = brief.hand_object_interactions || [];
+  const motionContinuity = brief.motion_continuity || [];
   const firstBeats = brief.action_beats
     .slice(0, 4)
     .map((beat) => `${beat.timestamp_sec}s: ${beat.action_description}; ${beat.actor_gesture}`)
@@ -60,6 +68,13 @@ export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
     `CAMERA: ${brief.camera.shot_types.join(", ")}; angles: ${brief.camera.angles.join(", ")}; movement: ${brief.camera.movements.join(", ")}; ${sanitizeCameraStabilizationForPrompt(brief.camera.stabilization)}.`,
     `EDITING: ${brief.montage_rhythm.cut_pace}; ${brief.montage_rhythm.beat_sync}; transitions: ${brief.montage_rhythm.transition_style.join(", ") || "clean jump cuts"}.`,
     firstBeats ? `ACTION DNA: ${firstBeats}.` : "",
+    handObjectInteractions.length
+      ? `HAND-PROP DNA: ${handObjectInteractions.slice(0, 3).join("; ")}.`
+      : "",
+    motionContinuity.length
+      ? `MOTION CONTINUITY: ${motionContinuity.slice(0, 3).join("; ")}.`
+      : "",
+    brief.reference_action_style ? `ACTION STYLE: ${brief.reference_action_style}.` : "",
     `REUSABLE MECHANICS: ${brief.reusable_mechanics.visual_mechanics.join("; ")}; loop pattern: ${brief.reusable_mechanics.looping_pattern}.`,
     "Adapt this direction to the new person, product, script, and clean raw footage only.",
   ].filter(Boolean).join("\n");
@@ -73,6 +88,10 @@ function buildDirectorBriefSkeleton() {
     camera: { shot_types: [""], angles: [""], movements: [""], stabilization: "" },
     montage_rhythm: { cut_pace: "", beat_sync: "", transition_style: [""] },
     action_beats: [{ timestamp_sec: 0, action_description: "", actor_gesture: "" }],
+    prop_sources: ["where visible objects physically start: already on table, in hand, from bag, from shelf"],
+    hand_object_interactions: ["specific hand contact with objects: pick up, slide, rotate, place down"],
+    motion_continuity: ["how objects preserve position, scale, gravity, shadows, and cause-effect between beats"],
+    reference_action_style: "talking head, product demo, routine action, cutaway insert, unboxing, comparison, or other reusable format",
     reusable_mechanics: {
       visual_mechanics: [""],
       safe_zones_for_elements: "",
