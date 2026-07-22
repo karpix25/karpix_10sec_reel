@@ -9,6 +9,7 @@ export async function resolveGeneratedScriptSource(input: {
   projectId: number;
   productId: number;
   legacyScenarioId?: number | null;
+  excludedLegacyScenarioIds?: readonly number[];
 }): Promise<{
   sourceScenario: OmniLegacyScenario;
   sourceMode: GeneratedScriptSourceMode;
@@ -18,7 +19,9 @@ export async function resolveGeneratedScriptSource(input: {
     throw new Error("No active legacy bundles for this project");
   }
 
-  if (input.legacyScenarioId) {
+  const excludedIds = normalizeExcludedIds(input.excludedLegacyScenarioIds);
+
+  if (input.legacyScenarioId && !excludedIds.includes(input.legacyScenarioId)) {
     const sourceScenario = await getLegacyScenario(input.legacyScenarioId);
     if (!sourceScenario || !sourceScenario.script.trim()) {
       throw new Error("Selected legacy scenario was not found");
@@ -30,11 +33,18 @@ export async function resolveGeneratedScriptSource(input: {
   }
 
   const failedDirectorIds = await listFailedDirectorAnalysisLegacyIds();
-  const sourceScenario = await getRandomLegacyScenarioFromClients(legacyClientIds, failedDirectorIds);
+  const sourceScenario = await getRandomLegacyScenarioFromClients(
+    legacyClientIds,
+    [...failedDirectorIds, ...excludedIds]
+  );
   if (!sourceScenario) {
     throw new Error("No reference transcripts found in active legacy bundles");
   }
   return { sourceScenario, sourceMode: "random_active_legacy_reference" };
+}
+
+function normalizeExcludedIds(ids: readonly number[] = []) {
+  return Array.from(new Set(ids.filter((id) => Number.isFinite(id) && id > 0)));
 }
 
 async function listActiveLegacyClientIds(projectId: number, productId: number) {
