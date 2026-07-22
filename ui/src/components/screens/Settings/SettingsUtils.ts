@@ -6,6 +6,8 @@ import {
   DEFAULT_MINIMAX_VOICE_ID,
 } from "./SettingsConstants";
 import {
+  applyReelsSubtitleDefaultsToLegacy,
+  DEFAULT_SUBTITLE_FONT_SIZE,
   SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT,
   SUBTITLE_PRESET_DEFAULT_MARGIN_V,
 } from "@/lib/subtitles";
@@ -102,7 +104,7 @@ export const normalizeDeepgramVocabularyRules = (value: unknown): DeepgramVocabu
 };
 
 export const normalizeSettings = (settings: Settings): Settings => {
-  const fallbackPreset = settings.subtitle_style_preset || "classic";
+  const fallbackPreset = settings.subtitle_style_preset || "impact";
   const fallbackMarginV = SUBTITLE_PRESET_DEFAULT_MARGIN_V[fallbackPreset];
   const fallbackMarginPercent = SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT[fallbackPreset];
   const marginV = Number(settings.subtitle_margin_v);
@@ -141,7 +143,7 @@ export const normalizeSettings = (settings: Settings): Settings => {
         .filter((item): item is TtsPronunciationOverride => Boolean(item))
     : [];
 
-  return {
+  return applyReelsSubtitleDefaultsToLegacy({
     ...settings,
     product_media_assets: normalizeProductMediaAssets(settings.product_media_assets),
     yandex_disk_folder_path: safeTrim(settings.yandex_disk_folder_path),
@@ -150,7 +152,9 @@ export const normalizeSettings = (settings: Settings): Settings => {
     subtitle_margin_percent:
       Number.isFinite(marginPercent) && marginPercent >= 0 ? marginPercent : fallbackMarginPercent,
     subtitle_font_size:
-      Number.isFinite(subtitleFontSize) ? Math.min(120, Math.max(18, subtitleFontSize)) : 38,
+      Number.isFinite(subtitleFontSize)
+        ? Math.min(120, Math.max(18, subtitleFontSize))
+        : DEFAULT_SUBTITLE_FONT_SIZE,
     tts_silence_trim_min_duration_seconds:
       Number.isFinite(silenceTrimMinSeconds) && silenceTrimMinSeconds >= 0 ? silenceTrimMinSeconds : 0.35,
     tts_silence_trim_threshold_db:
@@ -164,7 +168,7 @@ export const normalizeSettings = (settings: Settings): Settings => {
     tts_pronunciation_overrides: normalizedPronunciationOverrides,
     deepgram_keywords: safeTrim(settings.deepgram_keywords),
     deepgram_vocabulary_rules: normalizeDeepgramVocabularyRules(settings.deepgram_vocabulary_rules),
-  };
+  });
 };
 
 export const normalizeLook = (look: Partial<HeygenAvatarConfig["looks"][number]> | null | undefined, lookIndex: number) => {

@@ -61,6 +61,19 @@ try {
   assert.equal(avatarPromptContract.clothingSource, "avatar_prompt");
   assert.ok(avatarPromptContract.clothingLine.includes("black t-shirt"));
 
+  const apronAvatarContract = buildOmniCharacterContract({
+    product: { avatar_reference_notes: null },
+    avatar: {
+      display_name: "МИША",
+      prompt: "Спортивный мужчина, с голубыми глазами, блондин, спортивное телосложение, в фартуке на кухне",
+      reference_url: "https://example.com/misha.png",
+      kie_character_id: "char_misha",
+    },
+  });
+  assert.equal(apronAvatarContract.clothingSource, "avatar_prompt");
+  assert.ok(apronAvatarContract.clothingLine.includes("фартуке"));
+  assert.ok(!apronAvatarContract.clothingLine.includes("однотонный светлый верх"));
+
   const sourceClothingNoiseContract = buildOmniCharacterContract({
     product: { avatar_reference_notes: null },
     avatar: {

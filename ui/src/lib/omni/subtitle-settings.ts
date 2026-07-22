@@ -1,4 +1,12 @@
 import type { SubtitleMode, SubtitleStylePreset } from "@/types";
+import {
+  applyReelsSubtitleDefaultsToLegacy,
+  DEFAULT_SUBTITLE_FONT_FAMILY,
+  DEFAULT_SUBTITLE_FONT_SIZE,
+  DEFAULT_SUBTITLE_OUTLINE_WIDTH,
+  SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT,
+  SUBTITLE_PRESET_DEFAULT_MARGIN_V,
+} from "@/lib/subtitles";
 
 export type OmniSubtitleStatus = "none" | "not_requested" | "queued" | "transcribing" | "rendering" | "completed" | "failed";
 export type OmniSubtitleTimingProvider = "deepgram";
@@ -24,23 +32,23 @@ export type OmniSubtitleSettings = {
 export const DEFAULT_OMNI_SUBTITLE_SETTINGS: OmniSubtitleSettings = {
   subtitles_enabled: true,
   subtitle_mode: "phrase_block",
-  subtitle_style_preset: "classic",
-  subtitle_font_family: "pt_sans",
+  subtitle_style_preset: "impact",
+  subtitle_font_family: DEFAULT_SUBTITLE_FONT_FAMILY,
   subtitle_font_color: "#FFFFFF",
-  subtitle_font_size: 38,
+  subtitle_font_size: DEFAULT_SUBTITLE_FONT_SIZE,
   subtitle_font_weight: 700,
   subtitle_outline_color: "#111111",
-  subtitle_outline_width: 3,
-  subtitle_margin_v: 140,
-  subtitle_margin_percent: 11,
+  subtitle_outline_width: DEFAULT_SUBTITLE_OUTLINE_WIDTH,
+  subtitle_margin_v: SUBTITLE_PRESET_DEFAULT_MARGIN_V.impact,
+  subtitle_margin_percent: SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT.impact,
   typography_hook_enabled: false,
   timing_provider: "deepgram",
-  position: "bottom",
+  position: "middle_bottom",
 };
 
 export const OMNI_SUBTITLE_STYLE_LABELS: Record<SubtitleStylePreset, string> = {
   classic: "Clean",
-  impact: "Bold",
+  impact: "Reels Caps",
   soft_box: "Soft box",
 };
 
@@ -72,7 +80,7 @@ export function normalizeOmniSubtitleSettings(input?: Partial<OmniSubtitleSettin
     ? source.position
     : DEFAULT_OMNI_SUBTITLE_SETTINGS.position;
 
-  return {
+  return applyReelsSubtitleDefaultsToLegacy({
     ...DEFAULT_OMNI_SUBTITLE_SETTINGS,
     ...source,
     subtitles_enabled: source.subtitles_enabled !== false,
@@ -101,7 +109,7 @@ export function normalizeOmniSubtitleSettings(input?: Partial<OmniSubtitleSettin
     typography_hook_enabled: Boolean(source.typography_hook_enabled),
     timing_provider: "deepgram",
     position,
-  };
+  });
 }
 
 export function marginPercentForSubtitlePosition(position: OmniSubtitlePosition) {

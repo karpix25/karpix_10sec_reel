@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bot, ImagePlus, Link, Sparkles, UploadCloud } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AvatarPreviewPanel } from "@/components/screens/AvatarPreviewPanel";
+import { AvatarWardrobeSourceControl } from "@/components/screens/AvatarWardrobeSourceControl";
 import {
   useApproveOmniAvatar,
   useCreateOmniAvatar,
@@ -13,6 +14,7 @@ import {
   useOmniProjects,
   useRenameOmniAvatar,
   useSetOmniAvatarActive,
+  useUpdateOmniProjectProfile,
   useUploadOmniAvatarReference,
 } from "@/hooks/useOmniStudio";
 import { getDefaultAvatarPrompt } from "@/lib/omni/avatar-prompts";
@@ -22,6 +24,7 @@ import {
   getLatestAvatar,
 } from "@/lib/omni/workspace";
 import type { OmniClientAvatar, OmniProject } from "@/lib/omni/types";
+import type { OmniWardrobeSource } from "@/lib/omni/wardrobe-source";
 import type { Client } from "@/types";
 
 type AvatarScreenProps = {
@@ -42,6 +45,7 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
   const deleteAvatarMutation = useDeleteOmniAvatar();
   const renameAvatarMutation = useRenameOmniAvatar();
   const setAvatarActiveMutation = useSetOmniAvatarActive();
+  const updateProjectMutation = useUpdateOmniProjectProfile();
   const uploadAvatarReferenceMutation = useUploadOmniAvatarReference();
 
   const projects = useMemo(() => projectsQuery.data || [], [projectsQuery.data]);
@@ -152,6 +156,11 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
     });
   };
 
+  const handleWardrobeSourceChange = (wardrobeSource: OmniWardrobeSource) => {
+    if (!activeProjectId || activeProject?.wardrobe_source === wardrobeSource) return;
+    updateProjectMutation.mutate({ projectId: activeProjectId, wardrobeSource });
+  };
+
   if (!activeProject && !selectedClient) {
     return (
       <div className="mx-auto max-w-[94rem] rounded-lg border border-border bg-card p-6">
@@ -232,6 +241,12 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
             rows={7}
             className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm leading-6 outline-none transition focus:border-primary"
             placeholder={defaultPrompt || "Например: уверенная женщина-эксперт 35 лет, натуральный свет, чистый фон, живое выражение лица, выглядит как ведущая коротких экспертных reels..."}
+          />
+
+          <AvatarWardrobeSourceControl
+            project={activeProject}
+            isSaving={updateProjectMutation.isPending}
+            onChange={handleWardrobeSourceChange}
           />
 
           <div className="mt-5 grid gap-3 lg:grid-cols-2">

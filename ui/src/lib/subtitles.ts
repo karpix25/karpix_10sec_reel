@@ -9,8 +9,8 @@ export const SUBTITLE_MODE_OPTIONS: Record<
     description: "Каждое слово появляется отдельным титром по реальному word timestamp.",
   },
   phrase_block: {
-    title: "Фразами",
-    description: "Слова группируются в короткие фразы по паузам и пунктуации.",
+    title: "По 2-3 слова",
+    description: "Слова группируются в короткие крупные фразы для Reels-style подачи.",
   },
 };
 
@@ -23,8 +23,8 @@ export const SUBTITLE_STYLE_PRESET_OPTIONS: Record<
     description: "Чистый нижний титр с обводкой и без лишнего декора.",
   },
   impact: {
-    title: "Impact",
-    description: "Крупнее, плотнее и агрессивнее для коротких attention-cut роликов.",
+    title: "Reels Caps",
+    description: "Крупный Montserrat Bold капсом, ниже центра, с легкой тенью.",
   },
   soft_box: {
     title: "Soft Box",
@@ -34,17 +34,71 @@ export const SUBTITLE_STYLE_PRESET_OPTIONS: Record<
 
 export const SUBTITLE_PRESET_DEFAULT_MARGIN_V: Record<SubtitleStylePreset, number> = {
   classic: 140,
-  impact: 180,
+  impact: 520,
   soft_box: 155,
 };
 
 export const SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT: Record<SubtitleStylePreset, number> = {
   classic: 11,
-  impact: 14,
+  impact: 27,
   soft_box: 12,
 };
 
-export const DEFAULT_SUBTITLE_FONT_FAMILY = "pt_sans";
+export const DEFAULT_SUBTITLE_FONT_FAMILY = "montserrat";
+export const DEFAULT_SUBTITLE_FONT_SIZE = 64;
+export const DEFAULT_SUBTITLE_OUTLINE_WIDTH = 1.5;
+export const DEFAULT_SUBTITLE_SHADOW = 2;
+export const DEFAULT_SUBTITLE_PHRASE_MAX_WORDS = 3;
+export const DEFAULT_SUBTITLE_PHRASE_MAX_SECONDS = 1.35;
+export const LEGACY_SUBTITLE_DEFAULTS = {
+  subtitle_mode: "word_by_word" as SubtitleMode,
+  subtitle_font_family: "pt_sans",
+  subtitle_font_size: 38,
+  subtitle_outline_width: 3,
+  subtitle_margin_v: 140,
+  subtitle_margin_percent: 11,
+};
+
+type SubtitleDefaultMigrationInput = Partial<{
+  subtitle_mode: SubtitleMode | null;
+  subtitle_style_preset: SubtitleStylePreset | null;
+  subtitle_font_family: string | null;
+  subtitle_font_size: number | string | null;
+  subtitle_outline_width: number | string | null;
+  subtitle_margin_v: number | string | null;
+  subtitle_margin_percent: number | string | null;
+}>;
+
+export function applyReelsSubtitleDefaultsToLegacy<T extends SubtitleDefaultMigrationInput>(settings: T): T {
+  const preset = settings.subtitle_style_preset || "classic";
+  const fontFamily = normalizeSubtitleFontFamilyValue(settings.subtitle_font_family).toLowerCase();
+  const mode = settings.subtitle_mode || LEGACY_SUBTITLE_DEFAULTS.subtitle_mode;
+  const fontSize = Number(settings.subtitle_font_size ?? LEGACY_SUBTITLE_DEFAULTS.subtitle_font_size);
+  const outlineWidth = Number(settings.subtitle_outline_width ?? LEGACY_SUBTITLE_DEFAULTS.subtitle_outline_width);
+  const marginV = Number(settings.subtitle_margin_v ?? LEGACY_SUBTITLE_DEFAULTS.subtitle_margin_v);
+  const marginPercent = Number(settings.subtitle_margin_percent ?? LEGACY_SUBTITLE_DEFAULTS.subtitle_margin_percent);
+  const isLegacyDefault =
+    preset === "classic" &&
+    mode === LEGACY_SUBTITLE_DEFAULTS.subtitle_mode &&
+    fontFamily === LEGACY_SUBTITLE_DEFAULTS.subtitle_font_family &&
+    fontSize === LEGACY_SUBTITLE_DEFAULTS.subtitle_font_size &&
+    outlineWidth === LEGACY_SUBTITLE_DEFAULTS.subtitle_outline_width &&
+    marginV === LEGACY_SUBTITLE_DEFAULTS.subtitle_margin_v &&
+    marginPercent === LEGACY_SUBTITLE_DEFAULTS.subtitle_margin_percent;
+
+  if (!isLegacyDefault) return settings;
+
+  return {
+    ...settings,
+    subtitle_mode: "phrase_block",
+    subtitle_style_preset: "impact",
+    subtitle_font_family: DEFAULT_SUBTITLE_FONT_FAMILY,
+    subtitle_font_size: DEFAULT_SUBTITLE_FONT_SIZE,
+    subtitle_outline_width: DEFAULT_SUBTITLE_OUTLINE_WIDTH,
+    subtitle_margin_v: SUBTITLE_PRESET_DEFAULT_MARGIN_V.impact,
+    subtitle_margin_percent: SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT.impact,
+  };
+}
 
 export type SubtitlePresetFontKey =
   | "pt_sans"
