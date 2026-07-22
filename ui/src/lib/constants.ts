@@ -1,4 +1,11 @@
 import { type LucideIcon, LayoutDashboard, FolderOpen, Settings, Sparkles, Bot, Music } from "lucide-react";
+import {
+  DEFAULT_SUBTITLE_FONT_FAMILY,
+  DEFAULT_SUBTITLE_FONT_SIZE,
+  DEFAULT_SUBTITLE_OUTLINE_WIDTH,
+  SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT,
+  SUBTITLE_PRESET_DEFAULT_MARGIN_V,
+} from "@/lib/subtitles";
 import { ClientSettings, Screen } from "@/types";
 
 export const defaultSettings: ClientSettings = {
@@ -30,16 +37,16 @@ export const defaultSettings: ClientSettings = {
   tts_sentence_trim_keep_gap_seconds: 0.1,
   tts_pronunciation_overrides: [],
   subtitles_enabled: false,
-  subtitle_mode: "word_by_word",
-  subtitle_style_preset: "classic",
-  subtitle_font_family: "pt_sans",
+  subtitle_mode: "phrase_block",
+  subtitle_style_preset: "impact",
+  subtitle_font_family: DEFAULT_SUBTITLE_FONT_FAMILY,
   subtitle_font_color: "#FFFFFF",
-  subtitle_font_size: 38,
+  subtitle_font_size: DEFAULT_SUBTITLE_FONT_SIZE,
   subtitle_font_weight: 700,
   subtitle_outline_color: "#111111",
-  subtitle_outline_width: 3,
-  subtitle_margin_v: 140,
-  subtitle_margin_percent: 11,
+  subtitle_outline_width: DEFAULT_SUBTITLE_OUTLINE_WIDTH,
+  subtitle_margin_v: SUBTITLE_PRESET_DEFAULT_MARGIN_V.impact,
+  subtitle_margin_percent: SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT.impact,
   deepgram_keywords: "",
   deepgram_vocabulary_rules: [],
   auto_generate_final_videos: false,

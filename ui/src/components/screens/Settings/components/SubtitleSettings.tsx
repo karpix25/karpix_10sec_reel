@@ -10,6 +10,8 @@ import {
 import {
   buildGoogleFontsStylesheetUrl,
   DEFAULT_SUBTITLE_FONT_FAMILY,
+  DEFAULT_SUBTITLE_FONT_SIZE,
+  DEFAULT_SUBTITLE_OUTLINE_WIDTH,
   buildGoogleFontFamilyList,
   isSubtitlePresetFontKey,
   normalizeSubtitleFontFamilyValue,
@@ -43,15 +45,15 @@ export const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({
   };
 
   const subtitlesEnabled = draftSettings.subtitles_enabled ?? true;
-  const subtitleMode = draftSettings.subtitle_mode || "word_by_word";
-  const subtitleStylePreset = draftSettings.subtitle_style_preset || "classic";
+  const subtitleMode = draftSettings.subtitle_mode || "phrase_block";
+  const subtitleStylePreset = draftSettings.subtitle_style_preset || "impact";
   const subtitleFontFamily = normalizeSubtitleFontFamilyValue(
     draftSettings.subtitle_font_family || DEFAULT_SUBTITLE_FONT_FAMILY
   );
   const subtitleFontColor = (draftSettings.subtitle_font_color || "#FFFFFF").toUpperCase();
   const subtitleOutlineColor = (draftSettings.subtitle_outline_color || "#000000").toUpperCase();
-  const subtitleOutlineWidth = toSafeNumber(draftSettings.subtitle_outline_width, 4);
-  const subtitleFontSizeAss = clamp(toSafeNumber(draftSettings.subtitle_font_size, 38), 18, 120);
+  const subtitleOutlineWidth = toSafeNumber(draftSettings.subtitle_outline_width, DEFAULT_SUBTITLE_OUTLINE_WIDTH);
+  const subtitleFontSizeAss = clamp(toSafeNumber(draftSettings.subtitle_font_size, DEFAULT_SUBTITLE_FONT_SIZE), 18, 120);
   const subtitleFontWeight = draftSettings.subtitle_font_weight || 700;
   const [fontCatalog, setFontCatalog] = React.useState<string[]>(() => buildGoogleFontFamilyList());
   const [isFontCatalogLoading, setIsFontCatalogLoading] = React.useState(false);
@@ -74,10 +76,11 @@ export const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({
   const subtitleMarginVAss = Math.round((subtitleMarginPercent / 100) * ASS_PLAY_RES_Y);
   const subtitleMarginV = Math.round(subtitleMarginVAss * assToPreviewScale);
   const subtitleFontSizePreview = subtitleFontSizeAss * assToPreviewScale;
-  const subtitleOutlineWidthAss =
-    subtitleStylePreset === "impact"
-      ? clamp(Number(subtitleOutlineWidth || 3) + 1, 0, 8)
-      : clamp(Number(subtitleOutlineWidth || 3), 0, 8);
+  const subtitleOutlineWidthAss = clamp(
+    Number(subtitleOutlineWidth || DEFAULT_SUBTITLE_OUTLINE_WIDTH),
+    0,
+    8
+  );
   const subtitleOutlineWidthPreview = Math.max(0, subtitleOutlineWidthAss * assToPreviewScale);
   const subtitleSideMargin = Math.round(63 * assToPreviewScale);
 
@@ -212,7 +215,7 @@ export const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="word_by_word">По одному слову</SelectItem>
-                  <SelectItem value="phrase_block">Фразами</SelectItem>
+                  <SelectItem value="phrase_block">По 2-3 слова</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -231,7 +234,7 @@ export const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="classic">Classic Outline</SelectItem>
+                  <SelectItem value="classic">Reels Caps</SelectItem>
                   <SelectItem value="impact">Impact</SelectItem>
                   <SelectItem value="soft_box">Soft Box</SelectItem>
                 </SelectContent>
@@ -270,7 +273,7 @@ export const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({
               className="rounded-lg bg-[#f0f4f7] px-3 py-2 text-sm text-foreground"
               style={{ fontFamily: subtitleFontDisplayFamily }}
             >
-              Пример: Путешествуй свободно по миру
+              Пример: ДЕЛАЙ ПРОЩЕ
             </div>
           </div>
 
@@ -450,7 +453,7 @@ export const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({
                         color: subtitleFontColor,
                         fontFamily: subtitleFontDisplayFamily,
                         fontWeight: subtitleFontWeight,
-                        textTransform: subtitleStylePreset === "impact" ? "uppercase" : "none",
+                        textTransform: "uppercase",
                         WebkitTextStroke:
                           subtitleStylePreset === "soft_box"
                             ? undefined
@@ -458,18 +461,18 @@ export const SubtitleSettings: React.FC<SubtitleSettingsProps> = ({
                         textShadow:
                           subtitleStylePreset === "soft_box"
                             ? "none"
-                            : `0 0 ${Math.max(0.8, subtitleOutlineWidthPreview).toFixed(2)}px ${subtitleOutlineColor}, 0 4px 12px rgba(0,0,0,0.5)`,
+                            : `0 0 ${Math.max(0.6, subtitleOutlineWidthPreview).toFixed(2)}px ${subtitleOutlineColor}, 0 2px 8px rgba(0,0,0,0.45)`,
                         fontSize: subtitleFontSizePreview,
                       }}
                     >
                       {subtitleMode === "word_by_word" ? (
                         <div className="space-y-1">
-                          <div className="opacity-30">Путешествуй</div>
-                          <div className="scale-110 drop-shadow-lg">свободно</div>
-                          <div className="opacity-30">по миру</div>
+                          <div className="opacity-30">ДЕЛАЙ</div>
+                          <div className="scale-110 drop-shadow-lg">ПРОЩЕ</div>
+                          <div className="opacity-30">СЕГОДНЯ</div>
                         </div>
                       ) : (
-                        <div>Путешествуй свободно по миру</div>
+                        <div>ДЕЛАЙ ПРОЩЕ</div>
                       )}
                     </div>
                   </div>

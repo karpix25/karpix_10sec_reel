@@ -12,6 +12,13 @@ import {
 } from "@/lib/server/yandex-disk";
 import { materializeSubtitleTrack } from "@/lib/server/subtitles";
 import {
+  DEFAULT_SUBTITLE_FONT_FAMILY,
+  DEFAULT_SUBTITLE_FONT_SIZE,
+  DEFAULT_SUBTITLE_OUTLINE_WIDTH,
+  SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT,
+  SUBTITLE_PRESET_DEFAULT_MARGIN_V,
+} from "@/lib/subtitles";
+import {
   appendDeepgramKeywords,
   applyDeepgramVocabularyToResult,
   buildDeepgramKeywordSource,
@@ -160,16 +167,16 @@ function pickFirstAvatarIntroSeconds(totalDuration: number) {
 async function ensureMontageColumns() {
   const statements = [
     "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitles_enabled BOOLEAN DEFAULT FALSE",
-    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_mode TEXT DEFAULT 'word_by_word'",
-    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_style_preset TEXT DEFAULT 'classic'",
-    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_font_family TEXT DEFAULT 'pt_sans'",
+    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_mode TEXT DEFAULT 'phrase_block'",
+    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_style_preset TEXT DEFAULT 'impact'",
+    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_font_family TEXT DEFAULT 'montserrat'",
     "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_font_color TEXT DEFAULT '#FFFFFF'",
-    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_font_size NUMERIC(5,1) DEFAULT 38.0",
+    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_font_size NUMERIC(5,1) DEFAULT 64.0",
     "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_font_weight INTEGER DEFAULT 700",
     "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_outline_color TEXT DEFAULT '#111111'",
-    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_outline_width NUMERIC(4,1) DEFAULT 3.0",
-    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_margin_v INTEGER DEFAULT 140",
-    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_margin_percent INTEGER DEFAULT 11",
+    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_outline_width NUMERIC(4,1) DEFAULT 1.5",
+    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_margin_v INTEGER DEFAULT 520",
+    "ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_margin_percent INTEGER DEFAULT 27",
     "ALTER TABLE clients ADD COLUMN IF NOT EXISTS deepgram_keywords TEXT",
     "ALTER TABLE clients ADD COLUMN IF NOT EXISTS deepgram_vocabulary_rules JSONB DEFAULT '[]'::jsonb",
     "ALTER TABLE clients ADD COLUMN IF NOT EXISTS typography_hook_enabled BOOLEAN DEFAULT FALSE",
@@ -1317,20 +1324,21 @@ async function buildMontage(scenarioId: number) {
   const subtitleTrack = await materializeSubtitleTrack({
     settings: {
       subtitles_enabled: scenario.subtitles_enabled ?? false,
-      subtitle_mode: scenario.subtitle_mode || "word_by_word",
-      subtitle_style_preset: scenario.subtitle_style_preset || "classic",
-      subtitle_font_family: scenario.subtitle_font_family || "pt_sans",
+      subtitle_mode: scenario.subtitle_mode || "phrase_block",
+      subtitle_style_preset: scenario.subtitle_style_preset || "impact",
+      subtitle_font_family: scenario.subtitle_font_family || DEFAULT_SUBTITLE_FONT_FAMILY,
       subtitle_font_color: scenario.subtitle_font_color || "#FFFFFF",
-      subtitle_font_size: Number(scenario.subtitle_font_size || 38),
+      subtitle_font_size: Number(scenario.subtitle_font_size || DEFAULT_SUBTITLE_FONT_SIZE),
       subtitle_font_weight: scenario.subtitle_font_weight || 700,
       subtitle_outline_color: scenario.subtitle_outline_color || "#111111",
-      subtitle_outline_width: Number(scenario.subtitle_outline_width || 3),
-      subtitle_margin_v: Number(scenario.subtitle_margin_v || 140),
+      subtitle_outline_width: Number(scenario.subtitle_outline_width || DEFAULT_SUBTITLE_OUTLINE_WIDTH),
+      subtitle_margin_v: Number(scenario.subtitle_margin_v || SUBTITLE_PRESET_DEFAULT_MARGIN_V.impact),
       subtitle_margin_percent: Number(
         scenario.subtitle_margin_percent ??
           Math.round(
-            (Number(scenario.subtitle_margin_v || 140) / OUTPUT_HEIGHT) * 100
+            (Number(scenario.subtitle_margin_v || SUBTITLE_PRESET_DEFAULT_MARGIN_V.impact) / OUTPUT_HEIGHT) * 100
           )
+          ?? SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT.impact
       ),
       typography_hook_enabled: !!scenario.typography_hook_enabled,
     },

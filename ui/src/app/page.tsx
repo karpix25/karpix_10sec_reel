@@ -16,6 +16,13 @@ import { useOmniProjects } from "@/hooks/useOmniStudio";
 import { useOmniProviderPreference } from "@/hooks/useOmniProviderPreference";
 import { useAppVersionReload } from "@/hooks/useAppVersionReload";
 import { buildWorkspaceUrl, readInitialWorkspaceUrlState } from "@/lib/navigation/workspace-url-state";
+import {
+  DEFAULT_SUBTITLE_FONT_FAMILY,
+  DEFAULT_SUBTITLE_FONT_SIZE,
+  DEFAULT_SUBTITLE_OUTLINE_WIDTH,
+  SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT,
+  SUBTITLE_PRESET_DEFAULT_MARGIN_V,
+} from "@/lib/subtitles";
 
 import { ReferenceModal } from "@/components/ReferenceModal";
 import {
@@ -270,17 +277,20 @@ export default function CuratorDashboard() {
       tts_sentence_trim_keep_gap_seconds: Number(selectedClient?.tts_sentence_trim_keep_gap_seconds ?? 0.1),
       tts_pronunciation_overrides: normalizeTtsPronunciationOverrides(selectedClient?.tts_pronunciation_overrides),
       subtitles_enabled: selectedClient?.subtitles_enabled || false,
-      subtitle_mode: selectedClient?.subtitle_mode || "word_by_word",
-      subtitle_style_preset: selectedClient?.subtitle_style_preset || "classic",
-      subtitle_font_family: selectedClient?.subtitle_font_family || "pt_sans",
+      subtitle_mode: selectedClient?.subtitle_mode || "phrase_block",
+      subtitle_style_preset: selectedClient?.subtitle_style_preset || "impact",
+      subtitle_font_family: selectedClient?.subtitle_font_family || DEFAULT_SUBTITLE_FONT_FAMILY,
       subtitle_font_color: selectedClient?.subtitle_font_color || "#FFFFFF",
-      subtitle_font_size: Number(selectedClient?.subtitle_font_size ?? 38),
+      subtitle_font_size: Number(selectedClient?.subtitle_font_size ?? DEFAULT_SUBTITLE_FONT_SIZE),
       subtitle_font_weight: selectedClient?.subtitle_font_weight || 700,
       subtitle_outline_color: selectedClient?.subtitle_outline_color || "#111111",
-      subtitle_outline_width: selectedClient?.subtitle_outline_width || 3,
-      subtitle_margin_v: selectedClient?.subtitle_margin_v || 140,
+      subtitle_outline_width: selectedClient?.subtitle_outline_width || DEFAULT_SUBTITLE_OUTLINE_WIDTH,
+      subtitle_margin_v: selectedClient?.subtitle_margin_v || SUBTITLE_PRESET_DEFAULT_MARGIN_V.impact,
       subtitle_margin_percent: selectedClient?.subtitle_margin_percent
-        ?? Math.round(((selectedClient?.subtitle_margin_v || 140) / 1920) * 100),
+        ?? Math.round(
+          ((selectedClient?.subtitle_margin_v || SUBTITLE_PRESET_DEFAULT_MARGIN_V.impact) / 1920) * 100
+        )
+        ?? SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT.impact,
       deepgram_keywords: selectedClient?.deepgram_keywords || "",
       deepgram_vocabulary_rules: normalizeDeepgramVocabularyRules(selectedClient?.deepgram_vocabulary_rules),
       auto_generate_final_videos: selectedClient?.auto_generate_final_videos || false,

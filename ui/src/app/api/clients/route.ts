@@ -6,6 +6,13 @@ import {
   normalizeDeepgramVocabularyRulesInput,
 } from '@/lib/server/deepgram-keywords';
 import { listLegacyLibraries } from '@/lib/server/omni/legacy-libraries';
+import {
+  DEFAULT_SUBTITLE_FONT_FAMILY,
+  DEFAULT_SUBTITLE_FONT_SIZE,
+  DEFAULT_SUBTITLE_OUTLINE_WIDTH,
+  SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT,
+  SUBTITLE_PRESET_DEFAULT_MARGIN_V,
+} from '@/lib/subtitles';
 
 type TtsPronunciationOverride = {
   search: string;
@@ -143,16 +150,16 @@ async function ensureClientVoiceColumn() {
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS tts_sentence_trim_keep_gap_seconds NUMERIC(4,2) DEFAULT 0.10");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS tts_pronunciation_overrides JSONB DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitles_enabled BOOLEAN DEFAULT FALSE");
-  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_mode TEXT DEFAULT 'word_by_word'");
-  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_style_preset TEXT DEFAULT 'classic'");
-  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_font_family TEXT DEFAULT 'pt_sans'");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_mode TEXT DEFAULT 'phrase_block'");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_style_preset TEXT DEFAULT 'impact'");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_font_family TEXT DEFAULT 'montserrat'");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_font_color TEXT DEFAULT '#FFFFFF'");
-  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_font_size NUMERIC(5,1) DEFAULT 38.0");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_font_size NUMERIC(5,1) DEFAULT 64.0");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_font_weight INTEGER DEFAULT 700");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_outline_color TEXT DEFAULT '#111111'");
-  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_outline_width NUMERIC(4,1) DEFAULT 3.0");
-  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_margin_v INTEGER DEFAULT 140");
-  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_margin_percent INTEGER DEFAULT 11");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_outline_width NUMERIC(4,1) DEFAULT 1.5");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_margin_v INTEGER DEFAULT 520");
+  await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS subtitle_margin_percent INTEGER DEFAULT 27");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS deepgram_keywords TEXT");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS deepgram_vocabulary_rules JSONB DEFAULT '[]'::jsonb");
   await pool.query("ALTER TABLE clients ADD COLUMN IF NOT EXISTS auto_generate_final_videos BOOLEAN DEFAULT FALSE");
@@ -513,16 +520,16 @@ export async function POST(request: Request) {
         resolvedTtsSentenceTrimMinGapSeconds,
         resolvedTtsSentenceTrimKeepGapSeconds,
         subtitles_enabled || false,
-        subtitle_mode || 'word_by_word',
-        subtitle_style_preset || 'classic',
-        subtitle_font_family || 'pt_sans',
+        subtitle_mode || 'phrase_block',
+        subtitle_style_preset || 'impact',
+        subtitle_font_family || DEFAULT_SUBTITLE_FONT_FAMILY,
         subtitle_font_color || '#FFFFFF',
-        Math.min(120, Math.max(18, Number(subtitle_font_size || 38))),
+        Math.min(120, Math.max(18, Number(subtitle_font_size || DEFAULT_SUBTITLE_FONT_SIZE))),
         Number(subtitle_font_weight) === 400 ? 400 : 700,
         subtitle_outline_color || '#111111',
-        Math.max(0, Number(subtitle_outline_width || 3)),
-        Math.min(320, Math.max(40, Math.round(Number(subtitle_margin_v || 140)))),
-        Math.min(100, Math.max(0, Math.round(Number(subtitle_margin_percent ?? 11)))),
+        Math.max(0, Number(subtitle_outline_width || DEFAULT_SUBTITLE_OUTLINE_WIDTH)),
+        Math.min(900, Math.max(0, Math.round(Number(subtitle_margin_v || SUBTITLE_PRESET_DEFAULT_MARGIN_V.impact)))),
+        Math.min(100, Math.max(0, Math.round(Number(subtitle_margin_percent ?? SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT.impact)))),
         auto_generate_final_videos || false,
         resolvedDailyLimit,
         resolvedMonthlyLimit,
@@ -697,16 +704,16 @@ export async function PUT(request: Request) {
         resolvedTtsSentenceTrimMinGapSeconds,
         resolvedTtsSentenceTrimKeepGapSeconds,
         subtitles_enabled || false,
-        subtitle_mode || 'word_by_word',
-        subtitle_style_preset || 'classic',
-        subtitle_font_family || 'pt_sans',
+        subtitle_mode || 'phrase_block',
+        subtitle_style_preset || 'impact',
+        subtitle_font_family || DEFAULT_SUBTITLE_FONT_FAMILY,
         subtitle_font_color || '#FFFFFF',
-        Math.min(120, Math.max(18, Number(subtitle_font_size || 38))),
+        Math.min(120, Math.max(18, Number(subtitle_font_size || DEFAULT_SUBTITLE_FONT_SIZE))),
         Number(subtitle_font_weight) === 400 ? 400 : 700,
         subtitle_outline_color || '#111111',
-        Math.max(0, Number(subtitle_outline_width || 3)),
-        Math.min(320, Math.max(40, Math.round(Number(subtitle_margin_v || 140)))),
-        Math.min(100, Math.max(0, Math.round(Number(subtitle_margin_percent ?? 11)))),
+        Math.max(0, Number(subtitle_outline_width || DEFAULT_SUBTITLE_OUTLINE_WIDTH)),
+        Math.min(900, Math.max(0, Math.round(Number(subtitle_margin_v || SUBTITLE_PRESET_DEFAULT_MARGIN_V.impact)))),
+        Math.min(100, Math.max(0, Math.round(Number(subtitle_margin_percent ?? SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT.impact)))),
         auto_generate_final_videos || false,
         resolvedDailyLimit,
         resolvedMonthlyLimit,

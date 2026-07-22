@@ -3,8 +3,14 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { Settings, WordTimestamp } from "@/types";
 import {
+  applyReelsSubtitleDefaultsToLegacy,
   buildGoogleFontsStylesheetUrl,
   DEFAULT_SUBTITLE_FONT_FAMILY,
+  DEFAULT_SUBTITLE_FONT_SIZE,
+  DEFAULT_SUBTITLE_OUTLINE_WIDTH,
+  DEFAULT_SUBTITLE_PHRASE_MAX_SECONDS,
+  DEFAULT_SUBTITLE_PHRASE_MAX_WORDS,
+  DEFAULT_SUBTITLE_SHADOW,
   isSubtitlePresetFontKey,
   normalizeSubtitleFontFamilyValue,
   resolveSubtitleFontFamilyName,
@@ -17,7 +23,7 @@ import {
 const SUBTITLE_PLAY_RES_X = 1080;
 const SUBTITLE_PLAY_RES_Y = 1920;
 
-type SubtitleRenderSettings = Pick<
+export type SubtitleRenderSettings = Pick<
   Settings,
   | "subtitles_enabled"
   | "subtitle_mode"
@@ -33,7 +39,7 @@ type SubtitleRenderSettings = Pick<
   | "typography_hook_enabled"
 >;
 
-type SubtitleEvent = {
+export type SubtitleEvent = {
   start: number;
   end: number;
   text: string;
@@ -42,16 +48,16 @@ type SubtitleEvent = {
 
 const DEFAULT_SUBTITLE_SETTINGS: SubtitleRenderSettings = {
   subtitles_enabled: false,
-  subtitle_mode: "word_by_word",
-  subtitle_style_preset: "classic",
+  subtitle_mode: "phrase_block",
+  subtitle_style_preset: "impact",
   subtitle_font_family: DEFAULT_SUBTITLE_FONT_FAMILY,
   subtitle_font_color: "#FFFFFF",
-  subtitle_font_size: 38,
+  subtitle_font_size: DEFAULT_SUBTITLE_FONT_SIZE,
   subtitle_font_weight: 700,
   subtitle_outline_color: "#111111",
-  subtitle_outline_width: 3,
-  subtitle_margin_v: SUBTITLE_PRESET_DEFAULT_MARGIN_V.classic,
-  subtitle_margin_percent: SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT.classic,
+  subtitle_outline_width: DEFAULT_SUBTITLE_OUTLINE_WIDTH,
+  subtitle_margin_v: SUBTITLE_PRESET_DEFAULT_MARGIN_V.impact,
+  subtitle_margin_percent: SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT.impact,
   typography_hook_enabled: false,
 };
 
@@ -59,8 +65,10 @@ const WORD_SUBTITLE_LEAD_IN_SECONDS = 0.04;
 const WORD_SUBTITLE_MIN_DURATION_SECONDS = 0.28;
 const WORD_SUBTITLE_MAX_DURATION_SECONDS = 1.0;
 const WORD_SUBTITLE_MIN_GAP_SECONDS = 0.01;
-const WORD_SUBTITLE_MAX_BURST_WORDS = 3;
+const WORD_SUBTITLE_MAX_BURST_WORDS = DEFAULT_SUBTITLE_PHRASE_MAX_WORDS;
 const WORD_SUBTITLE_BURST_JOIN_GAP_SECONDS = 0.18;
+const PHRASE_SUBTITLE_MAX_WORDS = DEFAULT_SUBTITLE_PHRASE_MAX_WORDS;
+const PHRASE_SUBTITLE_MAX_DURATION_SECONDS = DEFAULT_SUBTITLE_PHRASE_MAX_SECONDS;
 const TYPOGRAPHY_HOOK_LIMIT_SECONDS = 1.5;
 const TYPOGRAPHY_HOOK_BASE_WORDS = 4;
 const TYPOGRAPHY_HOOK_MAX_WORDS = 6;
@@ -192,11 +200,11 @@ function buildWordByWordEvents(words: WordTimestamp[], totalDuration: number, pr
     }
 
     if (end - start >= 0.08) {
-      const text = preset === "impact" ? burstWords.join(" ").toUpperCase() : burstWords.join(" ");
+      const text = burstWords.join(" ");
       events.push({
         start,
         end,
-        text,
+        text: preset === "impact" ? text.toUpperCase() : text,
       });
       previousEventEnd = Math.max(previousEventEnd, end + WORD_SUBTITLE_MIN_GAP_SECONDS);
     }
@@ -215,10 +223,13 @@ function buildPhraseBlockEvents(words: WordTimestamp[], totalDuration: number, p
   const events: SubtitleEvent[] = [];
   let phraseWords: typeof normalizedWords = [];
 
-  const flushPhrase = () => {
+  const flushPhrase = (nextStart?: number) => {
     if (!phraseWords.length) return;
     const start = phraseWords[0].start;
-    const end = Math.min(totalDuration, phraseWords[phraseWords.length - 1].end + 0.15);
+    const lastEnd = phraseWords[phraseWords.length - 1].end;
+    const naturalEnd = lastEnd + 0.15;
+    const safeEnd = Number.isFinite(nextStart) ? Math.max(lastEnd, Math.min(naturalEnd, Number(nextStart) - 0.02)) : naturalEnd;
+    const end = Math.min(totalDuration, safeEnd);
     const text = phraseWords.map((item) => item.text).join(" ");
     events.push({
       start,
@@ -237,10 +248,10 @@ function buildPhraseBlockEvents(words: WordTimestamp[], totalDuration: number, p
       previous &&
       (gap > 0.42 ||
         /[.!?;:]$/.test(previous.text) ||
-        phraseWords.length >= 6 ||
-        current.end - phraseWords[0].start > 2.8)
+        phraseWords.length >= PHRASE_SUBTITLE_MAX_WORDS ||
+        current.end - phraseWords[0].start > PHRASE_SUBTITLE_MAX_DURATION_SECONDS)
     ) {
-      flushPhrase();
+      flushPhrase(current.start);
     }
 
     phraseWords.push(current);
@@ -255,7 +266,7 @@ function applyMagicCharacterAnimation(text: string, baseDelayMs: number = 25) {
   return text;
 }
 
-function buildSubtitleEvents(words: WordTimestamp[], settings: SubtitleRenderSettings, totalDuration: number) {
+export function buildSubtitleEvents(words: WordTimestamp[], settings: SubtitleRenderSettings, totalDuration: number) {
   const regularEvents = settings.subtitle_mode === "phrase_block"
     ? buildPhraseBlockEvents(words, totalDuration, settings.subtitle_style_preset)
     : buildWordByWordEvents(words, totalDuration, settings.subtitle_style_preset);
@@ -328,17 +339,15 @@ function buildSubtitleEvents(words: WordTimestamp[], settings: SubtitleRenderSet
   return [...hookEvents, ...filteredRegular];
 }
 
-function buildAssContent(events: SubtitleEvent[], fontFamily: string, settings: SubtitleRenderSettings) {
+export function buildAssContent(events: SubtitleEvent[], fontFamily: string, settings: SubtitleRenderSettings) {
   const primaryColour = hexToAssColor(settings.subtitle_font_color, "00");
   const outlineColour = hexToAssColor(settings.subtitle_outline_color, "00");
   const backColour =
-    settings.subtitle_style_preset === "soft_box" ? hexToAssColor("#000000", "7A") : hexToAssColor("#000000", "FF");
+    settings.subtitle_style_preset === "soft_box" ? hexToAssColor("#000000", "7A") : hexToAssColor("#000000", "80");
   const borderStyle = settings.subtitle_style_preset === "soft_box" ? 3 : 1;
-  const presetFontSize = settings.subtitle_style_preset === "impact" ? 42 : settings.subtitle_style_preset === "soft_box" ? 36 : 38;
+  const presetFontSize = settings.subtitle_style_preset === "soft_box" ? 48 : DEFAULT_SUBTITLE_FONT_SIZE;
   const fontSize = clamp(Number(settings.subtitle_font_size || presetFontSize), 18, 120);
-  const outline = settings.subtitle_style_preset === "impact"
-    ? clamp(Number(settings.subtitle_outline_width || 3) + 1, 0, 8)
-    : clamp(Number(settings.subtitle_outline_width || 3), 0, 8);
+  const outline = clamp(Number(settings.subtitle_outline_width || DEFAULT_SUBTITLE_OUTLINE_WIDTH), 0, 8);
   const presetMargin = SUBTITLE_PRESET_DEFAULT_MARGIN_V[settings.subtitle_style_preset] || 140;
   const presetMarginPercent = SUBTITLE_PRESET_DEFAULT_MARGIN_PERCENT[settings.subtitle_style_preset] || 11;
   const explicitPercent = Number(settings.subtitle_margin_percent);
@@ -355,6 +364,7 @@ function buildAssContent(events: SubtitleEvent[], fontFamily: string, settings: 
   const marginV = clamp(Math.round((resolvedPercent / 100) * SUBTITLE_PLAY_RES_Y), 0, SUBTITLE_PLAY_RES_Y - 100);
   const spacing = settings.subtitle_style_preset === "impact" ? 0.4 : 0;
   const bold = Number(settings.subtitle_font_weight) === 400 ? 0 : -1;
+  const shadow = settings.subtitle_style_preset === "impact" ? DEFAULT_SUBTITLE_SHADOW : 0;
 
   return `[Script Info]
 ScriptType: v4.00+
@@ -366,7 +376,7 @@ Collisions: Normal
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Subtitle,${fontFamily},${fontSize},${primaryColour},${primaryColour},${outlineColour},${backColour},${bold},0,0,0,100,100,${spacing},0,${borderStyle},${outline},0,2,63,63,${marginV},1
+Style: Subtitle,${fontFamily},${fontSize},${primaryColour},${primaryColour},${outlineColour},${backColour},${bold},0,0,0,100,100,${spacing},0,${borderStyle},${outline},${shadow},2,63,63,${marginV},1
 Style: Hook,${fontFamily},110,&H00FFFFFF,&H00FFFFFF,&H00111111,&H00000000,-1,0,0,0,100,100,0.5,0,1,4,0,5,120,120,140,1
 
 [Events]
@@ -589,6 +599,13 @@ async function ensureCustomGoogleFontAssets(fontFamily: string, fontsDir: string
 
 async function ensureSubtitleFontAssets(fontFamilyKey: SubtitleRenderSettings["subtitle_font_family"]) {
   const normalizedFontValue = normalizeSubtitleFontFamilyValue(fontFamilyKey || DEFAULT_SUBTITLE_FONT_FAMILY);
+  if (normalizedFontValue === SYSTEM_SUBTITLE_FALLBACK_FAMILY) {
+    return {
+      fontsDir: null,
+      fontFamily: SYSTEM_SUBTITLE_FALLBACK_FAMILY,
+    };
+  }
+
   const fontsDir = path.join("/tmp", "platipo-miru-fonts", buildFontCacheKey(normalizedFontValue));
   await mkdir(fontsDir, { recursive: true });
 
@@ -632,7 +649,7 @@ export async function materializeSubtitleTrack(options: {
   totalDuration: number;
   workdir: string;
 }) {
-  const settings: SubtitleRenderSettings = {
+  const settings: SubtitleRenderSettings = applyReelsSubtitleDefaultsToLegacy({
     ...DEFAULT_SUBTITLE_SETTINGS,
     ...(options.settings || {}),
     subtitle_font_family: normalizeSubtitleFontFamilyValue(
@@ -645,7 +662,7 @@ export async function materializeSubtitleTrack(options: {
     subtitle_outline_width: clamp(Number(options.settings?.subtitle_outline_width || DEFAULT_SUBTITLE_SETTINGS.subtitle_outline_width), 0, 8),
     subtitle_margin_v: Number(options.settings?.subtitle_margin_v ?? DEFAULT_SUBTITLE_SETTINGS.subtitle_margin_v),
     subtitle_margin_percent: Number(options.settings?.subtitle_margin_percent ?? DEFAULT_SUBTITLE_SETTINGS.subtitle_margin_percent),
-  };
+  });
 
   if (!settings.subtitles_enabled) {
     return null;
