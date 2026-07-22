@@ -120,8 +120,8 @@ try {
   assert.ok(prompt.includes('"beats"'), "prompt must request structured beats");
   assert.ok(prompt.includes('"visual_cue"'), "prompt must request visual cue per beat");
   assert.ok(prompt.includes('"voiceover"'), "prompt must request voiceover per beat");
-  assert.ok(prompt.includes("копировать одежду главного персонажа"), "prompt must bind writer to reference wardrobe");
-  assert.ok(prompt.includes("задний фон"), "prompt must bind writer to reference background");
+  assert.ok(prompt.includes("адаптированную одежду главного персонажа"), "prompt must bind writer to adapted reference wardrobe");
+  assert.ok(prompt.includes("локацию, окружение, свет и камеру"), "prompt must bind writer to reference location and environment");
   assert.ok(prompt.includes("Не пиши псевдовопросы"), "prompt must ban pseudo questions");
   assert.ok(prompt.includes("Не добавляй субтитры"), "prompt must ban provider subtitles");
   assert.ok(prompt.includes("Поле script должно совпадать"), "script must match beat voiceovers");
