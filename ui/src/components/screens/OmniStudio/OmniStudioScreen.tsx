@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Archive, Database } from "lucide-react";
+import { Archive, Database, Shirt } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useOmniReelAutoSync } from "@/hooks/useOmniReelAutoSync";
 import { useOmniProjects, useOmniStudio } from "@/hooks/useOmniStudio";
@@ -13,6 +13,10 @@ import {
   getPreferredProductId,
 } from "@/lib/omni/workspace";
 import type { OmniProject } from "@/lib/omni/types";
+import {
+  getOmniWardrobeSourceLabel,
+  type OmniWardrobeSource,
+} from "@/lib/omni/wardrobe-source";
 import type { Client } from "@/types";
 import { LibraryScenarioPanel } from "./LibraryScenarioPanel";
 import { EmptyState } from "./ui";
@@ -147,6 +151,11 @@ export function OmniStudioScreen({
     studio.unlinkLibraryMutation.mutate({ projectId: activeProjectId, legacyClientId });
   };
 
+  const handleWardrobeSourceChange = (wardrobeSource: OmniWardrobeSource) => {
+    if (!activeProject || !activeProjectId || activeProject.wardrobe_source === wardrobeSource) return;
+    studio.updateProjectMutation.mutate({ projectId: activeProjectId, wardrobeSource });
+  };
+
   if (!activeProject) {
     return (
       <div className="mx-auto max-w-[94rem] rounded-lg border border-border bg-card p-6">
@@ -200,6 +209,34 @@ export function OmniStudioScreen({
           <div className="rounded-lg border border-border bg-muted/35 px-4 py-3 text-sm">
             <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Активно</div>
             <div className="mt-1 text-2xl font-semibold text-foreground">{activatedBundleCount}</div>
+          </div>
+          <div className="min-w-72 rounded-lg border border-border bg-muted/35 p-3 text-sm">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <Shirt className="h-3.5 w-3.5" />
+              Одежда персонажа
+            </div>
+            <div className="grid grid-cols-2 gap-1 rounded-md bg-background p-1">
+              {(["director_reference", "avatar_reference"] as const).map((source) => {
+                const isActive = activeProject.wardrobe_source === source;
+                return (
+                  <button
+                    key={source}
+                    type="button"
+                    onClick={() => handleWardrobeSourceChange(source)}
+                    disabled={studio.updateProjectMutation.isPending}
+                    className={`min-h-9 rounded px-2 text-xs font-semibold transition ${
+                      isActive
+                        ? "bg-card text-primary shadow-sm"
+                        : "text-muted-foreground hover:bg-card/70 hover:text-foreground"
+                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                    aria-pressed={isActive}
+                    title={getOmniWardrobeSourceLabel(source)}
+                  >
+                    {getOmniWardrobeSourceLabel(source)}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </header>

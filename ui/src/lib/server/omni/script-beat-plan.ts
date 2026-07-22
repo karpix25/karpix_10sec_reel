@@ -1,4 +1,5 @@
 import { sanitizeOmniScriptText } from "./omni-script-text-contract";
+import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 
 export const GENERATED_SCRIPT_PLAN_VERSION = "reels-script-writer-v1";
 
@@ -74,8 +75,12 @@ export function selectScriptBeatsForSegment(
 
 export const getScriptBeatsForSegment = selectScriptBeatsForSegment;
 
-export function renderScriptBeatCue(beats: readonly GeneratedScriptBeat[] | null | undefined) {
+export function renderScriptBeatCue(
+  beats: readonly GeneratedScriptBeat[] | null | undefined,
+  options: { wardrobeSource?: OmniWardrobeSource } = {}
+) {
   if (!beats?.length) return "";
+  const useAvatarWardrobe = normalizeOmniWardrobeSource(options.wardrobeSource) === "avatar_reference";
   const lines = beats.map((beat, index) => {
     const stage = beat.stage ? `${beat.stage}: ` : "";
     return `${index + 1}. ${stage}визуально - ${sanitizeProviderVisualCue(beat.visualCue)}; речь - "${beat.voiceover}"`;
@@ -83,7 +88,9 @@ export function renderScriptBeatCue(beats: readonly GeneratedScriptBeat[] | null
   return [
     "СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:",
     ...lines,
-    "Следуй этим визуальным подсказкам внутри референсного света, одежды, фона и камеры; не добавляй субтитры или текст на экран.",
+    useAvatarWardrobe
+      ? "Следуй этим визуальным подсказкам внутри референсного света, фона и камеры; если внутри подсказки упомянута одежда reference-видео, игнорируй её и сохраняй outfit аватара. Не добавляй субтитры или текст на экран."
+      : "Следуй этим визуальным подсказкам внутри референсного света, одежды, фона и камеры; не добавляй субтитры или текст на экран.",
   ].join("\n");
 }
 

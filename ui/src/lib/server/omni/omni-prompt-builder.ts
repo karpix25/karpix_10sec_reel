@@ -1,4 +1,5 @@
 import type { OmniClientAvatar, OmniGeneratedScript, OmniProduct, OmniReferenceAsset } from "@/lib/omni/types";
+import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type {
   CtaMode,
   LifeFormatId,
@@ -41,6 +42,12 @@ import { renderSimpleFullBodyUgcPrompt } from "./omni-simple-ugc-prompt";
 import { buildReferenceTransferPolicy, type ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { applyDirectorLayoutToPlan, buildDirectorLayoutContract } from "./director-layout-contract";
 import {
+  applyWardrobeSourceToReferenceLock,
+  renderAvatarWardrobeLine,
+  renderAvatarWardrobeSourceRule,
+  shouldUseAvatarWardrobe,
+} from "./omni-wardrobe-contract";
+import {
   buildProductVisualProfileFromText,
   extractProductVisualProfileFromSnapshot,
   normalizeProductVisualProfile,
@@ -71,6 +78,7 @@ type BuildOmniPromptsInput = {
   brief: string | null;
   directorBrief?: DirectorBrief | null;
   targetAudience?: string | null;
+  wardrobeSource?: OmniWardrobeSource;
   ctaMode?: CtaMode;
   ctaValue?: string | null;
   recentFormatIds?: readonly LifeFormatId[];
@@ -114,6 +122,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     product: input.product,
     avatar: input.avatar,
   });
+  const wardrobeSource = normalizeOmniWardrobeSource(input.wardrobeSource);
   const directorBrief =
     input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
   const referencePolicy = buildReferenceTransferPolicy({
@@ -126,6 +135,9 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   const directorGuidance = referencePolicy.omitRawDirectorGuidance
     ? null
     : renderDirectorBriefForOmniPrompt(directorBrief);
+  const safeDirectorGuidance = shouldUseAvatarWardrobe(wardrobeSource)
+    ? removeDirectorWardrobeGuidance(directorGuidance)
+    : directorGuidance;
   const layoutContract = buildDirectorLayoutContract(directorBrief, referencePolicy);
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,
@@ -186,9 +198,10 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
           productVisualPassport: segmentProductVisualPassport,
           segmentIndex,
           segmentCount: input.segmentCount,
-          directorGuidance,
+          directorGuidance: safeDirectorGuidance,
           directorBrief,
           referencePolicy,
+          wardrobeSource,
           continuityDirection,
         })
       : renderSegmentPrompt(
@@ -197,9 +210,10 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
           characterContract,
           segmentIndex,
           input.segmentCount,
-          directorGuidance,
+          safeDirectorGuidance,
           directorBrief,
           referencePolicy,
+          wardrobeSource,
           segmentProductVisualPassport,
           continuityDirection.promptLines
         );
@@ -240,11 +254,22 @@ function renderSegmentPrompt(
   directorGuidance: string | null,
   directorBrief: DirectorBrief | null,
   referencePolicy: ReferenceTransferPolicy,
+  wardrobeSource: OmniWardrobeSource,
   productVisualPassport: string | null,
   continuityLines: readonly string[]
 ) {
   const directorScene = buildDirectorSceneContract(directorBrief, referencePolicy);
-  const scriptBeatGuidance = renderScriptBeatGuidance(plan.scriptBeats);
+  const useAvatarWardrobe = shouldUseAvatarWardrobe(wardrobeSource);
+  const referenceLockLine = directorScene
+    ? applyWardrobeSourceToReferenceLock({ referenceLockLine: directorScene.referenceLockLine, wardrobeSource })
+    : null;
+  const wardrobeLine = useAvatarWardrobe
+    ? renderAvatarWardrobeLine(characterContract)
+    : directorScene?.wardrobeLine || characterContract.clothingLine;
+  const sourceRuleLine = useAvatarWardrobe
+    ? renderAvatarWardrobeSourceRule(characterContract)
+    : characterContract.sourceRuleLine;
+  const scriptBeatGuidance = renderScriptBeatGuidance(plan.scriptBeats, { wardrobeSource });
   const talkingHead = isTalkingHeadCutawayFormat(strategy.lifeFormatId);
   const continuity = segmentIndex < segmentCount
     ? talkingHead
@@ -257,15 +282,15 @@ function renderSegmentPrompt(
   return [
     talkingHead ? OMNI_TALKING_HEAD_SYSTEM_PROMPT : OMNI_PROMPT_WRITER_SYSTEM_PROMPT,
     `Часть ${segmentIndex} из ${segmentCount}.`,
-    ...(directorScene ? [directorScene.referenceLockLine, directorScene.framingLine] : []),
+    ...(directorScene && referenceLockLine ? [referenceLockLine, directorScene.framingLine] : []),
     ...(directorScene?.layoutLine ? [directorScene.layoutLine] : []),
     ...(talkingHead ? [
       "ФОРМАТ: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Основной кадр - лицо героя в камеру; перебивка - короткий спокойный insert без хореографии руками.",
     ] : []),
     directorScene?.sceneLine || `ЖИЗНЕННАЯ СИТУАЦИЯ: ${strategy.providerFormatDescription}. Место: ${strategy.setting}.`,
     `ГЛАВНЫЙ ПЕРСОНАЖ: ${characterContract.identityLine}.`,
-    `ОДЕЖДА: ${directorScene?.wardrobeLine || characterContract.clothingLine}.`,
-    `ИСТОЧНИКИ ОБРАЗА: ${characterContract.sourceRuleLine}.`,
+    `ОДЕЖДА: ${wardrobeLine}.`,
+    `ИСТОЧНИКИ ОБРАЗА: ${sourceRuleLine}.`,
     ...(strategy.visualStyle && !directorScene ? [
       `ВИЗУАЛЬНЫЙ СТИЛЬ СЦЕНАРИСТА: ${strategy.visualStyle.label}; ${strategy.visualStyle.visualTone}.`,
       `КАМЕРА И СВЕТ: ${strategy.visualStyle.cameraLanguage}; ${strategy.visualStyle.lighting}.`,
@@ -293,6 +318,15 @@ function renderSegmentPrompt(
       : `НЕПРЕРЫВНОСТЬ: тот же человек, одежда, свет, локация и все предметы из паспорта. Цвет, материал, форма, размер, детали и количество каждого предмета неизменны. Нельзя заменять, перекрашивать, дублировать или самовольно убирать предметы. Их положение меняется только по перечисленным действиям. Первый кадр этой части точно продолжает финальные позиции предыдущей части. Один телефонный кадр без перебивок и рекламных крупных планов. ${continuity}`,
     `ЗАПРЕЩЕНО: ${[...strategy.forbiddenMotifs, ...strategy.safetyRules].join("; ")}.`,
   ].join("\n");
+}
+
+function removeDirectorWardrobeGuidance(guidance: string | null) {
+  if (!guidance) return null;
+  return guidance
+    .split("\n")
+    .filter((line) => !/^\s*(?:WARDROBE:|- Одежда:)/iu.test(line))
+    .join("\n")
+    .trim() || null;
 }
 
 function getSegmentProductRole(

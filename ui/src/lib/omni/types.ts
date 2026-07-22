@@ -1,6 +1,7 @@
 import type { WordTimestamp } from "@/types";
 import type { AudioMood } from "@/lib/audio-library/moods";
 import type { AudioTrack } from "@/lib/audio-library/types";
+import type { OmniWardrobeSource } from "./wardrobe-source";
 import type { OmniSubtitleSettings, OmniSubtitleStatus } from "./subtitle-settings";
 
 export type OmniProjectStatus = "active" | "archived";
@@ -22,6 +23,7 @@ export interface OmniProject {
   automation_started_job_count: number;
   automation_stopped_at: string | null;
   automation_stop_reason: string | null;
+  wardrobe_source: OmniWardrobeSource;
   telegram_chat_id: string | null;
   telegram_topic_id: string | null;
   created_at: string;

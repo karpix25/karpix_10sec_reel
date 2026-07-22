@@ -98,6 +98,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     ctaMode: product.cta_mode,
     ctaValue: product.cta_value,
     recentFormatIds,
+    wardrobeSource: project.wardrobe_source,
   }).map((segment) => ({
     segmentIndex: segment.index,
     durationSeconds: segment.durationSeconds,
@@ -147,6 +148,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     ctaValue: product.cta_value,
     sourceScenario,
     directorBrief,
+    wardrobeSource: project.wardrobe_source,
     durationRange,
   });
   const directorCost = extractOpenRouterCostSummaryFromSnapshot(directorAnalysis?.source_snapshot);
@@ -175,6 +177,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     director_analysis_status: directorAnalysis?.director_analysis_status || "not_requested",
     director_analysis: directorBrief,
     director_video_url: directorAnalysis?.stored_video_url || directorAnalysis?.resolved_video_url || null,
+    wardrobe_source: project.wardrobe_source,
     director_analysis_model: directorAnalysis?.analysis_model || null,
     director_analysis_prompt_version: directorAnalysis?.analysis_prompt_version || null,
     director_analysis_error: directorAnalysis?.analysis_error || null,

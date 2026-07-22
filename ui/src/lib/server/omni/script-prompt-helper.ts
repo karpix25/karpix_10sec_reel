@@ -1,5 +1,6 @@
 import type { CtaMode } from "@/lib/omni/creative-contract";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
+import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type { DirectorBrief } from "./director-analysis-types";
 import { renderDirectorBriefForScriptPrompt } from "./director-analysis-prompt";
 import type { OmniDurationRange } from "./omni-duration-range";
@@ -15,11 +16,19 @@ export function buildPrompt(input: {
   ctaValue: string | null;
   sourceScenario: OmniLegacyScenario;
   directorBrief?: DirectorBrief | null;
+  wardrobeSource?: OmniWardrobeSource;
   durationRange?: OmniDurationRange;
   retryFeedback?: string | null;
 }) {
-  const directorGuidance = renderDirectorBriefForScriptPrompt(input.directorBrief || null);
   const durationInstruction = buildDurationInstruction(input.durationRange);
+  const wardrobeSource = normalizeOmniWardrobeSource(input.wardrobeSource);
+  const directorGuidance = wardrobeSource === "avatar_reference"
+    ? removeDirectorWardrobeGuidance(renderDirectorBriefForScriptPrompt(input.directorBrief || null))
+    : renderDirectorBriefForScriptPrompt(input.directorBrief || null);
+  const visualCueInstruction = buildVisualCueInstruction(wardrobeSource);
+  const visualCueExample = wardrobeSource === "avatar_reference"
+    ? "главный персонаж в одежде аватара, со светом, фоном и камерой reference-видео смотрит в камеру; без субтитров"
+    : "главный персонаж в одежде и свете reference-видео смотрит в камеру; конкретный фон и камера из reference; без субтитров";
   return `
 Создай 1 новый сценарий для Instagram Reels по методологии reels-script-writer.
 
@@ -41,7 +50,7 @@ export function buildPrompt(input: {
 15. Разбей сценарий на 2-4 beats. В каждом beat должны быть:
     - visual_cue: конкретный кадр для режиссера, включая одежду, фон, свет, камеру и действие.
     - voiceover: точная произносимая реплика этого бита.
-16. Если есть режиссерский анализ reference-видео, visual_cue должен копировать одежду главного персонажа, задний фон, свет, камеру, монтажный ритм и жесты reference-видео. Меняй только смысл под новый продукт. Не добавляй субтитры, оверлеи, интерфейсы или текст на экране.
+16. ${visualCueInstruction}
 17. Если оригинальный продукт или процесс из reference-видео не совпадает с новым продуктом, замени его на новый продукт. Не копируй чужие B-roll процессы, еду, инструменты, рабочие сцены или случайные предметы.
 18. Поле script должно совпадать с beats.voiceover, склеенными по порядку.
 19. Поле background_audio_mood выбери строго из списка: energetic, calm, dramatic, inspiring, playful, serious.
@@ -68,7 +77,7 @@ ${input.retryFeedback ? `\nПовторная попытка:\n${input.retryFeed
   "beats": [
     {
       "stage": "hook",
-      "visual_cue": "главный персонаж в одежде и свете reference-видео смотрит в камеру; конкретный фон и камера из reference; без субтитров",
+      "visual_cue": "${visualCueExample}",
       "voiceover": "точная первая реплика"
     },
     {
@@ -104,6 +113,25 @@ function buildDurationInstruction(durationRange?: OmniDurationRange) {
     `Целевая длина произносимого текста: ${durationRange.minWords}-${durationRange.maxWords} слов.${clampedNote} ` +
     "Система сама выберет 2-4 части и длительность каждой части из 4, 6, 8 или 10 секунд."
   );
+}
+
+function buildVisualCueInstruction(wardrobeSource: OmniWardrobeSource) {
+  if (wardrobeSource === "avatar_reference") {
+    return [
+      "Если есть режиссерский анализ reference-видео, visual_cue должен копировать задний фон, свет, камеру, монтажный ритм, жесты и механику reference-видео.",
+      "Одежду reference-видео не копируй: одежда главного персонажа всегда берется из аватара и должна оставаться одинаковой во всех beats.",
+      "Меняй только смысл под новый продукт. Не добавляй субтитры, оверлеи, интерфейсы или текст на экране.",
+    ].join(" ");
+  }
+  return "Если есть режиссерский анализ reference-видео, visual_cue должен копировать одежду главного персонажа, задний фон, свет, камеру, монтажный ритм и жесты reference-видео. Меняй только смысл под новый продукт. Не добавляй субтитры, оверлеи, интерфейсы или текст на экране.";
+}
+
+function removeDirectorWardrobeGuidance(guidance: string) {
+  return guidance
+    .split("\n")
+    .filter((line) => !/^\s*- Одежда:/iu.test(line))
+    .join("\n")
+    .trim();
 }
 
 function buildCtaInstruction(mode: CtaMode, value: string | null) {

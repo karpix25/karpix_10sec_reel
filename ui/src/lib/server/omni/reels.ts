@@ -121,6 +121,7 @@ export async function createOmniReel(input: {
         hook: resolvedGeneratedScript.hook,
         script: resolvedGeneratedScript.script,
         source_snapshot: resolvedGeneratedScript.source_snapshot,
+        wardrobe_source: project.wardrobe_source,
       }
     : sourceScenario
       ? {
@@ -138,6 +139,7 @@ export async function createOmniReel(input: {
         director_analysis_status: sourceScenarioAnalysis?.director_analysis_status || "not_requested",
         director_analysis: sourceScenarioDirectorBrief,
         director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
+        wardrobe_source: project.wardrobe_source,
       }
     : null;
   const productSnapshot = {
@@ -164,6 +166,7 @@ export async function createOmniReel(input: {
         provider: latestAvatar.provider,
         kie_character_id: latestAvatar.kie_character_id,
         kie_character_status: latestAvatar.kie_character_status,
+        wardrobe_source: project.wardrobe_source,
       }
     : null;
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
@@ -182,6 +185,7 @@ export async function createOmniReel(input: {
     ctaMode: product.cta_mode,
     ctaValue: product.cta_value,
     recentFormatIds,
+    wardrobeSource: project.wardrobe_source,
   });
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
 
