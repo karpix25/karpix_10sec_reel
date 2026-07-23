@@ -28,6 +28,7 @@ import {
   isRetryableScriptGenerationError,
   MAX_SCRIPT_GENERATION_ATTEMPTS,
 } from "./script-generation-retry";
+import { isLlmPromptChainEnabled, runLlmPromptChain } from "./llm-prompt-chain-runner";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -62,7 +63,10 @@ export async function generateScript(input: {
   payload: GeneratedScriptResultPayload;
   qualityCheck: ScriptQualityResult;
   openRouterUsage: OpenRouterUsageRecord[];
+  llmPromptChainSnapshot?: Record<string, unknown>;
 }> {
+  if (isLlmPromptChainEnabled()) return requestPromptChainScript(input);
+
   let retryFeedback: string | null = null;
   let lastError: unknown = null;
   const openRouterUsage: OpenRouterUsageRecord[] = [];
@@ -88,6 +92,42 @@ export async function generateScript(input: {
   }
 
   throw buildScriptGenerationFailure(lastError || new Error("Script generation failed"), MAX_SCRIPT_GENERATION_ATTEMPTS);
+}
+
+async function requestPromptChainScript(input: Parameters<typeof generateScript>[0]) {
+  const generated = await runLlmPromptChain(input);
+  const payload: GeneratedScriptResultPayload = {
+    title: sanitizeOmniScriptText(generated.result.title || "Новый сценарий"),
+    hook_options: generated.result.hookOptions,
+    selected_hook: sanitizeOmniScriptText(generated.result.selectedHook),
+    hook: sanitizeOmniScriptText(generated.result.selectedHook),
+    beats: generated.result.beats.map((beat) => ({
+      stage: beat.stage,
+      visualCue: sanitizeOmniScriptText(beat.visualCue),
+      voiceover: sanitizeOmniScriptText(beat.voiceover),
+    })),
+    script: generated.result.script,
+    caption: sanitizeOmniScriptText(generated.result.caption),
+    cta_keyword: sanitizeOmniScriptText(generated.result.ctaKeyword),
+    lead_magnet: sanitizeOmniScriptText(generated.result.leadMagnet),
+    background_audio_mood: generated.result.backgroundAudioMood,
+  };
+  const qualityCheck = validateViralScriptContract({
+    script: payload.script,
+    rawScriptBeforeCta: payload.script,
+    rawScriptFromModel: payload.script,
+    hook: payload.hook || null,
+    productName: input.productName,
+    ctaMode: input.ctaMode,
+    ctaValue: input.ctaValue,
+    durationRange: input.durationRange,
+  });
+  return {
+    payload,
+    qualityCheck,
+    openRouterUsage: generated.openRouterUsage,
+    llmPromptChainSnapshot: generated.result.snapshot,
+  };
 }
 
 async function requestScriptOnce(

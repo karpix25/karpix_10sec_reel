@@ -16,6 +16,8 @@ import {
   extractGeneratedScriptBeatPlanFromSnapshot,
   selectScriptBeatsForSegment,
 } from "./script-beat-plan";
+import { extractProviderPromptPlanFromSnapshot } from "./llm-prompt-chain-normalizer";
+import { validateProviderPromptPlan } from "./provider-prompt-contract-validator";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
 import {
   validateOmniSegmentPrompt,
@@ -76,6 +78,9 @@ type BuildOmniPromptsInput = {
 export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegmentPrompt[] {
   let scriptText = sanitizeOmniScriptText(input.generatedScript?.script || input.legacyTranscript || input.brief || "");
   assertOmniScriptTextContract(scriptText);
+  const providerPromptPlan = extractProviderPromptPlanFromSnapshot(input.generatedScript?.source_snapshot);
+  if (providerPromptPlan) return buildStoredProviderPromptSegments(input, providerPromptPlan, scriptText);
+
   const rawVoiceSegments = input.voiceSegments?.length
     ? [...input.voiceSegments]
     : splitScriptIntoVoiceSegments(
@@ -247,6 +252,95 @@ function getSegmentProductRole(
   return countWords(voiceoverText) > 18 ? "background_prop" : role;
 }
 
+function buildStoredProviderPromptSegments(
+  input: BuildOmniPromptsInput,
+  providerPromptPlan: NonNullable<ReturnType<typeof extractProviderPromptPlanFromSnapshot>>,
+  scriptText: string
+): OmniSegmentPrompt[] {
+  const issues = validateProviderPromptPlan(providerPromptPlan).filter((issue) => issue.severity === "error");
+  if (issues.length) {
+    throw new Error(`Invalid LLM provider prompt plan: ${issues.map((issue) => issue.message).join(", ")}`);
+  }
+  const providerVoiceover = providerPromptPlan.segmentPrompts.map((segment) => segment.voiceover).join(" ");
+  if (sanitizeOmniScriptText(providerVoiceover) !== scriptText) {
+    throw new Error("LLM provider prompt plan voiceover does not match generated script");
+  }
+
+  const productReference = getPrimaryReference(input.product.product_refs);
+  const avatarReference = input.avatar?.reference_url || null;
+  const strategy = selectOmniCreativeStrategy({
+    script: scriptText,
+    firstSpokenLine: providerPromptPlan.segmentPrompts[0]?.voiceover,
+    productName: input.product.name,
+    productDescription: input.product.description,
+    targetAudience: input.targetAudience,
+    hasProductReference: Boolean(productReference),
+    ctaMode: input.ctaMode,
+    ctaValue: input.ctaValue,
+    recentFormatIds: input.recentFormatIds,
+  });
+  assertOmniCtaContract(scriptText, strategy);
+
+  return providerPromptPlan.segmentPrompts.map((segment, index) => {
+    const segmentIndex = index + 1;
+    const productRole: ProductRole = segment.referenceRole === "product" ? "background_prop" : "hidden";
+    const creativePlan = buildStoredCreativePlan({
+      segmentIndex,
+      segmentCount: providerPromptPlan.segmentPrompts.length,
+      voiceoverText: segment.voiceover,
+      productRole,
+      segmentSeconds: segment.durationSeconds,
+      strategy,
+    });
+    return {
+      index: segmentIndex,
+      role: getSegmentRole(segmentIndex, providerPromptPlan.segmentPrompts.length),
+      prompt: segment.prompt,
+      referenceUrl: selectStoredReferenceUrl(segment.referenceRole, avatarReference, productReference),
+      durationSeconds: segment.durationSeconds,
+      voiceoverText: segment.voiceover,
+      creativeStrategy: strategy,
+      creativePlan,
+      validation: { valid: true, score: 100, errors: [], warnings: [] },
+    };
+  });
+}
+
+function buildStoredCreativePlan(input: {
+  segmentIndex: number;
+  segmentCount: number;
+  voiceoverText: string;
+  productRole: ProductRole;
+  segmentSeconds: number;
+  strategy: OmniCreativeStrategy;
+}): OmniSegmentCreativePlan {
+  const middleStart = roundOne(Math.max(1, input.segmentSeconds * 0.55));
+  const middleEnd = roundOne(Math.min(input.segmentSeconds - 1, input.segmentSeconds * 0.75));
+  return {
+    segmentIndex: input.segmentIndex,
+    lifeFormatId: input.strategy.lifeFormatId,
+    speechStartsAtSeconds: 0,
+    voiceoverText: input.voiceoverText,
+    productRole: input.productRole,
+    continuityProps: input.strategy.continuityProps,
+    beats: [
+      { startSeconds: 0, endSeconds: middleStart, action: "LLM provider prompt face opening" },
+      { startSeconds: middleStart, endSeconds: middleEnd, action: "LLM provider prompt middle cutaway" },
+      { startSeconds: middleEnd, endSeconds: input.segmentSeconds, action: "LLM provider prompt face return" },
+    ],
+  };
+}
+
+function selectStoredReferenceUrl(
+  referenceRole: "avatar" | "product" | "none",
+  avatarReference: string | null,
+  productReference: OmniReferenceAsset | null
+) {
+  if (referenceRole === "product") return productReference?.url || avatarReference;
+  if (referenceRole === "none") return null;
+  return avatarReference;
+}
+
 function segmentMentionsProduct(input: {
   voiceoverText: string;
   scriptBeats: readonly OmniScriptBeatCue[];
@@ -306,4 +400,8 @@ function getSegmentRole(index: number, total: number) {
   if (index === 1) return "hook";
   if (index === total) return "cta_or_payoff";
   return "body";
+}
+
+function roundOne(value: number) {
+  return Math.round(value * 10) / 10;
 }

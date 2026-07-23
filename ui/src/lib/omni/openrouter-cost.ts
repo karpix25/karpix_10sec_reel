@@ -1,4 +1,10 @@
-export type OpenRouterUsageLayer = "director_analysis" | "product_analysis" | "script_writer";
+export type OpenRouterUsageLayer =
+  | "director_analysis"
+  | "product_analysis"
+  | "script_writer"
+  | "creative_copywriter"
+  | "director_segmenter"
+  | "provider_prompt_writer";
 
 export type OpenRouterPricingSnapshot = {
   source: "openrouter_models_api";
@@ -134,16 +140,16 @@ export function formatOpenRouterTokens(value: number) {
 export function getOpenRouterLayerLabel(layer: OpenRouterUsageLayer) {
   if (layer === "director_analysis") return "Режиссёрский анализ";
   if (layer === "product_analysis") return "Анализ продукта";
+  if (layer === "creative_copywriter") return "Креативный сценарист";
+  if (layer === "director_segmenter") return "Режиссёр сегментов";
+  if (layer === "provider_prompt_writer") return "Промпт райтер";
   return "Сценарист";
 }
 
 function normalizeStoredUsageRecord(value: unknown): OpenRouterUsageRecord | null {
   const record = readRecord(value);
   if (!record) return null;
-  const layer =
-    record.layer === "director_analysis" || record.layer === "product_analysis"
-      ? record.layer
-      : "script_writer";
+  const layer = normalizeStoredUsageLayer(record.layer);
   const pricing = readRecord(record.pricing) as OpenRouterPricingSnapshot | null;
   return {
     layer,
@@ -164,6 +170,20 @@ function normalizeStoredUsageRecord(value: unknown): OpenRouterUsageRecord | nul
         : "none",
     pricing,
   };
+}
+
+function normalizeStoredUsageLayer(value: unknown): OpenRouterUsageLayer {
+  if (
+    value === "director_analysis" ||
+    value === "product_analysis" ||
+    value === "script_writer" ||
+    value === "creative_copywriter" ||
+    value === "director_segmenter" ||
+    value === "provider_prompt_writer"
+  ) {
+    return value;
+  }
+  return "script_writer";
 }
 
 function estimateCostFromPricing(input: {
