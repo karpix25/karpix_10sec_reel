@@ -25,6 +25,7 @@ export function buildScriptRetryFeedback(error: unknown) {
     return [
       `Предыдущий ответ был слишком короткий: ${currentWords} слов.`,
       `Новый сценарий должен быть ${targetWords}-${maxWords} слов, строго внутри диапазона ${minWords}-${maxWords}.`,
+      `Перед ответом посчитай слова в beats.voiceover и script. Если меньше ${minWords}, добавь конкретики до ${targetWords}-${maxWords} слов.`,
       "Расширь 2-3 смысловых бита: добавь конкретный бытовой пример, механизм действия продукта и короткий вывод.",
       "Не добавляй второй CTA, emoji, длинное тире или лишние вводные фразы.",
       "Поле script и сумма beats.voiceover должны совпадать и попадать в нужный word count.",
@@ -64,6 +65,17 @@ export function buildScriptRetryFeedback(error: unknown) {
     `Предыдущий ответ отклонен: ${message.slice(0, 220)}.`,
     "Перепиши сценарий заново и строго соблюдай все правила формата.",
   ].join(" ");
+}
+
+export function buildScriptGenerationFailure(error: unknown, attempts: number) {
+  const message = getErrorMessage(error);
+  if (!isRetryableScriptGenerationError(error) || attempts <= 1) {
+    return error instanceof Error ? error : new Error(message);
+  }
+
+  return new Error(
+    `Сценарий не прошел проверку после ${attempts} попыток генерации. Последняя ошибка: ${message}`
+  );
 }
 
 function getErrorMessage(error: unknown) {

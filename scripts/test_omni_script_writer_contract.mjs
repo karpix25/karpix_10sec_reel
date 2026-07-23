@@ -55,6 +55,7 @@ try {
     require(findFile(compiled, "script-beat-plan.js"));
   const {
     MAX_SCRIPT_GENERATION_ATTEMPTS,
+    buildScriptGenerationFailure,
     buildScriptRetryFeedback,
     isRetryableScriptGenerationError,
   } = require(findFile(compiled, "script-generation-retry.js"));
@@ -129,6 +130,7 @@ try {
   assert.ok(prompt.includes("energetic, calm, dramatic, inspiring, playful, serious"), "prompt must constrain mood enum");
   assert.ok(prompt.includes("Целевая длительность итогового ролика: 30-30 сек"), "prompt must include configured duration range");
   assert.ok(prompt.includes("60-72 слов"), "prompt must include computed word range");
+  assert.ok(prompt.includes("66-72 слов"), "prompt must give a dense target word range for exact duration");
 
   const avatarWardrobePrompt = buildPrompt({
     projectName: "Omni Reels",
@@ -190,6 +192,14 @@ try {
   assert.ok(shortRetryFeedback.includes("45 слов"), "retry feedback must include previous short word count");
   assert.ok(shortRetryFeedback.includes("60-72"), "retry feedback must repeat required word range");
   assert.ok(shortRetryFeedback.includes("66-72"), "retry feedback must give a concrete target range");
+  assert.ok(shortRetryFeedback.includes("Перед ответом посчитай слова"), "retry feedback must force word recount");
+  assert.match(
+    buildScriptGenerationFailure(
+      new Error("Сценарий отклонен: слишком короткий для выбранной длины ролика (45 слов). Нужно 60-72 слов для 30-30 сек."),
+      MAX_SCRIPT_GENERATION_ATTEMPTS
+    ).message,
+    /после 5 попыток/u
+  );
 
   const plan = normalizeGeneratedScriptPlan({
     hook_options: ["Хук 1", "Хук 2", "Хук 3"],

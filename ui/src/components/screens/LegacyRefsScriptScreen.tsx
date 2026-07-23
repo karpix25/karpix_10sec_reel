@@ -41,33 +41,36 @@ export function LegacyRefsScriptScreen({
   const avatars = studio.avatarsQuery.data || [];
   const latestAvatar = avatars.find((avatar) => avatar.is_active && avatar.reference_url) || avatars[0] || null;
   const reelsPayload = studio.reelsQuery.data || { reels: [], segments: [] };
-  const { pendingDraft, pendingVideo, setPendingDraft, setPendingVideo } = usePersistentGenerationPending({
+  const { pendingDrafts, pendingVideo, addPendingDraft, removePendingDraft, setPendingVideo } = usePersistentGenerationPending({
     projectId: selectedProjectId,
     productId: selectedProductId,
     generatedScripts,
     reels: reelsPayload.reels,
-    scriptError: studio.createGeneratedScriptMutation.isError,
     videoError: studio.createReelMutation.isError,
   });
 
   const canGenerate =
     Boolean(selectedProjectId) &&
     Boolean(selectedProductId) &&
-    Boolean(activeBundleIds.size) &&
-    !studio.createGeneratedScriptMutation.isPending;
+    Boolean(activeBundleIds.size);
 
   const handleGenerate = async () => {
     if (!selectedProjectId || !selectedProductId || !activeProject || !activeProduct || !canGenerate) return;
-    setPendingDraft({
-      id: `${Date.now()}`,
+    const draftId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    addPendingDraft({
+      id: draftId,
       startedAt: Date.now(),
       brandName: activeProject.name,
       productName: activeProduct.name,
     });
-    await studio.createGeneratedScriptMutation.mutateAsync({
-      projectId: selectedProjectId,
-      productId: selectedProductId,
-    });
+    try {
+      await studio.createGeneratedScriptMutation.mutateAsync({
+        projectId: selectedProjectId,
+        productId: selectedProductId,
+      });
+    } catch {
+      removePendingDraft(draftId);
+    }
   };
 
   const handleCreateVideo = (scriptId: number) => {
@@ -124,7 +127,7 @@ export function LegacyRefsScriptScreen({
           </div>
           <Button type="button" onClick={() => void handleGenerate()} disabled={!canGenerate} className="min-h-11">
             <PenLine className="h-4 w-4" />
-            {studio.createGeneratedScriptMutation.isPending ? "Пишу..." : "Написать сценарий"}
+            {studio.createGeneratedScriptMutation.isPending ? "Пишу еще..." : "Написать сценарий"}
           </Button>
         </div>
       </header>
@@ -173,7 +176,7 @@ export function LegacyRefsScriptScreen({
             productId={selectedProductId}
             scripts={generatedScripts}
             isLoading={scriptsQuery.isLoading}
-            pendingDraft={pendingDraft}
+            pendingDrafts={pendingDrafts}
             pendingVideo={pendingVideo}
             omniGenerationProvider={omniGenerationProvider}
             canCreateVideo={Boolean(selectedProjectId && selectedProductId && activeProduct && latestAvatar)}

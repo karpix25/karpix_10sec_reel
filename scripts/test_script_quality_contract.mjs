@@ -260,7 +260,7 @@ And this is line 2."
     /emoji или длинное тире/u
   );
 
-  assert.equal(MAX_SCRIPT_GENERATION_ATTEMPTS, 3);
+  assert.ok(MAX_SCRIPT_GENERATION_ATTEMPTS >= 5);
   assert.equal(
     isRetryableScriptGenerationError(new Error("Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.")),
     true

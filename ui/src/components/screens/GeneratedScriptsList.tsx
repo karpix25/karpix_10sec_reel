@@ -58,7 +58,7 @@ export function GeneratedScriptsList({
   productId,
   scripts,
   isLoading,
-  pendingDraft,
+  pendingDrafts,
   pendingVideo,
   omniGenerationProvider,
   canCreateVideo,
@@ -75,7 +75,7 @@ export function GeneratedScriptsList({
   productId: number | null;
   scripts: OmniGeneratedScript[];
   isLoading: boolean;
-  pendingDraft: PendingScriptDraft | null;
+  pendingDrafts: PendingScriptDraft[];
   pendingVideo: PendingVideoDraft | null;
   omniGenerationProvider: OmniGenerationProvider;
   canCreateVideo: boolean;
@@ -174,13 +174,15 @@ export function GeneratedScriptsList({
             {viewMode === "compact" ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
           </Button>
           <span className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
-            {visibleItems.length}/{scripts.length + (pendingDraft ? 1 : 0)}
+            {visibleItems.length}/{scripts.length + pendingDrafts.length}
           </span>
         </div>
       </div>
 
       <div className="grid min-w-0 gap-3">
-        {pendingDraft ? <PendingGeneratedScriptCard draft={pendingDraft} /> : null}
+        {pendingDrafts.map((draft) => (
+          <PendingGeneratedScriptCard key={draft.id} draft={draft} />
+        ))}
         {visibleItems.map((item) => (
           <GeneratedScriptCard
             key={item.script.id}
@@ -202,7 +204,7 @@ export function GeneratedScriptsList({
             onSyncReel={onSyncReel}
           />
         ))}
-        {!visibleItems.length && !isLoading && !pendingDraft ? (
+        {!visibleItems.length && !isLoading && !pendingDrafts.length ? (
           <div className="rounded-lg border border-dashed border-border bg-background p-6 text-center text-sm text-muted-foreground">
             {scripts.length ? "По выбранному фильтру ничего нет." : "Нажмите «Написать сценарий», и здесь появится первый draft."}
           </div>

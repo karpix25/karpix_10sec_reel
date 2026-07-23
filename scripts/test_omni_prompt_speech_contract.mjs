@@ -51,6 +51,9 @@ try {
     assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
     assert.ok(!item.prompt.includes(`"${item.voiceoverText}"`), "spoken text must not be wrapped in quotes");
     assert.ok(item.prompt.includes("Say only the current part once"), "compact speech rule must isolate the current part");
+    assert.ok(item.prompt.includes("RETENTION RHYTHM:"), "provider prompt must include modern vertical rhythm guidance");
+    assert.ok(item.prompt.includes("no inhale, no greeting pause, no dead air"), "rhythm contract must prevent slow starts");
+    assert.ok(item.prompt.includes("CUT-READY END") || item.prompt.includes("FINAL ENDING"), "rhythm contract must define segment endings");
   }
   assert.equal(normalizedCount(prompts[0].prompt, prompts[1].voiceoverText), 0);
   assert.equal(normalizedCount(prompts[1].prompt, prompts[0].voiceoverText), 0);

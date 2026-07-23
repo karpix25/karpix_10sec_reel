@@ -23,6 +23,7 @@ import {
 } from "./script-beat-plan";
 import { repairScriptBeatBoundaryRepeats } from "./omni-speech-boundary";
 import {
+  buildScriptGenerationFailure,
   buildScriptRetryFeedback,
   isRetryableScriptGenerationError,
   MAX_SCRIPT_GENERATION_ATTEMPTS,
@@ -75,13 +76,18 @@ export async function generateScript(input: {
     } catch (error) {
       lastError = error;
       if (attempt >= MAX_SCRIPT_GENERATION_ATTEMPTS || !isRetryableScriptGenerationError(error)) {
-        throw error;
+        throw buildScriptGenerationFailure(error, attempt);
       }
       retryFeedback = buildScriptRetryFeedback(error);
+      console.warn("Omni script generation retry:", {
+        attempt,
+        maxAttempts: MAX_SCRIPT_GENERATION_ATTEMPTS,
+        reason: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("Script generation failed");
+  throw buildScriptGenerationFailure(lastError || new Error("Script generation failed"), MAX_SCRIPT_GENERATION_ATTEMPTS);
 }
 
 async function requestScriptOnce(

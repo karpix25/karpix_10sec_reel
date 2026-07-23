@@ -108,9 +108,17 @@ function buildDurationInstruction(durationRange?: OmniDurationRange) {
   const clampedNote = durationRange.wasClamped
     ? ` Настройка клиента ${durationRange.requestedMinSeconds}-${durationRange.requestedMaxSeconds} сек выходит за текущий Omni-лимит 8-40 сек, поэтому пиши под ${durationRange.minSeconds}-${durationRange.maxSeconds} сек.`
     : "";
+  const exactDurationNote = durationRange.minSeconds === durationRange.maxSeconds
+    ? ` Это точная настройка: итоговый voiceover не может быть короче ${durationRange.minWords} слов.`
+    : "";
+  const targetMinWords = Math.max(
+    durationRange.minWords,
+    Math.floor((durationRange.minWords + durationRange.maxWords) / 2)
+  );
   return (
     `Целевая длительность итогового ролика: ${durationRange.minSeconds}-${durationRange.maxSeconds} сек. ` +
-    `Целевая длина произносимого текста: ${durationRange.minWords}-${durationRange.maxWords} слов.${clampedNote} ` +
+    `Целевая длина произносимого текста: ${durationRange.minWords}-${durationRange.maxWords} слов.${exactDurationNote}${clampedNote} ` +
+    `Перед ответом проверь: сумма всех beats.voiceover и поле script должны быть ${targetMinWords}-${durationRange.maxWords} слов и совпадать по смыслу дословно. ` +
     "Система сама выберет 2-4 части и длительность каждой части из 4, 6, 8 или 10 секунд."
   );
 }
