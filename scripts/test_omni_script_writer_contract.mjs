@@ -125,6 +125,9 @@ try {
   assert.ok(prompt.includes("локацию, окружение, свет и камеру"), "prompt must bind writer to reference location and environment");
   assert.ok(prompt.includes("Не пиши псевдовопросы"), "prompt must ban pseudo questions");
   assert.ok(prompt.includes("Не добавляй субтитры"), "prompt must ban provider subtitles");
+  assert.ok(prompt.includes("не используй дефисы, тире и минусы"), "prompt must ban hyphens and dashes in generated text values");
+  assert.ok(prompt.includes("Все числа в текстовых значениях JSON пиши словами"), "prompt must force numbers as words in generated text values");
+  assert.ok(prompt.includes("нет дефисов, нет тире, нет минусов, нет цифр"), "prompt must require final symbol self-check");
   assert.ok(prompt.includes("Поле script должно совпадать"), "script must match beat voiceovers");
   assert.ok(prompt.includes('"background_audio_mood"'), "prompt must request background audio mood");
   assert.ok(prompt.includes("energetic, calm, dramatic, inspiring, playful, serious"), "prompt must constrain mood enum");
@@ -181,7 +184,7 @@ try {
   assert.ok(avatarWardrobePrompt.includes("всегда берется из аватара"), "avatar wardrobe mode must guide script visuals to avatar outfit");
   assert.ok(avatarWardrobePrompt.includes("в одежде аватара"), "avatar wardrobe mode must use avatar outfit JSON example");
   assert.ok(!avatarWardrobePrompt.includes("- Одежда: Black sleeveless fitted top"), "avatar wardrobe mode must not pass raw reference wardrobe into writer guidance");
-  assert.ok(MAX_SCRIPT_GENERATION_ATTEMPTS >= 5, "script writer should retry enough times before asking the user");
+  assert.equal(MAX_SCRIPT_GENERATION_ATTEMPTS, 5, "script writer attempt budget should remain unchanged");
   assert.ok(
     isRetryableScriptGenerationError(new Error("Сценарий отклонен: слишком короткий для выбранной длины ролика (45 слов). Нужно 60-72 слов для 30-30 сек.")),
     "short generated scripts must be retryable"
