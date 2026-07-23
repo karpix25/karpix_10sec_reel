@@ -110,6 +110,7 @@ async function requestScriptOnce(
     body: JSON.stringify({
       model: input.model,
       temperature: retryFeedback ? 0.55 : 0.8,
+      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",

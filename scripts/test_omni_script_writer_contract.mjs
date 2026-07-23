@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
@@ -134,6 +134,14 @@ try {
   assert.ok(prompt.includes("Целевая длительность итогового ролика: 30-30 сек"), "prompt must include configured duration range");
   assert.ok(prompt.includes("60-72 слов"), "prompt must include computed word range");
   assert.ok(prompt.includes("66-72 слов"), "prompt must give a dense target word range for exact duration");
+  const scriptGeneratorSource = readFileSync(
+    join(ui, "src/lib/server/omni/script-generator.ts"),
+    "utf8"
+  );
+  assert.ok(
+    scriptGeneratorSource.includes('response_format: { type: "json_object" }'),
+    "script writer request must force JSON object mode"
+  );
 
   const avatarWardrobePrompt = buildPrompt({
     projectName: "Omni Reels",
@@ -196,6 +204,12 @@ try {
   assert.ok(shortRetryFeedback.includes("60-72"), "retry feedback must repeat required word range");
   assert.ok(shortRetryFeedback.includes("66-72"), "retry feedback must give a concrete target range");
   assert.ok(shortRetryFeedback.includes("Перед ответом посчитай слова"), "retry feedback must force word recount");
+  const jsonRetryFeedback = buildScriptRetryFeedback(
+    new Error("No JSON object found in script model output")
+  );
+  assert.ok(jsonRetryFeedback.includes("Ответ должен начинаться"), "JSON retry feedback must force object boundaries");
+  assert.ok(jsonRetryFeedback.includes("{"), "JSON retry feedback must include opening object boundary");
+  assert.ok(jsonRetryFeedback.includes("}"), "JSON retry feedback must include closing object boundary");
   assert.match(
     buildScriptGenerationFailure(
       new Error("Сценарий отклонен: слишком короткий для выбранной длины ролика (45 слов). Нужно 60-72 слов для 30-30 сек."),
