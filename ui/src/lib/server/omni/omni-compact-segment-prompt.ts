@@ -13,6 +13,7 @@ import { renderOmniNaturalismContract } from "./omni-naturalism-contract";
 import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT } from "./omni-scene-safety-contract";
 import { renderScriptBeatGuidance } from "./script-beat-plan";
+import { renderOmniVerticalRhythmContract } from "./omni-vertical-rhythm-contract";
 
 export function renderCompactSegmentPrompt(input: {
   plan: OmniSegmentCreativePlan;
@@ -60,6 +61,11 @@ export function renderCompactSegmentPrompt(input: {
   return [
     `RAW VERTICAL VIDEO: 9:16, ${duration.toFixed(0)} seconds, natural phone footage.`,
     renderOmniNaturalismContract(),
+    renderOmniVerticalRhythmContract({
+      talkingHead,
+      segmentIndex: input.segmentIndex,
+      segmentCount: input.segmentCount,
+    }),
     referenceBrief.referenceLine,
     layoutContract?.layoutLine,
     referenceBrief.locationLine,

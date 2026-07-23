@@ -33,38 +33,37 @@ export function usePersistentGenerationPending(input: {
   productId: number | null;
   generatedScripts: OmniGeneratedScript[];
   reels: OmniReel[];
-  scriptError: boolean;
   videoError: boolean;
 }) {
   const storageKey = input.projectId && input.productId ? `omni-generation-pending:${input.projectId}:${input.productId}` : null;
-  const [pendingDraft, setPendingDraftState] = useState<PendingScriptDraft | null>(null);
+  const [pendingDrafts, setPendingDraftsState] = useState<PendingScriptDraft[]>([]);
   const [pendingVideo, setPendingVideoState] = useState<PendingVideoDraft | null>(null);
 
   useEffect(() => {
     if (!storageKey) {
-      setPendingDraftState(null);
+      setPendingDraftsState([]);
       setPendingVideoState(null);
       return;
     }
-    const saved = readStorage<{ draft?: PendingScriptDraft | null; video?: PendingVideoDraft | null }>(storageKey);
-    setPendingDraftState(saved?.draft && isFresh(saved.draft.startedAt, SCRIPT_TTL_MS) ? saved.draft : null);
+    const saved = readStorage<{
+      draft?: PendingScriptDraft | null;
+      drafts?: PendingScriptDraft[];
+      video?: PendingVideoDraft | null;
+    }>(storageKey);
+    const savedDrafts = Array.isArray(saved?.drafts) ? saved.drafts : saved?.draft ? [saved.draft] : [];
+    setPendingDraftsState(savedDrafts.filter((draft) => isFresh(draft.startedAt, SCRIPT_TTL_MS)));
     setPendingVideoState(saved?.video && isFresh(saved.video.startedAt, VIDEO_TTL_MS) ? saved.video : null);
   }, [storageKey]);
 
   useEffect(() => {
     if (!storageKey) return;
-    writeStorage(storageKey, { draft: pendingDraft, video: pendingVideo });
-  }, [pendingDraft, pendingVideo, storageKey]);
+    writeStorage(storageKey, { drafts: pendingDrafts, video: pendingVideo });
+  }, [pendingDrafts, pendingVideo, storageKey]);
 
   useEffect(() => {
-    if (!pendingDraft) return;
-    const hasFreshScript = input.generatedScripts.some(
-      (script) => new Date(script.created_at).getTime() >= pendingDraft.startedAt - 2000
-    );
-    if (input.scriptError || hasFreshScript || !isFresh(pendingDraft.startedAt, SCRIPT_TTL_MS)) {
-      setPendingDraftState(null);
-    }
-  }, [input.generatedScripts, input.scriptError, pendingDraft]);
+    if (!pendingDrafts.length) return;
+    setPendingDraftsState((current) => reconcilePendingDrafts(current, input.generatedScripts));
+  }, [input.generatedScripts, pendingDrafts.length]);
 
   useEffect(() => {
     if (!pendingVideo) return;
@@ -75,9 +74,33 @@ export function usePersistentGenerationPending(input: {
   }, [input.reels, input.videoError, pendingVideo]);
 
   return {
-    pendingDraft,
+    pendingDrafts,
     pendingVideo,
-    setPendingDraft: setPendingDraftState,
+    addPendingDraft: (draft: PendingScriptDraft) =>
+      setPendingDraftsState((current) => [...current, draft].filter((item) => isFresh(item.startedAt, SCRIPT_TTL_MS))),
+    removePendingDraft: (draftId: string) =>
+      setPendingDraftsState((current) => current.filter((draft) => draft.id !== draftId)),
     setPendingVideo: setPendingVideoState,
   };
+}
+
+function reconcilePendingDrafts(
+  pendingDrafts: PendingScriptDraft[],
+  generatedScripts: OmniGeneratedScript[]
+) {
+  const freshDrafts = pendingDrafts
+    .filter((draft) => isFresh(draft.startedAt, SCRIPT_TTL_MS))
+    .sort((a, b) => a.startedAt - b.startedAt);
+  if (!freshDrafts.length) return [];
+
+  let consumedScriptIds = new Set<number>();
+  return freshDrafts.filter((draft) => {
+    const matchingScript = generatedScripts.find((script) => {
+      if (consumedScriptIds.has(script.id)) return false;
+      return new Date(script.created_at).getTime() >= draft.startedAt - 2000;
+    });
+    if (!matchingScript) return true;
+    consumedScriptIds = new Set(consumedScriptIds).add(matchingScript.id);
+    return false;
+  });
 }
