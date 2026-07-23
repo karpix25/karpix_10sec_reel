@@ -180,6 +180,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     director_analysis_model: directorAnalysis?.analysis_model || null,
     director_analysis_prompt_version: directorAnalysis?.analysis_prompt_version || null,
     director_analysis_error: directorAnalysis?.analysis_error || null,
+    llm_prompt_chain: generated.llmPromptChainSnapshot || null,
     generated_script_plan_version: "reels-script-writer-v1",
     duration_range: durationRange,
     generated_script_plan: {

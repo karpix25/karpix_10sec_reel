@@ -59,6 +59,18 @@ try {
   assert.equal(normalizedCount(prompts[1].prompt, prompts[0].voiceoverText), 0);
   assert.equal(normalizedCount(prompts[1].prompt, prompts[2].voiceoverText), 0);
 
+  const storedInput = buildStoredPromptInput();
+  const storedPrompts = buildOmniSegmentPrompts(storedInput);
+  const storedSegments = storedInput.generatedScript.source_snapshot.llm_prompt_chain.providerPromptPlan.segmentPrompts;
+  assert.equal(storedPrompts.length, storedSegments.length);
+  storedPrompts.forEach((item, index) => {
+    assert.equal(item.prompt, storedSegments[index].prompt);
+    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
+    assert.ok(!item.prompt.includes("PRODUCT ACTION:"), "stored LLM prompt path must not inject product action blocks");
+    assert.ok(!item.prompt.includes("SCENE ACTION:"), "stored LLM prompt path must not inject scene action blocks");
+    assert.ok(!item.prompt.includes("CONTINUITY:"), "stored LLM prompt path must not inject continuity blocks");
+  });
+
   console.log("Omni prompt speech contract regression checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
@@ -146,6 +158,32 @@ function buildInput() {
     ctaValue: null,
     recentFormatIds: [],
   };
+}
+
+function buildStoredPromptInput() {
+  const input = buildInput();
+  const voiceSegments = input.voiceSegments.map((segment) => segment.text);
+  input.generatedScript.source_snapshot.llm_prompt_chain = {
+    providerPromptPlan: {
+      version: "llm-prompt-chain-v1",
+      format: "talking_head_cutaways",
+      segmentPrompts: voiceSegments.map((voiceover, index) => ({
+        index: index + 1,
+        durationSeconds: 10,
+        voiceover,
+        referenceRole: "avatar",
+        prompt: [
+          "Вертикальное живое видео на кухне.",
+          "Миша начинает с лица в камеру и говорит энергично.",
+          "В середине короткая перебивка на аэрогриль на столе без рук.",
+          "Затем возврат к лицу в той же кухне.",
+          `Речь звучит точно: ${voiceover}`,
+        ].join(" "),
+      })),
+      notes: "Готовые промпты написаны LLM.",
+    },
+  };
+  return input;
 }
 
 function normalizedCount(haystack, needle) {
