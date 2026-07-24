@@ -13,6 +13,7 @@ import { listRecentLifeFormatIds } from "./omni-creative-history";
 import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
 import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
+import { generateStoryboardImage } from "./omni-storyboard-image-generator";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -188,12 +189,21 @@ export async function createOmniReel(input: {
     wardrobeSource: project.wardrobe_source,
   });
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
+  const reservedReelId = await reserveOmniReelId();
+  const storyboardReferenceUrls = await generateStoryboardReferenceUrls({
+    projectId: input.projectId,
+    reelId: reservedReelId,
+    productName: product.name,
+    avatarReferenceUrl: latestAvatar?.reference_url || null,
+    promptPlan,
+  });
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const reelResult = await client.query<OmniReel>(
       `INSERT INTO omni_reels (
+       id,
        project_id,
        product_id,
        source_generated_script_id,
@@ -212,9 +222,10 @@ export async function createOmniReel(input: {
          stitch_status,
          updated_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, 'not_selected', 'not_ready', CURRENT_TIMESTAMP)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, 'not_selected', 'not_ready', CURRENT_TIMESTAMP)
        RETURNING *`,
       [
+        reservedReelId,
         input.projectId,
         input.productId,
         generatedScript?.id || input.sourceGeneratedScriptId || null,
@@ -245,9 +256,12 @@ export async function createOmniReel(input: {
            reference_url,
            voiceover_text,
            creative_plan,
+           storyboard_plan,
+           storyboard_validation,
+           storyboard_reference_url,
            prompt_validation
          )
-         VALUES ($1, $2, $3, $4, 'draft', $5, $6, $7, $8::jsonb, $9::jsonb)`,
+         VALUES ($1, $2, $3, $4, 'draft', $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12::jsonb)`,
         [
           reel.id,
           index + 1,
@@ -257,6 +271,9 @@ export async function createOmniReel(input: {
           segmentPrompt.referenceUrl,
           segmentPrompt.voiceoverText,
           JSON.stringify(segmentPrompt.creativePlan),
+          segmentPrompt.storyboardPlan ? JSON.stringify(segmentPrompt.storyboardPlan) : null,
+          segmentPrompt.storyboardValidation ? JSON.stringify(segmentPrompt.storyboardValidation) : null,
+          storyboardReferenceUrls[index] || null,
           JSON.stringify(segmentPrompt.validation),
         ]
       );
@@ -270,4 +287,37 @@ export async function createOmniReel(input: {
   } finally {
     client.release();
   }
+}
+
+async function reserveOmniReelId() {
+  const { rows } = await pool.query<{ id: number }>(
+    "SELECT nextval(pg_get_serial_sequence('omni_reels', 'id'))::int AS id"
+  );
+  const id = Number(rows[0]?.id);
+  if (!Number.isInteger(id) || id <= 0) throw new Error("Could not reserve Omni reel id");
+  return id;
+}
+
+async function generateStoryboardReferenceUrls(input: {
+  projectId: number;
+  reelId: number;
+  productName: string;
+  avatarReferenceUrl: string | null;
+  promptPlan: readonly ReturnType<typeof buildOmniSegmentPrompts>[number][];
+}) {
+  const urls: (string | null)[] = [];
+  for (let index = 0; index < input.promptPlan.length; index += 1) {
+    const segmentPrompt = input.promptPlan[index];
+    urls.push(segmentPrompt.storyboardPlan
+      ? await generateStoryboardImage({
+        projectId: input.projectId,
+        reelId: input.reelId,
+        segmentIndex: index + 1,
+        storyboard: segmentPrompt.storyboardPlan,
+        productName: input.productName,
+        avatarReferenceUrl: input.avatarReferenceUrl,
+      })
+      : null);
+  }
+  return urls;
 }

@@ -452,6 +452,7 @@ function SegmentPromptPanel({
           <OmniSegmentPromptDetails
             prompt={segment.prompt}
             voiceoverText={segment.voiceover_text}
+            storyboardPlan={segment.storyboard_plan}
             creativeStrategy={strategy}
             creativePlan={segment.creative_plan}
             validation={segment.prompt_validation}

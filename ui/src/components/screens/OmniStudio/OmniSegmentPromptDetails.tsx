@@ -8,27 +8,42 @@ import type {
   OmniPromptValidationResult,
   OmniSegmentCreativePlan,
 } from "@/lib/omni/creative-contract";
+import type { OmniStoryboardPlanSource } from "@/lib/omni/types";
+import { extractStoryboardFrames, StoryboardSegmentPreview } from "./StoryboardSegmentPreview";
 
 export function OmniSegmentPromptDetails({
   prompt,
   voiceoverText,
   creativeStrategy,
   creativePlan,
+  storyboardPlan,
   validation,
 }: {
   prompt: string | null | undefined;
   voiceoverText?: string | null;
   creativeStrategy?: OmniCreativeStrategy | null;
   creativePlan?: OmniSegmentCreativePlan | null;
+  storyboardPlan?: OmniStoryboardPlanSource | null;
   validation?: OmniPromptValidationResult | null;
 }) {
   const sections = extractOmniPromptSections(prompt);
   const voiceover = voiceoverText || sections.voiceover;
+  const explicitStoryboardFrames = extractStoryboardFrames(storyboardPlan);
+  const storyboardFrames = explicitStoryboardFrames.length
+    ? explicitStoryboardFrames
+    : extractStoryboardFrames(readCreativePlanStoryboard(creativePlan));
+  const hasStoryboard = storyboardFrames.length > 0;
 
   return (
     <div className="mt-2 grid gap-2 text-xs">
+      {hasStoryboard ? <StoryboardSegmentPreview frames={storyboardFrames} /> : null}
       {creativePlan ? (
-        <CreativePlanSummary strategy={creativeStrategy} plan={creativePlan} validation={validation} />
+        <CreativePlanSummary
+          strategy={creativeStrategy}
+          plan={creativePlan}
+          validation={validation}
+          showBeats={!hasStoryboard}
+        />
       ) : null}
       {voiceover ? (
         <PromptSection
@@ -38,10 +53,10 @@ export function OmniSegmentPromptDetails({
           strong
         />
       ) : null}
-      {sections.scriptBeat ? (
+      {!hasStoryboard && sections.scriptBeat ? (
         <PromptSection icon={<Video className="h-3.5 w-3.5" />} label="Сцена" value={sections.scriptBeat} />
       ) : null}
-      {sections.ugcStyle ? (
+      {!hasStoryboard && sections.ugcStyle ? (
         <PromptSection icon={<Smartphone className="h-3.5 w-3.5" />} label="UGC mobile style" value={sections.ugcStyle} />
       ) : null}
     </div>
@@ -52,10 +67,12 @@ function CreativePlanSummary({
   strategy,
   plan,
   validation,
+  showBeats,
 }: {
   strategy?: OmniCreativeStrategy | null;
   plan: OmniSegmentCreativePlan;
   validation?: OmniPromptValidationResult | null;
+  showBeats: boolean;
 }) {
   return (
     <div className="rounded-md border border-border bg-background p-2">
@@ -90,14 +107,22 @@ function CreativePlanSummary({
             {strategy.visualStyle.visualTone}
           </p>
         ) : null}
-        {plan.beats.map((beat) => (
-          <p key={`${beat.startSeconds}-${beat.endSeconds}`}>
-            <span className="font-semibold text-foreground">{beat.startSeconds}-{beat.endSeconds}:</span> {beat.action}
-          </p>
-        ))}
+        {showBeats
+          ? plan.beats.map((beat) => (
+              <p key={`${beat.startSeconds}-${beat.endSeconds}`}>
+                <span className="font-semibold text-foreground">{beat.startSeconds}-{beat.endSeconds}:</span> {beat.action}
+              </p>
+            ))
+          : null}
       </div>
     </div>
   );
+}
+
+function readCreativePlanStoryboard(plan?: OmniSegmentCreativePlan | null) {
+  if (!plan || typeof plan !== "object") return null;
+  const record = plan as unknown as Record<string, unknown>;
+  return record.storyboardPlan || record.storyboard_plan || null;
 }
 
 function ctaLabel(mode: OmniCreativeStrategy["ctaMode"]) {

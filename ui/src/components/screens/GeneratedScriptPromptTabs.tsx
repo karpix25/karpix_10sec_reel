@@ -81,6 +81,7 @@ export function GeneratedScriptPromptTabs({
               <OmniSegmentPromptDetails
                 prompt={prompt.prompt}
                 voiceoverText={prompt.voiceoverText}
+                storyboardPlan={prompt.storyboardPlan ?? prompt.storyboard_plan}
                 creativeStrategy={prompt.creativeStrategy}
                 creativePlan={prompt.creativePlan}
                 validation={prompt.validation}

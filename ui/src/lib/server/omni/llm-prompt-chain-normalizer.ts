@@ -6,6 +6,9 @@ import {
   type DirectorShot,
   type ProviderPromptPlan,
   type ProviderPromptSegment,
+  type StoryboardFrame,
+  type StoryboardFrameRole,
+  type StoryboardReferenceRole,
 } from "./llm-prompt-chain-types";
 
 export function normalizeCreativeScriptDraft(raw: unknown): CreativeScriptDraft | null {
@@ -60,19 +63,30 @@ export function extractProviderPromptPlanFromSnapshot(snapshot: unknown): Provid
   return normalizeProviderPromptPlan(rawPlan);
 }
 
+export function extractDirectorSegmentPlanFromSnapshot(snapshot: unknown): DirectorSegmentPlan | null {
+  const data = asRecord(snapshot);
+  if (!data) return null;
+  const chain = asRecord(data.llm_prompt_chain || data.prompt_chain);
+  const rawPlan = chain?.directorSegmentPlan || chain?.director_segment_plan || data.director_segment_plan;
+  return normalizeDirectorSegmentPlan(rawPlan);
+}
+
 function normalizeDirectorSegment(raw: unknown): DirectorSegment | null {
   const data = asRecord(raw);
   if (!data) return null;
   const index = positiveInteger(data.index);
   const durationSeconds = positiveInteger(data.duration_seconds || data.durationSeconds);
-  const voiceover = clean(data.voiceover);
+  const storyboardFrames = arrayOf(data.storyboard_frames || data.storyboardFrames || data.frames, normalizeStoryboardFrame);
+  const voiceover = clean(data.voiceover) || joinStoryboardSpeech(storyboardFrames);
   const shots = arrayOf(data.shots, normalizeDirectorShot);
-  if (!index || !durationSeconds || !voiceover || !shots.length) return null;
+  const compatibleShots = shots.length ? shots : deriveLegacyShots(storyboardFrames);
+  if (!index || !durationSeconds || !voiceover || (!storyboardFrames.length && !compatibleShots.length)) return null;
   return {
     index,
     durationSeconds,
     voiceover,
-    shots,
+    storyboardFrames,
+    shots: compatibleShots,
     productState: clean(data.product_state || data.productState),
     endState: clean(data.end_state || data.endState),
   };
@@ -92,7 +106,8 @@ function normalizeProviderPromptSegment(raw: unknown): ProviderPromptSegment | n
   if (!data) return null;
   const index = positiveInteger(data.index);
   const durationSeconds = positiveInteger(data.duration_seconds || data.durationSeconds);
-  const voiceover = clean(data.voiceover);
+  const storyboardFrames = arrayOf(data.storyboard_frames || data.storyboardFrames || data.frames, normalizeStoryboardFrame);
+  const voiceover = clean(data.voiceover) || joinStoryboardSpeech(storyboardFrames);
   const prompt = clean(data.prompt);
   if (!index || !durationSeconds || !voiceover || !prompt) return null;
   const referenceRole = clean(data.reference_role || data.referenceRole);
@@ -100,9 +115,65 @@ function normalizeProviderPromptSegment(raw: unknown): ProviderPromptSegment | n
     index,
     durationSeconds,
     voiceover,
+    storyboardFrames,
     prompt,
     referenceRole: referenceRole === "product" || referenceRole === "none" ? referenceRole : "avatar",
   };
+}
+
+function normalizeStoryboardFrame(raw: unknown): StoryboardFrame | null {
+  const data = asRecord(raw);
+  if (!data) return null;
+  const index = positiveInteger(data.index);
+  const role = normalizeStoryboardRole(data.role);
+  const spokenWords = clean(data.spoken_words || data.spokenWords || data.speech || data.voiceover);
+  const visualDescription = clean(data.visual_description || data.visualDescription || data.visual);
+  const camera = clean(data.camera);
+  const action = clean(data.action);
+  const productState = clean(data.product_state || data.productState);
+  const referenceRole = normalizeStoryboardReferenceRole(data.reference_role || data.referenceRole);
+  if (!index || !role || !spokenWords || !visualDescription || !camera || !action) return null;
+  return {
+    index,
+    role,
+    spokenWords,
+    visualDescription,
+    camera,
+    action,
+    productState,
+    sfx: clean(data.sfx || data.sound_effects || data.soundEffects) || null,
+    referenceRole,
+  };
+}
+
+function normalizeStoryboardRole(value: unknown): StoryboardFrameRole | null {
+  const role = clean(value);
+  if (role === "face_open" || role === "product_cutaway" || role === "environment_cutaway" || role === "face_return") {
+    return role;
+  }
+  if (role === "cutaway") return "product_cutaway";
+  return null;
+}
+
+function normalizeStoryboardReferenceRole(value: unknown): StoryboardReferenceRole {
+  const role = clean(value);
+  return role === "product" || role === "none" ? role : "avatar";
+}
+
+function deriveLegacyShots(frames: readonly StoryboardFrame[]): DirectorShot[] {
+  if (!frames.length) return [];
+  const firstFace = frames.find((frame) => frame.role === "face_open") || frames[0];
+  const cutaway = frames.find((frame) => frame.role === "product_cutaway" || frame.role === "environment_cutaway");
+  const lastFace = [...frames].reverse().find((frame) => frame.role === "face_return") || frames[frames.length - 1];
+  return [
+    { role: "face_open", action: firstFace.action || firstFace.visualDescription },
+    { role: "cutaway", action: cutaway?.action || cutaway?.visualDescription || firstFace.visualDescription },
+    { role: "face_return", action: lastFace.action || lastFace.visualDescription },
+  ];
+}
+
+function joinStoryboardSpeech(frames: readonly StoryboardFrame[]) {
+  return frames.map((frame) => frame.spokenWords).filter(Boolean).join(" ");
 }
 
 function joinVoiceovers(segments: readonly { voiceover: string }[]) {

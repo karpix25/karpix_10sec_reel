@@ -176,11 +176,14 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     });
     const productIsVisible = segment.creative_plan?.productRole !== "hidden";
     const continuityImages = continuity.image ? [continuity.image] : [];
+    const storyboardImages = segment.storyboard_reference_url
+      ? [{ url: segment.storyboard_reference_url, fieldName: referenceImageField, role: "storyboard" }]
+      : [];
     const selectedReferenceImages = selectReferenceImagesForSegment({
       provider,
       continuityImages,
-      cometReferenceImages,
-      kieReferenceImages,
+      cometReferenceImages: [...storyboardImages, ...cometReferenceImages],
+      kieReferenceImages: [...storyboardImages, ...kieReferenceImages],
       referenceImageTransport,
       segmentIndex: segment.segment_index,
       productIsVisible,
@@ -228,6 +231,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
         avatar_url: avatarReferenceUrl,
         product_url: productReferenceUrl,
         product_urls: productReferenceUrls,
+        storyboard_url: segment.storyboard_reference_url || null,
         composite_url: compositeReferenceUrl,
         continuity_frame_url:
           typeof continuity.metadata.sourceFrameUrl === "string"
@@ -246,6 +250,8 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
           : []),
       ],
       creative_plan: segment.creative_plan,
+      storyboard_plan: segment.storyboard_plan,
+      storyboard_validation: segment.storyboard_validation,
       prompt_validation: segment.prompt_validation,
     };
 

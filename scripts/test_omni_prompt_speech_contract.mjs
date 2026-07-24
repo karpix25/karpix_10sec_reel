@@ -38,6 +38,12 @@ try {
   const aliasContract = join(output, "node_modules", "@", "lib", "omni", "creative-contract.js");
   mkdirSync(dirname(aliasContract), { recursive: true });
   copyFileSync(contractOutput, aliasContract);
+  for (const fileName of ["omni-storyboard-types.js", "omni-storyboard-contract.js"]) {
+    const source = findFile(compiled, fileName);
+    const target = join(output, "node_modules", "@", "lib", "omni", "storyboard", fileName);
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(source, target);
+  }
 
   const { buildOmniSegmentPrompts } = require(findFile(compiled, "omni-prompt-builder.js"));
   const { validatePromptVoiceoverIsolation } = require(findFile(compiled, "omni-prompt-validator.js"));
@@ -47,13 +53,12 @@ try {
   for (const item of prompts) {
     assert.equal(normalizedCount(item.prompt, item.voiceoverText), 1);
     assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/iu.test(item.prompt));
-    assert.ok(item.prompt.includes("The avatar says:"), "compact speech line must name the current spoken text");
+    assert.ok(item.prompt.includes("Точная речь:"), "storyboard prompt must name the exact current spoken text");
+    assert.ok(item.prompt.includes("Раскадровка:"), "storyboard prompt must include storyboard frames");
+    assert.ok(item.prompt.includes("Свою музыку не добавляй"), "storyboard prompt must forbid Omni music");
+    assert.equal(item.storyboardPlan.frames.length, 5, "each segment must include five storyboard frames");
     assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
     assert.ok(!item.prompt.includes(`"${item.voiceoverText}"`), "spoken text must not be wrapped in quotes");
-    assert.ok(item.prompt.includes("Say only the current part once"), "compact speech rule must isolate the current part");
-    assert.ok(item.prompt.includes("RETENTION RHYTHM:"), "provider prompt must include modern vertical rhythm guidance");
-    assert.ok(item.prompt.includes("no inhale, no greeting pause, no dead air"), "rhythm contract must prevent slow starts");
-    assert.ok(item.prompt.includes("CUT-READY END") || item.prompt.includes("FINAL ENDING"), "rhythm contract must define segment endings");
   }
   assert.equal(normalizedCount(prompts[0].prompt, prompts[1].voiceoverText), 0);
   assert.equal(normalizedCount(prompts[1].prompt, prompts[0].voiceoverText), 0);
@@ -63,24 +68,32 @@ try {
   const storedPrompts = buildOmniSegmentPrompts(storedInput);
   const storedSegments = storedInput.generatedScript.source_snapshot.llm_prompt_chain.providerPromptPlan.segmentPrompts;
   assert.equal(storedPrompts.length, storedSegments.length);
-  storedPrompts.forEach((item, index) => {
-    assert.equal(item.prompt, storedSegments[index].prompt);
-    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
+	  storedPrompts.forEach((item, index) => {
+	    assert.equal(item.prompt, storedSegments[index].prompt);
+	    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
+	    assert.equal(item.storyboardPlan.frames.length, 5);
     assert.ok(!item.prompt.includes("PRODUCT ACTION:"), "stored LLM prompt path must not inject product action blocks");
     assert.ok(!item.prompt.includes("SCENE ACTION:"), "stored LLM prompt path must not inject scene action blocks");
-    assert.ok(!item.prompt.includes("CONTINUITY:"), "stored LLM prompt path must not inject continuity blocks");
-  });
+	    assert.ok(!item.prompt.includes("CONTINUITY:"), "stored LLM prompt path must not inject continuity blocks");
+	  });
 
-  console.log("Omni prompt speech contract regression checks passed");
-} finally {
+	  const legacyStoredInput = buildStoredPromptInput({ omitStoryboardFrames: true });
+	  assert.throws(
+	    () => buildOmniSegmentPrompts(legacyStoredInput),
+	    /storyboard|five storyboard frames|Раскадров/iu,
+	    "stored LLM prompt path must reject snapshots without five storyboard frames"
+	  );
+
+	  console.log("Omni prompt speech contract regression checks passed");
+	} finally {
   rmSync(output, { recursive: true, force: true });
 }
 
 function buildInput() {
   const voiceSegments = [
-    "Аэрогриль позволяет готовить ваши любимые блюда хрустящими,",
-    "но без капли лишнего жира.",
-    "Артикул аэрогриля можно найти в описании.",
+    "Аэрогриль помогает готовить ужин быстрее когда хочется хрустящей корочки без лишнего масла и долгой уборки.",
+    "Я ставлю его на стол показываю чашу и спокойно объясняю почему дома это экономит силы.",
+    "Если нужен такой помощник артикул аэрогриля можно найти в описании и сравнить перед покупкой самостоятельно.",
   ];
   return {
     generatedScript: {
@@ -160,30 +173,47 @@ function buildInput() {
   };
 }
 
-function buildStoredPromptInput() {
+function buildStoredPromptInput(options = {}) {
   const input = buildInput();
   const voiceSegments = input.voiceSegments.map((segment) => segment.text);
   input.generatedScript.source_snapshot.llm_prompt_chain = {
     providerPromptPlan: {
       version: "llm-prompt-chain-v1",
       format: "talking_head_cutaways",
-      segmentPrompts: voiceSegments.map((voiceover, index) => ({
-        index: index + 1,
-        durationSeconds: 10,
-        voiceover,
-        referenceRole: "avatar",
-        prompt: [
-          "Вертикальное живое видео на кухне.",
-          "Миша начинает с лица в камеру и говорит энергично.",
-          "В середине короткая перебивка на аэрогриль на столе без рук.",
-          "Затем возврат к лицу в той же кухне.",
-          `Речь звучит точно: ${voiceover}`,
-        ].join(" "),
-      })),
+	      segmentPrompts: voiceSegments.map((voiceover, index) => ({
+	        index: index + 1,
+	        durationSeconds: 10,
+	        voiceover,
+	        storyboardFrames: options.omitStoryboardFrames ? [] : makeStoredStoryboardFrames(voiceover),
+	        referenceRole: "avatar",
+	        prompt: [
+	          "Вертикальное живое видео на кухне.",
+	          "Миша начинает с лица в камеру и говорит энергично.",
+	          "В середине короткая перебивка на аэрогриль на столе без рук.",
+	          "Затем возврат к лицу в той же кухне.",
+	          "Свою музыку не добавляй.",
+	          `Речь звучит точно: ${voiceover}`,
+	        ].join(" "),
+	      })),
       notes: "Готовые промпты написаны LLM.",
     },
   };
   return input;
+}
+
+function makeStoredStoryboardFrames(voiceover) {
+  const words = voiceover.split(/\s+/u).filter(Boolean);
+  return [0, 1, 2, 3, 4].map((index) => ({
+    index: index + 1,
+    role: index === 0 ? "face_open" : index === 4 ? "face_return" : "product_cutaway",
+    spokenWords: words.slice(index * 3, index * 3 + 3).join(" "),
+    visualDescription: "живая кухня с тем же человеком и продуктом",
+    camera: index === 2 ? "крупный план продукта" : "фронтальный план на телефон",
+    action: "персонаж продолжает мысль и показывает продукт",
+    productState: "аэрогриль стоит на столе без рук",
+    sfx: "тихие естественные звуки кухни",
+    referenceRole: index === 0 || index === 4 ? "avatar" : "product",
+  }));
 }
 
 function normalizedCount(haystack, needle) {
