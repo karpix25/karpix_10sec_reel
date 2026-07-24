@@ -1,12 +1,12 @@
-import json
 import logging
 import os
 import socket
 import time
 import urllib.error
-import urllib.request
 
 from dotenv import load_dotenv
+
+from services.v1.automation.internal_api_client import InternalApiUnavailableError, post_internal_json
 
 load_dotenv(override=True)
 
@@ -15,22 +15,12 @@ logger = logging.getLogger(__name__)
 
 
 def _post_worker(worker_id: str) -> dict:
-    base_url = os.getenv("INTERNAL_API_BASE_URL", "http://web:3000").rstrip("/")
-    token = (os.getenv("AUTOMATION_INTERNAL_TOKEN") or "").strip()
-    body = json.dumps({"workerId": worker_id}).encode("utf-8")
-    request = urllib.request.Request(
-        f"{base_url}/api/omni/automation/worker",
-        data=body,
-        headers={
-            "content-type": "application/json",
-            "x-automation-token": token,
-        },
-        method="POST",
+    return post_internal_json(
+        "/api/omni/automation/worker",
+        {"workerId": worker_id},
+        default_timeout_seconds=1800,
+        minimum_timeout_seconds=60,
     )
-    timeout = max(60, int(os.getenv("OMNI_AUTOMATION_HTTP_TIMEOUT_SECONDS", "1800")))
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        payload = response.read().decode("utf-8")
-        return json.loads(payload or "{}")
 
 
 def main() -> None:
@@ -46,6 +36,9 @@ def main() -> None:
             time.sleep(active_sleep_seconds if result.get("processed") else idle_seconds)
         except urllib.error.HTTPError as error:
             logger.error("Omni automation worker HTTP %s: %s", error.code, error.read().decode("utf-8"))
+            time.sleep(idle_seconds)
+        except InternalApiUnavailableError as error:
+            logger.warning("Omni automation worker waiting for internal API: %s", error)
             time.sleep(idle_seconds)
         except Exception:
             logger.exception("Omni automation worker cycle failed")

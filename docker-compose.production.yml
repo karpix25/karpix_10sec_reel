@@ -105,6 +105,12 @@ services:
       - legacy_ai_avatars
     expose:
       - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   final-video-worker:
     build:
@@ -235,7 +241,8 @@ services:
         APP_VERSION: ${APP_VERSION:-local}
     restart: unless-stopped
     depends_on:
-      - web
+      web:
+        condition: service_healthy
     command: ["python3", "services/v1/automation/omni_automation_scheduler.py"]
     environment:
       INTERNAL_API_BASE_URL: http://web:3000
@@ -254,7 +261,8 @@ services:
         APP_VERSION: ${APP_VERSION:-local}
     restart: unless-stopped
     depends_on:
-      - web
+      web:
+        condition: service_healthy
     command: ["python3", "services/v1/automation/omni_automation_worker.py"]
     environment:
       INTERNAL_API_BASE_URL: http://web:3000
