@@ -109,6 +109,8 @@ export async function buildGeneratedScriptPromptPreview(input: {
     voiceoverText: segment.voiceoverText,
     creativeStrategy: segment.creativeStrategy,
     creativePlan: segment.creativePlan,
+    storyboardPlan: segment.storyboardPlan,
+    storyboardValidation: segment.storyboardValidation,
     validation: segment.validation,
   }));
 }

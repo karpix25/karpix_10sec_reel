@@ -30,11 +30,10 @@ try {
   const { normalizeOmniDurationRange } = require(join(output, "omni-duration-range.js"));
   const { reconstructVoiceSegments, splitScriptIntoVoiceSegments } = require(join(output, "omni-script-segmentation.js"));
 
-  assert.equal(getOmniSegmentDurationForWordCount(7), null, "segments below the useful speech floor are invalid");
-  assert.equal(getOmniSegmentDurationForWordCount(8), 4);
-  assert.equal(getOmniSegmentDurationForWordCount(14), 6);
-  assert.equal(getOmniSegmentDurationForWordCount(19), 8);
-  assert.equal(getOmniSegmentDurationForWordCount(24), 10);
+  assert.equal(getOmniSegmentDurationForWordCount(14), null, "segments below the storyboard speech floor are invalid");
+  assert.equal(getOmniSegmentDurationForWordCount(15), 10);
+  assert.equal(getOmniSegmentDurationForWordCount(20), 10);
+  assert.equal(getOmniSegmentDurationForWordCount(21), null);
 
   const exactThirty = normalizeOmniDurationRange({
     requestedMinSeconds: 30,
@@ -44,8 +43,8 @@ try {
   });
   assert.equal(exactThirty.minSeconds, 30);
   assert.equal(exactThirty.maxSeconds, 30);
-  assert.equal(exactThirty.minWords, 60);
-  assert.equal(exactThirty.maxWords, 72);
+  assert.equal(exactThirty.minWords, 50);
+  assert.equal(exactThirty.maxWords, 60);
 
   const overLimit = normalizeOmniDurationRange({
     requestedMinSeconds: 50,
@@ -56,24 +55,20 @@ try {
   assert.equal(overLimit.minSeconds, 40);
   assert.equal(overLimit.maxSeconds, 40);
   assert.equal(overLimit.wasClamped, true);
-  assert.equal(overLimit.minWords, 80);
-  assert.equal(overLimit.maxWords, 96);
+  assert.equal(overLimit.minWords, 66);
+  assert.equal(overLimit.maxWords, 80);
 
-  const allowedDurations = new Set([4, 6, 8, 10]);
+  const allowedDurations = new Set([10]);
   for (const [wordCount, expectedSegments] of [
-    [16, 2],
-    [19, 2],
-    [24, 2],
-    [25, 2],
-    [29, 2],
+    [30, 2],
     [35, 2],
-    [36, 2],
-    [48, 2],
-    [49, 3],
+    [40, 2],
+    [45, 3],
     [54, 3],
-    [72, 3],
-    [73, 4],
-    [90, 4],
+    [60, 3],
+    [61, 4],
+    [72, 4],
+    [80, 4],
   ]) {
     const script = makeScript(wordCount);
     const plan = planOmniReelSegments(script);
@@ -87,7 +82,7 @@ try {
       plan.durationSeconds,
       plan.segmentDurationsSeconds.reduce((sum, duration) => sum + duration, 0)
     );
-    assert.ok(plan.segmentWordCounts.every((count) => count <= 24), "every segment must fit 24 useful words");
+    assert.ok(plan.segmentWordCounts.every((count) => count >= 15 && count <= 20), "every segment must fit storyboard speech words");
     assert.equal(reconstructVoiceSegments(plan.segments), script, "the source script must reconstruct exactly");
   }
 
@@ -116,12 +111,12 @@ try {
   assert.ok(fallbackSegments.every(seg => seg.wordCount > 0), "no segment should be empty");
 
   assert.throws(
-    () => planOmniReelSegments(makeScript(97)),
-    (error) => error instanceof Error && /97 слов.*Максимум 96 слов/u.test(error.message)
+    () => planOmniReelSegments(makeScript(81)),
+    (error) => error instanceof Error && /81 слов.*Максимум 80 слов/u.test(error.message)
   );
 
   assert.throws(
-    () => planOmniReelSegments(makeScript(15)),
+    () => planOmniReelSegments(makeScript(29)),
     (error) => error instanceof Error && /слишком короткий/u.test(error.message),
     "plans below two useful segments should be rejected"
   );
@@ -138,6 +133,6 @@ try {
 function makeScript(wordCount) {
   return Array.from(
     { length: wordCount },
-    (_, index) => `слово${index + 1}${(index + 1) % 20 === 0 ? "." : ""}`
+    (_, index) => `слово${index + 1}`
   ).join(" ");
 }

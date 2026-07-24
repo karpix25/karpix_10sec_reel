@@ -290,6 +290,7 @@ export function AvatarVideoPanel({
                         <OmniSegmentPromptDetails
                           prompt={segment.prompt}
                           voiceoverText={segment.voiceover_text}
+                          storyboardPlan={segment.storyboard_plan}
                           creativeStrategy={reel.creative_strategy}
                           creativePlan={segment.creative_plan}
                           validation={segment.prompt_validation}

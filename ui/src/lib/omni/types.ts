@@ -3,6 +3,7 @@ import type { AudioMood } from "@/lib/audio-library/moods";
 import type { AudioTrack } from "@/lib/audio-library/types";
 import type { OmniWardrobeSource } from "./wardrobe-source";
 import type { OmniSubtitleSettings, OmniSubtitleStatus } from "./subtitle-settings";
+import type { OmniStoryboardSegment, OmniStoryboardValidationResult } from "./storyboard/omni-storyboard-types";
 
 export type OmniProjectStatus = "active" | "archived";
 export type OmniReelStatus = "draft" | "queued" | "generating" | "stitching" | "completed" | "failed";
@@ -142,10 +143,44 @@ export interface OmniPromptPreviewSegment {
   prompt: string;
   referenceUrl: string | null;
   voiceoverText?: string;
+  storyboardPlan?: OmniStoryboardPlanSource | null;
+  storyboard_plan?: OmniStoryboardPlanSource | null;
+  storyboardValidation?: OmniStoryboardValidationResult | null;
+  storyboardReferenceUrl?: string | null;
   creativeStrategy?: OmniCreativeStrategy;
   creativePlan?: OmniSegmentCreativePlan;
   validation?: OmniPromptValidationResult;
 }
+
+export interface OmniStoryboardFrame {
+  time?: string | null;
+  timestamp?: string | null;
+  startSeconds?: number | null;
+  endSeconds?: number | null;
+  start_seconds?: number | null;
+  end_seconds?: number | null;
+  spokenWords?: string | null;
+  spoken_words?: string | null;
+  visualAction?: string | null;
+  visual_action?: string | null;
+  action?: string | null;
+  cameraAngle?: string | null;
+  camera_angle?: string | null;
+  environment?: string | null;
+  wardrobe?: string | null;
+  productPlacement?: string | null;
+  product_placement?: string | null;
+  sfx?: string | null;
+  effects?: string | string[] | null;
+}
+
+export interface OmniStoryboardPlan {
+  frames?: readonly OmniStoryboardFrame[] | null;
+  storyboardFrames?: readonly OmniStoryboardFrame[] | null;
+  storyboard_frames?: readonly OmniStoryboardFrame[] | null;
+}
+
+export type OmniStoryboardPlanSource = OmniStoryboardSegment | OmniStoryboardPlan | readonly OmniStoryboardFrame[];
 
 export interface OmniClientAvatar {
   id: number;
@@ -227,6 +262,9 @@ export interface OmniReelSegment {
   prompt: string | null;
   voiceover_text: string | null;
   creative_plan: OmniSegmentCreativePlan | null;
+  storyboard_plan?: OmniStoryboardPlanSource | null;
+  storyboard_validation?: OmniStoryboardValidationResult | null;
+  storyboard_reference_url?: string | null;
   prompt_validation: OmniPromptValidationResult | null;
   reference_url: string | null;
   kie_task_id: string | null;

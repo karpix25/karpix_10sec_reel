@@ -15,8 +15,6 @@ import {
   type CreativeScriptDraft,
   type DirectorSegmentPlan,
   type LlmPromptChainResult,
-  type PromptValidationIssue,
-  type ProviderPromptPlan,
 } from "./llm-prompt-chain-types";
 import {
   buildCreativeCopywriterPrompt,
@@ -34,6 +32,11 @@ import {
   validateDirectorSegmentPlan,
   validateProviderPromptPlan,
 } from "./provider-prompt-contract-validator";
+import {
+  validateStoryboardDirectorPlan,
+  validateStoryboardProviderAlignment,
+  validateStoryboardProviderPlan,
+} from "./llm-prompt-chain-storyboard-validator";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const PROMPT_CHAIN_ATTEMPTS_PER_LAYER = 2;
@@ -68,7 +71,9 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
       backgroundAudioMood: normalizeAudioMood(null, detectAudioMoodFromText(script)),
       beats: directorPlan.segments.map((segment, index) => ({
         stage: index === 0 ? "hook" : index === directorPlan.segments.length - 1 ? "cta" : "body",
-        visualCue: segment.shots.map((shot) => `${shot.role}: ${shot.action}`).join(". "),
+        visualCue: segment.storyboardFrames.length
+          ? segment.storyboardFrames.map((frame) => `${frame.role}: ${frame.visualDescription}`).join(". ")
+          : segment.shots.map((shot) => `${shot.role}: ${shot.action}`).join(". "),
         voiceover: segment.voiceover,
       })),
       snapshot: {
@@ -137,7 +142,10 @@ async function runDirectorSegmenter(
       const finalScript = sanitizeOmniScriptText(formatScenarioScript(plan.totalVoiceover));
       const ensuredCta = ensureOmniScriptCta(finalScript, input.ctaMode, input.ctaValue);
       if (ensuredCta !== finalScript) throw new Error("Director plan is missing the required CTA");
-      const issues = validateDirectorSegmentPlan(plan).filter((issue) => issue.severity === "error");
+      const issues = [
+        ...validateDirectorSegmentPlan(plan),
+        ...validateStoryboardDirectorPlan(plan),
+      ].filter((issue) => issue.severity === "error");
       if (issues.length) throw new Error(formatPromptValidationIssues(issues));
       assertPromptChainScriptQuality(input, finalScript, plan.selectedHook);
       return plan;
@@ -170,7 +178,8 @@ async function runProviderPromptWriter(
       if (!plan) throw new Error("Provider prompt writer returned invalid JSON plan");
       const issues = [
         ...validateProviderPromptPlan(plan),
-        ...validateProviderAlignment(directorPlan, plan),
+        ...validateStoryboardProviderPlan(plan),
+        ...validateStoryboardProviderAlignment(directorPlan, plan),
       ].filter((issue) => issue.severity === "error");
       if (issues.length) throw new Error(formatPromptValidationIssues(issues));
       return plan;
@@ -233,33 +242,6 @@ async function requestOpenRouter(input: {
   return readAssistantContent(data);
 }
 
-function validateProviderAlignment(
-  directorPlan: DirectorSegmentPlan,
-  providerPlan: ProviderPromptPlan
-): PromptValidationIssue[] {
-  const issues: PromptValidationIssue[] = [];
-  if (directorPlan.segments.length !== providerPlan.segmentPrompts.length) {
-    issues.push({
-      path: "provider.segmentPrompts",
-      code: "segment_count_mismatch",
-      message: "Provider prompt count must match director segments.",
-      severity: "error",
-    });
-  }
-  providerPlan.segmentPrompts.forEach((prompt, index) => {
-    const segment = directorPlan.segments[index];
-    if (segment && normalize(prompt.voiceover) !== normalize(segment.voiceover)) {
-      issues.push({
-        path: `provider.segmentPrompts.${index}.voiceover`,
-        code: "voiceover_mismatch",
-        message: "Provider voiceover must match director voiceover.",
-        severity: "error",
-      });
-    }
-  });
-  return issues;
-}
-
 function assertPromptChainScriptQuality(
   input: PromptChainInput & { model: string },
   script: string,
@@ -302,10 +284,6 @@ function readAssistantContent(data: Record<string, unknown>) {
     if (typeof content === "string") return content;
   }
   return "";
-}
-
-function normalize(text: string) {
-  return text.toLowerCase().replace(/ё/g, "е").replace(/\s+/gu, " ").trim();
 }
 
 function getErrorMessage(error: unknown) {
