@@ -18,28 +18,22 @@ export async function generateStoryboardImage(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
   avatarReferenceUrl: string | null;
+  productReferenceUrls?: readonly string[];
 }) {
   if (process.env.OMNI_STORYBOARD_IMAGE_GENERATION === "false") return null;
   const avatarReferenceUrl = cleanUrl(input.avatarReferenceUrl);
   if (!avatarReferenceUrl) {
     throw new Error("Storyboard image generation requires the avatar reference image used for Omni character_id");
   }
+  const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
+  if (!productReferenceUrls.length) {
+    throw new Error("Storyboard image generation requires a real product reference image");
+  }
 
-  const response = await fetch(`${getCometApiBaseUrl()}/v1/images/generations`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${getCometApiKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: STORYBOARD_IMAGE_MODEL,
-      prompt: buildStoryboardImagePrompt(input),
-      quality: DEFAULT_IMAGE_QUALITY,
-      size: DEFAULT_IMAGE_SIZE,
-      output_format: DEFAULT_OUTPUT_FORMAT,
-      n: 1,
-    }),
-    cache: "no-store",
+  const response = await createStoryboardImage({
+    ...input,
+    avatarReferenceUrl,
+    productReferenceUrls,
   });
 
   const payload = await response.json().catch(() => null);
@@ -85,16 +79,22 @@ function buildStoryboardImagePrompt(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
   avatarReferenceUrl: string | null;
+  productReferenceUrls?: readonly string[];
 }) {
   const avatarReferenceUrl = cleanUrl(input.avatarReferenceUrl);
+  const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
   return [
     "Создай одну квадратную production storyboard картинку, clean contact sheet из пяти кадров для вертикального UGC видео.",
+    "Используй входные изображения как реальные визуальные референсы, а не как текстовые ссылки.",
+    "Изображение 1 - наш аватар: лицо, возраст, телосложение, волосы и общий типаж героя.",
+    `Изображения ${productReferenceUrls.length > 1 ? `2-${productReferenceUrls.length + 1}` : "2"} - реальный продукт: форма, цвет, упаковка, материал и размер.`,
     "Каждый кадр должен быть отдельной визуальной панелью с маленьким номером кадра и русской фразой кадра как субтитром.",
     "Можно рисовать только те стрелки, переходы, эффекты и SFX-подсказки, которые помогают повторить раскадровку в видео. Не добавляй интерфейс соцсетей, кнопки приложения или водяные знаки.",
-    "Главный герой в каждом кадре должен быть тем же человеком, что и avatar reference. Не меняй лицо, возраст, телосложение, волосы и общий типаж между кадрами.",
+    "Главный герой в каждом кадре должен быть тем же человеком, что и на изображении 1. Не меняй лицо, возраст, телосложение, волосы и общий типаж между кадрами.",
     "Одежда, стиль, свет и окружение должны оставаться одинаковыми во всех пяти кадрах.",
-    "Если описание кадра говорит, что продукт виден, прорисуй продукт четко и детально по product reference: форма, цвет, материал, упаковка, логотипная зона и размер.",
-    `Avatar reference для героя: ${avatarReferenceUrl}.`,
+    "Если описание кадра говорит, что продукт виден, прорисуй именно продукт из входных изображений продукта, четко и детально.",
+    `Avatar reference URL: ${avatarReferenceUrl}.`,
+    productReferenceUrls.length ? `Product reference URLs: ${productReferenceUrls.join(", ")}.` : "",
     `Продукт: ${input.productName}.`,
     `Сегмент: ${input.segmentIndex}.`,
     ...input.storyboard.frames.map((frame, index) =>
@@ -112,6 +112,67 @@ function buildStoryboardImagePrompt(input: {
   ].join("\n");
 }
 
+async function createStoryboardImage(input: {
+  projectId: number;
+  reelId?: number;
+  scriptId?: number;
+  segmentIndex: number;
+  storyboard: OmniStoryboardSegment;
+  productName: string;
+  avatarReferenceUrl: string;
+  productReferenceUrls: readonly string[];
+}) {
+  const references = [input.avatarReferenceUrl, ...input.productReferenceUrls].slice(0, 16);
+  if (references.length) {
+    const form = new FormData();
+    form.set("model", STORYBOARD_IMAGE_MODEL);
+    form.set("prompt", buildStoryboardImagePrompt(input));
+    form.set("quality", DEFAULT_IMAGE_QUALITY);
+    form.set("size", DEFAULT_IMAGE_SIZE);
+    form.set("output_format", DEFAULT_OUTPUT_FORMAT);
+    form.set("n", "1");
+    const imageField = getImageEditFieldName();
+    const files = await Promise.all(references.map((url, index) => downloadReferenceFile(url, index)));
+    files.forEach((file) => form.append(imageField, file));
+    return fetch(`${getCometApiBaseUrl()}/v1/images/edits`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${getCometApiKey()}` },
+      body: form,
+      cache: "no-store",
+    });
+  }
+
+  return fetch(`${getCometApiBaseUrl()}/v1/images/generations`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getCometApiKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: STORYBOARD_IMAGE_MODEL,
+      prompt: buildStoryboardImagePrompt(input),
+      quality: DEFAULT_IMAGE_QUALITY,
+      size: DEFAULT_IMAGE_SIZE,
+      output_format: DEFAULT_OUTPUT_FORMAT,
+      n: 1,
+    }),
+    cache: "no-store",
+  });
+}
+
+async function downloadReferenceFile(url: string, index: number) {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Storyboard reference image ${index + 1} download failed: ${response.status}`);
+  }
+  const contentType = normalizeImageContentType(response.headers.get("content-type"));
+  if (!contentType) {
+    throw new Error(`Storyboard reference image ${index + 1} is not a supported image`);
+  }
+  const extension = contentType.split("/")[1] || "jpg";
+  return new File([await response.blob()], `storyboard_reference_${index + 1}.${extension}`, { type: contentType });
+}
+
 function getCometApiKey() {
   const key = process.env.COMETAPI_KEY || "";
   if (!key.trim()) throw new Error("COMETAPI_KEY is not configured");
@@ -120,6 +181,10 @@ function getCometApiKey() {
 
 function getCometApiBaseUrl() {
   return (process.env.COMETAPI_BASE_URL || DEFAULT_COMETAPI_BASE_URL).replace(/\/$/, "");
+}
+
+function getImageEditFieldName() {
+  return (process.env.COMETAPI_IMAGE_EDIT_IMAGE_FIELD || "image[]").trim() || "image[]";
 }
 
 function extractBase64Image(payload: unknown) {
@@ -134,4 +199,24 @@ function extractBase64Image(payload: unknown) {
 
 function cleanUrl(value: string | null | undefined) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function uniqueUrls(values: readonly string[]) {
+  const seen = new Set<string>();
+  return values
+    .map((value) => cleanUrl(value))
+    .filter((value): value is string => Boolean(value))
+    .filter((value) => {
+      if (seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    });
+}
+
+function normalizeImageContentType(value: string | null) {
+  const contentType = (value || "").split(";")[0]?.trim().toLowerCase();
+  if (contentType === "image/jpeg" || contentType === "image/png" || contentType === "image/webp") {
+    return contentType;
+  }
+  return null;
 }

@@ -14,6 +14,7 @@ import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-plan
 import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
+import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -194,6 +195,7 @@ export async function createOmniReel(input: {
     projectId: input.projectId,
     reelId: reservedReelId,
     productName: product.name,
+    productReferenceUrls: resolveProductReferenceImageUrls(product),
     avatarReferenceUrl: latestAvatar?.reference_url || null,
     promptPlan,
   });
@@ -302,6 +304,7 @@ async function generateStoryboardReferenceUrls(input: {
   projectId: number;
   reelId: number;
   productName: string;
+  productReferenceUrls: readonly string[];
   avatarReferenceUrl: string | null;
   promptPlan: readonly ReturnType<typeof buildOmniSegmentPrompts>[number][];
 }) {
@@ -315,6 +318,7 @@ async function generateStoryboardReferenceUrls(input: {
         segmentIndex: index + 1,
         storyboard: segmentPrompt.storyboardPlan,
         productName: input.productName,
+        productReferenceUrls: input.productReferenceUrls,
         avatarReferenceUrl: input.avatarReferenceUrl,
       })
       : null);

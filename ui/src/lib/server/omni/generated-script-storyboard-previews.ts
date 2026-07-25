@@ -8,35 +8,28 @@ type StoryboardPromptSegment = {
   storyboardPlan: OmniStoryboardSegment | null;
 };
 
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-refs-v1";
+
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
   productId: number;
   scriptId: number;
   productName: string;
   avatarReferenceUrl: string | null;
+  productReferenceUrls: readonly string[];
   promptPlan: readonly StoryboardPromptSegment[];
 }) {
   await ensureOmniSchema();
-  const urls = await getStoredGeneratedScriptStoryboardUrls(input);
-  const reelUrls = await getLatestGeneratedScriptReelStoryboardUrls(input);
+  const referenceSignature = buildReferenceSignature(input);
+  const urls = await getStoredGeneratedScriptStoryboardUrls({ ...input, referenceSignature });
 
   for (const segment of input.promptPlan) {
     if (urls.has(segment.index)) continue;
-    const reelUrl = reelUrls.get(segment.index);
-    if (reelUrl) {
-      await upsertGeneratedScriptStoryboardUrl({
-        ...input,
-        segmentIndex: segment.index,
-        storyboardPlan: segment.storyboardPlan,
-        url: reelUrl,
-      });
-      urls.set(segment.index, reelUrl);
-      continue;
-    }
 
     if (!segment.storyboardPlan) continue;
     const generatedUrl = await tryGenerateStoryboardPreview({
       ...input,
+      referenceSignature,
       segmentIndex: segment.index,
       storyboardPlan: segment.storyboardPlan,
     });
@@ -50,6 +43,7 @@ async function getStoredGeneratedScriptStoryboardUrls(input: {
   projectId: number;
   productId: number;
   scriptId: number;
+  referenceSignature: string;
 }) {
   const { rows } = await pool.query<{
     segment_index: number;
@@ -60,45 +54,16 @@ async function getStoredGeneratedScriptStoryboardUrls(input: {
      WHERE project_id = $1
        AND product_id = $2
        AND generated_script_id = $3
+       AND reference_signature = $4
+       AND generator_version = $5
      ORDER BY segment_index ASC`,
-    [input.projectId, input.productId, input.scriptId]
-  );
-
-  return rowsToUrlMap(rows);
-}
-
-async function getLatestGeneratedScriptReelStoryboardUrls(input: {
-  projectId: number;
-  productId: number;
-  scriptId: number;
-}) {
-  await ensureOmniSchema();
-
-  const { rows } = await pool.query<{
-    segment_index: number;
-    storyboard_reference_url: string | null;
-  }>(
-    `WITH latest_reel AS (
-       SELECT id
-       FROM omni_reels
-       WHERE project_id = $1
-         AND product_id = $2
-         AND source_generated_script_id = $3
-         AND EXISTS (
-           SELECT 1
-           FROM omni_reel_segments
-           WHERE reel_id = omni_reels.id
-             AND storyboard_reference_url IS NOT NULL
-             AND storyboard_reference_url <> ''
-         )
-       ORDER BY created_at DESC, id DESC
-       LIMIT 1
-     )
-     SELECT segment_index, storyboard_reference_url
-     FROM omni_reel_segments
-     WHERE reel_id = (SELECT id FROM latest_reel)
-     ORDER BY segment_index ASC`,
-    [input.projectId, input.productId, input.scriptId]
+    [
+      input.projectId,
+      input.productId,
+      input.scriptId,
+      input.referenceSignature,
+      STORYBOARD_PREVIEW_GENERATOR_VERSION,
+    ]
   );
 
   return rowsToUrlMap(rows);
@@ -110,6 +75,8 @@ async function tryGenerateStoryboardPreview(input: {
   scriptId: number;
   productName: string;
   avatarReferenceUrl: string | null;
+  productReferenceUrls: readonly string[];
+  referenceSignature: string;
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment;
 }) {
@@ -121,6 +88,7 @@ async function tryGenerateStoryboardPreview(input: {
       storyboard: input.storyboardPlan,
       productName: input.productName,
       avatarReferenceUrl: input.avatarReferenceUrl,
+      productReferenceUrls: input.productReferenceUrls,
     });
     if (!url) return null;
     await upsertGeneratedScriptStoryboardUrl({ ...input, url });
@@ -141,6 +109,7 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
   scriptId: number;
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment | null;
+  referenceSignature: string;
   url: string;
 }) {
   await pool.query(
@@ -151,13 +120,17 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
        segment_index,
        storyboard_plan,
        storyboard_reference_url,
+       reference_signature,
+       generator_version,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, CURRENT_TIMESTAMP)
      ON CONFLICT (generated_script_id, segment_index)
      DO UPDATE SET
        storyboard_plan = EXCLUDED.storyboard_plan,
        storyboard_reference_url = EXCLUDED.storyboard_reference_url,
+       reference_signature = EXCLUDED.reference_signature,
+       generator_version = EXCLUDED.generator_version,
        updated_at = CURRENT_TIMESTAMP`,
     [
       input.projectId,
@@ -166,8 +139,21 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
       input.segmentIndex,
       input.storyboardPlan ? JSON.stringify(input.storyboardPlan) : null,
       input.url,
+      input.referenceSignature,
+      STORYBOARD_PREVIEW_GENERATOR_VERSION,
     ]
   );
+}
+
+function buildReferenceSignature(input: {
+  avatarReferenceUrl: string | null;
+  productReferenceUrls: readonly string[];
+}) {
+  return [
+    STORYBOARD_PREVIEW_GENERATOR_VERSION,
+    normalizeUrl(input.avatarReferenceUrl) || "",
+    ...input.productReferenceUrls.map((url) => normalizeUrl(url) || "").filter(Boolean).sort(),
+  ].join("|");
 }
 
 function rowsToUrlMap(rows: readonly { segment_index: number; storyboard_reference_url: string | null }[]) {
