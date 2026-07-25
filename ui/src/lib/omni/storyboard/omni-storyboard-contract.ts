@@ -23,8 +23,6 @@ const REQUIRED_FRAME_FIELDS: readonly (keyof Pick<
 
 const MODEL_MUSIC_CUE_PATTERN =
   /(?:музык|саундтрек|трек|песня|мелод|music|soundtrack|background\s+music|bgm|song|melody)/iu;
-const DECORATIVE_VISUAL_CUE_PATTERN =
-  /(?:можно\s+(?:рисовать|использовать)|рисуй|добавь|нарисованн\p{L}*)[^.?!]*(?:субтитр|стрелк|оверле[йя]?|эффект|caption|subtitle|overlay|arrow)|(?:субтитр|стрелк|оверле[йя]?|caption|subtitle|overlay|arrow)[^.?!]*(?:как\s+визуальн|подсказк|можно)/iu;
 
 export function normalizeOmniStoryboardSegment(input: OmniStoryboardSegment): OmniStoryboardSegment {
   return {
@@ -52,7 +50,6 @@ export function validateOmniStoryboardSegment(input: OmniStoryboardSegment): Omn
     validateRequiredFrameFields(frame, frameIndex, errors);
     validateFrameSpeech(frame, frameIndex, errors);
     validateNoModelMusicCues(frame, frameIndex, errors);
-    validateNoDecorativeVisualCues(frame, frameIndex, errors);
   });
 
   const joinedFrameSpeech = normalizedSegment.frames
@@ -141,27 +138,6 @@ function validateNoModelMusicCues(frame: OmniStoryboardFrame, frameIndex: number
     const value = frame[field];
     if (value && MODEL_MUSIC_CUE_PATTERN.test(value)) {
       errors.push(`frame_${frameIndex + 1}_${field}_must_not_include_music_cue`);
-    }
-  }
-}
-
-function validateNoDecorativeVisualCues(frame: OmniStoryboardFrame, frameIndex: number, errors: string[]) {
-  const visualFields: readonly (keyof Pick<
-    OmniStoryboardFrame,
-    "visualAction" | "camera" | "environment" | "productPlacement" | "sfxNotes" | "effectNotes"
-  >)[] = [
-    "visualAction",
-    "camera",
-    "environment",
-    "productPlacement",
-    "sfxNotes",
-    "effectNotes",
-  ];
-
-  for (const field of visualFields) {
-    const value = frame[field];
-    if (value && DECORATIVE_VISUAL_CUE_PATTERN.test(value)) {
-      errors.push(`frame_${frameIndex + 1}_${field}_must_not_add_decorative_visual_cue`);
     }
   }
 }

@@ -10,8 +10,6 @@ import {
 
 const NO_OMNI_MUSIC_PATTERN =
   /без\s+музык|no\s+music|музык\p{L}*\s+не\s+(?:добавляй|генерируй|создавай)|не\s+(?:добавляй|генерируй|создавай)\s+музык/iu;
-const DECORATIVE_VISUAL_CUE_PATTERN =
-  /(?:субтитр|стрелк|оверле[йя]?|визуальн\p{L}*\s+эффект|caption|subtitle|overlay|arrow|visual\s+effect)/iu;
 const HIDDEN_PRODUCT_PATTERN =
   /вне\s+кадра|не\s+виден|скрыт|hidden|off\s*camera|not\s+visible/iu;
 
@@ -157,14 +155,6 @@ function validateStoryboardFrames(
         severity: "error",
       });
     }
-    if (hasDecorativeVisualCue(frame)) {
-      issues.push({
-        path: `${path}.${frameIndex}`,
-        code: "storyboard_decorative_visual_cue",
-        message: "Storyboard frames must avoid decorative graphics, arrows, overlays, subtitles, and visual effects.",
-        severity: "error",
-      });
-    }
     if (frame.sfx && /музык|music|jingle|джингл/iu.test(frame.sfx) && !/без\s+музык|no\s+music/iu.test(frame.sfx)) {
       issues.push({
         path: `${path}.${frameIndex}.sfx`,
@@ -174,16 +164,6 @@ function validateStoryboardFrames(
       });
     }
   });
-}
-
-function hasDecorativeVisualCue(frame: StoryboardFrame) {
-  return [
-    frame.visualDescription,
-    frame.camera,
-    frame.action,
-    frame.productState,
-    frame.sfx || "",
-  ].some((value) => DECORATIVE_VISUAL_CUE_PATTERN.test(value || ""));
 }
 
 function joinStoryboardSpeech(frames: readonly StoryboardFrame[]) {

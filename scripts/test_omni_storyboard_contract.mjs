@@ -51,13 +51,13 @@ try {
 
   const prompt = renderer.renderCompactRussianOmniStoryboardPrompt({ storyboard: buildValidStoryboard() });
   assert.ok(prompt.includes("Вертикальное 9:16 видео, 10 секунд."));
-  assert.ok(prompt.includes("Свою музыку не добавляй."));
-  assert.ok(prompt.includes("Произнеси точную речь ниже один раз."));
-  assert.ok(prompt.includes("Не повторяй слова"));
-  assert.ok(prompt.includes("Раскадровка без повторного текста речи:"));
-  assert.ok(prompt.includes("1) 0-2 сек"));
-  assert.ok(!prompt.includes("речь: \"Утром я беру\""));
-  assert.ok(prompt.length < 2400, "storyboard provider prompt must stay compact");
+  assert.ok(prompt.includes("Используй раскадровку как главный референс"));
+  assert.ok(prompt.includes("повтори ракурсы камеры, действия, переходы, эффекты, субтитры"));
+  assert.ok(prompt.includes("Озвучка: Утром я беру"));
+  assert.ok(prompt.includes("Музыку не добавляй."));
+  assert.ok(!prompt.includes("действие: герой берет"));
+  assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));
+  assert.ok(prompt.length < 900, "storyboard provider prompt must stay short");
 
   assertInvalid(
     { ...buildValidStoryboard(), frames: buildValidStoryboard().frames.slice(0, 4) },
@@ -83,10 +83,6 @@ try {
   const musicCue = buildValidStoryboard();
   musicCue.frames[2] = { ...musicCue.frames[2], sfxNotes: "легкая музыка на фоне" };
   assertInvalid(musicCue, "frame_3_sfxNotes_must_not_include_music_cue");
-
-  const decorativeCue = buildValidStoryboard();
-  decorativeCue.frames[0] = { ...decorativeCue.frames[0], effectNotes: "можно использовать нарисованные субтитры и стрелки" };
-  assertInvalid(decorativeCue, "frame_1_effectNotes_must_not_add_decorative_visual_cue");
 
   assert.throws(
     () => renderer.renderCompactRussianOmniStoryboardPrompt({ storyboard: musicCue }),

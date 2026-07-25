@@ -316,10 +316,11 @@ function buildStoredProviderPromptSegments(
     if (!validation.valid) {
       throw new Error(`Invalid LLM storyboard segment ${segmentIndex}: ${validation.errors.join(", ")}`);
     }
+    const prompt = renderCompactRussianOmniStoryboardPrompt({ storyboard: storyboardPlan });
     return {
       index: segmentIndex,
       role: getSegmentRole(segmentIndex, providerPromptPlan.segmentPrompts.length),
-      prompt: segment.prompt,
+      prompt,
       referenceUrl: selectStoredReferenceUrl(segment.referenceRole, avatarReference, productReference),
       durationSeconds: segment.durationSeconds,
       voiceoverText: segment.voiceover,
