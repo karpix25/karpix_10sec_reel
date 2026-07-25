@@ -16,7 +16,7 @@ import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { generateScript } from "./script-generator";
 import { resolveReadyGeneratedScriptReference } from "./generated-script-reference-selection";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
-import { getLatestGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
+import { ensureGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
 
 function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
   return {
@@ -85,9 +85,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
   const durationRange = await resolveOmniDurationRange({ project, product });
   const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script, { durationRange });
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
-  const storyboardUrls = await getLatestGeneratedScriptStoryboardUrls(input);
-
-  return buildOmniSegmentPrompts({
+  const promptPlan = buildOmniSegmentPrompts({
     generatedScript: resolvedGeneratedScript,
     legacyTranscript: null,
     product,
@@ -102,7 +100,15 @@ export async function buildGeneratedScriptPromptPreview(input: {
     ctaValue: product.cta_value,
     recentFormatIds,
     wardrobeSource: project.wardrobe_source,
-  }).map((segment) => ({
+  });
+  const storyboardUrls = await ensureGeneratedScriptStoryboardUrls({
+    ...input,
+    productName: product.name,
+    avatarReferenceUrl: avatar?.reference_url || null,
+    promptPlan,
+  });
+
+  return promptPlan.map((segment) => ({
     segmentIndex: segment.index,
     durationSeconds: segment.durationSeconds,
     role: segment.role,

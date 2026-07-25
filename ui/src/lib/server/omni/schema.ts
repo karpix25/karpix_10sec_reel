@@ -199,6 +199,18 @@ const statements = [
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(reel_id, segment_index)
   )`,
+  `CREATE TABLE IF NOT EXISTS omni_generated_script_storyboards (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES omni_projects(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES omni_products(id) ON DELETE CASCADE,
+    generated_script_id INTEGER NOT NULL REFERENCES omni_generated_scripts(id) ON DELETE CASCADE,
+    segment_index INTEGER NOT NULL,
+    storyboard_plan JSONB,
+    storyboard_reference_url TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(generated_script_id, segment_index)
+  )`,
   `CREATE TABLE IF NOT EXISTS omni_automation_jobs (
     id SERIAL PRIMARY KEY,
     project_id INTEGER NOT NULL REFERENCES omni_projects(id) ON DELETE CASCADE,
@@ -320,6 +332,7 @@ const statements = [
   "CREATE INDEX IF NOT EXISTS idx_omni_legacy_video_analyses_status ON omni_legacy_video_analyses(director_analysis_status, updated_at DESC)",
   "CREATE INDEX IF NOT EXISTS idx_omni_generated_scripts_project_product ON omni_generated_scripts(project_id, product_id, created_at DESC)",
   "CREATE INDEX IF NOT EXISTS idx_omni_generated_scripts_source ON omni_generated_scripts(source_legacy_scenario_id)",
+  "CREATE INDEX IF NOT EXISTS idx_omni_generated_script_storyboards_script ON omni_generated_script_storyboards(generated_script_id, segment_index)",
   "CREATE INDEX IF NOT EXISTS idx_omni_reels_project_product ON omni_reels(project_id, product_id)",
   "CREATE INDEX IF NOT EXISTS idx_omni_reels_generated_script ON omni_reels(source_generated_script_id)",
   "CREATE INDEX IF NOT EXISTS idx_omni_segments_reel ON omni_reel_segments(reel_id, segment_index)",
