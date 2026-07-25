@@ -126,7 +126,7 @@ try {
   {
     const result = selectReferenceImagesForSegment({
       provider: "kie-ai",
-      continuityImages: [],
+      continuityImages: [imgPreviousFrame],
       cometReferenceImages: [imgAvatar, imgProduct],
       kieReferenceImages: [imgProduct, imgProductSide],
       referenceImageTransport: "url",
@@ -134,7 +134,7 @@ try {
       productIsVisible: false,
     });
     assert.deepEqual(result.sent, [imgProduct, imgProductSide], "KIE must send product refs even when product role is hidden");
-    assert.deepEqual(result.skipped, [], "KIE must not skip product refs by visibility heuristic");
+    assert.deepEqual(result.skipped, [imgPreviousFrame], "KIE must not send previous last frame continuity refs");
   }
 
   {
