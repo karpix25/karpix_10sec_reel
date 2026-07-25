@@ -31,6 +31,7 @@ import {
 } from "./omni-provider-tasks";
 import { processOmniReelSubtitlesIfNeeded } from "./omni-reel-subtitles";
 import { storeCompletedSegment, stitchAndStoreReel } from "./omni-segment-completion";
+import { resolveKieOmniAudioIds } from "./kie-omni-audio";
 
 type ReelBundle = {
   reel: OmniReel;
@@ -84,6 +85,11 @@ async function resolveAvatarCharacterId(reel: OmniReel) {
   return latestAvatar?.kie_character_id || null;
 }
 
+async function resolveKieAudioIds(reel: OmniReel) {
+  const latestAvatar = await getLatestOmniClientAvatar(reel.project_id);
+  return resolveKieOmniAudioIds(latestAvatar?.kie_character_payload || reel.avatar_snapshot);
+}
+
 function getReelGenerationProvider(segments: OmniReelSegment[]) {
   return normalizeOmniGenerationProvider(
     segments.find((segment) => segment.generation_provider)?.generation_provider
@@ -100,6 +106,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
   const productReferenceUrls = getProductReferenceUrls(reel);
   const productReferenceUrl = productReferenceUrls[0] || null;
   const avatarCharacterId = await resolveAvatarCharacterId(reel);
+  const kieAudioIds = provider === "kie-ai" ? await resolveKieAudioIds(reel) : [];
   const referenceImageField = getCometReferenceImageFieldName();
   const referenceImageTransport = getCometReferenceImageTransport();
   const baseReferenceImages = shouldSendCometReferenceImage()
@@ -221,6 +228,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       resolution: "720p",
       image_urls: selectedReferenceImages.sent.map((image) => image.url),
       character_ids: provider === "kie-ai" && avatarCharacterId ? [avatarCharacterId] : [],
+      audio_ids: provider === "kie-ai" ? kieAudioIds : [],
       reference_images_sent: selectedReferenceImages.sent.length > 0,
       reference_image_field: selectedReferenceImages.sent.length ? referenceImageField : null,
       reference_image_transport:
@@ -276,6 +284,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
         resolution: "720p",
         referenceImages: selectedReferenceImages.sent,
         characterId: avatarCharacterId,
+        audioIds: kieAudioIds,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
