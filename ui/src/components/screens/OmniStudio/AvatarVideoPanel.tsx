@@ -291,6 +291,7 @@ export function AvatarVideoPanel({
                           prompt={segment.prompt}
                           voiceoverText={segment.voiceover_text}
                           storyboardPlan={segment.storyboard_plan}
+                          storyboardReferenceUrl={segment.storyboard_reference_url}
                           creativeStrategy={reel.creative_strategy}
                           creativePlan={segment.creative_plan}
                           validation={segment.prompt_validation}

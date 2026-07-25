@@ -17,6 +17,7 @@ export function OmniSegmentPromptDetails({
   creativeStrategy,
   creativePlan,
   storyboardPlan,
+  storyboardReferenceUrl,
   validation,
 }: {
   prompt: string | null | undefined;
@@ -24,6 +25,7 @@ export function OmniSegmentPromptDetails({
   creativeStrategy?: OmniCreativeStrategy | null;
   creativePlan?: OmniSegmentCreativePlan | null;
   storyboardPlan?: OmniStoryboardPlanSource | null;
+  storyboardReferenceUrl?: string | null;
   validation?: OmniPromptValidationResult | null;
 }) {
   const sections = extractOmniPromptSections(prompt);
@@ -32,11 +34,16 @@ export function OmniSegmentPromptDetails({
   const storyboardFrames = explicitStoryboardFrames.length
     ? explicitStoryboardFrames
     : extractStoryboardFrames(readCreativePlanStoryboard(creativePlan));
-  const hasStoryboard = storyboardFrames.length > 0;
+  const hasStoryboard = storyboardFrames.length > 0 || Boolean(storyboardReferenceUrl);
 
   return (
     <div className="mt-2 grid gap-2 text-xs">
-      {hasStoryboard ? <StoryboardSegmentPreview frames={storyboardFrames} /> : null}
+      {hasStoryboard ? (
+        <StoryboardSegmentPreview
+          frames={storyboardFrames}
+          storyboardReferenceUrl={storyboardReferenceUrl}
+        />
+      ) : null}
       {creativePlan ? (
         <CreativePlanSummary
           strategy={creativeStrategy}
