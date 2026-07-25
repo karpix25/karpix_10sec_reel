@@ -8,7 +8,7 @@ type StoryboardPromptSegment = {
   storyboardPlan: OmniStoryboardSegment | null;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-director-board-v1";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-director-board-single-v1";
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;

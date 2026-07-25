@@ -54,7 +54,8 @@ try {
     assert.equal(normalizedCount(item.prompt, item.voiceoverText), 0);
     assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/iu.test(item.prompt));
     assert.ok(!item.prompt.includes("Озвучка:"), "storyboard prompt must not duplicate spoken text");
-    assert.ok(item.prompt.includes("слова озвучки из раскадровки"), "storyboard prompt must read speech from storyboard reference");
+    assert.ok(item.prompt.includes("субтитры пяти основных кадров"), "storyboard prompt must read only main frame subtitles");
+    assert.ok(item.prompt.includes("Служебные блоки раскадровки"), "storyboard prompt must forbid reading director labels");
     assert.ok(item.prompt.includes("Используй раскадровку как главный референс"), "storyboard prompt must lean on storyboard reference");
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
     assert.ok(item.prompt.includes("Музыку не добавляй"), "storyboard prompt must forbid Omni music");
