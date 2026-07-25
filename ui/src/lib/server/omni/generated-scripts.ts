@@ -16,6 +16,7 @@ import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { generateScript } from "./script-generator";
 import { resolveReadyGeneratedScriptReference } from "./generated-script-reference-selection";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
+import { getLatestGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
 
 function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
   return {
@@ -84,6 +85,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
   const durationRange = await resolveOmniDurationRange({ project, product });
   const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script, { durationRange });
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
+  const storyboardUrls = await getLatestGeneratedScriptStoryboardUrls(input);
 
   return buildOmniSegmentPrompts({
     generatedScript: resolvedGeneratedScript,
@@ -111,6 +113,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     creativePlan: segment.creativePlan,
     storyboardPlan: segment.storyboardPlan,
     storyboardValidation: segment.storyboardValidation,
+    storyboardReferenceUrl: storyboardUrls.get(segment.index) || null,
     validation: segment.validation,
   }));
 }
