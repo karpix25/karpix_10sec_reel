@@ -1,4 +1,7 @@
-import { uploadOmniImageBufferToS3 } from "./omni-video-storage";
+import {
+  uploadOmniGeneratedScriptStoryboardImageBufferToS3,
+  uploadOmniImageBufferToS3,
+} from "./omni-video-storage";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 
 const DEFAULT_COMETAPI_BASE_URL = "https://api.cometapi.com";
@@ -9,7 +12,8 @@ const DEFAULT_OUTPUT_FORMAT = "jpeg";
 
 export async function generateStoryboardImage(input: {
   projectId: number;
-  reelId: number;
+  reelId?: number;
+  scriptId?: number;
   segmentIndex: number;
   storyboard: OmniStoryboardSegment;
   productName: string;
@@ -48,15 +52,32 @@ export async function generateStoryboardImage(input: {
 
   const b64 = extractBase64Image(payload);
   if (!b64) throw new Error("CometAPI gpt-image-2 storyboard response did not include b64_json");
+  const body = Buffer.from(b64, "base64");
+  const fileName = `storyboard_${String(input.segmentIndex).padStart(2, "0")}.jpg`;
 
-  return uploadOmniImageBufferToS3({
-    projectId: input.projectId,
-    reelId: input.reelId,
-    segmentIndex: input.segmentIndex,
-    fileName: `storyboard_${String(input.segmentIndex).padStart(2, "0")}.jpg`,
-    body: Buffer.from(b64, "base64"),
-    contentType: "image/jpeg",
-  });
+  if (typeof input.reelId === "number") {
+    return uploadOmniImageBufferToS3({
+      projectId: input.projectId,
+      reelId: input.reelId,
+      segmentIndex: input.segmentIndex,
+      fileName,
+      body,
+      contentType: "image/jpeg",
+    });
+  }
+
+  if (typeof input.scriptId === "number") {
+    return uploadOmniGeneratedScriptStoryboardImageBufferToS3({
+      projectId: input.projectId,
+      scriptId: input.scriptId,
+      segmentIndex: input.segmentIndex,
+      fileName,
+      body,
+      contentType: "image/jpeg",
+    });
+  }
+
+  throw new Error("Storyboard image generation requires reelId or scriptId storage target");
 }
 
 function buildStoryboardImagePrompt(input: {
