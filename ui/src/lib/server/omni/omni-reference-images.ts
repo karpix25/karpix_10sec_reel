@@ -35,8 +35,8 @@ export function selectReferenceImagesForSegment(input: {
 }): ReferenceImageSelection {
   if (input.provider === "kie-ai") {
     return {
-      sent: uniqueReferenceImages([...input.continuityImages, ...input.kieReferenceImages]),
-      skipped: [],
+      sent: uniqueReferenceImages(input.kieReferenceImages),
+      skipped: input.continuityImages,
     };
   }
 

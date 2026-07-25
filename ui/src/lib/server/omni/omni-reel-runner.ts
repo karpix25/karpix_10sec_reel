@@ -94,6 +94,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
   const { reel, segments } = await getReelBundle(reelId);
   const provider = normalizeOmniGenerationProvider(providerInput);
   const continuityChainEnabled = isOmniContinuityChainEnabled();
+  const providerContinuityEnabled = provider !== "kie-ai" && continuityChainEnabled;
   if (!segments.length) throw new Error("Omni reel has no segments");
   const avatarReferenceUrl = getAvatarReferenceUrl(reel);
   const productReferenceUrls = getProductReferenceUrls(reel);
@@ -165,15 +166,26 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
 
   for (const segment of segments) {
     if (segment.kie_task_id || RUNNING_STATUSES.has(segment.status) || segment.status === "completed") continue;
-    if (isSegmentBlockedByContinuityChain(segment, segments)) break;
+    if (providerContinuityEnabled && isSegmentBlockedByContinuityChain(segment, segments)) break;
     if (!segment.prompt) throw new Error(`Segment ${segment.segment_index} has no prompt`);
 
-    const continuity = await resolveContinuityReference({
-      provider,
-      segment,
-      segments,
-      fieldName: referenceImageField,
-    });
+    const continuity = providerContinuityEnabled
+      ? await resolveContinuityReference({
+          provider,
+          segment,
+          segments,
+          fieldName: referenceImageField,
+        })
+      : {
+          image: null,
+          metadata: {
+            enabled: false,
+            applied: false,
+            reason: provider === "kie-ai"
+              ? "kie_uses_storyboard_reference_instead_of_previous_last_frame"
+              : "continuity_chain_disabled",
+          },
+        };
     const productIsVisible = segment.creative_plan?.productRole !== "hidden";
     const continuityImages = continuity.image ? [continuity.image] : [];
     const storyboardImages = segment.storyboard_reference_url
@@ -308,7 +320,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
         continuityApplied,
       ]
     );
-    if (continuityChainEnabled) break;
+    if (providerContinuityEnabled) break;
   }
 
   const updated = await getReelBundle(reelId);
