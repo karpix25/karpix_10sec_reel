@@ -17,6 +17,7 @@ import { generateScript } from "./script-generator";
 import { resolveReadyGeneratedScriptReference } from "./generated-script-reference-selection";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { ensureGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
+import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 
 function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
   return {
@@ -105,6 +106,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     ...input,
     productName: product.name,
     avatarReferenceUrl: avatar?.reference_url || null,
+    productReferenceUrls: resolveProductReferenceImageUrls(product),
     promptPlan,
   });
 
