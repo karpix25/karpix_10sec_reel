@@ -15,6 +15,7 @@ import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
+import { detectKieOmniVoiceGender } from "./kie-omni-audio";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -168,6 +169,7 @@ export async function createOmniReel(input: {
         provider: latestAvatar.provider,
         kie_character_id: latestAvatar.kie_character_id,
         kie_character_status: latestAvatar.kie_character_status,
+        voice_gender: detectKieOmniVoiceGender(latestAvatar),
         wardrobe_source: project.wardrobe_source,
       }
     : null;

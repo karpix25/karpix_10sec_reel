@@ -31,7 +31,7 @@ import {
 } from "./omni-provider-tasks";
 import { processOmniReelSubtitlesIfNeeded } from "./omni-reel-subtitles";
 import { storeCompletedSegment, stitchAndStoreReel } from "./omni-segment-completion";
-import { resolveKieOmniAudioIds } from "./kie-omni-audio";
+import { detectKieOmniVoiceGender, resolveKieOmniAudioIds, type KieOmniVoiceGender } from "./kie-omni-audio";
 
 type ReelBundle = {
   reel: OmniReel;
@@ -87,7 +87,15 @@ async function resolveAvatarCharacterId(reel: OmniReel) {
 
 async function resolveKieAudioIds(reel: OmniReel) {
   const latestAvatar = await getLatestOmniClientAvatar(reel.project_id);
-  return resolveKieOmniAudioIds(latestAvatar?.kie_character_payload || reel.avatar_snapshot);
+  const source = {
+    ...(reel.avatar_snapshot || {}),
+    latestAvatar,
+    data: latestAvatar?.kie_character_payload,
+  };
+  return {
+    audioIds: resolveKieOmniAudioIds(source),
+    voiceGender: detectKieOmniVoiceGender(source),
+  };
 }
 
 function getReelGenerationProvider(segments: OmniReelSegment[]) {
@@ -106,7 +114,19 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
   const productReferenceUrls = getProductReferenceUrls(reel);
   const productReferenceUrl = productReferenceUrls[0] || null;
   const avatarCharacterId = await resolveAvatarCharacterId(reel);
-  const kieAudioIds = provider === "kie-ai" ? await resolveKieAudioIds(reel) : [];
+  let kieAudioIds: string[] = [];
+  let kieVoiceGender: KieOmniVoiceGender = "unknown";
+  if (provider === "kie-ai") {
+    try {
+      const resolvedAudio = await resolveKieAudioIds(reel);
+      kieAudioIds = resolvedAudio.audioIds;
+      kieVoiceGender = resolvedAudio.voiceGender;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await markOmniReelPreflightFailure({ reelId: reel.id, provider, message });
+      throw error;
+    }
+  }
   const referenceImageField = getCometReferenceImageFieldName();
   const referenceImageTransport = getCometReferenceImageTransport();
   const baseReferenceImages = shouldSendCometReferenceImage()
@@ -229,6 +249,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       image_urls: selectedReferenceImages.sent.map((image) => image.url),
       character_ids: provider === "kie-ai" && avatarCharacterId ? [avatarCharacterId] : [],
       audio_ids: provider === "kie-ai" ? kieAudioIds : [],
+      audio_voice_gender: provider === "kie-ai" ? kieVoiceGender : null,
       reference_images_sent: selectedReferenceImages.sent.length > 0,
       reference_image_field: selectedReferenceImages.sent.length ? referenceImageField : null,
       reference_image_transport:

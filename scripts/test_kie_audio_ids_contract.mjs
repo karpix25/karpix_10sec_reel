@@ -23,12 +23,20 @@ try {
     { cwd: ui, stdio: "inherit" }
   );
 
-  const { resolveKieOmniAudioIds } = require(join(output, "kie-omni-audio.js"));
+  const { detectKieOmniVoiceGender, resolveKieOmniAudioIds } = require(join(output, "kie-omni-audio.js"));
   const previous = {
     KIE_OMNI_AUDIO_IDS: process.env.KIE_OMNI_AUDIO_IDS,
     KIE_OMNI_AUDIO_ID: process.env.KIE_OMNI_AUDIO_ID,
     KIE_AUDIO_IDS: process.env.KIE_AUDIO_IDS,
     KIE_AUDIO_ID: process.env.KIE_AUDIO_ID,
+    KIE_OMNI_FEMALE_AUDIO_IDS: process.env.KIE_OMNI_FEMALE_AUDIO_IDS,
+    KIE_OMNI_FEMALE_AUDIO_ID: process.env.KIE_OMNI_FEMALE_AUDIO_ID,
+    KIE_FEMALE_AUDIO_IDS: process.env.KIE_FEMALE_AUDIO_IDS,
+    KIE_FEMALE_AUDIO_ID: process.env.KIE_FEMALE_AUDIO_ID,
+    KIE_OMNI_MALE_AUDIO_IDS: process.env.KIE_OMNI_MALE_AUDIO_IDS,
+    KIE_OMNI_MALE_AUDIO_ID: process.env.KIE_OMNI_MALE_AUDIO_ID,
+    KIE_MALE_AUDIO_IDS: process.env.KIE_MALE_AUDIO_IDS,
+    KIE_MALE_AUDIO_ID: process.env.KIE_MALE_AUDIO_ID,
   };
 
   clearEnv();
@@ -37,6 +45,25 @@ try {
 
   clearEnv();
   assert.deepEqual(resolveKieOmniAudioIds({ data: { audio_ids: ["payload_voice"] } }), ["payload_voice"]);
+
+  clearEnv();
+  process.env.KIE_OMNI_FEMALE_AUDIO_ID = "female_voice";
+  assert.equal(detectKieOmniVoiceGender({ prompt: "Женщина в домашней одежде говорит в камеру" }), "female");
+  assert.deepEqual(resolveKieOmniAudioIds({ prompt: "Женщина в домашней одежде говорит в камеру" }), ["female_voice"]);
+
+  clearEnv();
+  process.env.KIE_OMNI_MALE_AUDIO_IDS = "male_voice, male_voice_2, male_voice";
+  assert.equal(detectKieOmniVoiceGender({ prompt: "Мужчина в худи снимает UGC ролик" }), "male");
+  assert.deepEqual(resolveKieOmniAudioIds({ prompt: "Мужчина в худи снимает UGC ролик" }), ["male_voice", "male_voice_2"]);
+
+  clearEnv();
+  assert.throws(
+    () => resolveKieOmniAudioIds({ gender: "male" }),
+    /male avatar requires KIE_OMNI_MALE_AUDIO_ID/
+  );
+
+  clearEnv();
+  assert.deepEqual(resolveKieOmniAudioIds({ gender: "female" }), ["4a786461922c4383a2010d9b8a4b4f33"]);
 
   clearEnv();
   assert.deepEqual(resolveKieOmniAudioIds(), ["4a786461922c4383a2010d9b8a4b4f33"]);
@@ -52,6 +79,14 @@ function clearEnv() {
   delete process.env.KIE_OMNI_AUDIO_ID;
   delete process.env.KIE_AUDIO_IDS;
   delete process.env.KIE_AUDIO_ID;
+  delete process.env.KIE_OMNI_FEMALE_AUDIO_IDS;
+  delete process.env.KIE_OMNI_FEMALE_AUDIO_ID;
+  delete process.env.KIE_FEMALE_AUDIO_IDS;
+  delete process.env.KIE_FEMALE_AUDIO_ID;
+  delete process.env.KIE_OMNI_MALE_AUDIO_IDS;
+  delete process.env.KIE_OMNI_MALE_AUDIO_ID;
+  delete process.env.KIE_MALE_AUDIO_IDS;
+  delete process.env.KIE_MALE_AUDIO_ID;
 }
 
 function restoreEnv(previous) {
