@@ -53,10 +53,11 @@ try {
   for (const item of prompts) {
     assert.equal(normalizedCount(item.prompt, item.voiceoverText), 1);
     assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/iu.test(item.prompt));
-    assert.ok(item.prompt.includes("Точная речь:"), "storyboard prompt must name the exact current spoken text");
-    assert.ok(item.prompt.includes("Раскадровка без повторного текста речи:"), "storyboard prompt must include storyboard frames");
+    assert.ok(item.prompt.includes("Озвучка:"), "storyboard prompt must name the exact current spoken text");
+    assert.ok(item.prompt.includes("Используй раскадровку как главный референс"), "storyboard prompt must lean on storyboard reference");
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
-    assert.ok(item.prompt.includes("Свою музыку не добавляй"), "storyboard prompt must forbid Omni music");
+    assert.ok(item.prompt.includes("Музыку не добавляй"), "storyboard prompt must forbid Omni music");
+    assert.ok(item.prompt.length < 900, "storyboard prompt must stay short");
     assert.equal(item.storyboardPlan.frames.length, 5, "each segment must include five storyboard frames");
     assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
     assert.ok(!item.prompt.includes(`"${item.voiceoverText}"`), "spoken text must not be wrapped in quotes");
@@ -70,7 +71,8 @@ try {
   const storedSegments = storedInput.generatedScript.source_snapshot.llm_prompt_chain.providerPromptPlan.segmentPrompts;
   assert.equal(storedPrompts.length, storedSegments.length);
 	  storedPrompts.forEach((item, index) => {
-	    assert.equal(item.prompt, storedSegments[index].prompt);
+	    assert.notEqual(item.prompt, storedSegments[index].prompt);
+	    assert.ok(item.prompt.includes("Используй раскадровку как главный референс"));
 	    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
 	    assert.equal(item.storyboardPlan.frames.length, 5);
     assert.ok(!item.prompt.includes("PRODUCT ACTION:"), "stored LLM prompt path must not inject product action blocks");
