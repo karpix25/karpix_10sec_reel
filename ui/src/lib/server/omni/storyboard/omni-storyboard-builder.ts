@@ -11,6 +11,8 @@ import { validateOmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyb
 import type { OmniCharacterContract } from "../omni-character-contract";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
 
+const CLEAN_STORYBOARD_STYLE = "чистая натуральная картинка без декоративной графики, стрелок и экранных подписей";
+
 export function buildStoryboardFromCreativePlan(input: {
   plan: OmniSegmentCreativePlan;
   productName: string;
@@ -60,9 +62,9 @@ export function buildStoryboardFromPromptChainFrames(input: {
       camera: frame.camera,
       environment: "окружение и свет из режиссерского плана и storyboard image",
       wardrobe: "одежда из avatar или reference contract, без смены между кадрами",
-      productPlacement: frame.productState || "продукт следует физическому состоянию storyboard",
+      productPlacement: renderPromptChainProductPlacement(frame.productState),
       sfxNotes: frame.sfx || "естественные звуки сцены и речи",
-      effectNotes: "можно использовать нарисованные субтитры, стрелки и эффекты как визуальные подсказки",
+      effectNotes: CLEAN_STORYBOARD_STYLE,
       modelMusicNotes: null,
     })),
   };
@@ -103,9 +105,15 @@ function buildFrame(input: {
     wardrobe: input.characterContract.clothingLine,
     productPlacement: renderProductPlacement(input.plan, input.productName, input.productVisualPassport),
     sfxNotes: input.frameIndex === 3 ? "естественный звук действия с продуктом" : "тихие естественные звуки комнаты и речи",
-    effectNotes: "можно использовать нарисованные субтитры, стрелки и эффекты как визуальные подсказки",
+    effectNotes: CLEAN_STORYBOARD_STYLE,
     modelMusicNotes: null,
   };
+}
+
+function renderPromptChainProductPlacement(productState: string | null | undefined) {
+  const state = productState?.trim() || "продукт следует физическому состоянию storyboard";
+  if (/вне\s+кадра|не\s+виден|hidden|off\s*camera/iu.test(state)) return state;
+  return `${state}; продукт физически виден как реальный предмет с деталями из product reference, не заменять и не прятать`;
 }
 
 function renderProductPlacement(
@@ -115,9 +123,9 @@ function renderProductPlacement(
 ) {
   const productDetails = productVisualPassport ? `, детали из референса: ${compactProductReference(productVisualPassport)}` : "";
   if (plan.productRole === "hidden") return `${productName} вне кадра в этом сегменте`;
-  if (plan.productRole === "brief_demo") return `${productName} в коротком физическом действии с рукой${productDetails}`;
-  if (plan.productRole === "natural_use") return `${productName} используется как естественный предмет сцены${productDetails}`;
-  return `${productName} виден как реальный предмет в окружении${productDetails}`;
+  if (plan.productRole === "brief_demo") return `${productName} обязательно физически виден в коротком действии с рукой${productDetails}; не заменять и не прятать`;
+  if (plan.productRole === "natural_use") return `${productName} обязательно физически виден и используется как естественный предмет сцены${productDetails}; не заменять и не прятать`;
+  return `${productName} обязательно физически виден как реальный предмет в окружении${productDetails}; не заменять и не прятать`;
 }
 
 function renderFrameAction(action: string | undefined, frameIndex: number) {

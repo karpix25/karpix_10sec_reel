@@ -54,7 +54,8 @@ try {
     assert.equal(normalizedCount(item.prompt, item.voiceoverText), 1);
     assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/iu.test(item.prompt));
     assert.ok(item.prompt.includes("Точная речь:"), "storyboard prompt must name the exact current spoken text");
-    assert.ok(item.prompt.includes("Раскадровка:"), "storyboard prompt must include storyboard frames");
+    assert.ok(item.prompt.includes("Раскадровка без повторного текста речи:"), "storyboard prompt must include storyboard frames");
+    assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
     assert.ok(item.prompt.includes("Свою музыку не добавляй"), "storyboard prompt must forbid Omni music");
     assert.equal(item.storyboardPlan.frames.length, 5, "each segment must include five storyboard frames");
     assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
