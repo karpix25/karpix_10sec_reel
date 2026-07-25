@@ -30,7 +30,7 @@ export function StoryboardSegmentPreview({
           {frames.length} кадров
         </span>
       </div>
-      {storyboardReferenceUrl ? <StoryboardImagePreview url={storyboardReferenceUrl} /> : null}
+      {storyboardReferenceUrl ? <StoryboardImagePreview url={storyboardReferenceUrl} /> : <StoryboardImagePending />}
       {frames.length ? (
         <div className="grid gap-1.5 sm:grid-cols-5">
           {frames.map((frame, index) => (
@@ -68,6 +68,14 @@ function StoryboardMeta({ icon, value }: { icon: ReactNode; value: string }) {
     <div className="flex min-w-0 items-start gap-1">
       <span className="mt-0.5 shrink-0 text-primary">{icon}</span>
       <span className="line-clamp-2 min-w-0 break-words">{value}</span>
+    </div>
+  );
+}
+
+function StoryboardImagePending() {
+  return (
+    <div className="mb-2 rounded-md border border-dashed border-border/80 bg-muted/20 px-2 py-2 text-[11px] leading-4 text-muted-foreground">
+      Картинка раскадровки появится здесь после создания ролика.
     </div>
   );
 }
