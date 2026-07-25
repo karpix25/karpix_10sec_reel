@@ -20,6 +20,7 @@ export async function createProviderVideoTask(input: {
   resolution: string;
   referenceImages: { url: string }[];
   characterId: string | null;
+  audioIds?: readonly string[];
 }) {
   if (input.provider === "kie-ai") {
     if (!input.characterId) throw new Error("KIE.ai Omni requires character id");
@@ -30,6 +31,7 @@ export async function createProviderVideoTask(input: {
       resolution: input.resolution,
       imageUrls: input.referenceImages.map((image) => image.url),
       characterIds: [input.characterId],
+      audioIds: [...(input.audioIds || [])],
     });
   }
 

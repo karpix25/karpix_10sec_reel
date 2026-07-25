@@ -22,6 +22,7 @@ export type KieOmniVideoInput = {
   resolution: string;
   imageUrls: string[];
   characterIds: string[];
+  audioIds: string[];
 };
 
 function getApiKey() {
@@ -129,6 +130,7 @@ export async function createKieOmniVideoTask(input: KieOmniVideoInput) {
         resolution: input.resolution,
         seed: 0,
         character_ids: input.characterIds,
+        audio_ids: input.audioIds,
       }),
     },
     "video create"
