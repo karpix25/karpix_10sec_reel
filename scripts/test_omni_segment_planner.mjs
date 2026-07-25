@@ -99,6 +99,22 @@ try {
   );
   assert.equal(reconstructVoiceSegments(ctaPlan.segments), cta);
 
+  const naturalBoundaryTrap = [
+    "Можно ли выглядеть моложе без уколов красоты?",
+    "Да, если пить коллаген.",
+    "Он улучшает состояние кожи, делая её упругой и сияющей.",
+    "Волосы становятся крепче, а ногти перестают слоиться.",
+    "Наш апельсиновый коллаген в желеобразной форме усваивается максимально эффективно, принося пользу всему организму.",
+    "Артикул этого чудо средства вы найдете в описании под видео.",
+  ].join(" ");
+  const naturalBoundaryPlan = planOmniReelSegments(naturalBoundaryTrap);
+  assert.equal(naturalBoundaryPlan.segmentCount, 3);
+  assert.ok(
+    naturalBoundaryPlan.segmentWordCounts.every((count) => count >= 15 && count <= 20),
+    "natural boundary traps must still produce valid storyboard word counts"
+  );
+  assert.equal(reconstructVoiceSegments(naturalBoundaryPlan.segments), naturalBoundaryTrap);
+
   // Test fallback when a protected CTA cannot fit the strict segment word constraints
   // Total words = 7 + 8 + 9 = 24 words. count = 3. maxWordsPerSegment = 8.
   // The only valid split of 24 words into 3 segments with max 8 words per segment is [8, 8, 8].

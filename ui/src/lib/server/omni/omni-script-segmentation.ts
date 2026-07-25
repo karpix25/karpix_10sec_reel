@@ -62,7 +62,8 @@ type Token = {
 export function splitScriptIntoVoiceSegments(
   script: string,
   segmentCount: number,
-  maxWordsPerSegment?: number
+  maxWordsPerSegment?: number,
+  minWordsPerSegment?: number
 ): VoiceSegment[] {
   const normalized = normalizeScriptText(script);
   if (!normalized || segmentCount <= 0) return [];
@@ -76,7 +77,13 @@ export function splitScriptIntoVoiceSegments(
       `Script has ${tokens.length} words, but ${count} segments can fit at most ${count * maxWordsPerSegment}`
     );
   }
-  const boundaries = findBestBoundaries(tokens, count, protectedBoundaries, maxWordsPerSegment);
+  const boundaries = findBestBoundaries(
+    tokens,
+    count,
+    protectedBoundaries,
+    maxWordsPerSegment,
+    minWordsPerSegment
+  );
   const chunks: VoiceSegment[] = [];
 
   for (let index = 0; index < boundaries.length - 1; index += 1) {
@@ -135,17 +142,32 @@ function findBestBoundaries(
   tokens: Token[],
   count: number,
   protectedBoundaries: Set<number>,
-  maxWordsPerSegment?: number
+  maxWordsPerSegment?: number,
+  minWordsPerSegment?: number
 ) {
   if (count === 1) return [0, tokens.length];
   const target = tokens.length / count;
 
   // Attempt 1: respect CTA protected boundaries and the segment word budget.
-  let boundaries = solveBoundaries(tokens, count, target, protectedBoundaries, maxWordsPerSegment);
+  let boundaries = solveBoundaries(
+    tokens,
+    count,
+    target,
+    protectedBoundaries,
+    maxWordsPerSegment,
+    minWordsPerSegment
+  );
 
   if (!boundaries) {
     // Fallback: keep the word budget, but allow a split inside protected CTA text.
-    boundaries = solveBoundaries(tokens, count, target, new Set<number>(), maxWordsPerSegment);
+    boundaries = solveBoundaries(
+      tokens,
+      count,
+      target,
+      new Set<number>(),
+      maxWordsPerSegment,
+      minWordsPerSegment
+    );
   }
 
   if (!boundaries) throw new Error("Script cannot be split into non-empty segments");
@@ -157,9 +179,11 @@ function solveBoundaries(
   count: number,
   target: number,
   protectedBoundaries: Set<number>,
-  maxWordsPerSegment?: number
+  maxWordsPerSegment?: number,
+  minWordsPerSegment?: number
 ) {
   const memo = new Map<string, { score: number; boundaries: number[] } | null>();
+  const minWords = minWordsPerSegment && minWordsPerSegment > 0 ? minWordsPerSegment : 1;
 
   function solve(start: number, remaining: number): { score: number; boundaries: number[] } | null {
     const key = `${start}:${remaining}`;
@@ -167,7 +191,7 @@ function solveBoundaries(
     if (remaining === 1) {
       const length = tokens.length - start;
       const fits = !maxWordsPerSegment || length <= maxWordsPerSegment;
-      const result = length > 0 && fits
+      const result = length >= minWords && fits
         ? { score: segmentPenalty(tokens, start, tokens.length, target), boundaries: [tokens.length] }
         : null;
       memo.set(key, result);
@@ -175,8 +199,8 @@ function solveBoundaries(
     }
 
     let best: { score: number; boundaries: number[] } | null = null;
-    const minEnd = start + 1;
-    const maxEnd = tokens.length - (remaining - 1);
+    const minEnd = start + minWords;
+    const maxEnd = tokens.length - (remaining - 1) * minWords;
     for (let end = minEnd; end <= maxEnd; end += 1) {
       if (protectedBoundaries.has(end)) continue;
       if (maxWordsPerSegment && end - start > maxWordsPerSegment) break;

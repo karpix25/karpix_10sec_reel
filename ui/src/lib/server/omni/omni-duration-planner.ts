@@ -65,7 +65,9 @@ export function planOmniReelSegments(script: string, options: {
 
   const selected = candidates.sort((left, right) => left.score - right.score)[0];
   if (!selected) {
-    throw new Error("Не удалось разделить сценарий на части 4/6/8/10 секунд без разрыва CTA. Измените формулировку сценария.");
+    throw new Error(
+      "Не удалось разделить сценарий на части по 10 секунд: в каждой части должно быть 15-20 слов и CTA должен оставаться читаемым. Измените формулировку сценария."
+    );
   }
 
   return {
@@ -98,7 +100,12 @@ function buildCandidate(
   durationRange?: OmniDurationRange
 ): PlanCandidate | null {
   try {
-    const segments = splitScriptIntoVoiceSegments(script, segmentCount, maxWordsPerSegment);
+    const segments = splitScriptIntoVoiceSegments(
+      script,
+      segmentCount,
+      maxWordsPerSegment,
+      OMNI_TARGET_SEGMENT_WORDS_MIN
+    );
     if (segments.length !== segmentCount) return null;
     const segmentDurationsSeconds = resolveSegmentDurations(segments);
     if (!segmentDurationsSeconds) return null;
