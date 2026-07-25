@@ -453,6 +453,7 @@ function SegmentPromptPanel({
             prompt={segment.prompt}
             voiceoverText={segment.voiceover_text}
             storyboardPlan={segment.storyboard_plan}
+            storyboardReferenceUrl={segment.storyboard_reference_url}
             creativeStrategy={strategy}
             creativePlan={segment.creative_plan}
             validation={segment.prompt_validation}

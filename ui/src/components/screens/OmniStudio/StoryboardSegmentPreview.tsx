@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Camera, Clapperboard, Package, Sparkles } from "lucide-react";
+import { Camera, Clapperboard, ExternalLink, Image as ImageIcon, Package, Sparkles } from "lucide-react";
 
 export interface StoryboardPreviewFrame {
   time: string;
@@ -10,8 +10,14 @@ export interface StoryboardPreviewFrame {
   sfx: string | null;
 }
 
-export function StoryboardSegmentPreview({ frames }: { frames: readonly StoryboardPreviewFrame[] }) {
-  if (!frames.length) return null;
+export function StoryboardSegmentPreview({
+  frames,
+  storyboardReferenceUrl,
+}: {
+  frames: readonly StoryboardPreviewFrame[];
+  storyboardReferenceUrl?: string | null;
+}) {
+  if (!frames.length && !storyboardReferenceUrl) return null;
 
   return (
     <div className="rounded-md border border-border bg-background p-2">
@@ -24,25 +30,28 @@ export function StoryboardSegmentPreview({ frames }: { frames: readonly Storyboa
           {frames.length} кадров
         </span>
       </div>
-      <div className="grid gap-1.5 sm:grid-cols-5">
-        {frames.map((frame, index) => (
-          <div key={`${frame.time}-${index}`} className="min-w-0 rounded-md border border-border/70 bg-muted/25 p-2">
-            <div className="mb-1 flex items-center justify-between gap-1">
-              <span className="rounded bg-background px-1.5 py-0.5 font-semibold text-primary">{frame.time}</span>
-              <span className="text-[11px] font-semibold text-muted-foreground">#{index + 1}</span>
+      {storyboardReferenceUrl ? <StoryboardImagePreview url={storyboardReferenceUrl} /> : null}
+      {frames.length ? (
+        <div className="grid gap-1.5 sm:grid-cols-5">
+          {frames.map((frame, index) => (
+            <div key={`${frame.time}-${index}`} className="min-w-0 rounded-md border border-border/70 bg-muted/25 p-2">
+              <div className="mb-1 flex items-center justify-between gap-1">
+                <span className="rounded bg-background px-1.5 py-0.5 font-semibold text-primary">{frame.time}</span>
+                <span className="text-[11px] font-semibold text-muted-foreground">#{index + 1}</span>
+              </div>
+              <p className="line-clamp-2 min-h-8 break-words font-semibold leading-4 text-foreground">
+                {frame.spokenWords}
+              </p>
+              <p className="mt-1 line-clamp-3 min-h-12 break-words leading-4 text-muted-foreground">{frame.action}</p>
+              <div className="mt-2 grid gap-1 text-[11px] leading-4 text-muted-foreground">
+                {frame.camera ? <StoryboardMeta icon={<Camera className="h-3 w-3" />} value={frame.camera} /> : null}
+                {frame.product ? <StoryboardMeta icon={<Package className="h-3 w-3" />} value={frame.product} /> : null}
+                {frame.sfx ? <StoryboardMeta icon={<Sparkles className="h-3 w-3" />} value={frame.sfx} /> : null}
+              </div>
             </div>
-            <p className="line-clamp-2 min-h-8 break-words font-semibold leading-4 text-foreground">
-              {frame.spokenWords}
-            </p>
-            <p className="mt-1 line-clamp-3 min-h-12 break-words leading-4 text-muted-foreground">{frame.action}</p>
-            <div className="mt-2 grid gap-1 text-[11px] leading-4 text-muted-foreground">
-              {frame.camera ? <StoryboardMeta icon={<Camera className="h-3 w-3" />} value={frame.camera} /> : null}
-              {frame.product ? <StoryboardMeta icon={<Package className="h-3 w-3" />} value={frame.product} /> : null}
-              {frame.sfx ? <StoryboardMeta icon={<Sparkles className="h-3 w-3" />} value={frame.sfx} /> : null}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -59,6 +68,36 @@ function StoryboardMeta({ icon, value }: { icon: ReactNode; value: string }) {
     <div className="flex min-w-0 items-start gap-1">
       <span className="mt-0.5 shrink-0 text-primary">{icon}</span>
       <span className="line-clamp-2 min-w-0 break-words">{value}</span>
+    </div>
+  );
+}
+
+function StoryboardImagePreview({ url }: { url: string }) {
+  return (
+    <div className="mb-2 overflow-hidden rounded-md border border-border/70 bg-muted/20">
+      <div className="flex items-center justify-between gap-2 border-b border-border/70 px-2 py-1.5 text-[11px]">
+        <div className="flex min-w-0 items-center gap-1.5 font-semibold text-primary">
+          <ImageIcon className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">Сгенерированная раскадровка</span>
+        </div>
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex shrink-0 items-center gap-1 rounded bg-background px-2 py-1 font-semibold text-muted-foreground transition hover:text-primary"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Открыть
+        </a>
+      </div>
+      <a href={url} target="_blank" rel="noreferrer" className="block bg-background">
+        <img
+          src={url}
+          alt="Сгенерированная раскадровка сегмента"
+          className="max-h-[420px] w-full object-contain"
+          loading="lazy"
+        />
+      </a>
     </div>
   );
 }

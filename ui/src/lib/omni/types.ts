@@ -147,6 +147,7 @@ export interface OmniPromptPreviewSegment {
   storyboard_plan?: OmniStoryboardPlanSource | null;
   storyboardValidation?: OmniStoryboardValidationResult | null;
   storyboardReferenceUrl?: string | null;
+  storyboard_reference_url?: string | null;
   creativeStrategy?: OmniCreativeStrategy;
   creativePlan?: OmniSegmentCreativePlan;
   validation?: OmniPromptValidationResult;

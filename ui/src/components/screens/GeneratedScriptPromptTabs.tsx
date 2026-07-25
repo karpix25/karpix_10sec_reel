@@ -82,6 +82,7 @@ export function GeneratedScriptPromptTabs({
                 prompt={prompt.prompt}
                 voiceoverText={prompt.voiceoverText}
                 storyboardPlan={prompt.storyboardPlan ?? prompt.storyboard_plan}
+                storyboardReferenceUrl={prompt.storyboardReferenceUrl ?? prompt.storyboard_reference_url}
                 creativeStrategy={prompt.creativeStrategy}
                 creativePlan={prompt.creativePlan}
                 validation={prompt.validation}
