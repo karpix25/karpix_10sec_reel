@@ -18,6 +18,13 @@ export async function getLatestGeneratedScriptStoryboardUrls(input: {
        WHERE project_id = $1
          AND product_id = $2
          AND source_generated_script_id = $3
+         AND EXISTS (
+           SELECT 1
+           FROM omni_reel_segments
+           WHERE reel_id = omni_reels.id
+             AND storyboard_reference_url IS NOT NULL
+             AND storyboard_reference_url <> ''
+         )
        ORDER BY created_at DESC, id DESC
        LIMIT 1
      )
