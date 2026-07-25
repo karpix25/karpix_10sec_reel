@@ -53,7 +53,9 @@ try {
   assert.ok(prompt.includes("Вертикальное 9:16 видео, 10 секунд."));
   assert.ok(prompt.includes("Используй раскадровку как главный референс"));
   assert.ok(prompt.includes("повтори ракурсы камеры, действия, переходы, эффекты, субтитры"));
-  assert.ok(prompt.includes("Озвучка: Утром я беру"));
+  assert.ok(prompt.includes("Произнеси строго все слова озвучки из раскадровки"));
+  assert.ok(!prompt.includes("Озвучка:"));
+  assert.ok(!prompt.includes("Утром я беру стик"));
   assert.ok(prompt.includes("Музыку не добавляй."));
   assert.ok(!prompt.includes("действие: герой берет"));
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));

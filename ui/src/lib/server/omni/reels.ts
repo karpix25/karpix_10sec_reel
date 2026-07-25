@@ -307,11 +307,12 @@ async function generateStoryboardReferenceUrls(input: {
   productReferenceUrls: readonly string[];
   avatarReferenceUrl: string | null;
   promptPlan: readonly ReturnType<typeof buildOmniSegmentPrompts>[number][];
-}) {
+}): Promise<(string | null)[]> {
   const urls: (string | null)[] = [];
+  let previousStoryboardReferenceUrl: string | null = null;
   for (let index = 0; index < input.promptPlan.length; index += 1) {
     const segmentPrompt = input.promptPlan[index];
-    urls.push(segmentPrompt.storyboardPlan
+    const storyboardReferenceUrl: string | null = segmentPrompt.storyboardPlan
       ? await generateStoryboardImage({
         projectId: input.projectId,
         reelId: input.reelId,
@@ -320,8 +321,11 @@ async function generateStoryboardReferenceUrls(input: {
         productName: input.productName,
         productReferenceUrls: input.productReferenceUrls,
         avatarReferenceUrl: input.avatarReferenceUrl,
+        previousStoryboardReferenceUrl,
       })
-      : null);
+      : null;
+    urls.push(storyboardReferenceUrl);
+    if (storyboardReferenceUrl) previousStoryboardReferenceUrl = storyboardReferenceUrl;
   }
   return urls;
 }

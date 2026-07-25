@@ -8,7 +8,7 @@ type StoryboardPromptSegment = {
   storyboardPlan: OmniStoryboardSegment | null;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-refs-v1";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-refs-continuity-v1";
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
@@ -22,9 +22,14 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
   await ensureOmniSchema();
   const referenceSignature = buildReferenceSignature(input);
   const urls = await getStoredGeneratedScriptStoryboardUrls({ ...input, referenceSignature });
+  let previousStoryboardReferenceUrl: string | null = null;
 
   for (const segment of input.promptPlan) {
-    if (urls.has(segment.index)) continue;
+    const cachedUrl = urls.get(segment.index) || null;
+    if (cachedUrl) {
+      previousStoryboardReferenceUrl = cachedUrl;
+      continue;
+    }
 
     if (!segment.storyboardPlan) continue;
     const generatedUrl = await tryGenerateStoryboardPreview({
@@ -32,8 +37,12 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
       referenceSignature,
       segmentIndex: segment.index,
       storyboardPlan: segment.storyboardPlan,
+      previousStoryboardReferenceUrl,
     });
-    if (generatedUrl) urls.set(segment.index, generatedUrl);
+    if (generatedUrl) {
+      urls.set(segment.index, generatedUrl);
+      previousStoryboardReferenceUrl = generatedUrl;
+    }
   }
 
   return urls;
@@ -79,6 +88,7 @@ async function tryGenerateStoryboardPreview(input: {
   referenceSignature: string;
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment;
+  previousStoryboardReferenceUrl: string | null;
 }) {
   try {
     const url = await generateStoryboardImage({
@@ -89,6 +99,7 @@ async function tryGenerateStoryboardPreview(input: {
       productName: input.productName,
       avatarReferenceUrl: input.avatarReferenceUrl,
       productReferenceUrls: input.productReferenceUrls,
+      previousStoryboardReferenceUrl: input.previousStoryboardReferenceUrl,
     });
     if (!url) return null;
     await upsertGeneratedScriptStoryboardUrl({ ...input, url });
