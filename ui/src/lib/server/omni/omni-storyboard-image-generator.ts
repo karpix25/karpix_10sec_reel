@@ -19,6 +19,7 @@ export async function generateStoryboardImage(input: {
   productName: string;
   avatarReferenceUrl: string | null;
   productReferenceUrls?: readonly string[];
+  previousStoryboardReferenceUrl?: string | null;
 }) {
   if (process.env.OMNI_STORYBOARD_IMAGE_GENERATION === "false") return null;
   const avatarReferenceUrl = cleanUrl(input.avatarReferenceUrl);
@@ -29,11 +30,13 @@ export async function generateStoryboardImage(input: {
   if (!productReferenceUrls.length) {
     throw new Error("Storyboard image generation requires a real product reference image");
   }
+  const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
 
   const response = await createStoryboardImage({
     ...input,
     avatarReferenceUrl,
     productReferenceUrls,
+    previousStoryboardReferenceUrl,
   });
 
   const payload = await response.json().catch(() => null);
@@ -80,14 +83,21 @@ function buildStoryboardImagePrompt(input: {
   productName: string;
   avatarReferenceUrl: string | null;
   productReferenceUrls?: readonly string[];
+  previousStoryboardReferenceUrl?: string | null;
 }) {
   const avatarReferenceUrl = cleanUrl(input.avatarReferenceUrl);
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
+  const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
+  const productRange = productReferenceUrls.length > 1 ? `2-${productReferenceUrls.length + 1}` : "2";
+  const previousReferenceIndex = productReferenceUrls.length + 2;
   return [
     "Создай одну квадратную production storyboard картинку, clean contact sheet из пяти кадров для вертикального UGC видео.",
     "Используй входные изображения как реальные визуальные референсы, а не как текстовые ссылки.",
     "Изображение 1 - наш аватар: лицо, возраст, телосложение, волосы и общий типаж героя.",
-    `Изображения ${productReferenceUrls.length > 1 ? `2-${productReferenceUrls.length + 1}` : "2"} - реальный продукт: форма, цвет, упаковка, материал и размер.`,
+    `Изображения ${productRange} - реальный продукт: форма, цвет, упаковка, материал и размер.`,
+    previousStoryboardReferenceUrl
+      ? `Изображение ${previousReferenceIndex} - предыдущая раскадровка этого же ролика. Используй ее как continuity reference: тот же стиль, персонаж, одежда, свет, окружение, масштаб продукта и contact sheet layout без резких скачков. Не копируй старые действия и текст.`
+      : "",
     "Каждый кадр должен быть отдельной визуальной панелью с маленьким номером кадра и русской фразой кадра как субтитром.",
     "Можно рисовать только те стрелки, переходы, эффекты и SFX-подсказки, которые помогают повторить раскадровку в видео. Не добавляй интерфейс соцсетей, кнопки приложения или водяные знаки.",
     "Главный герой в каждом кадре должен быть тем же человеком, что и на изображении 1. Не меняй лицо, возраст, телосложение, волосы и общий типаж между кадрами.",
@@ -95,6 +105,7 @@ function buildStoryboardImagePrompt(input: {
     "Если описание кадра говорит, что продукт виден, прорисуй именно продукт из входных изображений продукта, четко и детально.",
     `Avatar reference URL: ${avatarReferenceUrl}.`,
     productReferenceUrls.length ? `Product reference URLs: ${productReferenceUrls.join(", ")}.` : "",
+    previousStoryboardReferenceUrl ? `Previous storyboard reference URL: ${previousStoryboardReferenceUrl}.` : "",
     `Продукт: ${input.productName}.`,
     `Сегмент: ${input.segmentIndex}.`,
     ...input.storyboard.frames.map((frame, index) =>
@@ -121,8 +132,13 @@ async function createStoryboardImage(input: {
   productName: string;
   avatarReferenceUrl: string;
   productReferenceUrls: readonly string[];
+  previousStoryboardReferenceUrl: string | null;
 }) {
-  const references = [input.avatarReferenceUrl, ...input.productReferenceUrls].slice(0, 16);
+  const references = [
+    input.avatarReferenceUrl,
+    ...input.productReferenceUrls,
+    input.previousStoryboardReferenceUrl,
+  ].filter((url): url is string => Boolean(url)).slice(0, 16);
   if (references.length) {
     const form = new FormData();
     form.set("model", STORYBOARD_IMAGE_MODEL);
