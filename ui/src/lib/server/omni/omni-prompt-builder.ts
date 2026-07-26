@@ -203,6 +203,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       productVisualPassport: segmentProductVisualPassport,
       characterContract,
       segmentIndex,
+      durationSeconds: segmentSeconds,
     });
     const storyboardValidation = validateBuiltStoryboard(storyboardPlan);
     const prompt = renderCompactRussianOmniStoryboardPrompt({ storyboard: storyboardPlan });

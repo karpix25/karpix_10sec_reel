@@ -73,7 +73,7 @@ try {
     segment_prompts: [
       {
         index: 1,
-        duration_seconds: 10,
+        duration_seconds: 8,
         voiceover: providerPlan.segmentPrompts[0].voiceover,
         storyboard_frames: providerPlan.segmentPrompts[0].storyboardFrames.map((frame) => ({
           index: frame.index,
@@ -91,16 +91,16 @@ try {
       },
     ],
   });
-  assert.equal(normalizedProvider.segmentPrompts[0].durationSeconds, 10);
+  assert.equal(normalizedProvider.segmentPrompts[0].durationSeconds, 8);
   assert.equal(normalizedProvider.segmentPrompts[0].referenceRole, "avatar");
-  assert.equal(normalizedProvider.segmentPrompts[0].storyboardFrames.length, 5);
+  assert.equal(normalizedProvider.segmentPrompts[0].storyboardFrames.length, 4);
   assert.equal(numberWords.formatPromptChainRange(60, 72), "от шестидесяти до семидесяти двух");
   assert.ok(!/[\d-]/u.test(numberWords.formatPromptChainRange(60, 72)));
 
   assertIssue(
     storyboardValidator.validateStoryboardDirectorPlan({
       ...directorPlan,
-      segments: [{ ...directorPlan.segments[0], storyboardFrames: directorPlan.segments[0].storyboardFrames.slice(0, 4) }],
+      segments: [{ ...directorPlan.segments[0], storyboardFrames: directorPlan.segments[0].storyboardFrames.slice(0, 3) }],
     }),
     "storyboard_frame_count"
   );
@@ -256,7 +256,7 @@ try {
         },
         {
           index: 2,
-          durationSeconds: 10,
+          durationSeconds: 8,
           voiceover: "Второй сегмент звучит отдельно.",
           storyboardFrames: [],
           referenceRole: "avatar",
@@ -298,7 +298,7 @@ function makeDirectorPlan() {
     segments: [
       {
         index: 1,
-        durationSeconds: 10,
+        durationSeconds: 8,
         voiceover: "Устал от долгой готовки? Этот аэрогриль делает ужин проще, чище и быстрее прямо на твоей кухне уже сегодня вечером.",
         productState: "аэрогриль стоит на столе без рук",
         storyboardFrames,
@@ -322,12 +322,12 @@ function makeProviderPlan() {
     segmentPrompts: [
       {
         index: 1,
-        durationSeconds: 10,
+        durationSeconds: 8,
         voiceover: "Устал от долгой готовки? Этот аэрогриль делает ужин проще, чище и быстрее прямо на твоей кухне уже сегодня вечером.",
         storyboardFrames,
         referenceRole: "avatar",
         prompt:
-          "Вертикальное живое видео. Пять последовательных кадров примерно по две секунды. Миша начинает с лица в камеру, затем аэрогриль стоит на столе без рук, после видна аккуратная кухня, затем возврат к лицу. Речь звучит точно: Устал от долгой готовки? Этот аэрогриль делает ужин проще, чище и быстрее прямо на твоей кухне уже сегодня вечером. Natural SFX, без музыки.",
+          "Вертикальное живое видео. Четыре последовательных кадра примерно по две секунды. Миша начинает с лица в камеру, затем аэрогриль стоит на столе без рук, после видна аккуратная кухня, затем возврат к лицу. Речь звучит точно: Устал от долгой готовки? Этот аэрогриль делает ужин проще, чище и быстрее прямо на твоей кухне уже сегодня вечером. Natural SFX, без музыки.",
       },
     ],
     notes: "Готовый цельный prompt.",
@@ -339,7 +339,7 @@ function makeStoryboardFrames() {
     {
       index: 1,
       role: "face_open",
-      spokenWords: "Устал от долгой готовки?",
+      spokenWords: "Устал от долгой готовки? Этот",
       visualDescription: "Миша в светлой кухне смотрит в камеру уверенно",
       camera: "крупный портретный план с мягким движением",
       action: "Миша начинает фразу спокойно и энергично",
@@ -350,7 +350,7 @@ function makeStoryboardFrames() {
     {
       index: 2,
       role: "product_cutaway",
-      spokenWords: "Этот аэрогриль делает ужин",
+      spokenWords: "аэрогриль делает ужин проще, чище",
       visualDescription: "аэрогриль стоит на чистом столе рядом с овощами",
       camera: "средний предметный план без рук",
       action: "камера мягко приближается к продукту",
@@ -361,7 +361,7 @@ function makeStoryboardFrames() {
     {
       index: 3,
       role: "product_cutaway",
-      spokenWords: "проще, чище и быстрее",
+      spokenWords: "и быстрее прямо на твоей",
       visualDescription: "видна аккуратная рабочая зона без лишней грязи",
       camera: "детальный боковой план продукта",
       action: "свет отражается на корпусе аэрогриля",
@@ -371,19 +371,8 @@ function makeStoryboardFrames() {
     },
     {
       index: 4,
-      role: "environment_cutaway",
-      spokenWords: "прямо на твоей кухне",
-      visualDescription: "теплая домашняя кухня с готовым ужином рядом",
-      camera: "широкий спокойный план кухни",
-      action: "камера показывает чистый стол и готовое блюдо",
-      productState: "аэрогриль стоит на столе без рук",
-      sfx: "легкий звук посуды",
-      referenceRole: "none",
-    },
-    {
-      index: 5,
       role: "face_return",
-      spokenWords: "уже сегодня вечером.",
+      spokenWords: "кухне уже сегодня вечером.",
       visualDescription: "Миша возвращается к лицу и уверенно завершает мысль",
       camera: "крупный портретный план без резкого движения",
       action: "Миша коротко кивает в камеру",

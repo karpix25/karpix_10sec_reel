@@ -1,8 +1,8 @@
 import type { OmniPromptValidationResult, OmniSegmentCreativePlan } from "@/lib/omni/creative-contract";
 import {
-  FIVE_FRAMES_PER_TEN_SECONDS,
   OMNI_STORYBOARD_MAX_FRAME_WORDS,
   OMNI_STORYBOARD_MIN_FRAME_WORDS,
+  getOmniStoryboardFrameCount,
   type OmniStoryboardFrame,
   type OmniStoryboardSegment,
   type OmniStoryboardValidationResult,
@@ -19,18 +19,21 @@ export function buildStoryboardFromCreativePlan(input: {
   productVisualPassport?: string | null;
   characterContract: OmniCharacterContract;
   segmentIndex: number;
+  durationSeconds: number;
 }): OmniStoryboardSegment {
   const words = splitWords(input.plan.voiceoverText);
-  const minWords = FIVE_FRAMES_PER_TEN_SECONDS * OMNI_STORYBOARD_MIN_FRAME_WORDS;
-  const maxWords = FIVE_FRAMES_PER_TEN_SECONDS * OMNI_STORYBOARD_MAX_FRAME_WORDS;
+  const frameCount = getOmniStoryboardFrameCount(input.durationSeconds);
+  if (!frameCount) throw new Error(`Storyboard segment ${input.segmentIndex} has unsupported duration ${input.durationSeconds}`);
+  const minWords = frameCount * OMNI_STORYBOARD_MIN_FRAME_WORDS;
+  const maxWords = frameCount * OMNI_STORYBOARD_MAX_FRAME_WORDS;
   if (words.length < minWords || words.length > maxWords) {
     throw new Error(`Storyboard segment ${input.segmentIndex} needs ${minWords}-${maxWords} words, got ${words.length}`);
   }
 
-  const chunks = splitIntoFrameSpeech(words);
+  const chunks = splitIntoFrameSpeech(words, frameCount);
   return {
     segmentIndex: input.segmentIndex,
-    durationSeconds: 10,
+    durationSeconds: input.durationSeconds,
     voiceoverText: input.plan.voiceoverText,
     frames: chunks.map((spokenText, index) =>
       buildFrame({
@@ -40,6 +43,7 @@ export function buildStoryboardFromCreativePlan(input: {
         characterContract: input.characterContract,
         spokenText,
         frameIndex: index + 1,
+        frameCount,
       })
     ),
   };
@@ -92,19 +96,22 @@ function buildFrame(input: {
   characterContract: OmniCharacterContract;
   spokenText: string;
   frameIndex: number;
+  frameCount: number;
 }): OmniStoryboardFrame {
   const startSeconds = (input.frameIndex - 1) * 2;
   const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
     input.plan.beats[0];
+  const cutawayFrameIndex = Math.ceil(input.frameCount / 2);
+  const isCutawayFrame = input.frameIndex === cutawayFrameIndex;
 
-	  return {
-	    spokenText: input.spokenText,
-	    visualAction: renderFrameAction(beat?.action, input.frameIndex),
-	    camera: input.frameIndex === 3 ? "короткая перебивка или средний план" : "живой фронтальный кадр на телефон",
-	    environment: "то же окружение и свет, что заданы сценой сегмента",
+  return {
+    spokenText: input.spokenText,
+    visualAction: renderFrameAction(beat?.action, isCutawayFrame),
+    camera: isCutawayFrame ? "короткая перебивка или средний план" : "живой фронтальный кадр на телефон",
+    environment: "то же окружение и свет, что заданы сценой сегмента",
     wardrobe: input.characterContract.clothingLine,
     productPlacement: renderProductPlacement(input.plan, input.productName, input.productVisualPassport),
-    sfxNotes: input.frameIndex === 3 ? "естественный звук действия с продуктом" : "тихие естественные звуки комнаты и речи",
+    sfxNotes: isCutawayFrame ? "естественный звук действия с продуктом" : "тихие естественные звуки комнаты и речи",
     effectNotes: CLEAN_STORYBOARD_STYLE,
     modelMusicNotes: null,
   };
@@ -128,11 +135,11 @@ function renderProductPlacement(
   return `${productName} обязательно физически виден как реальный предмет в окружении${productDetails}; не заменять и не прятать`;
 }
 
-function renderFrameAction(action: string | undefined, frameIndex: number) {
+function renderFrameAction(action: string | undefined, isCutawayFrame: boolean) {
   const normalized = compactText(action || "персонаж естественно говорит в камеру", 220);
   const visualCue = extractVisualCue(normalized);
   if (visualCue) {
-    return frameIndex === 3
+    return isCutawayFrame
       ? `короткая перебивка: ${visualCue}`
       : `персонаж говорит в камеру, визуальный ориентир: ${visualCue}`;
   }
@@ -167,11 +174,11 @@ function compactProductReference(value: string) {
   return compactText(preferred || value, 160);
 }
 
-function splitIntoFrameSpeech(words: string[]) {
+function splitIntoFrameSpeech(words: string[], frameCount: number) {
   const chunks: string[] = [];
   let cursor = 0;
-  for (let index = 0; index < FIVE_FRAMES_PER_TEN_SECONDS; index += 1) {
-    const remainingFrames = FIVE_FRAMES_PER_TEN_SECONDS - index;
+  for (let index = 0; index < frameCount; index += 1) {
+    const remainingFrames = frameCount - index;
     const remainingWords = words.length - cursor;
     const size = Math.min(
       OMNI_STORYBOARD_MAX_FRAME_WORDS,

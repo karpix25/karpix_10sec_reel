@@ -1,5 +1,4 @@
 import {
-  OMNI_STORYBOARD_FRAMES_PER_SEGMENT,
   OMNI_STORYBOARD_WORDS_PER_FRAME_MAX,
   OMNI_STORYBOARD_WORDS_PER_FRAME_MIN,
   type DirectorSegmentPlan,
@@ -7,6 +6,10 @@ import {
   type ProviderPromptPlan,
   type StoryboardFrame,
 } from "./llm-prompt-chain-types";
+import {
+  getOmniStoryboardFrameCount,
+  isOmniStoryboardDuration,
+} from "../../omni/storyboard/omni-storyboard-timing";
 
 const NO_OMNI_MUSIC_PATTERN =
   /без\s+музык|no\s+music|музык\p{L}*\s+не\s+(?:добавляй|генерируй|создавай)|не\s+(?:добавляй|генерируй|создавай)\s+музык/iu;
@@ -17,7 +20,7 @@ export function validateStoryboardDirectorPlan(plan: DirectorSegmentPlan): Promp
   const issues: PromptValidationIssue[] = [];
   plan.segments.forEach((segment, segmentIndex) => {
     const path = `director.segments.${segmentIndex}.storyboardFrames`;
-    validateStoryboardFrames(segment.storyboardFrames, path, issues);
+    validateStoryboardFrames(segment.storyboardFrames, segment.durationSeconds, path, issues);
     if (normalize(joinStoryboardSpeech(segment.storyboardFrames)) !== normalize(segment.voiceover)) {
       issues.push({
         path,
@@ -34,7 +37,7 @@ export function validateStoryboardProviderPlan(plan: ProviderPromptPlan): Prompt
   const issues: PromptValidationIssue[] = [];
   plan.segmentPrompts.forEach((prompt, index) => {
     const path = `provider.segmentPrompts.${index}.storyboardFrames`;
-    validateStoryboardFrames(prompt.storyboardFrames, path, issues);
+    validateStoryboardFrames(prompt.storyboardFrames, prompt.durationSeconds, path, issues);
     if (normalize(joinStoryboardSpeech(prompt.storyboardFrames)) !== normalize(prompt.voiceover)) {
       issues.push({
         path,
@@ -93,14 +96,25 @@ export function validateStoryboardProviderAlignment(
 
 function validateStoryboardFrames(
   frames: readonly StoryboardFrame[],
+  durationSeconds: number,
   path: string,
   issues: PromptValidationIssue[]
 ) {
-  if (frames.length !== OMNI_STORYBOARD_FRAMES_PER_SEGMENT) {
+  const expectedFrameCount = getOmniStoryboardFrameCount(durationSeconds);
+  if (!isOmniStoryboardDuration(durationSeconds)) {
+    issues.push({
+      path,
+      code: "storyboard_duration",
+      message: "Omni storyboard duration must be 4, 6, 8, or 10 seconds.",
+      severity: "error",
+    });
+    return;
+  }
+  if (expectedFrameCount && frames.length !== expectedFrameCount) {
     issues.push({
       path,
       code: "storyboard_frame_count",
-      message: "Each ten second Omni segment must include exactly five storyboard frames.",
+      message: `Omni segment with ${durationSeconds} seconds must include exactly ${expectedFrameCount} storyboard frames.`,
       severity: "error",
     });
     return;
@@ -121,7 +135,10 @@ function validateStoryboardFrames(
       severity: "error",
     });
   }
-  if (!frames.slice(1, -1).some((frame) => frame.role === "product_cutaway" || frame.role === "environment_cutaway")) {
+  if (
+    frames.length >= 3 &&
+    !frames.slice(1, -1).some((frame) => frame.role === "product_cutaway" || frame.role === "environment_cutaway")
+  ) {
     issues.push({
       path,
       code: "storyboard_missing_cutaway",
@@ -135,7 +152,7 @@ function validateStoryboardFrames(
       issues.push({
         path: `${path}.${frameIndex}.spokenWords`,
         code: "storyboard_spoken_word_count",
-        message: "Each storyboard frame must contain three or four final spoken Russian words.",
+        message: "Each storyboard frame must contain four or five final spoken Russian words.",
         severity: "error",
       });
     }
