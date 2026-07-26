@@ -21,7 +21,7 @@ import {
   extractDirectorSegmentPlanFromSnapshot,
   extractProviderPromptPlanFromSnapshot,
 } from "./llm-prompt-chain-normalizer";
-import { formatPromptValidationIssues, validateProviderPromptPlan } from "./provider-prompt-contract-validator";
+import { formatPromptValidationIssues } from "./provider-prompt-contract-validator";
 import {
   validateStoryboardProviderAlignment,
   validateStoryboardProviderPlan,
@@ -268,7 +268,6 @@ function buildStoredProviderPromptSegments(
   scriptText: string
 ): OmniSegmentPrompt[] {
   const issues = [
-    ...validateProviderPromptPlan(providerPromptPlan),
     ...validateStoryboardProviderPlan(providerPromptPlan),
     ...(directorSegmentPlan ? validateStoryboardProviderAlignment(directorSegmentPlan, providerPromptPlan) : []),
   ].filter((issue) => issue.severity === "error");

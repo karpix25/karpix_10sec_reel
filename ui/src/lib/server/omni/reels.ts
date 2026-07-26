@@ -16,6 +16,8 @@ import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { detectKieOmniVoiceGender } from "./kie-omni-audio";
+import { extractDirectorReferenceImageUrls } from "./director-reference-images";
+import { prepareStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -100,6 +102,9 @@ export async function createOmniReel(input: {
     : null;
   const sourceScenarioDirectorBrief =
     sourceScenarioAnalysis?.director_analysis_status === "completed" ? sourceScenarioAnalysis.director_analysis_json : null;
+  const directorReferenceImageUrls = resolvedGeneratedScript
+    ? extractDirectorReferenceImageUrls({ sourceSnapshot: resolvedGeneratedScript.source_snapshot })
+    : extractDirectorReferenceImageUrls({ directorAnalysis: sourceScenarioAnalysis });
   const scriptText = resolvedGeneratedScript?.script || sourceScenario?.script || brief || "";
   const backgroundAudioMood = normalizeAudioMood(
     resolvedGeneratedScript?.background_audio_mood,
@@ -142,6 +147,7 @@ export async function createOmniReel(input: {
         director_analysis_status: sourceScenarioAnalysis?.director_analysis_status || "not_requested",
         director_analysis: sourceScenarioDirectorBrief,
         director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
+        director_reference_image_urls: directorReferenceImageUrls,
         wardrobe_source: project.wardrobe_source,
       }
     : null;
@@ -193,11 +199,21 @@ export async function createOmniReel(input: {
   });
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
   const reservedReelId = await reserveOmniReelId();
+  const storyboardDirectorReferenceImageUrls = await prepareStoryboardDirectorReferenceUrls({
+    directorAnalysis: resolvedGeneratedScript ? null : sourceScenarioAnalysis,
+    sourceSnapshot: resolvedGeneratedScript?.source_snapshot || sourceSnapshot,
+    storageTarget: {
+      kind: "reel",
+      projectId: input.projectId,
+      reelId: reservedReelId,
+    },
+  });
   const storyboardReferenceUrls = await generateStoryboardReferenceUrls({
     projectId: input.projectId,
     reelId: reservedReelId,
     productName: product.name,
     productReferenceUrls: resolveProductReferenceImageUrls(product),
+    directorReferenceImageUrls: storyboardDirectorReferenceImageUrls,
     avatarReferenceUrl: latestAvatar?.reference_url || null,
     promptPlan,
   });
@@ -307,6 +323,7 @@ async function generateStoryboardReferenceUrls(input: {
   reelId: number;
   productName: string;
   productReferenceUrls: readonly string[];
+  directorReferenceImageUrls?: readonly string[];
   avatarReferenceUrl: string | null;
   promptPlan: readonly ReturnType<typeof buildOmniSegmentPrompts>[number][];
 }): Promise<(string | null)[]> {
@@ -322,6 +339,7 @@ async function generateStoryboardReferenceUrls(input: {
         storyboard: segmentPrompt.storyboardPlan,
         productName: input.productName,
         productReferenceUrls: input.productReferenceUrls,
+        directorReferenceImageUrls: input.directorReferenceImageUrls || [],
         avatarReferenceUrl: input.avatarReferenceUrl,
         previousStoryboardReferenceUrl,
       })

@@ -47,20 +47,23 @@ try {
 
   const { buildOmniSegmentPrompts } = require(findFile(compiled, "omni-prompt-builder.js"));
   const { validatePromptVoiceoverIsolation } = require(findFile(compiled, "omni-prompt-validator.js"));
+  const { buildStoryboardImagePrompt } = require(findFile(compiled, "omni-storyboard-image-prompt.js"));
+  const { extractDirectorReferenceVideoUrl } = require(findFile(compiled, "director-reference-video-url.js"));
   const prompts = buildOmniSegmentPrompts(buildInput());
 
   assert.deepEqual(validatePromptVoiceoverIsolation(prompts), []);
   for (const item of prompts) {
-    assert.equal(normalizedCount(item.prompt, item.voiceoverText), 1);
+    assert.equal(normalizedCount(item.prompt, item.voiceoverText), 0);
     assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/iu.test(item.prompt));
-    assert.ok(item.prompt.includes("Реплика персонажа:"), "storyboard prompt must provide exact character speech once");
+    assert.ok(!item.prompt.includes("Реплика персонажа:"), "storyboard prompt must not provide direct speech text");
     assert.ok(!item.prompt.includes("Озвучка:"), "storyboard prompt must not imply background voiceover");
     assert.ok(item.prompt.includes("раскадровку только как скрытый референс"), "storyboard prompt must lean on storyboard reference");
     assert.ok(item.prompt.includes("@storyboard_file"), "storyboard prompt must keep file placeholder until KIE upload order is known");
     assert.ok(item.prompt.includes("обычное вертикальное 9:16 видео"), "storyboard prompt must render a normal vertical video");
     assert.ok(item.prompt.includes("не показывай саму раскадровку"), "storyboard prompt must not render storyboard panels");
     assert.ok(item.prompt.includes("повтори в точности количество сцен"), "storyboard prompt must ask to copy storyboard exactly");
-    assert.ok(item.prompt.includes("сам произносит реплику на русском языке"), "storyboard prompt must force Russian character speech");
+    assert.ok(item.prompt.includes("только реплики, написанные внутри кадров раскадровки"), "storyboard prompt must read speech from storyboard");
+    assert.ok(item.prompt.includes("на русском языке"), "storyboard prompt must force Russian character speech");
     assert.ok(item.prompt.includes("не используй закадровый голос"), "storyboard prompt must forbid background narration");
     assert.ok(item.prompt.includes("без длинных пауз"), "storyboard prompt must forbid sparse pacing");
     assert.ok(item.prompt.includes("включая последнюю фразу и призыв"), "storyboard prompt must require final CTA");
@@ -72,10 +75,35 @@ try {
     assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2, "storyboard frame count must follow duration");
     assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
     assert.ok(!item.prompt.includes(`"${item.voiceoverText}"`), "spoken text must not be wrapped in quotes");
+
+    const imagePrompt = buildStoryboardImagePrompt({
+      segmentIndex: item.index,
+      storyboard: item.storyboardPlan,
+      productName: "Аэрогриль",
+      avatarReferenceUrl: "https://example.com/avatar.png",
+      productReferenceUrls: ["https://example.com/air-fryer.png"],
+      directorReferenceImageUrls: ["https://example.com/source-frame.jpg"],
+      previousStoryboardReferenceUrl: item.index > 1 ? "https://example.com/previous-storyboard.jpg" : null,
+    });
+    assert.ok(imagePrompt.includes(`РЕПЛИКА "${item.storyboardPlan.frames[0].spokenText}"`), "storyboard image prompt must draw frame speech");
+    assert.ok(imagePrompt.includes("кадры оригинального reference-видео"), "storyboard image prompt must use original frames when available");
+    assert.ok(imagePrompt.includes("Одежда, стиль, свет и окружение должны оставаться одинаковыми"), "storyboard image prompt must lock outfit continuity");
+    assert.ok(imagePrompt.includes("Раскадровка должна быть динамичной"), "storyboard image prompt must request dynamic UGC shots");
   }
   assert.equal(normalizedCount(prompts[0].prompt, prompts[1].voiceoverText), 0);
   assert.equal(normalizedCount(prompts[1].prompt, prompts[0].voiceoverText), 0);
   assert.equal(normalizedCount(prompts[1].prompt, prompts[2].voiceoverText), 0);
+  assert.equal(
+    extractDirectorReferenceVideoUrl({
+      director_video_url: "https://cdn.example.com/reference.mp4",
+      product_refs: [{ url: "https://cdn.example.com/product.png" }],
+    }),
+    "https://cdn.example.com/reference.mp4"
+  );
+  assert.equal(
+    extractDirectorReferenceVideoUrl({ product_refs: [{ url: "https://cdn.example.com/product.png" }] }),
+    null
+  );
 
   const storedInput = buildStoredPromptInput();
   const storedPrompts = buildOmniSegmentPrompts(storedInput);
@@ -84,6 +112,7 @@ try {
 	  storedPrompts.forEach((item, index) => {
 	    assert.notEqual(item.prompt, storedSegments[index].prompt);
 	    assert.ok(item.prompt.includes("раскадровку только как скрытый референс"));
+      assert.equal(normalizedCount(item.prompt, item.voiceoverText), 0);
 	    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
 	    assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2);
     assert.ok(!item.prompt.includes("PRODUCT ACTION:"), "stored LLM prompt path must not inject product action blocks");

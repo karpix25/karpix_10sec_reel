@@ -18,6 +18,8 @@ import { resolveReadyGeneratedScriptReference } from "./generated-script-referen
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { ensureGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
+import { extractDirectorReferenceImageUrls } from "./director-reference-images";
+import { prepareStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 
 function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
   return {
@@ -102,11 +104,20 @@ export async function buildGeneratedScriptPromptPreview(input: {
     recentFormatIds,
     wardrobeSource: project.wardrobe_source,
   });
+  const directorReferenceImageUrls = await prepareStoryboardDirectorReferenceUrls({
+    sourceSnapshot: resolvedGeneratedScript.source_snapshot,
+    storageTarget: {
+      kind: "generated_script",
+      projectId: input.projectId,
+      scriptId: input.scriptId,
+    },
+  });
   const storyboardUrls = await ensureGeneratedScriptStoryboardUrls({
     ...input,
     productName: product.name,
     avatarReferenceUrl: avatar?.reference_url || null,
     productReferenceUrls: resolveProductReferenceImageUrls(product),
+    directorReferenceImageUrls,
     promptPlan,
   });
 
@@ -146,6 +157,7 @@ export async function createGeneratedScriptFromLegacy(input: {
   });
   const directorBrief =
     directorAnalysis?.director_analysis_status === "completed" ? directorAnalysis.director_analysis_json : null;
+  const directorReferenceImageUrls = extractDirectorReferenceImageUrls({ directorAnalysis });
 
   const model = process.env.SCENARIO_MODEL || "google/gemini-2.5-flash";
   const generated = await generateScript({
@@ -189,6 +201,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     director_analysis_status: directorAnalysis?.director_analysis_status || "not_requested",
     director_analysis: directorBrief,
     director_video_url: directorAnalysis?.stored_video_url || directorAnalysis?.resolved_video_url || null,
+    director_reference_image_urls: directorReferenceImageUrls,
     wardrobe_source: project.wardrobe_source,
     director_analysis_model: directorAnalysis?.analysis_model || null,
     director_analysis_prompt_version: directorAnalysis?.analysis_prompt_version || null,

@@ -154,12 +154,20 @@ function validateProviderPromptSpeech(
   issues: PromptValidationIssue[]
 ) {
   const occurrences = countNormalizedOccurrences(segment.prompt, segment.voiceover);
-  if (occurrences !== 1) {
+  if (occurrences > 0) {
     addIssue(
       issues,
       `${path}.prompt`,
-      "prompt_voiceover_occurrence",
-      "Provider prompt must contain the current voiceover exactly once."
+      "prompt_voiceover_leak",
+      "Provider prompt must not contain the direct voiceover text."
+    );
+  }
+  if (!/реплик\p{L}*[\s\S]{0,80}раскадровк|storyboard[\s\S]{0,80}(?:speech|replica|spoken)|spoken_words/iu.test(segment.prompt)) {
+    addIssue(
+      issues,
+      `${path}.prompt`,
+      "prompt_missing_storyboard_speech_instruction",
+      "Provider prompt must instruct Omni to read only the speech written in the storyboard."
     );
   }
 }
