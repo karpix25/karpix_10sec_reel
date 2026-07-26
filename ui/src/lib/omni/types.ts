@@ -160,6 +160,8 @@ export interface OmniStoryboardFrame {
   endSeconds?: number | null;
   start_seconds?: number | null;
   end_seconds?: number | null;
+  spokenText?: string | null;
+  spoken_text?: string | null;
   spokenWords?: string | null;
   spoken_words?: string | null;
   visualAction?: string | null;
@@ -171,6 +173,10 @@ export interface OmniStoryboardFrame {
   wardrobe?: string | null;
   productPlacement?: string | null;
   product_placement?: string | null;
+  sfxNotes?: string | null;
+  sfx_notes?: string | null;
+  effectNotes?: string | null;
+  effect_notes?: string | null;
   sfx?: string | null;
   effects?: string | string[] | null;
 }
