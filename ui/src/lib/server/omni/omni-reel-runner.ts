@@ -32,6 +32,7 @@ import {
 import { processOmniReelSubtitlesIfNeeded } from "./omni-reel-subtitles";
 import { storeCompletedSegment, stitchAndStoreReel } from "./omni-segment-completion";
 import { detectKieOmniVoiceGender, resolveKieOmniAudioIds, type KieOmniVoiceGender } from "./kie-omni-audio";
+import { applyOmniStoryboardFileReference } from "./storyboard/omni-storyboard-file-reference";
 
 type ReelBundle = {
   reel: OmniReel;
@@ -230,9 +231,15 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     const continuityPrompt = continuity.image
       ? appendContinuityPromptContract(segment.prompt)
       : segment.prompt;
+    const kieStoryboardPrompt = applyOmniStoryboardFileReference(
+      continuityPrompt,
+      selectedReferenceImages.sent
+    );
     const providerPrompt =
       provider === "kie-ai"
-        ? appendKieReferenceOrderPrompt(continuityPrompt, selectedReferenceImages.sent)
+        ? selectedReferenceImages.sent.some((image) => image.role === "storyboard")
+          ? kieStoryboardPrompt
+          : appendKieReferenceOrderPrompt(kieStoryboardPrompt, selectedReferenceImages.sent)
         : continuityPrompt;
     const continuitySourceSegmentId =
       typeof continuity.metadata.sourceSegmentId === "number"

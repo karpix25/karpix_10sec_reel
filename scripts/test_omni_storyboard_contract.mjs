@@ -37,6 +37,7 @@ try {
   const types = require(findFile(compiled, "omni-storyboard-types.js"));
   const contract = require(findFile(compiled, "omni-storyboard-contract.js"));
   const renderer = require(findFile(compiled, "omni-storyboard-renderer.js"));
+  const fileReference = require(findFile(compiled, "omni-storyboard-file-reference.js"));
 
   assert.equal(types.FIVE_FRAMES_PER_TEN_SECONDS, 5);
 
@@ -50,17 +51,25 @@ try {
   );
 
   const prompt = renderer.renderCompactRussianOmniStoryboardPrompt({ storyboard: buildValidStoryboard() });
-  assert.ok(prompt.includes("Вертикальное 9:16 видео, 10 секунд."));
-  assert.ok(prompt.includes("Используй раскадровку как главный референс"));
-  assert.ok(prompt.includes("повтори ракурсы камеры, действия, переходы, эффекты, субтитры"));
-  assert.ok(prompt.includes("Произнеси строго только субтитры пяти основных кадров"));
-  assert.ok(prompt.includes("Служебные блоки раскадровки"));
+  assert.ok(prompt.includes("используй раскадровку как референс"));
+  assert.ok(prompt.includes("@storyboard_file"));
+  assert.ok(prompt.includes("повтори в точности как с раскадровки"));
+  assert.ok(prompt.includes("такой же ракурс камеры"));
+  assert.ok(!prompt.includes("Служебные блоки раскадровки"));
   assert.ok(!prompt.includes("Озвучка:"));
   assert.ok(!prompt.includes("Утром я беру стик"));
-  assert.ok(prompt.includes("Музыку не добавляй."));
+  assert.ok(prompt.includes("не добавляй музыку"));
   assert.ok(!prompt.includes("действие: герой берет"));
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));
   assert.ok(prompt.length < 900, "storyboard provider prompt must stay short");
+  assert.equal(
+    fileReference.resolveOmniStoryboardFileReference([{ role: "product" }, { role: "storyboard" }]),
+    "@file2"
+  );
+  assert.equal(
+    fileReference.applyOmniStoryboardFileReference(prompt, [{ role: "storyboard" }, { role: "product" }]).includes("@file1"),
+    true
+  );
 
   assertInvalid(
     { ...buildValidStoryboard(), frames: buildValidStoryboard().frames.slice(0, 4) },
