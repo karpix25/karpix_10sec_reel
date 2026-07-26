@@ -6,10 +6,10 @@ import {
   OMNI_MAX_SEGMENT_COUNT,
   OMNI_MIN_SEGMENT_COUNT,
   OMNI_SEGMENT_SECONDS,
-  OMNI_TARGET_SEGMENT_WORDS_MAX,
   OMNI_TARGET_SEGMENT_WORDS_MIN,
   describeOmniDensityGap,
   getOmniSegmentDurationForWordCount,
+  getOmniSegmentDurationsForWordCount,
   getOmniMaxScriptWords,
   getOmniSegmentWordBudget,
   isOmniSegmentCountViable,
@@ -47,7 +47,7 @@ export function planOmniReelSegments(script: string, options: {
   const maxWords = getOmniMaxScriptWords();
   if (wordCount > maxWords) {
     throw new Error(
-      `Сценарий слишком длинный: ${wordCount} слов. Максимум ${maxWords} слов для 4 частей. Сократите сценарий.`
+      `Сценарий слишком длинный: ${wordCount} слов. Максимум ${maxWords} слов для 4 частей по 4/6/8/10 секунд. Сократите сценарий.`
     );
   }
   if (wordCount < OMNI_MIN_SEGMENT_COUNT || !isAnySegmentCountViable(wordCount)) {
@@ -66,7 +66,7 @@ export function planOmniReelSegments(script: string, options: {
   const selected = candidates.sort((left, right) => left.score - right.score)[0];
   if (!selected) {
     throw new Error(
-      "Не удалось разделить сценарий на части по 10 секунд: в каждой части должно быть 15-20 слов и CTA должен оставаться читаемым. Измените формулировку сценария."
+      "Не удалось разделить сценарий на части 4/6/8/10 секунд: каждая часть должна раскладываться на кадры по 4-5 слов без разрыва CTA. Измените формулировку сценария."
     );
   }
 
@@ -104,10 +104,11 @@ function buildCandidate(
       script,
       segmentCount,
       maxWordsPerSegment,
-      OMNI_TARGET_SEGMENT_WORDS_MIN
+      OMNI_TARGET_SEGMENT_WORDS_MIN,
+      (wordCount) => getOmniSegmentDurationForWordCount(wordCount) !== null
     );
     if (segments.length !== segmentCount) return null;
-    const segmentDurationsSeconds = resolveSegmentDurations(segments);
+    const segmentDurationsSeconds = resolveSegmentDurations(segments, durationRange);
     if (!segmentDurationsSeconds) return null;
     return {
       segments,
@@ -126,9 +127,31 @@ function isAnySegmentCountViable(wordCount: number) {
   return false;
 }
 
-function resolveSegmentDurations(segments: VoiceSegment[]) {
-  const durations = segments.map((segment) => getOmniSegmentDurationForWordCount(segment.wordCount));
-  return durations.every(Boolean) ? (durations as OmniAllowedSegmentSeconds[]) : null;
+function resolveSegmentDurations(segments: VoiceSegment[], durationRange?: OmniDurationRange) {
+  const options = segments.map((segment) => getOmniSegmentDurationsForWordCount(segment.wordCount));
+  if (options.some((item) => item.length === 0)) return null;
+  let bestDurations: OmniAllowedSegmentSeconds[] | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  function visit(index: number, durations: OmniAllowedSegmentSeconds[]) {
+    if (index === options.length) {
+      const total = durations.reduce((sum, duration) => sum + duration, 0);
+      const rangePenalty = getDurationRangePenalty(total, durationRange);
+      const shortestPenalty = durationRange ? 0 : total;
+      const score = rangePenalty + shortestPenalty;
+      if (score < bestScore) {
+        bestDurations = durations;
+        bestScore = score;
+      }
+      return;
+    }
+    for (const duration of options[index]) {
+      visit(index + 1, [...durations, duration]);
+    }
+  }
+
+  visit(0, []);
+  return bestDurations;
 }
 
 function scoreSegments(

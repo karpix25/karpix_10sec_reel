@@ -57,9 +57,10 @@ export function StoryboardSegmentPreview({
 }
 
 export function extractStoryboardFrames(source: unknown): StoryboardPreviewFrame[] {
-  const rawFrames = resolveRawFrames(source).slice(0, 5);
+  const rawFrames = resolveRawFrames(source);
+  const durationSeconds = resolveDurationSeconds(source) || rawFrames.length * 2;
   return rawFrames
-    .map((frame, index) => normalizeFrame(frame, index, rawFrames.length))
+    .map((frame, index) => normalizeFrame(frame, index, rawFrames.length, durationSeconds))
     .filter((frame): frame is StoryboardPreviewFrame => Boolean(frame));
 }
 
@@ -127,6 +128,7 @@ function normalizeFrame(
   frame: Record<string, unknown>,
   index: number,
   frameCount: number,
+  durationSeconds: number,
 ): StoryboardPreviewFrame | null {
   const spokenWords = readString(frame, "spokenWords") || readString(frame, "spoken_words") || readString(frame, "speech");
   const action = readString(frame, "visualAction") || readString(frame, "visual_action") || readString(frame, "action");
@@ -134,7 +136,7 @@ function normalizeFrame(
   if (!spokenWords && !action) return null;
 
   return {
-    time: formatTime(frame, index, frameCount),
+    time: formatTime(frame, index, frameCount, durationSeconds),
     spokenWords: spokenWords || "Без реплики",
     action: action || "Визуальное действие не указано",
     camera: readString(frame, "cameraAngle") || readString(frame, "camera_angle") || readString(frame, "camera"),
@@ -143,7 +145,7 @@ function normalizeFrame(
   };
 }
 
-function formatTime(frame: Record<string, unknown>, index: number, frameCount: number) {
+function formatTime(frame: Record<string, unknown>, index: number, frameCount: number, durationSeconds: number) {
   const explicitTime = readString(frame, "time") || readString(frame, "timestamp");
   if (explicitTime) return explicitTime;
 
@@ -152,9 +154,14 @@ function formatTime(frame: Record<string, unknown>, index: number, frameCount: n
   if (start !== null && end !== null) return `${formatSeconds(start)}-${formatSeconds(end)}s`;
   if (start !== null) return `${formatSeconds(start)}s`;
 
-  const fallbackFrameCount = frameCount || 5;
-  const frameSeconds = 10 / fallbackFrameCount;
+  const fallbackFrameCount = frameCount || Math.max(1, Math.round(durationSeconds / 2));
+  const frameSeconds = durationSeconds / fallbackFrameCount;
   return `${formatSeconds(index * frameSeconds)}-${formatSeconds((index + 1) * frameSeconds)}s`;
+}
+
+function resolveDurationSeconds(source: unknown): number | null {
+  if (!isRecord(source)) return null;
+  return readNumber(source, "durationSeconds") ?? readNumber(source, "duration_seconds");
 }
 
 function formatSeconds(value: number) {

@@ -1,7 +1,11 @@
+import {
+  OMNI_STORYBOARD_MAX_FRAME_WORDS,
+  OMNI_STORYBOARD_MIN_FRAME_WORDS,
+} from "../../omni/storyboard/omni-storyboard-timing";
+
 export const LLM_PROMPT_CHAIN_VERSION = "llm-prompt-chain-v1";
-export const OMNI_STORYBOARD_FRAMES_PER_SEGMENT = 5;
-export const OMNI_STORYBOARD_WORDS_PER_FRAME_MIN = 3;
-export const OMNI_STORYBOARD_WORDS_PER_FRAME_MAX = 4;
+export const OMNI_STORYBOARD_WORDS_PER_FRAME_MIN = OMNI_STORYBOARD_MIN_FRAME_WORDS;
+export const OMNI_STORYBOARD_WORDS_PER_FRAME_MAX = OMNI_STORYBOARD_MAX_FRAME_WORDS;
 
 export type PromptChainAudioMood = "energetic" | "calm" | "dramatic" | "inspiring" | "playful" | "serious";
 

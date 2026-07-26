@@ -63,7 +63,8 @@ export function splitScriptIntoVoiceSegments(
   script: string,
   segmentCount: number,
   maxWordsPerSegment?: number,
-  minWordsPerSegment?: number
+  minWordsPerSegment?: number,
+  isSegmentWordCountAllowed?: (wordCount: number) => boolean
 ): VoiceSegment[] {
   const normalized = normalizeScriptText(script);
   if (!normalized || segmentCount <= 0) return [];
@@ -82,7 +83,8 @@ export function splitScriptIntoVoiceSegments(
     count,
     protectedBoundaries,
     maxWordsPerSegment,
-    minWordsPerSegment
+    minWordsPerSegment,
+    isSegmentWordCountAllowed
   );
   const chunks: VoiceSegment[] = [];
 
@@ -143,7 +145,8 @@ function findBestBoundaries(
   count: number,
   protectedBoundaries: Set<number>,
   maxWordsPerSegment?: number,
-  minWordsPerSegment?: number
+  minWordsPerSegment?: number,
+  isSegmentWordCountAllowed?: (wordCount: number) => boolean
 ) {
   if (count === 1) return [0, tokens.length];
   const target = tokens.length / count;
@@ -155,7 +158,8 @@ function findBestBoundaries(
     target,
     protectedBoundaries,
     maxWordsPerSegment,
-    minWordsPerSegment
+    minWordsPerSegment,
+    isSegmentWordCountAllowed
   );
 
   if (!boundaries) {
@@ -166,7 +170,8 @@ function findBestBoundaries(
       target,
       new Set<number>(),
       maxWordsPerSegment,
-      minWordsPerSegment
+      minWordsPerSegment,
+      isSegmentWordCountAllowed
     );
   }
 
@@ -180,7 +185,8 @@ function solveBoundaries(
   target: number,
   protectedBoundaries: Set<number>,
   maxWordsPerSegment?: number,
-  minWordsPerSegment?: number
+  minWordsPerSegment?: number,
+  isSegmentWordCountAllowed?: (wordCount: number) => boolean
 ) {
   const memo = new Map<string, { score: number; boundaries: number[] } | null>();
   const minWords = minWordsPerSegment && minWordsPerSegment > 0 ? minWordsPerSegment : 1;
@@ -191,7 +197,8 @@ function solveBoundaries(
     if (remaining === 1) {
       const length = tokens.length - start;
       const fits = !maxWordsPerSegment || length <= maxWordsPerSegment;
-      const result = length >= minWords && fits
+      const allowed = !isSegmentWordCountAllowed || isSegmentWordCountAllowed(length);
+      const result = length >= minWords && fits && allowed
         ? { score: segmentPenalty(tokens, start, tokens.length, target), boundaries: [tokens.length] }
         : null;
       memo.set(key, result);
@@ -204,6 +211,7 @@ function solveBoundaries(
     for (let end = minEnd; end <= maxEnd; end += 1) {
       if (protectedBoundaries.has(end)) continue;
       if (maxWordsPerSegment && end - start > maxWordsPerSegment) break;
+      if (isSegmentWordCountAllowed && !isSegmentWordCountAllowed(end - start)) continue;
       const tail = solve(end, remaining - 1);
       if (!tail) continue;
       const score = segmentPenalty(tokens, start, end, target) +

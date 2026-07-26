@@ -1,8 +1,8 @@
 import {
-  FIVE_FRAMES_PER_TEN_SECONDS,
   OMNI_STORYBOARD_MAX_FRAME_WORDS,
   OMNI_STORYBOARD_MIN_FRAME_WORDS,
-  OMNI_STORYBOARD_SEGMENT_SECONDS,
+  getOmniStoryboardFrameCount,
+  isOmniStoryboardDuration,
   type OmniStoryboardFrame,
   type OmniStoryboardSegment,
   type OmniStoryboardValidationResult,
@@ -38,12 +38,13 @@ export function validateOmniStoryboardSegment(input: OmniStoryboardSegment): Omn
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (normalizedSegment.durationSeconds !== OMNI_STORYBOARD_SEGMENT_SECONDS) {
-    errors.push("segment_duration_must_be_10_seconds");
+  const expectedFrameCount = getOmniStoryboardFrameCount(normalizedSegment.durationSeconds);
+  if (!isOmniStoryboardDuration(normalizedSegment.durationSeconds)) {
+    errors.push("segment_duration_must_be_4_6_8_or_10_seconds");
   }
 
-  if (normalizedSegment.frames.length !== FIVE_FRAMES_PER_TEN_SECONDS) {
-    errors.push("segment_must_have_exactly_5_storyboard_frames");
+  if (expectedFrameCount && normalizedSegment.frames.length !== expectedFrameCount) {
+    errors.push(`segment_must_have_exactly_${expectedFrameCount}_storyboard_frames`);
   }
 
   normalizedSegment.frames.forEach((frame, frameIndex) => {
@@ -123,7 +124,7 @@ function validateRequiredFrameFields(
 function validateFrameSpeech(frame: OmniStoryboardFrame, frameIndex: number, errors: string[]) {
   const wordCount = countOmniStoryboardSpokenWords(frame.spokenText);
   if (wordCount < OMNI_STORYBOARD_MIN_FRAME_WORDS || wordCount > OMNI_STORYBOARD_MAX_FRAME_WORDS) {
-    errors.push(`frame_${frameIndex + 1}_spoken_words_must_be_3_to_4`);
+    errors.push(`frame_${frameIndex + 1}_spoken_words_must_be_4_to_5`);
   }
 }
 

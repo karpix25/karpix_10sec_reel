@@ -1,7 +1,17 @@
+export {
+  OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS,
+  OMNI_STORYBOARD_MAX_FRAME_WORDS,
+  OMNI_STORYBOARD_MIN_FRAME_WORDS,
+  OMNI_STORYBOARD_SECONDS_PER_FRAME,
+  getOmniStoryboardDurationForWordCount,
+  getOmniStoryboardFrameCount,
+  getOmniStoryboardWordRange,
+  isOmniStoryboardDuration,
+  type OmniStoryboardAllowedSegmentSeconds,
+} from "./omni-storyboard-timing";
+
 export const FIVE_FRAMES_PER_TEN_SECONDS = 5;
 export const OMNI_STORYBOARD_SEGMENT_SECONDS = 10;
-export const OMNI_STORYBOARD_MIN_FRAME_WORDS = 3;
-export const OMNI_STORYBOARD_MAX_FRAME_WORDS = 4;
 
 export type OmniStoryboardFrame = {
   spokenText: string;

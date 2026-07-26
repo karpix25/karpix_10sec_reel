@@ -38,7 +38,7 @@ try {
   const aliasContract = join(output, "node_modules", "@", "lib", "omni", "creative-contract.js");
   mkdirSync(dirname(aliasContract), { recursive: true });
   copyFileSync(contractOutput, aliasContract);
-  for (const fileName of ["omni-storyboard-types.js", "omni-storyboard-contract.js"]) {
+  for (const fileName of ["omni-storyboard-timing.js", "omni-storyboard-types.js", "omni-storyboard-contract.js"]) {
     const source = findFile(compiled, fileName);
     const target = join(output, "node_modules", "@", "lib", "omni", "storyboard", fileName);
     mkdirSync(dirname(target), { recursive: true });
@@ -51,16 +51,19 @@ try {
 
   assert.deepEqual(validatePromptVoiceoverIsolation(prompts), []);
   for (const item of prompts) {
-    assert.equal(normalizedCount(item.prompt, item.voiceoverText), 0);
+    assert.equal(normalizedCount(item.prompt, item.voiceoverText), 1);
     assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/iu.test(item.prompt));
-    assert.ok(!item.prompt.includes("Озвучка:"), "storyboard prompt must not duplicate spoken text");
+    assert.ok(item.prompt.includes("Озвучка:"), "storyboard prompt must provide exact speech once");
     assert.ok(item.prompt.includes("используй раскадровку как референс"), "storyboard prompt must lean on storyboard reference");
     assert.ok(item.prompt.includes("@storyboard_file"), "storyboard prompt must keep file placeholder until KIE upload order is known");
-    assert.ok(item.prompt.includes("повтори в точности как с раскадровки"), "storyboard prompt must ask to copy storyboard exactly");
+    assert.ok(item.prompt.includes("повтори в точности количество кадров"), "storyboard prompt must ask to copy storyboard exactly");
+    assert.ok(item.prompt.includes("Озвучивай слова в точности как написано"), "storyboard prompt must require exact spoken words");
+    assert.ok(item.prompt.includes("без повторов и добавлений"), "storyboard prompt must forbid duplicated speech");
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
     assert.ok(item.prompt.includes("не добавляй музыку"), "storyboard prompt must forbid Omni music");
-    assert.ok(item.prompt.length < 900, "storyboard prompt must stay short");
-    assert.equal(item.storyboardPlan.frames.length, 5, "each segment must include five storyboard frames");
+    assert.ok(!item.prompt.includes("субтитры примени как с референса"), "storyboard prompt must not ask to copy subtitles");
+    assert.ok(item.prompt.length < 1100, "storyboard prompt must stay short");
+    assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2, "storyboard frame count must follow duration");
     assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
     assert.ok(!item.prompt.includes(`"${item.voiceoverText}"`), "spoken text must not be wrapped in quotes");
   }
@@ -76,7 +79,7 @@ try {
 	    assert.notEqual(item.prompt, storedSegments[index].prompt);
 	    assert.ok(item.prompt.includes("используй раскадровку как референс"));
 	    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
-	    assert.equal(item.storyboardPlan.frames.length, 5);
+	    assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2);
     assert.ok(!item.prompt.includes("PRODUCT ACTION:"), "stored LLM prompt path must not inject product action blocks");
     assert.ok(!item.prompt.includes("SCENE ACTION:"), "stored LLM prompt path must not inject scene action blocks");
 	    assert.ok(!item.prompt.includes("CONTINUITY:"), "stored LLM prompt path must not inject continuity blocks");
@@ -85,8 +88,8 @@ try {
 	  const legacyStoredInput = buildStoredPromptInput({ omitStoryboardFrames: true });
 	  assert.throws(
 	    () => buildOmniSegmentPrompts(legacyStoredInput),
-	    /storyboard|five storyboard frames|Раскадров/iu,
-	    "stored LLM prompt path must reject snapshots without five storyboard frames"
+	    /storyboard|frames|Раскадров/iu,
+	    "stored LLM prompt path must reject snapshots without storyboard frames"
 	  );
 
 	  console.log("Omni prompt speech contract regression checks passed");
@@ -170,6 +173,7 @@ function buildInput() {
       text,
       wordCount: text.split(/\s+/u).filter(Boolean).length,
     })),
+    segmentDurationsSeconds: [6, 6, 6],
     brief: null,
     targetAudience: "люди, которые готовят дома",
     ctaMode: "article_in_description",
@@ -187,7 +191,7 @@ function buildStoredPromptInput(options = {}) {
       format: "talking_head_cutaways",
 	      segmentPrompts: voiceSegments.map((voiceover, index) => ({
 	        index: index + 1,
-	        durationSeconds: 10,
+	        durationSeconds: 6,
 	        voiceover,
 	        storyboardFrames: options.omitStoryboardFrames ? [] : makeStoredStoryboardFrames(voiceover),
 	        referenceRole: "avatar",
@@ -208,10 +212,10 @@ function buildStoredPromptInput(options = {}) {
 
 function makeStoredStoryboardFrames(voiceover) {
   const words = voiceover.split(/\s+/u).filter(Boolean);
-  return [0, 1, 2, 3, 4].map((index) => ({
+  return [0, 1, 2].map((index) => ({
     index: index + 1,
-    role: index === 0 ? "face_open" : index === 4 ? "face_return" : "product_cutaway",
-    spokenWords: words.slice(index * 3, index * 3 + 3).join(" "),
+    role: index === 0 ? "face_open" : index === 2 ? "face_return" : "product_cutaway",
+    spokenWords: words.slice(index * 5, index * 5 + 5).join(" "),
     visualDescription: "живая кухня с тем же человеком и продуктом",
     camera: index === 2 ? "крупный план продукта" : "фронтальный план на телефон",
     action: "персонаж продолжает мысль и показывает продукт",

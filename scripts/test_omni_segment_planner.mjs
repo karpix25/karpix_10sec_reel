@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
@@ -25,15 +25,21 @@ try {
     { cwd: ui, stdio: "inherit" }
   );
 
-  const { planOmniReelSegments } = require(join(output, "omni-duration-planner.js"));
-  const { getOmniSegmentDurationForWordCount } = require(join(output, "omni-speech-density.js"));
-  const { normalizeOmniDurationRange } = require(join(output, "omni-duration-range.js"));
-  const { reconstructVoiceSegments, splitScriptIntoVoiceSegments } = require(join(output, "omni-script-segmentation.js"));
+  const { planOmniReelSegments } = require(findFile(output, "omni-duration-planner.js"));
+  const { getOmniSegmentDurationForWordCount } = require(findFile(output, "omni-speech-density.js"));
+  const { normalizeOmniDurationRange } = require(findFile(output, "omni-duration-range.js"));
+  const { reconstructVoiceSegments, splitScriptIntoVoiceSegments } = require(findFile(output, "omni-script-segmentation.js"));
 
-  assert.equal(getOmniSegmentDurationForWordCount(14), null, "segments below the storyboard speech floor are invalid");
-  assert.equal(getOmniSegmentDurationForWordCount(15), 10);
-  assert.equal(getOmniSegmentDurationForWordCount(20), 10);
-  assert.equal(getOmniSegmentDurationForWordCount(21), null);
+  assert.equal(getOmniSegmentDurationForWordCount(7), null, "segments below the storyboard speech floor are invalid");
+  assert.equal(getOmniSegmentDurationForWordCount(8), 4);
+  assert.equal(getOmniSegmentDurationForWordCount(10), 4);
+  assert.equal(getOmniSegmentDurationForWordCount(11), null, "eleven words cannot split into frames of four or five words");
+  assert.equal(getOmniSegmentDurationForWordCount(12), 6);
+  assert.equal(getOmniSegmentDurationForWordCount(16), 8);
+  assert.equal(getOmniSegmentDurationForWordCount(20), 8);
+  assert.equal(getOmniSegmentDurationForWordCount(21), 10);
+  assert.equal(getOmniSegmentDurationForWordCount(25), 10);
+  assert.equal(getOmniSegmentDurationForWordCount(26), null);
 
   const exactThirty = normalizeOmniDurationRange({
     requestedMinSeconds: 30,
@@ -43,8 +49,8 @@ try {
   });
   assert.equal(exactThirty.minSeconds, 30);
   assert.equal(exactThirty.maxSeconds, 30);
-  assert.equal(exactThirty.minWords, 50);
-  assert.equal(exactThirty.maxWords, 60);
+  assert.equal(exactThirty.minWords, 62);
+  assert.equal(exactThirty.maxWords, 75);
 
   const overLimit = normalizeOmniDurationRange({
     requestedMinSeconds: 50,
@@ -55,20 +61,23 @@ try {
   assert.equal(overLimit.minSeconds, 40);
   assert.equal(overLimit.maxSeconds, 40);
   assert.equal(overLimit.wasClamped, true);
-  assert.equal(overLimit.minWords, 66);
-  assert.equal(overLimit.maxWords, 80);
+  assert.equal(overLimit.minWords, 82);
+  assert.equal(overLimit.maxWords, 100);
 
-  const allowedDurations = new Set([10]);
+  const allowedDurations = new Set([4, 6, 8, 10]);
   for (const [wordCount, expectedSegments] of [
-    [30, 2],
-    [35, 2],
+    [16, 2],
+    [20, 2],
+    [22, 2],
+    [24, 2],
+    [31, 2],
     [40, 2],
-    [45, 3],
-    [54, 3],
+    [50, 2],
+    [51, 3],
     [60, 3],
-    [61, 4],
-    [72, 4],
-    [80, 4],
+    [75, 3],
+    [76, 4],
+    [100, 4],
   ]) {
     const script = makeScript(wordCount);
     const plan = planOmniReelSegments(script);
@@ -82,7 +91,10 @@ try {
       plan.durationSeconds,
       plan.segmentDurationsSeconds.reduce((sum, duration) => sum + duration, 0)
     );
-    assert.ok(plan.segmentWordCounts.every((count) => count >= 15 && count <= 20), "every segment must fit storyboard speech words");
+    assert.ok(
+      plan.segmentWordCounts.every((count) => getOmniSegmentDurationForWordCount(count) !== null),
+      "every segment must map to a storyboard duration"
+    );
     assert.equal(reconstructVoiceSegments(plan.segments), script, "the source script must reconstruct exactly");
   }
 
@@ -108,9 +120,8 @@ try {
     "Артикул этого чудо средства вы найдете в описании под видео.",
   ].join(" ");
   const naturalBoundaryPlan = planOmniReelSegments(naturalBoundaryTrap);
-  assert.equal(naturalBoundaryPlan.segmentCount, 3);
   assert.ok(
-    naturalBoundaryPlan.segmentWordCounts.every((count) => count >= 15 && count <= 20),
+    naturalBoundaryPlan.segmentWordCounts.every((count) => getOmniSegmentDurationForWordCount(count) !== null),
     "natural boundary traps must still produce valid storyboard word counts"
   );
   assert.equal(reconstructVoiceSegments(naturalBoundaryPlan.segments), naturalBoundaryTrap);
@@ -127,17 +138,17 @@ try {
   assert.ok(fallbackSegments.every(seg => seg.wordCount > 0), "no segment should be empty");
 
   assert.throws(
-    () => planOmniReelSegments(makeScript(81)),
-    (error) => error instanceof Error && /81 слов.*Максимум 80 слов/u.test(error.message)
+    () => planOmniReelSegments(makeScript(101)),
+    (error) => error instanceof Error && /101 слов.*Максимум 100 слов/u.test(error.message)
   );
 
   assert.throws(
-    () => planOmniReelSegments(makeScript(29)),
+    () => planOmniReelSegments(makeScript(15)),
     (error) => error instanceof Error && /слишком короткий/u.test(error.message),
     "plans below two useful segments should be rejected"
   );
 
-  const exactThirtyPlan = planOmniReelSegments(makeScript(60), { durationRange: exactThirty });
+  const exactThirtyPlan = planOmniReelSegments(makeScript(69), { durationRange: exactThirty });
   assert.equal(exactThirtyPlan.durationSeconds, 30);
   assert.equal(exactThirtyPlan.segmentDurationsSeconds.reduce((sum, duration) => sum + duration, 0), 30);
 
@@ -151,4 +162,19 @@ function makeScript(wordCount) {
     { length: wordCount },
     (_, index) => `слово${index + 1}`
   ).join(" ");
+}
+
+function findFile(dir, fileName) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      try {
+        return findFile(path, fileName);
+      } catch {
+        continue;
+      }
+    }
+    if (entry.name === fileName) return path;
+  }
+  throw new Error(`Could not find ${fileName} in ${dir}`);
 }

@@ -60,18 +60,19 @@ export function buildDirectorSegmenterPrompt(input: {
   return `
 Ты режиссер монтажа для Gemini Omni.
 
-Возьми готовый сценарий и раздели его на десятисекундные Omni segments для формата talking_head_cutaways.
+Возьми готовый сценарий и раздели его на Omni segments для формата talking_head_cutaways.
 Верни только валидный JSON без markdown.
 
 Правила режиссуры:
-Каждый segment строится storyboard first: ровно пять storyboard frames на segment.
-Каждый frame содержит ровно три или четыре слова финальной русской речи в spoken_words.
-Склейка spoken_words всех пяти frames должна дословно совпадать с voiceover segment.
-Первый frame всегда face_open. В середине должны быть product_cutaway или environment_cutaway. Последний frame всегда face_return.
+Каждый segment строится storyboard first и может длиться четыре, шесть, восемь или десять секунд.
+Количество storyboard frames зависит от duration_seconds: четыре секунды это два кадра, шесть секунд это три кадра, восемь секунд это четыре кадра, десять секунд это пять кадров.
+Каждый frame содержит ровно четыре или пять слов финальной русской речи в spoken_words.
+Склейка spoken_words всех frames должна дословно совпадать с voiceover segment.
+Первый frame всегда face_open. Последний frame всегда face_return. Если кадров три или больше, в середине должны быть product_cutaway или environment_cutaway.
 Cutaway frames не могут показывать персонажа, который смотрит в камеру.
 В каждом frame опиши visual_description, camera, action, product_state, sfx и reference_role.
 SFX это только естественные звуки кадра. Музыку для Omni не планируй: без фоновой музыки, джинглов и музыкальных эффектов.
-Слова spoken_words будут использоваться как русская озвучка и как субтитры на storyboard image.
+Слова spoken_words будут использоваться только как русская озвучка. Они не будут рисоваться как субтитры или текст на storyboard image.
 Переходы, стрелки и эффекты можно планировать только как подсказки внутри раскадровки, без интерфейса соцсетей и водяных знаков.
 В product_cutaway кадрах продукт обязан быть физически видимым и детально совпадать с product reference.
 Не разрывай мысль на стыке сегментов. Voiceover сегмента должен заканчиваться законченной фразой.
@@ -101,14 +102,14 @@ ${input.draft.script}
   "segments": [
     {
       "index": 1,
-      "duration_seconds": 10,
+      "duration_seconds": 8,
       "voiceover": "точная речь сегмента",
       "product_state": "единое физическое состояние продукта в этом сегменте",
       "storyboard_frames": [
         {
           "index": 1,
           "role": "face_open",
-          "spoken_words": "три или четыре слова",
+          "spoken_words": "четыре или пять слов",
           "visual_description": "детальное описание кадра, света, окружения и персонажа",
           "camera": "крупность, движение и ракурс камеры",
           "action": "конкретное действие в кадре",
@@ -148,14 +149,14 @@ export function buildProviderPromptWriterPrompt(input: {
 
 Общие правила:
 Русская речь в voiceover должна совпадать с director plan дословно.
-Каждый provider segment обязан нести storyboard_frames из пяти кадров.
-Склейка spoken_words всех пяти storyboard_frames должна дословно совпадать с voiceover.
-Каждый frame должен сохранить три или четыре слова финальной русской речи, детальный визуал, camera, action, product_state, sfx и reference_role.
-Provider prompt должен описывать storyboard как пять последовательных кадров примерно по две секунды.
+Каждый provider segment обязан нести storyboard_frames по правилу duration_seconds делить на два.
+Склейка spoken_words всех storyboard_frames должна дословно совпадать с voiceover.
+Каждый frame должен сохранить четыре или пять слов финальной русской речи, детальный визуал, camera, action, product_state, sfx и reference_role.
+Provider prompt должен описывать storyboard как последовательные кадры по две секунды.
 Omni должен сгенерировать русскую речь и естественные SFX. Omni не должен генерировать музыку, фоновые треки, джинглы или музыкальные эффекты.
 Наша фоновая музыка добавляется после из библиотеки, поэтому в prompt пиши только no music и natural SFX.
 Final provider prompt должен быть коротким: используй storyboard image как главный референс и не дублируй детали каждого кадра словами.
-Субтитры, переходы и эффекты применяй только если они есть в раскадровке, без интерфейса соцсетей и водяных знаков.
+Не проси субтитры. Переходы и эффекты применяй только если они есть в раскадровке, без интерфейса соцсетей и водяных знаков.
 В product cutaway продукт обязан быть физически видимым и детально совпадать с product reference.
 Character_id аватара передается отдельно. Product reference передается отдельно. Не вставляй ссылки или идентификаторы в prompt.
 В финальном prompt не упоминай названия платформ и интерфейсы приложений.
@@ -179,13 +180,13 @@ ${JSON.stringify(input.directorPlan, null, 2)}
   "segment_prompts": [
     {
       "index": 1,
-      "duration_seconds": 10,
+      "duration_seconds": 8,
       "voiceover": "точная речь сегмента",
       "storyboard_frames": [
         {
           "index": 1,
           "role": "face_open",
-          "spoken_words": "три или четыре слова",
+          "spoken_words": "четыре или пять слов",
           "visual_description": "детальное описание кадра",
           "camera": "крупность и движение камеры",
           "action": "конкретное действие",
@@ -195,7 +196,7 @@ ${JSON.stringify(input.directorPlan, null, 2)}
         }
       ],
       "reference_role": "avatar",
-      "prompt": "полный цельный prompt для Gemini Omni со storyboard из пяти кадров, точной речью, natural SFX и no music"
+      "prompt": "короткий prompt для Gemini Omni со storyboard reference, точной речью, natural SFX и no music"
     }
   ],
   "notes": "короткая заметка"

@@ -3,9 +3,9 @@ import {
   OMNI_MAX_SEGMENT_COUNT,
   OMNI_MIN_SCRIPT_WORDS,
   OMNI_MIN_SEGMENT_COUNT,
-  OMNI_MIN_USEFUL_SEGMENT_WORDS,
   OMNI_SEGMENT_SECONDS,
   getOmniMaxScriptWords,
+  getOmniSegmentMinWords,
   getOmniSegmentWordBudget,
   type OmniAllowedSegmentSeconds,
 } from "./omni-speech-density";
@@ -111,10 +111,7 @@ function appendDurationCombos(
 }
 
 function getMinWordsForDuration(duration: OmniAllowedSegmentSeconds) {
-  const index = OMNI_ALLOWED_SEGMENT_SECONDS.indexOf(duration);
-  if (index <= 0) return OMNI_MIN_USEFUL_SEGMENT_WORDS;
-  const previousDuration = OMNI_ALLOWED_SEGMENT_SECONDS[index - 1];
-  return getOmniSegmentWordBudget(previousDuration) + 1;
+  return getOmniSegmentMinWords(duration);
 }
 
 function readPositiveNumber(value: unknown) {
