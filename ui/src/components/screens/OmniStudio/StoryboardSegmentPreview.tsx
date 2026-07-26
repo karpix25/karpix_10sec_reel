@@ -130,7 +130,12 @@ function normalizeFrame(
   frameCount: number,
   durationSeconds: number,
 ): StoryboardPreviewFrame | null {
-  const spokenWords = readString(frame, "spokenWords") || readString(frame, "spoken_words") || readString(frame, "speech");
+  const spokenWords =
+    readString(frame, "spokenText") ||
+    readString(frame, "spoken_text") ||
+    readString(frame, "spokenWords") ||
+    readString(frame, "spoken_words") ||
+    readString(frame, "speech");
   const action = readString(frame, "visualAction") || readString(frame, "visual_action") || readString(frame, "action");
 
   if (!spokenWords && !action) return null;
@@ -141,7 +146,13 @@ function normalizeFrame(
     action: action || "Визуальное действие не указано",
     camera: readString(frame, "cameraAngle") || readString(frame, "camera_angle") || readString(frame, "camera"),
     product: readString(frame, "productPlacement") || readString(frame, "product_placement") || readString(frame, "product"),
-    sfx: readString(frame, "sfx") || readString(frame, "effects"),
+    sfx:
+      readString(frame, "sfxNotes") ||
+      readString(frame, "sfx_notes") ||
+      readString(frame, "sfx") ||
+      readString(frame, "effects") ||
+      readString(frame, "effectNotes") ||
+      readString(frame, "effect_notes"),
   };
 }
 
