@@ -54,11 +54,11 @@ try {
     assert.equal(normalizedCount(item.prompt, item.voiceoverText), 0);
     assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/iu.test(item.prompt));
     assert.ok(!item.prompt.includes("Озвучка:"), "storyboard prompt must not duplicate spoken text");
-    assert.ok(item.prompt.includes("субтитры пяти основных кадров"), "storyboard prompt must read only main frame subtitles");
-    assert.ok(item.prompt.includes("Служебные блоки раскадровки"), "storyboard prompt must forbid reading director labels");
-    assert.ok(item.prompt.includes("Используй раскадровку как главный референс"), "storyboard prompt must lean on storyboard reference");
+    assert.ok(item.prompt.includes("используй раскадровку как референс"), "storyboard prompt must lean on storyboard reference");
+    assert.ok(item.prompt.includes("@storyboard_file"), "storyboard prompt must keep file placeholder until KIE upload order is known");
+    assert.ok(item.prompt.includes("повтори в точности как с раскадровки"), "storyboard prompt must ask to copy storyboard exactly");
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
-    assert.ok(item.prompt.includes("Музыку не добавляй"), "storyboard prompt must forbid Omni music");
+    assert.ok(item.prompt.includes("не добавляй музыку"), "storyboard prompt must forbid Omni music");
     assert.ok(item.prompt.length < 900, "storyboard prompt must stay short");
     assert.equal(item.storyboardPlan.frames.length, 5, "each segment must include five storyboard frames");
     assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
@@ -74,7 +74,7 @@ try {
   assert.equal(storedPrompts.length, storedSegments.length);
 	  storedPrompts.forEach((item, index) => {
 	    assert.notEqual(item.prompt, storedSegments[index].prompt);
-	    assert.ok(item.prompt.includes("Используй раскадровку как главный референс"));
+	    assert.ok(item.prompt.includes("используй раскадровку как референс"));
 	    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
 	    assert.equal(item.storyboardPlan.frames.length, 5);
     assert.ok(!item.prompt.includes("PRODUCT ACTION:"), "stored LLM prompt path must not inject product action blocks");

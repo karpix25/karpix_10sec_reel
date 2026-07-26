@@ -2,6 +2,7 @@ import {
   validateOmniStoryboardSegment,
 } from "../../../omni/storyboard/omni-storyboard-contract";
 import type { OmniStoryboardSegment } from "../../../omni/storyboard/omni-storyboard-types";
+import { OMNI_STORYBOARD_FILE_PLACEHOLDER } from "./omni-storyboard-file-reference";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
@@ -11,13 +12,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     throw new Error(`Invalid Omni storyboard: ${validation.errors.join(", ")}`);
   }
 
-  const segment = validation.normalizedSegment;
   return [
-    `Вертикальное 9:16 видео, ${segment.durationSeconds} секунд.`,
-    "Используй раскадровку как главный референс для видео: повтори ракурсы камеры, действия, переходы, эффекты, субтитры и количество переходов точно как на раскадровке.",
-    "Используй тот же персонаж, одежду, окружение и продукт из раскадровки и переданных референсов.",
-    "Произнеси строго только субтитры пяти основных кадров раскадровки на русском один раз, без повторов и добавлений.",
-    "Служебные блоки раскадровки ЕДИНЫЙ СТИЛЬ, МОНТАЖ, ГОЛОС, SFX и ПРАВИЛО OMNI не произноси вслух.",
-    "Музыку не добавляй. Можно только речь и аудиоэффекты как в раскадровке.",
+    `используй раскадровку как референс для переходов и эффектов на видео а так же озвучки! ${OMNI_STORYBOARD_FILE_PLACEHOLDER}, эффекты и субтитры примени как с референса на русском языке, не добавляй музыку, аудиоэффекты можно`,
+    "повтори в точности как с раскадровки даже кол-во переходов используй такой же ракурс камеры как на раскадровке",
   ].join("\n");
 }
