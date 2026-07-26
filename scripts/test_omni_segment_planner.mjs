@@ -98,6 +98,13 @@ try {
     assert.equal(reconstructVoiceSegments(plan.segments), script, "the source script must reconstruct exactly");
   }
 
+  const denseBoundaryPlan = planOmniReelSegments(makeScript(40));
+  assert.deepEqual(
+    denseBoundaryPlan.segmentDurationsSeconds,
+    [8, 8],
+    "twenty-word segments must use the shorter dense timing instead of being stretched to ten seconds"
+  );
+
   const cta = [
     "Этот предмет помогает быстро навести порядок дома без лишних движений и сложных привычек.",
     "Напишите кодовое слово ХОЧУ в комментариях.",
