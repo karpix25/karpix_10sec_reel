@@ -55,12 +55,17 @@ try {
   );
 
   const prompt = renderer.renderCompactRussianOmniStoryboardPrompt({ storyboard: buildValidStoryboard() });
-  assert.ok(prompt.includes("используй раскадровку как референс"));
+  assert.ok(prompt.includes("раскадровку только как скрытый референс"));
   assert.ok(prompt.includes("@storyboard_file"));
-  assert.ok(prompt.includes("повтори в точности количество кадров"));
+  assert.ok(prompt.includes("обычное вертикальное 9:16 видео"));
+  assert.ok(prompt.includes("не показывай саму раскадровку"));
+  assert.ok(prompt.includes("без панелей, номеров кадров"));
+  assert.ok(prompt.includes("повтори в точности количество сцен"));
   assert.ok(prompt.includes("такой же ракурс камеры"));
   assert.ok(prompt.includes("Озвучивай слова в точности как написано"));
   assert.ok(prompt.includes("Озвучка должна быть только на русском языке"));
+  assert.ok(prompt.includes("персонаж в кадре сам произносит"));
+  assert.ok(prompt.includes("это не закадровый голос"));
   assert.ok(prompt.includes("без повторов и добавлений"));
   assert.ok(!prompt.includes("Служебные блоки раскадровки"));
   assert.ok(prompt.includes("Озвучка:"));
@@ -70,7 +75,7 @@ try {
   assert.ok(!prompt.includes("субтитры примени как с референса"));
   assert.ok(!prompt.includes("действие: герой берет"));
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));
-  assert.ok(prompt.length < 1100, "storyboard provider prompt must stay short");
+  assert.ok(prompt.length < 1400, "storyboard provider prompt must stay short");
   assert.equal(
     fileReference.resolveOmniStoryboardFileReference([{ role: "product" }, { role: "storyboard" }]),
     "@file2"
