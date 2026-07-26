@@ -58,6 +58,7 @@ try {
     assert.ok(item.prompt.includes("@storyboard_file"), "storyboard prompt must keep file placeholder until KIE upload order is known");
     assert.ok(item.prompt.includes("повтори в точности количество кадров"), "storyboard prompt must ask to copy storyboard exactly");
     assert.ok(item.prompt.includes("Озвучивай слова в точности как написано"), "storyboard prompt must require exact spoken words");
+    assert.ok(item.prompt.includes("Озвучка должна быть только на русском языке"), "storyboard prompt must force Russian voiceover language");
     assert.ok(item.prompt.includes("без повторов и добавлений"), "storyboard prompt must forbid duplicated speech");
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
     assert.ok(item.prompt.includes("не добавляй музыку"), "storyboard prompt must forbid Omni music");

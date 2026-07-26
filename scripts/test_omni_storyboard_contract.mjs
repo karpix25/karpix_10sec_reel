@@ -60,6 +60,7 @@ try {
   assert.ok(prompt.includes("повтори в точности количество кадров"));
   assert.ok(prompt.includes("такой же ракурс камеры"));
   assert.ok(prompt.includes("Озвучивай слова в точности как написано"));
+  assert.ok(prompt.includes("Озвучка должна быть только на русском языке"));
   assert.ok(prompt.includes("без повторов и добавлений"));
   assert.ok(!prompt.includes("Служебные блоки раскадровки"));
   assert.ok(prompt.includes("Озвучка:"));
