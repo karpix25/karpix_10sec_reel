@@ -2,6 +2,7 @@ import {
   uploadOmniGeneratedScriptStoryboardImageBufferToS3,
   uploadOmniImageBufferToS3,
 } from "./omni-video-storage";
+import { buildStoryboardImagePrompt } from "./omni-storyboard-image-prompt";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 
 const DEFAULT_COMETAPI_BASE_URL = "https://api.cometapi.com";
@@ -19,6 +20,7 @@ export async function generateStoryboardImage(input: {
   productName: string;
   avatarReferenceUrl: string | null;
   productReferenceUrls?: readonly string[];
+  directorReferenceImageUrls?: readonly string[];
   previousStoryboardReferenceUrl?: string | null;
 }) {
   if (process.env.OMNI_STORYBOARD_IMAGE_GENERATION === "false") return null;
@@ -27,6 +29,7 @@ export async function generateStoryboardImage(input: {
     throw new Error("Storyboard image generation requires the avatar reference image used for Omni character_id");
   }
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
+  const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || []);
   if (!productReferenceUrls.length) {
     throw new Error("Storyboard image generation requires a real product reference image");
   }
@@ -36,6 +39,7 @@ export async function generateStoryboardImage(input: {
     ...input,
     avatarReferenceUrl,
     productReferenceUrls,
+    directorReferenceImageUrls,
     previousStoryboardReferenceUrl,
   });
 
@@ -77,65 +81,6 @@ export async function generateStoryboardImage(input: {
   throw new Error("Storyboard image generation requires reelId or scriptId storage target");
 }
 
-function buildStoryboardImagePrompt(input: {
-  segmentIndex: number;
-  storyboard: OmniStoryboardSegment;
-  productName: string;
-  avatarReferenceUrl: string | null;
-  productReferenceUrls?: readonly string[];
-  previousStoryboardReferenceUrl?: string | null;
-}) {
-  const avatarReferenceUrl = cleanUrl(input.avatarReferenceUrl);
-  const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
-  const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
-  const productRange = productReferenceUrls.length > 1 ? `2-${productReferenceUrls.length + 1}` : "2";
-  const previousReferenceIndex = productReferenceUrls.length + 2;
-  const frameCount = input.storyboard.frames.length;
-  const frameNumbers = input.storyboard.frames.map((_, index) => String(index + 1)).join(", ");
-  return [
-    "Создай одну широкую production storyboard картинку в стиле темной UGC-раскадровки как референс для генерации Reels.",
-    `Стандарт макета обязателен: черный фон, ровно ${frameCount} вертикальных карточек-кадров в один горизонтальный ряд, тонкие белые разделители, без второго ряда и без таблиц.`,
-    "Каждая карточка состоит из большого визуального кадра сверху и небольшой черной зоны подсказок снизу.",
-    `В левом верхнем углу каждой карточки нарисуй белый круг с номером кадра: ${frameNumbers}.`,
-    "Не рисуй слова озвучки, субтитры, captions, overlay text, рекламные надписи или рукописный текст поверх визуального кадра.",
-    "В нижней черной зоне каждой карточки добавь только маленькие серые подсказки для модели: РАКУРС: ...; МОНТАЖ: ...; ЭФФЕКТ: ...; SFX: ... .",
-    "Не рисуй отдельные служебные блоки, верхние панели, нижние правила, карточки-инструкции или повторные thumbnails.",
-    "Не добавляй UI соцсетей, кнопки приложения, водяные знаки, стрелки, стикеры или рекламные декоративные эффекты.",
-    "Лицо героя должно выглядеть натурально: живое выражение, реальные поры, естественная текстура кожи, мягкий бытовой свет, без пластикового лица, beauty filter и лишнего сглаживания.",
-    "Используй входные изображения как реальные визуальные референсы, а не как текстовые ссылки.",
-    "Изображение 1 - наш аватар: лицо, возраст, телосложение, волосы и общий типаж героя.",
-    `Изображения ${productRange} - реальный продукт: форма, цвет, упаковка, материал и размер.`,
-    previousStoryboardReferenceUrl
-      ? `Изображение ${previousReferenceIndex} - предыдущая раскадровка этого же ролика. Используй ее как continuity reference: тот же стиль, персонаж, одежда, свет, окружение, масштаб продукта и тот же макет. Не копируй старые действия.`
-      : "",
-    "Каждый кадр должен быть отдельной вертикальной визуальной панелью с таймингом 2 секунды.",
-    "Можно рисовать только минимальные монтажные и SFX-подсказки, которые помогают повторить раскадровку в видео.",
-    "Главный герой в каждом кадре должен быть тем же человеком, что и на изображении 1. Не меняй лицо, возраст, телосложение, волосы и общий типаж между кадрами.",
-    "Одежда, стиль, свет и окружение должны оставаться одинаковыми во всех кадрах.",
-    "Если описание кадра говорит, что продукт виден, прорисуй именно продукт из входных изображений продукта, четко и детально.",
-    "Не добавляй воду, стаканы, бутылки, шейкеры, напитки или растворение продукта, если это прямо не написано в кадре.",
-    "Текст на картинке разрешен только в нижней зоне подсказок: короткий, серый, служебный, без фраз озвучки.",
-    `Avatar reference URL: ${avatarReferenceUrl}.`,
-    productReferenceUrls.length ? `Product reference URLs: ${productReferenceUrls.join(", ")}.` : "",
-    previousStoryboardReferenceUrl ? `Previous storyboard reference URL: ${previousStoryboardReferenceUrl}.` : "",
-    `Продукт: ${input.productName}.`,
-    `Сегмент: ${input.segmentIndex}.`,
-    ...input.storyboard.frames.map((frame, index) =>
-      [
-        `Кадр ${index + 1}, ${index * 2}-${(index + 1) * 2} сек:`,
-        `действие ${frame.visualAction};`,
-        `камера ${frame.camera};`,
-        `окружение ${frame.environment};`,
-        `одежда ${frame.wardrobe};`,
-        `продукт ${frame.productPlacement};`,
-        `звук ${frame.sfxNotes};`,
-        `монтаж и эффекты ${frame.effectNotes};`,
-        "нижняя подсказка должна быть короткой: РАКУРС, МОНТАЖ, ЭФФЕКТ, SFX.",
-      ].join(" ")
-    ),
-  ].join("\n");
-}
-
 async function createStoryboardImage(input: {
   projectId: number;
   reelId?: number;
@@ -145,11 +90,13 @@ async function createStoryboardImage(input: {
   productName: string;
   avatarReferenceUrl: string;
   productReferenceUrls: readonly string[];
+  directorReferenceImageUrls: readonly string[];
   previousStoryboardReferenceUrl: string | null;
 }) {
   const references = [
     input.avatarReferenceUrl,
     ...input.productReferenceUrls,
+    ...input.directorReferenceImageUrls,
     input.previousStoryboardReferenceUrl,
   ].filter((url): url is string => Boolean(url)).slice(0, 16);
   if (references.length) {

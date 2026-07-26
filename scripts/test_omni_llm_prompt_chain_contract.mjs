@@ -221,7 +221,18 @@ try {
       ...providerPlan,
       segmentPrompts: [{ ...providerPlan.segmentPrompts[0], prompt: "Вертикальное живое видео. Миша улыбается." }],
     }),
-    "prompt_voiceover_occurrence"
+    "prompt_missing_storyboard_speech_instruction"
+  );
+
+  assertIssue(
+    validator.validateProviderPromptPlan({
+      ...providerPlan,
+      segmentPrompts: [{
+        ...providerPlan.segmentPrompts[0],
+        prompt: `${providerPlan.segmentPrompts[0].prompt} ${providerPlan.segmentPrompts[0].voiceover}`,
+      }],
+    }),
+    "prompt_voiceover_leak"
   );
 
   assertIssue(
@@ -260,7 +271,7 @@ try {
           voiceover: "Второй сегмент звучит отдельно.",
           storyboardFrames: [],
           referenceRole: "avatar",
-          prompt: "Миша возвращается к лицу. Речь звучит точно: Второй сегмент звучит отдельно.",
+          prompt: "Миша возвращается к лицу и читает только реплики из раскадровки. Natural SFX, без музыки.",
         },
       ],
     }),
@@ -327,7 +338,7 @@ function makeProviderPlan() {
         storyboardFrames,
         referenceRole: "avatar",
         prompt:
-          "Вертикальное живое видео. Четыре последовательных кадра примерно по две секунды. Миша начинает с лица в камеру, затем аэрогриль стоит на столе без рук, после видна аккуратная кухня, затем возврат к лицу. Речь звучит точно: Устал от долгой готовки? Этот аэрогриль делает ужин проще, чище и быстрее прямо на твоей кухне уже сегодня вечером. Natural SFX, без музыки.",
+          "Вертикальное живое видео. Читать только реплики из раскадровки на русском языке. Не показывать панели раскадровки. Natural SFX, без музыки.",
       },
     ],
     notes: "Готовый цельный prompt.",

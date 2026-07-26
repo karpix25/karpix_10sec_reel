@@ -8,7 +8,7 @@ type StoryboardPromptSegment = {
   storyboardPlan: OmniStoryboardSegment | null;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-director-board-single-v1";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-speech-director-refs-v2";
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
@@ -17,6 +17,7 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
   productName: string;
   avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
+  directorReferenceImageUrls?: readonly string[];
   promptPlan: readonly StoryboardPromptSegment[];
 }) {
   await ensureOmniSchema();
@@ -85,6 +86,7 @@ async function tryGenerateStoryboardPreview(input: {
   productName: string;
   avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
+  directorReferenceImageUrls?: readonly string[];
   referenceSignature: string;
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment;
@@ -99,6 +101,7 @@ async function tryGenerateStoryboardPreview(input: {
       productName: input.productName,
       avatarReferenceUrl: input.avatarReferenceUrl,
       productReferenceUrls: input.productReferenceUrls,
+      directorReferenceImageUrls: input.directorReferenceImageUrls || [],
       previousStoryboardReferenceUrl: input.previousStoryboardReferenceUrl,
     });
     if (!url) return null;
@@ -159,11 +162,13 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
 function buildReferenceSignature(input: {
   avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
+  directorReferenceImageUrls?: readonly string[];
 }) {
   return [
     STORYBOARD_PREVIEW_GENERATOR_VERSION,
     normalizeUrl(input.avatarReferenceUrl) || "",
     ...input.productReferenceUrls.map((url) => normalizeUrl(url) || "").filter(Boolean).sort(),
+    ...Array.from(input.directorReferenceImageUrls || []).map((url) => normalizeUrl(url) || "").filter(Boolean).sort(),
   ].join("|");
 }
 

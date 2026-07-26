@@ -11,7 +11,7 @@ import { validateOmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyb
 import type { OmniCharacterContract } from "../omni-character-contract";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
 
-const CLEAN_STORYBOARD_STYLE = "чистая натуральная картинка без декоративной графики, стрелок и экранных подписей";
+const CLEAN_STORYBOARD_STYLE = "чистая натуральная картинка без лишней декоративной графики, стрелок и рекламных надписей";
 
 export function buildStoryboardFromCreativePlan(input: {
   plan: OmniSegmentCreativePlan;
@@ -107,14 +107,29 @@ function buildFrame(input: {
   return {
     spokenText: input.spokenText,
     visualAction: renderFrameAction(beat?.action, isCutawayFrame),
-    camera: isCutawayFrame ? "короткая перебивка или средний план" : "живой фронтальный кадр на телефон",
+    camera: renderFrameCamera(input.frameIndex, input.frameCount, isCutawayFrame),
     environment: "то же окружение и свет, что заданы сценой сегмента",
     wardrobe: input.characterContract.clothingLine,
     productPlacement: renderProductPlacement(input.plan, input.productName, input.productVisualPassport),
-    sfxNotes: isCutawayFrame ? "естественный звук действия с продуктом" : "тихие естественные звуки комнаты и речи",
-    effectNotes: CLEAN_STORYBOARD_STYLE,
+    sfxNotes: isCutawayFrame ? "естественный звук короткого действия с продуктом" : "тихие естественные звуки комнаты и живой речи",
+    effectNotes: renderFrameEffect(input.frameIndex, input.frameCount, isCutawayFrame),
     modelMusicNotes: null,
   };
+}
+
+function renderFrameCamera(frameIndex: number, frameCount: number, isCutawayFrame: boolean) {
+  if (isCutawayFrame) return "быстрая перебивка крупнее обычного: продукт, рука или деталь среды в движении";
+  if (frameIndex === 1) return "триггерный селфи ракурс с легкого верхнего угла, близко к лицу, живое движение телефона";
+  if (frameIndex === frameCount) return "возврат к лицу средним планом, камера чуть приближается для финальной фразы";
+  if (frameIndex % 2 === 0) return "средний план сбоку, герой делает жест рукой и смещается в кадре";
+  return "полукрупный план с легким handheld движением, не статичная рекламная подача";
+}
+
+function renderFrameEffect(frameIndex: number, frameCount: number, isCutawayFrame: boolean) {
+  if (isCutawayFrame) return `${CLEAN_STORYBOARD_STYLE}; быстрый match cut или короткий punch in без графических стикеров`;
+  if (frameIndex === 1) return `${CLEAN_STORYBOARD_STYLE}; сильный UGC hook кадр с легким handheld стартом`;
+  if (frameIndex === frameCount) return `${CLEAN_STORYBOARD_STYLE}; короткая стабилизация на финальную реплику`;
+  return `${CLEAN_STORYBOARD_STYLE}; быстрый живой jump cut между репликами`;
 }
 
 function renderPromptChainProductPlacement(productState: string | null | undefined) {
