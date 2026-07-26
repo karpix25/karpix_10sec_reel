@@ -62,20 +62,21 @@ try {
   assert.ok(prompt.includes("без панелей, номеров кадров"));
   assert.ok(prompt.includes("повтори в точности количество сцен"));
   assert.ok(prompt.includes("такой же ракурс камеры"));
-  assert.ok(prompt.includes("Озвучивай слова в точности как написано"));
-  assert.ok(prompt.includes("Озвучка должна быть только на русском языке"));
-  assert.ok(prompt.includes("персонаж в кадре сам произносит"));
-  assert.ok(prompt.includes("это не закадровый голос"));
-  assert.ok(prompt.includes("без повторов и добавлений"));
+  assert.ok(prompt.includes("Реплика персонажа:"));
+  assert.ok(prompt.includes("сам произносит реплику на русском языке"));
+  assert.ok(prompt.includes("не используй закадровый голос"));
+  assert.ok(prompt.includes("без длинных пауз"));
+  assert.ok(prompt.includes("включая последнюю фразу и призыв"));
+  assert.ok(prompt.includes("без повторов, переводов и добавлений"));
   assert.ok(!prompt.includes("Служебные блоки раскадровки"));
-  assert.ok(prompt.includes("Озвучка:"));
+  assert.ok(!prompt.includes("Озвучка:"));
   assert.equal(normalizedCount(prompt, buildValidStoryboard().voiceoverText), 1);
   assert.ok(prompt.includes("не добавляй музыку"));
   assert.ok(prompt.includes("не добавляй музыку и субтитры"));
   assert.ok(!prompt.includes("субтитры примени как с референса"));
   assert.ok(!prompt.includes("действие: герой берет"));
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));
-  assert.ok(prompt.length < 1400, "storyboard provider prompt must stay short");
+  assert.ok(prompt.length < 1600, "storyboard provider prompt must stay short");
   assert.equal(
     fileReference.resolveOmniStoryboardFileReference([{ role: "product" }, { role: "storyboard" }]),
     "@file2"

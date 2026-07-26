@@ -34,10 +34,8 @@ export function getOmniSegmentDurationForWordCount(wordCount: number): OmniAllow
 }
 
 export function getOmniSegmentDurationsForWordCount(wordCount: number): OmniAllowedSegmentSeconds[] {
-  return OMNI_ALLOWED_SEGMENT_SECONDS.filter((seconds) => {
-    const range = getOmniStoryboardWordRange(seconds);
-    return range ? wordCount >= range.minWords && wordCount <= range.maxWords : false;
-  });
+  const duration = getOmniStoryboardDurationForWordCount(wordCount);
+  return duration ? [duration] : [];
 }
 
 export function getOmniMaxScriptWords() {
