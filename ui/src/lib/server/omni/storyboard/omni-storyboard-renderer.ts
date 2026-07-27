@@ -2,7 +2,10 @@ import {
   validateOmniStoryboardSegment,
 } from "../../../omni/storyboard/omni-storyboard-contract";
 import type { OmniStoryboardSegment } from "../../../omni/storyboard/omni-storyboard-types";
-import { OMNI_STORYBOARD_FILE_PLACEHOLDER } from "./omni-storyboard-file-reference";
+import {
+  OMNI_PRODUCT_FILE_PLACEHOLDER,
+  OMNI_STORYBOARD_FILE_PLACEHOLDER,
+} from "./omni-storyboard-file-reference";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
@@ -14,6 +17,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
 
   return [
     `создай обычное вертикальное 9:16 видео, используя раскадровку только как скрытую инструкцию для ракурсов, действий, атмосферы, монтажа, переходов, эффектов и аудиоэффектов! ${OMNI_STORYBOARD_FILE_PLACEHOLDER}`,
+    `файл продукта ${OMNI_PRODUCT_FILE_PLACEHOLDER} - точный реальный продукт: не заменяй форму упаковки, этикетку, материал, цвет и размер`,
     "не показывай саму раскадровку: без панелей, сетки, номеров кадров, разделителей, черного фона, служебных подписей, карточек, коллажа и любого текста раскадровки как объекта",
     "перенеси из раскадровки только содержание каждого кадра: ракурс камеры, крупность, позу персонажа, действие, окружение, свет, продукт, монтаж, переходы и аудиоэффекты",
     "каждый кадр преврати в живую сцену: фон, предмет, продукт, перебивку или эффект воссоздай реально, не как картинку, экран, карточку или коллаж внутри видео",

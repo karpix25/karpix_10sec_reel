@@ -253,6 +253,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       seconds: getProviderDuration(provider, segment.duration_seconds || 10),
       aspect_ratio: "9:16",
       resolution: provider === "kie-ai" ? "1080p" : "720p",
+      provider_prompt: providerPrompt,
       image_urls: selectedReferenceImages.sent.map((image) => image.url),
       character_ids: provider === "kie-ai" && avatarCharacterId ? [avatarCharacterId] : [],
       audio_ids: provider === "kie-ai" ? kieAudioIds : [],
@@ -261,9 +262,10 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       reference_image_field: selectedReferenceImages.sent.length ? referenceImageField : null,
       reference_image_transport:
         selectedReferenceImages.sent.length && provider === "cometapi" ? referenceImageTransport : "url",
-      reference_images: selectedReferenceImages.sent.map((image) => ({
+      reference_images: selectedReferenceImages.sent.map((image, index) => ({
         role: image.role,
         url: image.url,
+        file_reference: provider === "kie-ai" ? `@file${index + 1}` : null,
       })),
       reference_images_skipped: selectedReferenceImages.skipped.map((image) => ({
         role: image.role,
