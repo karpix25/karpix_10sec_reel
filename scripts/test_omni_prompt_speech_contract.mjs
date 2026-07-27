@@ -58,10 +58,13 @@ try {
     assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/iu.test(item.prompt));
     assert.ok(!item.prompt.includes("Реплика персонажа:"), "storyboard prompt must not provide direct speech text");
     assert.ok(!item.prompt.includes("Озвучка:"), "storyboard prompt must not imply background voiceover");
-    assert.ok(item.prompt.includes("раскадровку только как скрытый референс"), "storyboard prompt must lean on storyboard reference");
+    assert.ok(item.prompt.includes("раскадровку только как скрытую инструкцию"), "storyboard prompt must lean on storyboard instruction");
     assert.ok(item.prompt.includes("@storyboard_file"), "storyboard prompt must keep file placeholder until KIE upload order is known");
     assert.ok(item.prompt.includes("обычное вертикальное 9:16 видео"), "storyboard prompt must render a normal vertical video");
     assert.ok(item.prompt.includes("не показывай саму раскадровку"), "storyboard prompt must not render storyboard panels");
+    assert.ok(item.prompt.includes("перенеси из раскадровки только содержание каждого кадра"), "storyboard prompt must copy content, not storyboard layout");
+    assert.ok(item.prompt.includes("преврати в полноценную живую сцену видео"), "storyboard prompt must convert frames into live scenes");
+    assert.ok(item.prompt.includes("а не как картинку, экран, карточку или коллаж внутри видео"), "storyboard prompt must forbid embedded storyboard images");
     assert.ok(item.prompt.includes("повтори в точности количество сцен"), "storyboard prompt must ask to copy storyboard exactly");
     assert.ok(item.prompt.includes("только реплики, написанные внутри кадров раскадровки"), "storyboard prompt must read speech from storyboard");
     assert.ok(item.prompt.includes("на русском языке"), "storyboard prompt must force Russian character speech");
@@ -133,7 +136,7 @@ try {
   assert.equal(storedPrompts.length, storedSegments.length);
 	  storedPrompts.forEach((item, index) => {
 	    assert.notEqual(item.prompt, storedSegments[index].prompt);
-	    assert.ok(item.prompt.includes("раскадровку только как скрытый референс"));
+	    assert.ok(item.prompt.includes("раскадровку только как скрытую инструкцию"));
       assert.equal(normalizedCount(item.prompt, item.voiceoverText), 0);
 	    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
 	    assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2);

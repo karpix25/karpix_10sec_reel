@@ -55,11 +55,14 @@ try {
   );
 
   const prompt = renderer.renderCompactRussianOmniStoryboardPrompt({ storyboard: buildValidStoryboard() });
-  assert.ok(prompt.includes("раскадровку только как скрытый референс"));
+  assert.ok(prompt.includes("раскадровку только как скрытую инструкцию"));
   assert.ok(prompt.includes("@storyboard_file"));
   assert.ok(prompt.includes("обычное вертикальное 9:16 видео"));
   assert.ok(prompt.includes("не показывай саму раскадровку"));
-  assert.ok(prompt.includes("без панелей, номеров кадров"));
+  assert.ok(prompt.includes("не показывай панели, сетку, номера кадров"));
+  assert.ok(prompt.includes("перенеси из раскадровки только содержание каждого кадра"));
+  assert.ok(prompt.includes("преврати в полноценную живую сцену видео"));
+  assert.ok(prompt.includes("а не как картинку, экран, карточку или коллаж внутри видео"));
   assert.ok(prompt.includes("повтори в точности количество сцен"));
   assert.ok(prompt.includes("ракурсы камеры"));
   assert.ok(prompt.includes("только реплики, написанные внутри кадров раскадровки"));
