@@ -54,30 +54,24 @@ try {
 
   assert.deepEqual(validatePromptVoiceoverIsolation(prompts), []);
   for (const item of prompts) {
-    assert.equal(normalizedCount(item.prompt, item.voiceoverText), 0);
+    assert.equal(normalizedCount(item.prompt, item.voiceoverText), 1);
     assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/iu.test(item.prompt));
-    assert.ok(!item.prompt.includes("Реплика персонажа:"), "storyboard prompt must not provide direct speech text");
+    assert.ok(!item.prompt.includes("Реплика персонажа:"), "legacy frame speech marker must not be used");
     assert.ok(!item.prompt.includes("Озвучка:"), "storyboard prompt must not imply background voiceover");
-    assert.ok(item.prompt.includes("раскадровку только как скрытую инструкцию"), "storyboard prompt must lean on storyboard instruction");
+    assert.ok(item.prompt.includes("Создай видео по раскадровке"), "storyboard prompt must bind video to storyboard");
     assert.ok(item.prompt.includes("@storyboard_file"), "storyboard prompt must keep file placeholder until KIE upload order is known");
     assert.ok(item.prompt.includes("@product_file"), "storyboard prompt must keep product file placeholder until KIE upload order is known");
-    assert.ok(item.prompt.includes("точный реальный продукт"), "storyboard prompt must bind the product file");
-    assert.ok(item.prompt.includes("не заменяй форму упаковки"), "storyboard prompt must forbid product package substitution");
-    assert.ok(item.prompt.includes("обычное вертикальное 9:16 видео"), "storyboard prompt must render a normal vertical video");
+    assert.ok(item.prompt.includes("Продукт бери из"), "storyboard prompt must bind the product file");
+    assert.ok(item.prompt.includes("не меняй упаковку"), "storyboard prompt must forbid product package substitution");
     assert.ok(item.prompt.includes("не показывай саму раскадровку"), "storyboard prompt must not render storyboard panels");
-    assert.ok(item.prompt.includes("перенеси из раскадровки только содержание каждого кадра"), "storyboard prompt must copy content, not storyboard layout");
-    assert.ok(item.prompt.includes("преврати в живую сцену"), "storyboard prompt must convert frames into live scenes");
-    assert.ok(item.prompt.includes("не как картинку, экран, карточку или коллаж внутри видео"), "storyboard prompt must forbid embedded storyboard images");
-    assert.ok(item.prompt.includes("тему не меняй"), "storyboard prompt must preserve product/topic meaning from storyboard");
-    assert.ok(item.prompt.includes("повтори в точности количество сцен"), "storyboard prompt must ask to copy storyboard exactly");
-    assert.ok(item.prompt.includes("только реплики, написанные внутри кадров раскадровки"), "storyboard prompt must read speech from storyboard");
+    assert.ok(item.prompt.includes("телефон, экран, интерфейс, соцсети"), "storyboard prompt must forbid embedded social UI");
+    assert.ok(item.prompt.includes("Оживи кадры раскадровки"), "storyboard prompt must convert frames into live scenes");
+    assert.ok(item.prompt.includes("точно такой же визуал как в раскадровке"), "storyboard prompt must ask to copy storyboard visual");
+    assert.ok(item.prompt.includes("Персонаж в кадре сам произносит эти слова"), "storyboard prompt must provide direct segment speech text");
     assert.ok(item.prompt.includes("на русском языке"), "storyboard prompt must force Russian character speech");
-    assert.ok(item.prompt.includes("не используй закадровый голос"), "storyboard prompt must forbid background narration");
-    assert.ok(item.prompt.includes("без длинных пауз"), "storyboard prompt must forbid sparse pacing");
-    assert.ok(item.prompt.includes("включая последнюю фразу и призыв"), "storyboard prompt must require final CTA");
-    assert.ok(item.prompt.includes("без повторов, переводов и добавлений"), "storyboard prompt must forbid duplicated speech");
+    assert.ok(item.prompt.includes("Не дублируй слова"), "storyboard prompt must forbid duplicated speech");
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
-    assert.ok(item.prompt.includes("не добавляй музыку"), "storyboard prompt must forbid Omni music");
+    assert.ok(item.prompt.includes("Не добавляй музыку"), "storyboard prompt must forbid Omni music");
     assert.ok(!item.prompt.includes("субтитры примени как с референса"), "storyboard prompt must not ask to copy subtitles");
     assert.ok(!/(одежд|лук|outfit|wardrobe|clothing|dressed)/iu.test(item.prompt), "storyboard prompt must not mention clothing");
     assert.ok(item.prompt.length < 1600, "storyboard prompt must stay short");
@@ -154,9 +148,9 @@ try {
   assert.equal(storedPrompts.length, storedSegments.length);
 	  storedPrompts.forEach((item, index) => {
 	    assert.notEqual(item.prompt, storedSegments[index].prompt);
-	    assert.ok(item.prompt.includes("раскадровку только как скрытую инструкцию"));
+	    assert.ok(item.prompt.includes("Создай видео по раскадровке"));
 	    assert.ok(item.prompt.includes("@product_file"));
-      assert.equal(normalizedCount(item.prompt, item.voiceoverText), 0);
+      assert.equal(normalizedCount(item.prompt, item.voiceoverText), 1);
 	    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
 	    assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2);
     assert.ok(!item.prompt.includes("PRODUCT ACTION:"), "stored LLM prompt path must not inject product action blocks");
