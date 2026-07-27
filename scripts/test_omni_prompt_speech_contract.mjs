@@ -110,6 +110,19 @@ try {
     "https://cdn.example.com/reference.mp4"
   );
   assert.equal(
+    extractDirectorReferenceVideoUrl({
+      original_reels_url: "https://www.instagram.com/reels/DWgvjUfkeCO",
+      stored_video_url: "https://cdn.example.com/stored-reference.mp4",
+    }),
+    "https://cdn.example.com/stored-reference.mp4",
+    "Instagram page URLs must not be treated as downloadable reference videos"
+  );
+  assert.equal(
+    extractDirectorReferenceVideoUrl({ reels_url: "https://www.instagram.com/reels/DWgvjUfkeCO" }),
+    null,
+    "plain Instagram pages must fall back instead of being passed to ffmpeg"
+  );
+  assert.equal(
     extractDirectorReferenceVideoUrl({ product_refs: [{ url: "https://cdn.example.com/product.png" }] }),
     null
   );

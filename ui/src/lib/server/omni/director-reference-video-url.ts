@@ -1,6 +1,7 @@
 export function extractDirectorReferenceVideoUrl(snapshot: unknown) {
   const candidates = collectUrls(snapshot, /(?:director|reference|source|stored|resolved|video|reels).*url/iu)
-    .filter((url) => !looksLikeImageUrl(url));
+    .filter((url) => !looksLikeImageUrl(url))
+    .filter((url) => !looksLikeSocialPageUrl(url));
   return candidates[0] || null;
 }
 
@@ -25,6 +26,23 @@ function isHttpUrl(value: string) {
 
 function looksLikeImageUrl(value: string) {
   return /\.(?:jpe?g|png|webp)(?:[?#].*)?$/iu.test(value);
+}
+
+function looksLikeSocialPageUrl(value: string) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./iu, "").toLowerCase();
+    const path = url.pathname.toLowerCase();
+    return (
+      (host === "instagram.com" && /^\/(?:reel|reels|p)\//iu.test(path)) ||
+      (host === "tiktok.com" && path.includes("/video/")) ||
+      (host === "vm.tiktok.com") ||
+      (host === "youtube.com" && path.startsWith("/shorts/")) ||
+      (host === "youtu.be")
+    );
+  } catch {
+    return false;
+  }
 }
 
 function uniqueUrls(values: readonly string[]) {
