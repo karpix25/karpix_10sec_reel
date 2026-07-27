@@ -6,6 +6,7 @@ import { renderDirectorBriefForScriptPrompt, renderDirectorBriefForOmniPrompt } 
 import type { OmniDurationRange } from "./omni-duration-range";
 import type { CreativeScriptDraft, DirectorSegmentPlan } from "./llm-prompt-chain-types";
 import { formatPromptChainRange } from "./llm-prompt-chain-number-words";
+import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 
 export type PromptChainInput = {
   projectName: string;
@@ -23,6 +24,7 @@ export type PromptChainInput = {
 };
 
 export function buildCreativeCopywriterPrompt(input: PromptChainInput) {
+  const referenceMeaningGuidance = buildReferenceMeaningGuidance(input.sourceScenario.script);
   return `
 Ты креативный сценарист коротких вертикальных видео.
 
@@ -33,7 +35,8 @@ export function buildCreativeCopywriterPrompt(input: PromptChainInput) {
 Пиши как человек записывает короткое видео другу, без канцелярита.
 Начни с сильного хука через боль, контраст, парадокс или личное наблюдение.
 Сохрани разговорность, темп и конкретику.
-Не копируй исходный ролик дословно, используй его только как пример структуры.
+Не копируй исходный ролик дословно, но используй его как смысловую основу.
+Сохрани главный тезис, вопрос или возражение, механизм, доказательство или пример, порядок аргументов и тип финала.
 Не выдумывай ссылки, артикулы, скидки или факты, которых нет во входных данных.
 ${buildDurationLine(input.durationRange)}
 CTA: ${buildCtaLine(input.ctaMode, input.ctaValue)}
@@ -48,6 +51,8 @@ Tone of voice: ${input.brandVoice || "живой, простой, уверенн
 
 Reference transcript:
 ${input.sourceScenario.script}
+
+${referenceMeaningGuidance}
 
 ${renderDirectorBriefForScriptPrompt(input.directorBrief || null)}
 `.trim();

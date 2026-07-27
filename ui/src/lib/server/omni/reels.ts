@@ -17,7 +17,7 @@ import { generateStoryboardImage } from "./omni-storyboard-image-generator";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { detectKieOmniVoiceGender } from "./kie-omni-audio";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
-import { prepareStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
+import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -141,6 +141,7 @@ export async function createOmniReel(input: {
         title: sourceScenario.title,
         topic: sourceScenario.topic,
         transcript: sourceScenario.script,
+        duration_seconds: sourceScenario.duration_seconds,
         reels_url: sourceScenario.reels_url,
         source_reference: sourceScenario.source_reference,
         director_analysis_id: sourceScenarioAnalysis?.id || null,
@@ -199,7 +200,7 @@ export async function createOmniReel(input: {
   });
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
   const reservedReelId = await reserveOmniReelId();
-  const storyboardDirectorReferenceImageUrls = await prepareStoryboardDirectorReferenceUrls({
+  const storyboardDirectorReferenceImageUrlsBySegment = await prepareSegmentStoryboardDirectorReferenceUrls({
     directorAnalysis: resolvedGeneratedScript ? null : sourceScenarioAnalysis,
     sourceSnapshot: resolvedGeneratedScript?.source_snapshot || sourceSnapshot,
     storageTarget: {
@@ -207,13 +208,17 @@ export async function createOmniReel(input: {
       projectId: input.projectId,
       reelId: reservedReelId,
     },
+    segments: promptPlan.map((segment) => ({
+      index: segment.index,
+      durationSeconds: segment.durationSeconds,
+    })),
   });
   const storyboardReferenceUrls = await generateStoryboardReferenceUrls({
     projectId: input.projectId,
     reelId: reservedReelId,
     productName: product.name,
     productReferenceUrls: resolveProductReferenceImageUrls(product),
-    directorReferenceImageUrls: storyboardDirectorReferenceImageUrls,
+    directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
     avatarReferenceUrl: latestAvatar?.reference_url || null,
     promptPlan,
   });
@@ -323,7 +328,7 @@ async function generateStoryboardReferenceUrls(input: {
   reelId: number;
   productName: string;
   productReferenceUrls: readonly string[];
-  directorReferenceImageUrls?: readonly string[];
+  directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   avatarReferenceUrl: string | null;
   promptPlan: readonly ReturnType<typeof buildOmniSegmentPrompts>[number][];
 }): Promise<(string | null)[]> {
@@ -339,7 +344,7 @@ async function generateStoryboardReferenceUrls(input: {
         storyboard: segmentPrompt.storyboardPlan,
         productName: input.productName,
         productReferenceUrls: input.productReferenceUrls,
-        directorReferenceImageUrls: input.directorReferenceImageUrls || [],
+        directorReferenceImageUrls: Array.from(input.directorReferenceImageUrlsBySegment?.get(segmentPrompt.index) || []),
         avatarReferenceUrl: input.avatarReferenceUrl,
         previousStoryboardReferenceUrl,
       })

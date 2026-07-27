@@ -256,6 +256,7 @@ function assertPromptChainScriptQuality(
     ctaMode: input.ctaMode,
     ctaValue: input.ctaValue,
     durationRange: input.durationRange,
+    referenceScript: input.sourceScenario.script,
   });
 }
 

@@ -8,6 +8,7 @@ import {
   getPreferredOmniSegmentCount,
 } from "./omni-speech-density";
 import type { OmniDurationRange } from "./omni-duration-range";
+import { validateReferenceMeaningCoverage, type ReferenceMeaningCoverage } from "./reference-meaning-contract";
 
 const FORBIDDEN_SYMBOL_ERROR = "Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.";
 
@@ -25,6 +26,7 @@ export interface ScriptQualityResult {
     productMentioned: boolean;
     slopCount: number;
     ctaAppended: boolean;
+    referenceMeaning: ReferenceMeaningCoverage;
   };
 }
 
@@ -83,6 +85,7 @@ export function validateViralScriptContract(input: {
   ctaMode: string;
   ctaValue: string | null;
   durationRange?: OmniDurationRange;
+  referenceScript?: string | null;
 }): ScriptQualityResult {
   const warnings: string[] = [];
   const scriptText = input.script;
@@ -230,6 +233,22 @@ export function validateViralScriptContract(input: {
     );
   }
 
+  const referenceMeaning = validateReferenceMeaningCoverage({
+    referenceScript: input.referenceScript,
+    generatedScript: scriptText,
+  });
+  if (!referenceMeaning.passed) {
+    throw new Error(
+      [
+        "Сценарий отклонен: потерян смысл reference-видео.",
+        "Оригинал держится на механизме или доказательстве, а новый сценарий стал слишком общим.",
+        referenceMeaning.missingSignals.length
+          ? `Верни по смыслу эти опоры: ${referenceMeaning.missingSignals.slice(0, 6).join(", ")}.`
+          : "Верни главный тезис, возражение, механизм и вывод.",
+      ].join(" ")
+    );
+  }
+
   // Scoring algorithm (0 to 100)
   let score = 100;
   if (!productMentioned) score -= 15;
@@ -259,7 +278,8 @@ export function validateViralScriptContract(input: {
       hasMechanism,
       productMentioned,
       slopCount,
-      ctaAppended
+      ctaAppended,
+      referenceMeaning,
     }
   };
 }

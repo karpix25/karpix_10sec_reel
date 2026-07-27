@@ -121,6 +121,7 @@ async function requestPromptChainScript(input: Parameters<typeof generateScript>
     ctaMode: input.ctaMode,
     ctaValue: input.ctaValue,
     durationRange: input.durationRange,
+    referenceScript: input.sourceScenario.script,
   });
   return {
     payload,
@@ -221,6 +222,7 @@ async function requestScriptOnce(
     ctaMode: input.ctaMode,
     ctaValue: input.ctaValue,
     durationRange: input.durationRange,
+    referenceScript: input.sourceScenario.script,
   });
 
   return {

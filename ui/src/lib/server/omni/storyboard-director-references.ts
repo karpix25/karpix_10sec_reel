@@ -8,8 +8,14 @@ import {
 } from "./omni-video-storage";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { extractDirectorReferenceVideoUrl } from "./director-reference-video-url";
+import {
+  STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT,
+  buildSegmentReferenceSeekSeconds,
+  readSourceDurationSeconds,
+  type StoryboardReferenceSegment,
+} from "./storyboard-reference-frame-timing";
 
-const DEFAULT_MAX_REFERENCE_FRAMES = 3;
+const DEFAULT_MAX_REFERENCE_FRAMES = STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT;
 const DEFAULT_MAX_VIDEO_MB = 120;
 const SEEK_SECONDS = [0.4, 2.2, 4.5, 6.5, 8.5] as const;
 
@@ -54,7 +60,59 @@ export async function prepareStoryboardDirectorReferenceUrls(input: {
   }
 }
 
-async function extractFramesFromVideoUrl(videoUrl: string, maxFrames: number) {
+export async function prepareSegmentStoryboardDirectorReferenceUrls(input: {
+  directorAnalysis?: Parameters<typeof extractDirectorReferenceImageUrls>[0]["directorAnalysis"];
+  sourceSnapshot?: unknown;
+  directorVideoUrl?: string | null;
+  storageTarget: StorageTarget;
+  segments: readonly StoryboardReferenceSegment[];
+  framesPerSegment?: number;
+}) {
+  const framesPerSegment = input.framesPerSegment || STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT;
+  const bySegment = new Map<number, string[]>();
+  if (!input.segments.length) return bySegment;
+
+  const videoUrl = cleanUrl(input.directorVideoUrl) || extractDirectorReferenceVideoUrl(input.sourceSnapshot);
+  if (videoUrl) {
+    try {
+      const sourceDurationSeconds = readSourceDurationSeconds(input.sourceSnapshot);
+      for (const segment of input.segments) {
+        const seekSeconds = buildSegmentReferenceSeekSeconds({
+          segment,
+          segments: input.segments,
+          sourceDurationSeconds,
+          framesPerSegment,
+        });
+        const frameBuffers = await extractFramesFromVideoUrl(videoUrl, framesPerSegment, seekSeconds);
+        const uploaded = [];
+        for (let index = 0; index < frameBuffers.length; index += 1) {
+          uploaded.push(await uploadDirectorReferenceFrame({
+            storageTarget: input.storageTarget,
+            segmentIndex: segment.index,
+            frameIndex: index + 1,
+            body: frameBuffers[index],
+          }));
+        }
+        bySegment.set(segment.index, uniqueUrls(uploaded).slice(0, framesPerSegment));
+      }
+      return bySegment;
+    } catch (error) {
+      console.warn("Segment storyboard director reference frame extraction failed:", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const fallbackUrls = extractDirectorReferenceImageUrls({
+    directorAnalysis: input.directorAnalysis,
+    sourceSnapshot: input.sourceSnapshot,
+    limit: framesPerSegment,
+  });
+  for (const segment of input.segments) bySegment.set(segment.index, fallbackUrls);
+  return bySegment;
+}
+
+async function extractFramesFromVideoUrl(videoUrl: string, maxFrames: number, seekSeconds: readonly number[] = SEEK_SECONDS) {
   if (maxFrames <= 0) return [];
   const videoBuffer = await downloadVideoBuffer(videoUrl);
   const workdir = await mkdtemp(path.join(tmpdir(), "omni-director-ref-"));
@@ -63,17 +121,20 @@ async function extractFramesFromVideoUrl(videoUrl: string, maxFrames: number) {
   try {
     await writeFile(videoPath, videoBuffer);
     const frames: Buffer[] = [];
-    for (const seek of SEEK_SECONDS) {
+    for (const seek of seekSeconds) {
       if (frames.length >= maxFrames) break;
       const outputPath = path.join(workdir, `frame-${frames.length + 1}.jpg`);
       try {
         await runFfmpeg(["-y", "-ss", String(seek), "-i", videoPath, "-frames:v", "1", "-q:v", "2", outputPath]);
         frames.push(await readFile(outputPath));
       } catch {
-        if (seek !== SEEK_SECONDS[0]) continue;
+        if (seek !== seekSeconds[0]) continue;
         await runFfmpeg(["-y", "-i", videoPath, "-frames:v", "1", "-q:v", "2", outputPath]);
         frames.push(await readFile(outputPath));
       }
+    }
+    while (frames.length > 0 && frames.length < maxFrames) {
+      frames.push(Buffer.from(frames[frames.length - 1]));
     }
     return frames;
   } finally {
@@ -98,6 +159,7 @@ async function downloadVideoBuffer(videoUrl: string) {
 
 async function uploadDirectorReferenceFrame(input: {
   storageTarget: StorageTarget;
+  segmentIndex?: number;
   frameIndex: number;
   body: Buffer;
 }) {
@@ -109,12 +171,13 @@ async function uploadDirectorReferenceFrame(input: {
       fileName,
       body: input.body,
       contentType: "image/jpeg",
+      segmentIndex: input.segmentIndex,
     });
   }
   return uploadOmniGeneratedScriptStoryboardImageBufferToS3({
     projectId: input.storageTarget.projectId,
     scriptId: input.storageTarget.scriptId,
-    segmentIndex: 0,
+    segmentIndex: input.segmentIndex || 0,
     fileName,
     body: input.body,
     contentType: "image/jpeg",

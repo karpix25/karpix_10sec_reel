@@ -18,6 +18,7 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
   avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls?: readonly string[];
+  directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   promptPlan: readonly StoryboardPromptSegment[];
 }) {
   await ensureOmniSchema();
@@ -87,6 +88,7 @@ async function tryGenerateStoryboardPreview(input: {
   avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls?: readonly string[];
+  directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   referenceSignature: string;
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment;
@@ -101,7 +103,7 @@ async function tryGenerateStoryboardPreview(input: {
       productName: input.productName,
       avatarReferenceUrl: input.avatarReferenceUrl,
       productReferenceUrls: input.productReferenceUrls,
-      directorReferenceImageUrls: input.directorReferenceImageUrls || [],
+      directorReferenceImageUrls: getSegmentDirectorReferenceUrls(input, input.segmentIndex),
       previousStoryboardReferenceUrl: input.previousStoryboardReferenceUrl,
     });
     if (!url) return null;
@@ -163,13 +165,30 @@ function buildReferenceSignature(input: {
   avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls?: readonly string[];
+  directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
 }) {
+  const segmentReferenceUrls = Array.from(input.directorReferenceImageUrlsBySegment || [])
+    .flatMap(([segmentIndex, urls]) =>
+      urls.map((url) => `${segmentIndex}:${normalizeUrl(url) || ""}`)
+    )
+    .filter(Boolean)
+    .sort();
   return [
     STORYBOARD_PREVIEW_GENERATOR_VERSION,
     normalizeUrl(input.avatarReferenceUrl) || "",
     ...input.productReferenceUrls.map((url) => normalizeUrl(url) || "").filter(Boolean).sort(),
     ...Array.from(input.directorReferenceImageUrls || []).map((url) => normalizeUrl(url) || "").filter(Boolean).sort(),
+    ...segmentReferenceUrls,
   ].join("|");
+}
+
+function getSegmentDirectorReferenceUrls(input: {
+  directorReferenceImageUrls?: readonly string[];
+  directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
+}, segmentIndex: number) {
+  return Array.from(
+    input.directorReferenceImageUrlsBySegment?.get(segmentIndex) || input.directorReferenceImageUrls || []
+  );
 }
 
 function rowsToUrlMap(rows: readonly { segment_index: number; storyboard_reference_url: string | null }[]) {

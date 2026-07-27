@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createRequire, Module } from "node:module";
@@ -277,6 +277,14 @@ try {
     }),
     "neighbor_voiceover_leak"
   );
+
+  const promptChainSource = readFileSync(
+    join(ui, "src/lib/server/omni/llm-prompt-chain-prompts.ts"),
+    "utf8"
+  );
+  assert.ok(promptChainSource.includes("как смысловую основу"), "LLM chain copywriter must preserve reference meaning");
+  assert.ok(promptChainSource.includes("главный тезис, вопрос или возражение, механизм"), "LLM chain must keep original argument mechanics");
+  assert.ok(!promptChainSource.includes("только как пример структуры"), "LLM chain must not reduce reference to structure only");
 
   console.log("LLM prompt chain contract checks passed!");
 } finally {

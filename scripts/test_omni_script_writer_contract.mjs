@@ -30,6 +30,7 @@ try {
       join(ui, "src/lib/omni/**/*.ts"),
       join(ui, "src/lib/server/omni/director-analysis-types.ts"),
       join(ui, "src/lib/server/omni/director-analysis-prompt.ts"),
+      join(ui, "src/lib/server/omni/reference-meaning-contract.ts"),
       join(ui, "src/lib/server/omni/script-prompt-helper.ts"),
       join(ui, "src/lib/server/omni/script-generation-retry.ts"),
       join(ui, "src/lib/server/omni/script-beat-plan.ts"),
@@ -129,6 +130,9 @@ try {
   assert.ok(prompt.includes("Все числа в текстовых значениях JSON пиши словами"), "prompt must force numbers as words in generated text values");
   assert.ok(prompt.includes("нет дефисов, нет тире, нет минусов, нет цифр"), "prompt must require final symbol self-check");
   assert.ok(prompt.includes("Поле script должно совпадать"), "script must match beat voiceovers");
+  assert.ok(prompt.includes("как смысловую основу"), "prompt must preserve reference meaning, not only structure");
+  assert.ok(prompt.includes("главный тезис, вопрос или возражение, механизм"), "prompt must require the original argument mechanics");
+  assert.ok(!prompt.includes("только как пример структуры"), "prompt must not reduce reference to structure only");
   assert.ok(prompt.includes('"background_audio_mood"'), "prompt must request background audio mood");
   assert.ok(prompt.includes("energetic, calm, dramatic, inspiring, playful, serious"), "prompt must constrain mood enum");
   assert.ok(prompt.includes("Целевая длительность итогового ролика: 30-30 сек"), "prompt must include configured duration range");

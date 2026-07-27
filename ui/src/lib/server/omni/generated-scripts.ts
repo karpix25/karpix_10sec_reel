@@ -19,7 +19,7 @@ import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { ensureGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
-import { prepareStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
+import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 
 function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
   return {
@@ -104,20 +104,24 @@ export async function buildGeneratedScriptPromptPreview(input: {
     recentFormatIds,
     wardrobeSource: project.wardrobe_source,
   });
-  const directorReferenceImageUrls = await prepareStoryboardDirectorReferenceUrls({
+  const directorReferenceImageUrlsBySegment = await prepareSegmentStoryboardDirectorReferenceUrls({
     sourceSnapshot: resolvedGeneratedScript.source_snapshot,
     storageTarget: {
       kind: "generated_script",
       projectId: input.projectId,
       scriptId: input.scriptId,
     },
+    segments: promptPlan.map((segment) => ({
+      index: segment.index,
+      durationSeconds: segment.durationSeconds,
+    })),
   });
   const storyboardUrls = await ensureGeneratedScriptStoryboardUrls({
     ...input,
     productName: product.name,
     avatarReferenceUrl: avatar?.reference_url || null,
     productReferenceUrls: resolveProductReferenceImageUrls(product),
-    directorReferenceImageUrls,
+    directorReferenceImageUrlsBySegment,
     promptPlan,
   });
 
