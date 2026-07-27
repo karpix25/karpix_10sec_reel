@@ -63,8 +63,9 @@ try {
     assert.ok(item.prompt.includes("обычное вертикальное 9:16 видео"), "storyboard prompt must render a normal vertical video");
     assert.ok(item.prompt.includes("не показывай саму раскадровку"), "storyboard prompt must not render storyboard panels");
     assert.ok(item.prompt.includes("перенеси из раскадровки только содержание каждого кадра"), "storyboard prompt must copy content, not storyboard layout");
-    assert.ok(item.prompt.includes("преврати в полноценную живую сцену видео"), "storyboard prompt must convert frames into live scenes");
-    assert.ok(item.prompt.includes("а не как картинку, экран, карточку или коллаж внутри видео"), "storyboard prompt must forbid embedded storyboard images");
+    assert.ok(item.prompt.includes("преврати в живую сцену"), "storyboard prompt must convert frames into live scenes");
+    assert.ok(item.prompt.includes("не как картинку, экран, карточку или коллаж внутри видео"), "storyboard prompt must forbid embedded storyboard images");
+    assert.ok(item.prompt.includes("тему не меняй"), "storyboard prompt must preserve product/topic meaning from storyboard");
     assert.ok(item.prompt.includes("повтори в точности количество сцен"), "storyboard prompt must ask to copy storyboard exactly");
     assert.ok(item.prompt.includes("только реплики, написанные внутри кадров раскадровки"), "storyboard prompt must read speech from storyboard");
     assert.ok(item.prompt.includes("на русском языке"), "storyboard prompt must force Russian character speech");
@@ -75,6 +76,7 @@ try {
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
     assert.ok(item.prompt.includes("не добавляй музыку"), "storyboard prompt must forbid Omni music");
     assert.ok(!item.prompt.includes("субтитры примени как с референса"), "storyboard prompt must not ask to copy subtitles");
+    assert.ok(!/(одежд|лук|outfit|wardrobe|clothing|dressed)/iu.test(item.prompt), "storyboard prompt must not mention clothing");
     assert.ok(item.prompt.length < 1600, "storyboard prompt must stay short");
     assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2, "storyboard frame count must follow duration");
     assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
