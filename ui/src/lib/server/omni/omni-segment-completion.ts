@@ -84,6 +84,7 @@ export async function stitchAndStoreReel(input: {
     const stored = await uploadOmniFinalVideo({
       project,
       product,
+      reel: input.reel,
       reelId: input.reel.id,
       localFilePath: audio.outputPath,
     });

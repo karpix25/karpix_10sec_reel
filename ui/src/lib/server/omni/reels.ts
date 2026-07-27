@@ -170,6 +170,7 @@ export async function createOmniReel(input: {
   const avatarSnapshot = latestAvatar
     ? {
         id: latestAvatar.id,
+        display_name: latestAvatar.display_name,
         prompt: latestAvatar.prompt,
         reference_url: latestAvatar.reference_url,
         status: latestAvatar.status,
