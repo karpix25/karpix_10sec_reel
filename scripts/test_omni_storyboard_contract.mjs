@@ -59,10 +59,11 @@ try {
   assert.ok(prompt.includes("@storyboard_file"));
   assert.ok(prompt.includes("обычное вертикальное 9:16 видео"));
   assert.ok(prompt.includes("не показывай саму раскадровку"));
-  assert.ok(prompt.includes("не показывай панели, сетку, номера кадров"));
+  assert.ok(prompt.includes("без панелей, сетки, номеров кадров"));
   assert.ok(prompt.includes("перенеси из раскадровки только содержание каждого кадра"));
-  assert.ok(prompt.includes("преврати в полноценную живую сцену видео"));
-  assert.ok(prompt.includes("а не как картинку, экран, карточку или коллаж внутри видео"));
+  assert.ok(prompt.includes("преврати в живую сцену"));
+  assert.ok(prompt.includes("не как картинку, экран, карточку или коллаж внутри видео"));
+  assert.ok(prompt.includes("тему не меняй"));
   assert.ok(prompt.includes("повтори в точности количество сцен"));
   assert.ok(prompt.includes("ракурсы камеры"));
   assert.ok(prompt.includes("только реплики, написанные внутри кадров раскадровки"));
@@ -80,6 +81,7 @@ try {
   assert.ok(!prompt.includes("субтитры примени как с референса"));
   assert.ok(!prompt.includes("действие: герой берет"));
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));
+  assert.ok(!/(одежд|лук|outfit|wardrobe|clothing|dressed)/iu.test(prompt), "storyboard provider prompt must not mention clothing");
   assert.ok(prompt.length < 1600, "storyboard provider prompt must stay short");
   assert.equal(
     fileReference.resolveOmniStoryboardFileReference([{ role: "product" }, { role: "storyboard" }]),
