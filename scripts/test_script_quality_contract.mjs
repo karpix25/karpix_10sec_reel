@@ -34,6 +34,7 @@ try {
     join(ui, "node_modules/.bin/tsc"),
     [
       "src/lib/server/omni/script-quality-contract.ts",
+      "src/lib/server/omni/reference-meaning-contract.ts",
       "src/lib/server/omni/script-json-repair.ts",
       "src/lib/server/omni/script-generation-retry.ts",
       "--outDir", output,
@@ -288,6 +289,41 @@ And this is line 2."
   // warnings should catch "Уникальный", "не листай"
   assert(res2.warnings.some(w => w.includes("не листай")));
   assert(res2.warnings.some(w => w.includes("уникальный")));
+
+  const collagenReference = [
+    "Пить или не пить коллаген, вот в чем вопрос.",
+    "Коллаген распадается до аминокислот, поэтому многие думают, что он бесполезен.",
+    "Но пептиды и аминокислоты работают как строительный материал и сигнал клеткам.",
+    "Они активируют фибробласты, синтез коллагена и гиалуроновой кислоты.",
+  ].join(" ");
+  const genericCollagenScript = "Я нашла настоящий эликсир молодости, который изменил мое самочувствие. Это апельсиновое желе с коллагеном очень вкусное. Оно поддерживает кожу, волосы и ногти. Одна ложечка в день помогает чувствовать себя лучше уже через пару недель. Артикул можно найти в описании.";
+  assert.throws(
+    () => validateViralScriptContract({
+      script: genericCollagenScript,
+      rawScriptBeforeCta: genericCollagenScript,
+      rawScriptFromModel: genericCollagenScript,
+      hook: "Я нашла настоящий эликсир молодости",
+      productName: "Апельсиновый коллаген",
+      ctaMode: "article_in_description",
+      ctaValue: null,
+      referenceScript: collagenReference,
+    }),
+    /потерян смысл reference-видео/u
+  );
+
+  const semanticCollagenScript = "Пить коллаген правда есть смысл? Главное не ждать магии от одной ложечки. Внутри работают пептиды и аминокислоты, они дают клеткам сигнал и материал для синтеза коллагена. Поэтому апельсиновый коллаген в желе я беру как удобную ежедневную поддержку кожи и суставов. Артикул можно найти в описании.";
+  const semanticResult = validateViralScriptContract({
+    script: semanticCollagenScript,
+    rawScriptBeforeCta: semanticCollagenScript,
+    rawScriptFromModel: semanticCollagenScript,
+    hook: "Пить коллаген правда есть смысл?",
+    productName: "Апельсиновый коллаген",
+    ctaMode: "article_in_description",
+    ctaValue: null,
+    referenceScript: collagenReference,
+  });
+  assert.equal(semanticResult.metrics.referenceMeaning.passed, true);
+  assert.ok(semanticResult.metrics.referenceMeaning.coveredSignals.includes("пептид"));
 
   console.log("Script Quality checks passed!");
   console.log("All tests passed successfully.");

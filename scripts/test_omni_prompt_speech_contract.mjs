@@ -49,6 +49,7 @@ try {
   const { validatePromptVoiceoverIsolation } = require(findFile(compiled, "omni-prompt-validator.js"));
   const { buildStoryboardImagePrompt } = require(findFile(compiled, "omni-storyboard-image-prompt.js"));
   const { extractDirectorReferenceVideoUrl } = require(findFile(compiled, "director-reference-video-url.js"));
+  const frameTiming = require(findFile(compiled, "storyboard-reference-frame-timing.js"));
   const prompts = buildOmniSegmentPrompts(buildInput());
 
   assert.deepEqual(validatePromptVoiceoverIsolation(prompts), []);
@@ -86,7 +87,7 @@ try {
       previousStoryboardReferenceUrl: item.index > 1 ? "https://example.com/previous-storyboard.jpg" : null,
     });
     assert.ok(imagePrompt.includes(`РЕПЛИКА "${item.storyboardPlan.frames[0].spokenText}"`), "storyboard image prompt must draw frame speech");
-    assert.ok(imagePrompt.includes("кадры оригинального reference-видео"), "storyboard image prompt must use original frames when available");
+    assert.ok(imagePrompt.includes("пять кадров именно этого сегмента оригинального reference-видео"), "storyboard image prompt must use segment original frames when available");
     assert.ok(imagePrompt.includes("Одежда, стиль, свет и окружение должны оставаться одинаковыми"), "storyboard image prompt must lock outfit continuity");
     assert.ok(imagePrompt.includes("Раскадровка должна быть динамичной"), "storyboard image prompt must request dynamic UGC shots");
   }
@@ -104,6 +105,27 @@ try {
     extractDirectorReferenceVideoUrl({ product_refs: [{ url: "https://cdn.example.com/product.png" }] }),
     null
   );
+  assert.equal(frameTiming.STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT, 5);
+  const referenceSegments = [
+    { index: 1, durationSeconds: 10 },
+    { index: 2, durationSeconds: 10 },
+    { index: 3, durationSeconds: 10 },
+  ];
+  const firstSegmentSeeks = frameTiming.buildSegmentReferenceSeekSeconds({
+    segment: referenceSegments[0],
+    segments: referenceSegments,
+    sourceDurationSeconds: 90,
+  });
+  const secondSegmentSeeks = frameTiming.buildSegmentReferenceSeekSeconds({
+    segment: referenceSegments[1],
+    segments: referenceSegments,
+    sourceDurationSeconds: 90,
+  });
+  assert.equal(firstSegmentSeeks.length, 5);
+  assert.equal(secondSegmentSeeks.length, 5);
+  assert.ok(firstSegmentSeeks.every((seek) => seek > 0 && seek < 30), "first segment seeks must stay in first source range");
+  assert.ok(secondSegmentSeeks.every((seek) => seek > 30 && seek < 60), "second segment seeks must stay in second source range");
+  assert.equal(frameTiming.readSourceDurationSeconds({ source_snapshot: { duration_seconds: 147 } }), 147);
 
   const storedInput = buildStoredPromptInput();
   const storedPrompts = buildOmniSegmentPrompts(storedInput);

@@ -4,6 +4,7 @@ import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni
 import type { DirectorBrief } from "./director-analysis-types";
 import { renderDirectorBriefForScriptPrompt } from "./director-analysis-prompt";
 import type { OmniDurationRange } from "./omni-duration-range";
+import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 
 export function buildPrompt(input: {
   projectName: string;
@@ -26,6 +27,7 @@ export function buildPrompt(input: {
     ? removeDirectorWardrobeGuidance(renderDirectorBriefForScriptPrompt(input.directorBrief || null))
     : renderDirectorBriefForScriptPrompt(input.directorBrief || null);
   const visualCueInstruction = buildVisualCueInstruction(wardrobeSource);
+  const referenceMeaningGuidance = buildReferenceMeaningGuidance(input.sourceScenario.script);
   const visualCueExample = wardrobeSource === "avatar_reference"
     ? "главный персонаж в одежде аватара, со светом, фоном и камерой референса смотрит в камеру; без субтитров"
     : "главный персонаж в одежде и свете референса смотрит в камеру; конкретный фон и камера из референса; без субтитров";
@@ -33,7 +35,7 @@ export function buildPrompt(input: {
 Создай один новый сценарий для Instagram Reels по методологии сценариста Reels.
 
 Правила:
-1. Используй исходную транскрибацию reference-видео только как пример структуры: хук, порядок смысловых битов и тип финала. Темп речи, паузы, подачу и монтаж оригинала не копируй.
+1. Используй исходную транскрибацию reference-видео как смысловую основу. Сохрани главный тезис, вопрос или возражение, механизм, доказательство или пример, порядок аргументов и тип финала. Темп речи, паузы, подачу и монтаж оригинала не копируй.
 2. Новый сценарий должен продвигать выбранный продукт.
 3. Формат: говорящая голова.
 4. Структура: кульминационный хук 0-3 сек, 2-3 плотных бита, один CTA.
@@ -67,6 +69,8 @@ Tone of voice: ${input.brandVoice || "не указан"}
 
 Оригинальная транскрибация reference-видео:
 ${input.sourceScenario.script}
+
+${referenceMeaningGuidance}
 ${directorGuidance ? `\n${directorGuidance}` : ""}
 ${input.retryFeedback ? `\nПовторная попытка:\n${input.retryFeedback}` : ""}
 
