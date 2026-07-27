@@ -97,9 +97,9 @@ export async function prepareSegmentStoryboardDirectorReferenceUrls(input: {
       }
       return bySegment;
     } catch (error) {
-      console.warn("Segment storyboard director reference frame extraction failed:", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      throw new Error(
+        `Не удалось извлечь 5 кадров оригинального reference-видео для раскадровки: ${formatError(error)}`
+      );
     }
   }
 
@@ -110,6 +110,10 @@ export async function prepareSegmentStoryboardDirectorReferenceUrls(input: {
   });
   for (const segment of input.segments) bySegment.set(segment.index, fallbackUrls);
   return bySegment;
+}
+
+function formatError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function extractFramesFromVideoUrl(videoUrl: string, maxFrames: number, seekSeconds: readonly number[] = SEEK_SECONDS) {

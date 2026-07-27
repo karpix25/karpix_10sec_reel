@@ -57,6 +57,9 @@ try {
   const prompt = renderer.renderCompactRussianOmniStoryboardPrompt({ storyboard: buildValidStoryboard() });
   assert.ok(prompt.includes("раскадровку только как скрытую инструкцию"));
   assert.ok(prompt.includes("@storyboard_file"));
+  assert.ok(prompt.includes("@product_file"));
+  assert.ok(prompt.includes("точный реальный продукт"));
+  assert.ok(prompt.includes("не заменяй форму упаковки"));
   assert.ok(prompt.includes("обычное вертикальное 9:16 видео"));
   assert.ok(prompt.includes("не показывай саму раскадровку"));
   assert.ok(prompt.includes("без панелей, сетки, номеров кадров"));
@@ -87,10 +90,15 @@ try {
     fileReference.resolveOmniStoryboardFileReference([{ role: "product" }, { role: "storyboard" }]),
     "@file2"
   );
-  assert.equal(
-    fileReference.applyOmniStoryboardFileReference(prompt, [{ role: "storyboard" }, { role: "product" }]).includes("@file1"),
-    true
-  );
+  assert.equal(fileReference.resolveOmniProductFileReference([{ role: "storyboard" }, { role: "product" }]), "@file2");
+  const resolvedPrompt = fileReference.applyOmniStoryboardFileReference(prompt, [
+    { role: "storyboard" },
+    { role: "product" },
+  ]);
+  assert.ok(resolvedPrompt.includes("@file1"));
+  assert.ok(resolvedPrompt.includes("@file2"));
+  assert.ok(!resolvedPrompt.includes("@storyboard_file"));
+  assert.ok(!resolvedPrompt.includes("@product_file"));
 
   assertInvalid(
     { ...buildValidStoryboard(), frames: buildValidStoryboard().frames.slice(0, 4) },

@@ -60,6 +60,9 @@ try {
     assert.ok(!item.prompt.includes("Озвучка:"), "storyboard prompt must not imply background voiceover");
     assert.ok(item.prompt.includes("раскадровку только как скрытую инструкцию"), "storyboard prompt must lean on storyboard instruction");
     assert.ok(item.prompt.includes("@storyboard_file"), "storyboard prompt must keep file placeholder until KIE upload order is known");
+    assert.ok(item.prompt.includes("@product_file"), "storyboard prompt must keep product file placeholder until KIE upload order is known");
+    assert.ok(item.prompt.includes("точный реальный продукт"), "storyboard prompt must bind the product file");
+    assert.ok(item.prompt.includes("не заменяй форму упаковки"), "storyboard prompt must forbid product package substitution");
     assert.ok(item.prompt.includes("обычное вертикальное 9:16 видео"), "storyboard prompt must render a normal vertical video");
     assert.ok(item.prompt.includes("не показывай саму раскадровку"), "storyboard prompt must not render storyboard panels");
     assert.ok(item.prompt.includes("перенеси из раскадровки только содержание каждого кадра"), "storyboard prompt must copy content, not storyboard layout");
@@ -139,6 +142,7 @@ try {
 	  storedPrompts.forEach((item, index) => {
 	    assert.notEqual(item.prompt, storedSegments[index].prompt);
 	    assert.ok(item.prompt.includes("раскадровку только как скрытую инструкцию"));
+	    assert.ok(item.prompt.includes("@product_file"));
       assert.equal(normalizedCount(item.prompt, item.voiceoverText), 0);
 	    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
 	    assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2);
