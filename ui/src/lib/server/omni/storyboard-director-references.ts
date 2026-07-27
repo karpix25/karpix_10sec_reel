@@ -17,6 +17,7 @@ import {
 
 const DEFAULT_MAX_REFERENCE_FRAMES = STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT;
 const DEFAULT_MAX_VIDEO_MB = 120;
+const REFERENCE_VIDEO_DOWNLOAD_ATTEMPTS = 3;
 const SEEK_SECONDS = [0.4, 2.2, 4.5, 6.5, 8.5] as const;
 
 type StorageTarget =
@@ -147,18 +148,59 @@ async function extractFramesFromVideoUrl(videoUrl: string, maxFrames: number, se
 }
 
 async function downloadVideoBuffer(videoUrl: string) {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= REFERENCE_VIDEO_DOWNLOAD_ATTEMPTS; attempt += 1) {
+    try {
+      const body = await tryDownloadVideoBuffer(videoUrl);
+      validateReferenceVideoBuffer(videoUrl, body);
+      return body;
+    } catch (error) {
+      lastError = error;
+      if (attempt < REFERENCE_VIDEO_DOWNLOAD_ATTEMPTS) await sleep(350 * attempt);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+async function tryDownloadVideoBuffer(videoUrl: string) {
   const response = await fetch(videoUrl, { cache: "no-store" });
-  if (!response.ok) throw new Error(`reference video download failed: ${response.status}`);
+  if (!response.ok) throw new Error(`reference video download failed for ${videoUrl}: ${response.status}`);
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType && !isReferenceVideoContentType(contentType)) {
+    throw new Error(`reference video URL did not return video for ${videoUrl}: ${contentType}`);
+  }
   const contentLength = Number(response.headers.get("content-length") || 0);
   const maxBytes = getMaxVideoBytes();
   if (contentLength > maxBytes) {
     throw new Error(`reference video is too large for frame extraction: ${contentLength} bytes`);
   }
   const body = Buffer.from(await response.arrayBuffer());
+  if (contentLength > 0 && body.length !== contentLength) {
+    throw new Error(`reference video download was incomplete for ${videoUrl}: ${body.length}/${contentLength} bytes`);
+  }
   if (body.length > maxBytes) {
     throw new Error(`reference video is too large for frame extraction: ${body.length} bytes`);
   }
   return body;
+}
+
+function validateReferenceVideoBuffer(videoUrl: string, body: Buffer) {
+  if (body.length < 16) {
+    throw new Error(`reference video download is too small for ${videoUrl}: ${body.length} bytes`);
+  }
+  if (!body.subarray(4, 8).equals(Buffer.from("ftyp"))) {
+    const preview = body.subarray(0, 32).toString("utf8").replace(/\s+/gu, " ").trim();
+    throw new Error(`reference video download is not an mp4 for ${videoUrl}: ${preview || "empty body"}`);
+  }
+}
+
+function isReferenceVideoContentType(contentType: string) {
+  const normalized = contentType.toLowerCase();
+  return normalized.startsWith("video/") || normalized.includes("octet-stream");
+}
+
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function uploadDirectorReferenceFrame(input: {
