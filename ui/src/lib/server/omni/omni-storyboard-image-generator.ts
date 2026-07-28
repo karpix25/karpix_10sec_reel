@@ -11,6 +11,12 @@ const DEFAULT_IMAGE_SIZE = "1024x1024";
 const DEFAULT_IMAGE_QUALITY = "low";
 const DEFAULT_OUTPUT_FORMAT = "jpeg";
 
+type StoryboardReferenceFile = {
+  url: string;
+  required: boolean;
+  kind: "avatar" | "product" | "director" | "previous";
+};
+
 export async function generateStoryboardImage(input: {
   projectId: number;
   reelId?: number;
@@ -95,23 +101,25 @@ async function createStoryboardImage(input: {
   directorReferenceImageUrls: readonly string[];
   previousStoryboardReferenceUrl: string | null;
 }) {
-  const references = [
-    input.avatarReferenceUrl,
-    ...input.productReferenceUrls,
-    ...input.directorReferenceImageUrls,
-    input.previousStoryboardReferenceUrl,
-  ].filter((url): url is string => Boolean(url)).slice(0, 16);
+  const references = buildReferenceFiles(input).slice(0, 16);
   if (references.length) {
+    const downloaded = await downloadReferenceFiles(references);
+    const promptInput = {
+      ...input,
+      directorReferenceImageUrls: downloaded
+        .filter((item) => item.kind === "director")
+        .map((item) => item.url),
+      previousStoryboardReferenceUrl: downloaded.find((item) => item.kind === "previous")?.url || null,
+    };
     const form = new FormData();
     form.set("model", STORYBOARD_IMAGE_MODEL);
-    form.set("prompt", buildStoryboardImagePrompt(input));
+    form.set("prompt", buildStoryboardImagePrompt(promptInput));
     form.set("quality", DEFAULT_IMAGE_QUALITY);
     form.set("size", DEFAULT_IMAGE_SIZE);
     form.set("output_format", DEFAULT_OUTPUT_FORMAT);
     form.set("n", "1");
     const imageField = getImageEditFieldName();
-    const files = await Promise.all(references.map((url, index) => downloadReferenceFile(url, index)));
-    files.forEach((file) => form.append(imageField, file));
+    downloaded.forEach((item) => form.append(imageField, item.file));
     return fetch(`${getCometApiBaseUrl()}/v1/images/edits`, {
       method: "POST",
       headers: { Authorization: `Bearer ${getCometApiKey()}` },
@@ -138,11 +146,42 @@ async function createStoryboardImage(input: {
   });
 }
 
-async function downloadReferenceFile(url: string, index: number) {
-  const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Storyboard reference image ${index + 1} download failed: ${response.status}`);
+function buildReferenceFiles(input: {
+  avatarReferenceUrl: string;
+  productReferenceUrls: readonly string[];
+  directorReferenceImageUrls: readonly string[];
+  previousStoryboardReferenceUrl: string | null;
+}): StoryboardReferenceFile[] {
+  return [
+    { url: input.avatarReferenceUrl, required: true, kind: "avatar" },
+    ...input.productReferenceUrls.map((url) => ({ url, required: true, kind: "product" as const })),
+    ...input.directorReferenceImageUrls.map((url) => ({ url, required: false, kind: "director" as const })),
+    input.previousStoryboardReferenceUrl
+      ? { url: input.previousStoryboardReferenceUrl, required: false, kind: "previous" as const }
+      : null,
+  ].filter((item): item is StoryboardReferenceFile => Boolean(item));
+}
+
+async function downloadReferenceFiles(references: readonly StoryboardReferenceFile[]) {
+  const downloaded = [];
+  for (let index = 0; index < references.length; index += 1) {
+    const reference = references[index];
+    const file = await downloadReferenceFile(reference, index).catch((error) => {
+      if (reference.required) throw error;
+      console.warn("Optional storyboard reference image skipped:", {
+        url: reference.url,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    });
+    if (file) downloaded.push({ ...reference, file });
   }
+  return downloaded;
+}
+
+async function downloadReferenceFile(reference: StoryboardReferenceFile, index: number) {
+  const response = await fetch(reference.url, { cache: "no-store" });
+  if (!response.ok) throw new Error(`Storyboard reference image ${index + 1} download failed: ${response.status}`);
   const contentType = normalizeImageContentType(response.headers.get("content-type"));
   if (!contentType) {
     throw new Error(`Storyboard reference image ${index + 1} is not a supported image`);
