@@ -120,6 +120,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
   const storyboardUrls = await ensureGeneratedScriptStoryboardUrls({
     ...input,
     productName: product.name,
+    productPhysicalContract: product.product_physical_contract,
     avatarReferenceUrl: avatar?.reference_url || null,
     productReferenceUrls: resolveProductReferenceImageUrls(product),
     directorReferenceImageUrlsBySegment,
@@ -237,6 +238,9 @@ export async function createGeneratedScriptFromLegacy(input: {
     product_visual_profile_status: product.product_visual_profile_status,
     product_visual_profile_model: product.product_visual_profile_model,
     product_visual_profile_updated_at: product.product_visual_profile_updated_at,
+    product_physical_contract: product.product_physical_contract,
+    product_physical_contract_status: product.product_physical_contract_status,
+    product_physical_contract_updated_at: product.product_physical_contract_updated_at,
     product_refs: product.product_refs,
   };
 

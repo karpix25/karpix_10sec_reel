@@ -6,9 +6,11 @@ import {
   OMNI_PRODUCT_FILE_PLACEHOLDER,
   OMNI_STORYBOARD_FILE_PLACEHOLDER,
 } from "./omni-storyboard-file-reference";
+import { renderProductPhysicalContractForOmni } from "../product-physical-contract";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
+  productPhysicalContract?: string | null;
 }) {
   const validation = validateOmniStoryboardSegment(input.storyboard);
   if (!validation.valid) {
@@ -21,6 +23,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     `Используй точно такой же визуал как в раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
     `Оживи кадры раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER} как реальные сцены, не показывай саму раскадровку, телефон, экран, интерфейс, соцсети, карточки или коллаж.`,
     `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}, не меняй упаковку, цвет, форму и этикетку.`,
+    renderProductPhysicalContractForOmni(input.productPhysicalContract),
     "Персонаж в кадре сам произносит эти слова на русском языке:",
     voiceoverText,
     "Не дублируй слова.",

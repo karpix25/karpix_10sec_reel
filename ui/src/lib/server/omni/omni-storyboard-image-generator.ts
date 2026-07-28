@@ -18,6 +18,7 @@ export async function generateStoryboardImage(input: {
   segmentIndex: number;
   storyboard: OmniStoryboardSegment;
   productName: string;
+  productPhysicalContract?: string | null;
   avatarReferenceUrl: string | null;
   productReferenceUrls?: readonly string[];
   directorReferenceImageUrls?: readonly string[];
@@ -88,6 +89,7 @@ async function createStoryboardImage(input: {
   segmentIndex: number;
   storyboard: OmniStoryboardSegment;
   productName: string;
+  productPhysicalContract?: string | null;
   avatarReferenceUrl: string;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];

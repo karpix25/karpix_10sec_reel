@@ -24,10 +24,13 @@ type DashboardProductDetailsCardProps = {
   isUploading?: boolean;
   isDeleting?: boolean;
   isAnalyzingReference?: boolean;
+  isUpdatingProductPhysicalContract?: boolean;
   onSave?: (productId: number, draft: ProductProfileDraft) => void | Promise<unknown>;
   onUploadImages?: (files: FileList) => Promise<OmniReferenceAsset[]>;
   onDeleteProduct?: (productId: number) => void | Promise<unknown>;
   onAnalyzeReference?: (productId: number) => void | Promise<unknown>;
+  onGeneratePhysicalContract?: (productId: number, userInstruction: string) => void | Promise<unknown>;
+  onSavePhysicalContract?: (productId: number, contract: string) => void | Promise<unknown>;
 };
 
 function getProductDraft(product: OmniProduct | null): ProductProfileDraft {
@@ -58,10 +61,13 @@ export function DashboardProductDetailsCard({
   isUploading = false,
   isDeleting = false,
   isAnalyzingReference = false,
+  isUpdatingProductPhysicalContract = false,
   onSave,
   onUploadImages,
   onDeleteProduct,
   onAnalyzeReference,
+  onGeneratePhysicalContract,
+  onSavePhysicalContract,
 }: DashboardProductDetailsCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<ProductProfileDraft>(() => getProductDraft(product));
@@ -277,9 +283,12 @@ export function DashboardProductDetailsCard({
               <ProductVisualPassportPanel
                 product={product}
                 isAnalyzing={isAnalyzingReference}
+                isUpdatingPhysicalContract={isUpdatingProductPhysicalContract}
                 onAnalyze={() => {
                   if (onAnalyzeReference) void onAnalyzeReference(product.id);
                 }}
+                onGeneratePhysicalContract={(userInstruction) => onGeneratePhysicalContract?.(product.id, userInstruction)}
+                onSavePhysicalContract={(contract) => onSavePhysicalContract?.(product.id, contract)}
               />
               <div className="grid grid-cols-2 gap-2">
                 {product.product_refs.map((ref) => (

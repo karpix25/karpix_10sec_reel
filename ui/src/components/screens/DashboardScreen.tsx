@@ -13,6 +13,7 @@ import {
   useOmniProducts,
   useOmniProjects,
   useUpdateOmniProduct,
+  useUpdateOmniProductPhysicalContract,
   useUploadOmniProductImages,
   useUpdateOmniProjectProfile,
 } from "@/hooks/useOmniStudio";
@@ -57,6 +58,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
   const updateProductMutation = useUpdateOmniProduct();
   const deleteProductMutation = useDeleteOmniProduct();
   const analyzeProductReferenceMutation = useAnalyzeOmniProductReference();
+  const updateProductPhysicalContractMutation = useUpdateOmniProductPhysicalContract();
 
   const products = useMemo(() => productsQuery.data || [], [productsQuery.data]);
   const activeProduct = products.find((product) => product.id === selectedProductId) || null;
@@ -278,6 +280,7 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
           isUploading={uploadImagesMutation.isPending}
           isDeleting={deleteProductMutation.isPending}
           isAnalyzingReference={analyzeProductReferenceMutation.isPending}
+          isUpdatingProductPhysicalContract={updateProductPhysicalContractMutation.isPending}
           onSave={async (productId, draft) => {
             await updateProductMutation.mutateAsync({
               projectId: activeProject.id,
@@ -307,6 +310,22 @@ export function DashboardScreen({ selectedProjectId, selectedProductId, onSelect
             await analyzeProductReferenceMutation.mutateAsync({
               projectId: activeProject.id,
               productId,
+            });
+          }}
+          onGeneratePhysicalContract={async (productId, userInstruction) => {
+            await updateProductPhysicalContractMutation.mutateAsync({
+              projectId: activeProject.id,
+              productId,
+              mode: "generate",
+              userInstruction,
+            });
+          }}
+          onSavePhysicalContract={async (productId, contract) => {
+            await updateProductPhysicalContractMutation.mutateAsync({
+              projectId: activeProject.id,
+              productId,
+              mode: "save",
+              contract,
             });
           }}
         />

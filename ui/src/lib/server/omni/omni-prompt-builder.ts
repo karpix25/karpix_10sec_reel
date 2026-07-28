@@ -56,6 +56,10 @@ import {
   normalizeProductVisualProfile,
   renderProductVisualProfileForPrompt,
 } from "./product-visual-profile";
+import {
+  renderProductPhysicalHintForStoryboard,
+  resolveProductPhysicalContract,
+} from "./product-physical-contract";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -132,6 +136,11 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     generatedScript: input.generatedScript,
   });
   const productVisualPassport = renderProductVisualProfileForPrompt(productVisualProfile);
+  const productPhysicalContract = resolveProductPhysicalContract({
+    product: input.product,
+    generatedScript: input.generatedScript,
+  });
+  const productPhysicalHint = renderProductPhysicalHintForStoryboard(productPhysicalContract);
   const avatarReference = input.avatar?.reference_url || null;
   const characterContract = buildOmniCharacterContract({
     product: input.product,
@@ -201,12 +210,16 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       plan,
       productName: input.product.name,
       productVisualPassport: segmentProductVisualPassport,
+      productPhysicalHint,
       characterContract,
       segmentIndex,
       durationSeconds: segmentSeconds,
     });
     const storyboardValidation = validateBuiltStoryboard(storyboardPlan);
-    const prompt = renderCompactRussianOmniStoryboardPrompt({ storyboard: storyboardPlan });
+    const prompt = renderCompactRussianOmniStoryboardPrompt({
+      storyboard: storyboardPlan,
+      productPhysicalContract: plan.productRole !== "hidden" ? productPhysicalContract : null,
+    });
     const validation = promptValidationFromStoryboard(storyboardValidation);
     if (!validation.valid) {
       throw new Error(`Invalid Omni segment ${segmentIndex}: ${validation.errors.join(", ")}`);
@@ -281,6 +294,11 @@ function buildStoredProviderPromptSegments(
 
   const productReference = getPrimaryReference(input.product.product_refs);
   const avatarReference = input.avatar?.reference_url || null;
+  const productPhysicalContract = resolveProductPhysicalContract({
+    product: input.product,
+    generatedScript: input.generatedScript,
+  });
+  const productPhysicalHint = renderProductPhysicalHintForStoryboard(productPhysicalContract);
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,
     firstSpokenLine: providerPromptPlan.segmentPrompts[0]?.voiceover,
@@ -310,13 +328,17 @@ function buildStoredProviderPromptSegments(
       durationSeconds: segment.durationSeconds,
       voiceoverText: segment.voiceover,
       frames: segment.storyboardFrames,
+      productPhysicalHint,
     });
     const storyboardValidation = validateBuiltStoryboard(storyboardPlan);
     const validation = promptValidationFromStoryboard(storyboardValidation);
     if (!validation.valid) {
       throw new Error(`Invalid LLM storyboard segment ${segmentIndex}: ${validation.errors.join(", ")}`);
     }
-    const prompt = renderCompactRussianOmniStoryboardPrompt({ storyboard: storyboardPlan });
+    const prompt = renderCompactRussianOmniStoryboardPrompt({
+      storyboard: storyboardPlan,
+      productPhysicalContract: productRole !== "hidden" ? productPhysicalContract : null,
+    });
     return {
       index: segmentIndex,
       role: getSegmentRole(segmentIndex, providerPromptPlan.segmentPrompts.length),

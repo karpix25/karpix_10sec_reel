@@ -78,6 +78,16 @@ try {
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));
   assert.ok(!/(одежд|лук|outfit|wardrobe|clothing|dressed)/iu.test(prompt), "storyboard provider prompt must not mention clothing");
   assert.ok(prompt.length < 1600, "storyboard provider prompt must stay short");
+
+  const physicalContract = "The product remains a cohesive soft translucent jelly dessert with a glossy surface and gentle elastic wobble. It keeps the same reference shape as one intact semi-solid mass.";
+  const physicalPrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
+    storyboard: buildValidStoryboard(),
+    productPhysicalContract: physicalContract,
+  });
+  assert.ok(physicalPrompt.includes("PRODUCT PHYSICAL CONTRACT:"));
+  assert.ok(physicalPrompt.includes("cohesive soft translucent jelly dessert"));
+  assert.equal(normalizedCount(physicalPrompt, "PRODUCT PHYSICAL CONTRACT:"), 1);
+
   assert.equal(
     fileReference.resolveOmniStoryboardFileReference([{ role: "product" }, { role: "storyboard" }]),
     "@file2"

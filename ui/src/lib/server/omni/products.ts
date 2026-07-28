@@ -2,6 +2,9 @@ import pool from "@/lib/db";
 import { OmniProduct, OmniReferenceAsset } from "@/lib/omni/types";
 import type { CtaMode } from "@/lib/omni/creative-contract";
 import { analyzeProductReferenceImages } from "./openrouter-product-analysis-client";
+import { generateProductPhysicalContractText } from "./openrouter-product-physical-contract-client";
+import { cleanProductPhysicalContract } from "./product-physical-contract";
+import { normalizeProductVisualProfile } from "./product-visual-profile";
 import { ensureOmniSchema } from "./schema";
 
 function cleanText(value: unknown) {
@@ -211,6 +214,22 @@ export async function updateOmniProduct(input: {
          product_visual_profile_model = CASE WHEN $11 THEN NULL ELSE product_visual_profile_model END,
          product_visual_profile_error = CASE WHEN $11 THEN NULL ELSE product_visual_profile_error END,
          product_visual_profile_updated_at = CASE WHEN $11 THEN NULL ELSE product_visual_profile_updated_at END,
+         product_physical_contract = CASE
+           WHEN $11 AND product_physical_contract_status <> 'edited' THEN NULL
+           ELSE product_physical_contract
+         END,
+         product_physical_contract_status = CASE
+           WHEN $11 AND product_physical_contract_status <> 'edited' THEN 'missing'
+           ELSE product_physical_contract_status
+         END,
+         product_physical_contract_error = CASE
+           WHEN $11 AND product_physical_contract_status <> 'edited' THEN NULL
+           ELSE product_physical_contract_error
+         END,
+         product_physical_contract_updated_at = CASE
+           WHEN $11 AND product_physical_contract_status <> 'edited' THEN NULL
+           ELSE product_physical_contract_updated_at
+         END,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1 AND project_id = $2
      RETURNING *`,
@@ -305,6 +324,77 @@ export async function analyzeOmniProductReference(input: { projectId: number; pr
     );
     throw error;
   }
+}
+
+export async function generateOmniProductPhysicalContract(input: {
+  projectId: number;
+  productId: number;
+  userInstruction?: unknown;
+}) {
+  await ensureOmniSchema();
+  const product = await requireOmniProductInProject(input.projectId, input.productId);
+
+  try {
+    const generated = await generateProductPhysicalContractText({
+      productName: product.name,
+      description: product.description,
+      productReferenceNotes: product.product_reference_notes,
+      productVisualProfile: normalizeProductVisualProfile(product.product_visual_profile),
+      userInstruction: cleanText(input.userInstruction) || null,
+    });
+    const { rows } = await pool.query<OmniProduct>(
+      `UPDATE omni_products
+       SET product_physical_contract = $3,
+           product_physical_contract_status = 'generated',
+           product_physical_contract_error = NULL,
+           product_physical_contract_updated_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND project_id = $2
+       RETURNING *`,
+      [input.productId, input.projectId, generated.contract]
+    );
+    return rows[0];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Product physical contract generation failed";
+    await pool.query(
+      `UPDATE omni_products
+       SET product_physical_contract_status = 'failed',
+           product_physical_contract_error = $3,
+           product_physical_contract_updated_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND project_id = $2`,
+      [input.productId, input.projectId, message.slice(0, 800)]
+    );
+    throw error;
+  }
+}
+
+export async function saveOmniProductPhysicalContract(input: {
+  projectId: number;
+  productId: number;
+  contract: unknown;
+  status?: "generated" | "edited";
+}) {
+  await ensureOmniSchema();
+  const contract = cleanProductPhysicalContract(input.contract);
+  const status = contract ? input.status || "edited" : "missing";
+
+  const { rows } = await pool.query<OmniProduct>(
+    `UPDATE omni_products
+     SET product_physical_contract = $3,
+         product_physical_contract_status = $4,
+         product_physical_contract_error = NULL,
+         product_physical_contract_updated_at = CURRENT_TIMESTAMP,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND project_id = $2
+     RETURNING *`,
+    [input.productId, input.projectId, contract || null, status]
+  );
+
+  if (!rows[0]) {
+    throw new Error("Product does not belong to this Omni client project");
+  }
+  return rows[0];
 }
 
 export async function getOmniProduct(productId: number) {
