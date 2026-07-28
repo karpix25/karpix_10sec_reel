@@ -18,19 +18,20 @@ export async function createProviderVideoTask(input: {
   prompt: string;
   seconds: number;
   resolution: string;
-  referenceImages: { url: string }[];
+  referenceImages: { url: string; role?: string }[];
   characterId: string | null;
   audioIds?: readonly string[];
 }) {
   if (input.provider === "kie-ai") {
-    if (!input.characterId) throw new Error("KIE.ai Omni requires character id");
+    const hasStoryboardReference = input.referenceImages.some((image) => image.role === "storyboard");
+    if (!input.characterId && !hasStoryboardReference) throw new Error("KIE.ai Omni requires character id or storyboard reference");
     return createKieOmniVideoTask({
       prompt: input.prompt,
       duration: getProviderDuration(input.provider, input.seconds),
       aspectRatio: "9:16",
       resolution: input.resolution,
       imageUrls: input.referenceImages.map((image) => image.url),
-      characterIds: [input.characterId],
+      characterIds: input.characterId && !hasStoryboardReference ? [input.characterId] : [],
       audioIds: [...(input.audioIds || [])],
     });
   }
