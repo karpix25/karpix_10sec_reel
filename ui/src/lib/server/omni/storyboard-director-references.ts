@@ -98,17 +98,27 @@ export async function prepareSegmentStoryboardDirectorReferenceUrls(input: {
       }
       return bySegment;
     } catch (error) {
-      throw new Error(
-        `Не удалось извлечь 5 кадров оригинального reference-видео для раскадровки: ${formatError(error)}`
-      );
+      console.warn("Segment storyboard director reference frame extraction failed:", {
+        error: formatError(error),
+      });
     }
   }
 
+  return buildSegmentFallbackReferenceUrls({ ...input, framesPerSegment });
+}
+
+function buildSegmentFallbackReferenceUrls(input: {
+  directorAnalysis?: Parameters<typeof extractDirectorReferenceImageUrls>[0]["directorAnalysis"];
+  sourceSnapshot?: unknown;
+  segments: readonly StoryboardReferenceSegment[];
+  framesPerSegment: number;
+}) {
   const fallbackUrls = extractDirectorReferenceImageUrls({
     directorAnalysis: input.directorAnalysis,
     sourceSnapshot: input.sourceSnapshot,
-    limit: framesPerSegment,
+    limit: input.framesPerSegment,
   });
+  const bySegment = new Map<number, string[]>();
   for (const segment of input.segments) bySegment.set(segment.index, fallbackUrls);
   return bySegment;
 }
