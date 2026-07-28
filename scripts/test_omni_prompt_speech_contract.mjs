@@ -69,6 +69,8 @@ try {
     assert.ok(item.prompt.includes("точно такой же визуал как в раскадровке"), "storyboard prompt must ask to copy storyboard visual");
     assert.ok(item.prompt.includes("Лицо и личность персонажа бери из avatar/character reference"), "storyboard prompt must limit avatar reference to identity");
     assert.ok(item.prompt.includes("одежду, свет, фон, ракурс и действия бери из раскадровки"), "storyboard prompt must make storyboard wardrobe and scene authoritative");
+    assert.ok(item.prompt.includes("те же волосы, пробор, аксессуары"), "storyboard prompt must keep hair and outfit details stable");
+    assert.ok(item.prompt.includes("смотрит прямо в объектив"), "storyboard prompt must keep eye contact across camera angles");
     assert.ok(item.prompt.includes("Состояние продукта держи одинаковым"), "storyboard prompt must keep product physical state stable");
     assert.ok(item.prompt.includes("Персонаж в кадре сам произносит эти слова"), "storyboard prompt must provide direct segment speech text");
     assert.ok(item.prompt.includes("на русском языке"), "storyboard prompt must force Russian character speech");
@@ -93,6 +95,8 @@ try {
     assert.ok(imagePrompt.includes(`РЕПЛИКА "${item.storyboardPlan.frames[0].spokenText}"`), "storyboard image prompt must draw frame speech");
     assert.ok(imagePrompt.includes("пять кадров именно этого сегмента оригинального reference-видео"), "storyboard image prompt must use segment original frames when available");
     assert.ok(imagePrompt.includes("Одежда, стиль, свет и окружение должны оставаться одинаковыми"), "storyboard image prompt must lock outfit continuity");
+    assert.ok(imagePrompt.includes("та же длина волос, пробор"), "storyboard image prompt must lock hair details");
+    assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");
     assert.ok(imagePrompt.includes("Раскадровка должна быть динамичной"), "storyboard image prompt must request dynamic UGC shots");
   }
 
