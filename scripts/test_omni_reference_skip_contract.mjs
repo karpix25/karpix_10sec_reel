@@ -65,6 +65,29 @@ try {
   assert.match(warnings[0], /source #2930/);
   assert.match(warnings[0], /empty content/);
 
+  const storageWarnings = [];
+  const storageFailed = legacyScenario(2932);
+  const visualReady = legacyScenario(2933);
+  const resolvedAfterStorageFailure = await resolveReadyGeneratedScriptReference({
+    projectId: 7,
+    productId: 9,
+    legacyScenarioId: storageFailed.id,
+    maxAttempts: 3,
+    resolveSource: async (input) =>
+      input.legacyScenarioId
+        ? { sourceScenario: storageFailed, sourceMode: "selected_legacy_reference" }
+        : { sourceScenario: visualReady, sourceMode: "random_active_legacy_reference" },
+    shouldAnalyze: () => true,
+    ensureAnalysis: async ({ sourceScenario }) =>
+      sourceScenario.id === storageFailed.id
+        ? directorAnalysis(sourceScenario.id, "completed", null, { storageFailed: true })
+        : directorAnalysis(sourceScenario.id, "completed", null),
+    warn: (message) => storageWarnings.push(message),
+  });
+
+  assert.equal(resolvedAfterStorageFailure.sourceScenario.id, visualReady.id);
+  assert.match(storageWarnings[0], /Reference video download failed/);
+
   await assert.rejects(
     () => resolveReadyGeneratedScriptReference({
       projectId: 7,
@@ -100,7 +123,10 @@ function legacyScenario(id) {
   };
 }
 
-function directorAnalysis(legacyScenarioId, status, error) {
+function directorAnalysis(legacyScenarioId, status, error, options = {}) {
+  const storedVideoUrl = status === "completed" && !options.storageFailed
+    ? `https://s3.example.com/reference-${legacyScenarioId}.mp4`
+    : null;
   return {
     id: legacyScenarioId,
     project_id: 7,
@@ -110,9 +136,9 @@ function directorAnalysis(legacyScenarioId, status, error) {
     source_legacy_client_id: 1,
     original_reels_url: "https://example.com/reel",
     resolved_video_url: null,
-    stored_video_url: null,
-    video_storage_status: null,
-    video_storage_error: null,
+    stored_video_url: storedVideoUrl,
+    video_storage_status: options.storageFailed ? "failed" : storedVideoUrl ? "completed" : null,
+    video_storage_error: options.storageFailed ? "Reference video download failed: 500" : null,
     source_snapshot: null,
     scrapecreators_payload: null,
     director_analysis_status: status,

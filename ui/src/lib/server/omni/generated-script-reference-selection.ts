@@ -95,7 +95,14 @@ async function resolveSourceOrThrow(input: {
 }
 
 function isDirectorReferenceReady(directorAnalysis: OmniDirectorAnalysis | null) {
-  return !directorAnalysis || directorAnalysis.director_analysis_status === "completed";
+  return !directorAnalysis ||
+    (directorAnalysis.director_analysis_status === "completed" && hasDurableDirectorReference(directorAnalysis));
+}
+
+function hasDurableDirectorReference(directorAnalysis: OmniDirectorAnalysis) {
+  if (directorAnalysis.stored_video_url) return true;
+  if (!directorAnalysis.original_reels_url && !directorAnalysis.resolved_video_url) return true;
+  return false;
 }
 
 function formatSkippedDirectorReference(
@@ -107,5 +114,8 @@ function formatSkippedDirectorReference(
 
 function getDirectorFailureReason(directorAnalysis: OmniDirectorAnalysis | null) {
   if (!directorAnalysis) return "not_requested";
+  if (directorAnalysis.director_analysis_status === "completed" && !hasDurableDirectorReference(directorAnalysis)) {
+    return directorAnalysis.video_storage_error || "reference video was analyzed but not stored durably";
+  }
   return directorAnalysis.analysis_error || directorAnalysis.director_analysis_status;
 }
