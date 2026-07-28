@@ -1,6 +1,8 @@
 "use client";
 
 import { Check, Power, RotateCcw, Trash2 } from "lucide-react";
+import { AvatarSpeechGenderControl } from "@/components/screens/AvatarSpeechGenderControl";
+import { getAvatarSpeechGenderLabel, type OmniAvatarSpeechGender } from "@/lib/omni/avatar-speech-gender";
 import type { OmniClientAvatar } from "@/lib/omni/types";
 
 type AvatarPreviewPanelProps = {
@@ -11,6 +13,7 @@ type AvatarPreviewPanelProps = {
   onRetry: (avatar: OmniClientAvatar) => void;
   onDelete: (avatar: OmniClientAvatar) => void;
   onRename: (avatar: OmniClientAvatar, nextName: string) => void;
+  onUpdateSpeechGender: (avatar: OmniClientAvatar, nextGender: OmniAvatarSpeechGender) => void;
   onToggleActive: (avatar: OmniClientAvatar) => void;
 };
 
@@ -22,6 +25,7 @@ export function AvatarPreviewPanel({
   onRetry,
   onDelete,
   onRename,
+  onUpdateSpeechGender,
   onToggleActive,
 }: AvatarPreviewPanelProps) {
   return (
@@ -102,6 +106,12 @@ export function AvatarPreviewPanel({
             <span className="font-semibold text-foreground">{selectedAvatar.provider}</span>
           </div>
           <div className="flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">Род речи</span>
+            <span className="font-semibold text-foreground">
+              {getAvatarSpeechGenderLabel(selectedAvatar.speech_gender)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
             <span className="text-muted-foreground">KIE character</span>
             <span className="max-w-40 truncate font-semibold text-foreground">
               {selectedAvatar.kie_character_id || "не создан"}
@@ -159,6 +169,13 @@ export function AvatarPreviewPanel({
                     {avatar.provider} · {avatar.status}
                     {avatar.kie_character_id ? " · KIE ready" : ""}
                   </p>
+                  <AvatarSpeechGenderControl
+                    value={avatar.speech_gender}
+                    onChange={(nextGender) => onUpdateSpeechGender(avatar, nextGender)}
+                    disabled={isBusy}
+                    idPrefix={`avatar-${avatar.id}-speech-gender`}
+                    compact
+                  />
                 </div>
                 <button
                   type="button"

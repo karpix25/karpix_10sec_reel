@@ -70,6 +70,7 @@ try {
     productReferenceNotes: "оранжевая упаковка",
     ctaMode: "article_in_description",
     ctaValue: null,
+    avatarSpeechGender: "female",
     sourceScenario: {
       id: 2924,
       script: "Хочешь сияющую кожу и крепкие ногти? Тогда тебе нужен коллаген!",
@@ -156,6 +157,7 @@ try {
     productReferenceNotes: "оранжевая упаковка",
     ctaMode: "article_in_description",
     ctaValue: null,
+    avatarSpeechGender: "female",
     sourceScenario: {
       id: 2924,
       script: "Хочешь сияющую кожу и крепкие ногти? Тогда тебе нужен коллаген!",

@@ -1,5 +1,6 @@
 import pool from "@/lib/db";
 import { OmniClientAvatar } from "@/lib/omni/types";
+import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import { ensureOmniSchema } from "./schema";
 import { createKieOmniCharacter } from "./kie-omni-client";
 
@@ -54,6 +55,7 @@ export async function createOmniClientAvatar(input: {
   projectId: number;
   displayName?: unknown;
   prompt: unknown;
+  speechGender: unknown;
   referenceUrl?: unknown;
   status?: unknown;
   provider?: unknown;
@@ -61,6 +63,7 @@ export async function createOmniClientAvatar(input: {
   await ensureOmniSchema();
   const prompt = cleanText(input.prompt);
   if (!prompt) throw new Error("Avatar prompt is required");
+  const speechGender = requireAvatarSpeechGender(input.speechGender);
   const displayName = cleanText(input.displayName);
   const status = cleanText(input.status) || "draft";
   const provider = cleanText(input.provider) || "gpt-image-2";
@@ -70,15 +73,24 @@ export async function createOmniClientAvatar(input: {
        project_id,
        display_name,
        prompt,
+       speech_gender,
        reference_url,
        status,
        provider,
        is_active,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, TRUE, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, CURRENT_TIMESTAMP)
      RETURNING *`,
-    [input.projectId, displayName || null, prompt, cleanText(input.referenceUrl) || null, status, provider]
+    [
+      input.projectId,
+      displayName || null,
+      prompt,
+      speechGender,
+      cleanText(input.referenceUrl) || null,
+      status,
+      provider,
+    ]
   );
 
   return rows[0];
@@ -114,6 +126,7 @@ export async function updateOmniClientAvatarStatus(input: {
 async function approveOmniClientAvatar(projectId: number, avatarId: number) {
   const current = await getOmniClientAvatar(projectId, avatarId);
   if (!current.reference_url) throw new Error("Avatar reference image is required before approval");
+  requireAvatarSpeechGender(current.speech_gender);
 
   const readyCharacterId = getReadyKieCharacterId(current);
   if (readyCharacterId && current.kie_character_status !== "queued") {
@@ -226,6 +239,28 @@ export async function updateOmniClientAvatarName(input: {
        AND project_id = $2
      RETURNING *`,
     [input.avatarId, input.projectId, displayName || null]
+  );
+
+  if (!rows[0]) throw new Error("Avatar was not found");
+  return rows[0];
+}
+
+export async function updateOmniClientAvatarSpeechGender(input: {
+  projectId: number;
+  avatarId: number;
+  speechGender: unknown;
+}) {
+  await ensureOmniSchema();
+  const speechGender = requireAvatarSpeechGender(input.speechGender);
+
+  const { rows } = await pool.query<OmniClientAvatar>(
+    `UPDATE omni_client_avatars
+     SET speech_gender = $3,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1
+       AND project_id = $2
+     RETURNING *`,
+    [input.avatarId, input.projectId, speechGender]
   );
 
   if (!rows[0]) throw new Error("Avatar was not found");

@@ -20,6 +20,7 @@ import { ensureGeneratedScriptStoryboardUrls } from "./generated-script-storyboa
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
+import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 
 function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
   return {
@@ -151,6 +152,8 @@ export async function createGeneratedScriptFromLegacy(input: {
   if (!project) throw new Error("Omni client project not found");
 
   const product = await requireOmniProductInProject(input.projectId, input.productId);
+  const avatar = await getLatestOmniClientAvatar(input.projectId);
+  const avatarSpeechGender = requireAvatarSpeechGender(avatar?.speech_gender);
   const durationRange = await resolveOmniDurationRange({ project, product });
   const { sourceScenario, sourceMode, directorAnalysis } = await resolveReadyGeneratedScriptReference({
     ...input,
@@ -178,6 +181,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     directorBrief,
     wardrobeSource: project.wardrobe_source,
     durationRange,
+    avatarSpeechGender,
   });
   const directorCost = extractOpenRouterCostSummaryFromSnapshot(directorAnalysis?.source_snapshot);
   const openRouterUsage = [...(directorCost?.layers || []), ...generated.openRouterUsage];
@@ -207,6 +211,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     director_video_url: directorAnalysis?.stored_video_url || directorAnalysis?.resolved_video_url || null,
     director_reference_image_urls: directorReferenceImageUrls,
     wardrobe_source: project.wardrobe_source,
+    avatar_speech_gender: avatarSpeechGender,
     director_analysis_model: directorAnalysis?.analysis_model || null,
     director_analysis_prompt_version: directorAnalysis?.analysis_prompt_version || null,
     director_analysis_error: directorAnalysis?.analysis_error || null,

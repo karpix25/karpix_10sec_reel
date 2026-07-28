@@ -95,6 +95,8 @@ function findExplicitGender(value: unknown): KieOmniVoiceGender {
   const direct = normalizeGenderValue(
     record.gender ||
       record.sex ||
+      record.speech_gender ||
+      record.speechGender ||
       record.voice_gender ||
       record.voiceGender ||
       record.avatar_gender ||

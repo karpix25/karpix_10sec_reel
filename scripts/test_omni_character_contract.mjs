@@ -39,6 +39,7 @@ try {
     product: { avatar_reference_notes: "Героиня в молочном худи и синих джинсах, без ярких логотипов." },
     avatar: {
       display_name: "Анна",
+      speech_gender: "female",
       prompt: "Улыбчивая девушка, одежда из исходника не важна.",
       reference_url: "https://example.com/avatar.png",
       kie_character_id: "char_123",
@@ -53,6 +54,7 @@ try {
     product: { avatar_reference_notes: null },
     avatar: {
       display_name: null,
+      speech_gender: "male",
       prompt: "Молодой мужчина, dressed in a plain black t-shirt and relaxed jeans.",
       reference_url: null,
       kie_character_id: "char_456",
@@ -65,6 +67,7 @@ try {
     product: { avatar_reference_notes: null },
     avatar: {
       display_name: "МИША",
+      speech_gender: "male",
       prompt: "Спортивный мужчина, с голубыми глазами, блондин, спортивное телосложение, в фартуке на кухне",
       reference_url: "https://example.com/misha.png",
       kie_character_id: "char_misha",
@@ -78,6 +81,7 @@ try {
     product: { avatar_reference_notes: null },
     avatar: {
       display_name: null,
+      speech_gender: "female",
       prompt: "Улыбчивая девушка, одежда из исходника не важна.",
       reference_url: "https://example.com/avatar.png",
       kie_character_id: "char_789",
@@ -88,7 +92,7 @@ try {
 
   const fallbackContract = buildOmniCharacterContract({
     product: { avatar_reference_notes: null },
-    avatar: null,
+    avatar: { display_name: null, speech_gender: "male", prompt: "", reference_url: null, kie_character_id: null },
   });
   assert.equal(fallbackContract.clothingSource, "fallback");
   assert.ok(fallbackContract.clothingLine.includes("фиксированный бытовой outfit"));

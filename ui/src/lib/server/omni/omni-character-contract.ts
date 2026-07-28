@@ -1,4 +1,9 @@
 import type { OmniClientAvatar, OmniProduct } from "@/lib/omni/types";
+import {
+  requireAvatarSpeechGender,
+  type OmniAvatarSpeechGender,
+} from "../../omni/avatar-speech-gender";
+import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
 
 export type OmniCharacterClothingSource =
   | "product_avatar_notes"
@@ -10,6 +15,8 @@ export interface OmniCharacterContract {
   clothingLine: string;
   sourceRuleLine: string;
   clothingSource: OmniCharacterClothingSource;
+  speechGender: OmniAvatarSpeechGender;
+  speechGenderLine: string;
 }
 
 const CLOTHING_PATTERNS = [
@@ -23,10 +30,11 @@ const FALLBACK_CLOTHING =
 
 export function buildOmniCharacterContract(input: {
   product: Pick<OmniProduct, "avatar_reference_notes">;
-  avatar: Pick<OmniClientAvatar, "display_name" | "prompt" | "reference_url" | "kie_character_id"> | null;
+  avatar: Pick<OmniClientAvatar, "display_name" | "prompt" | "reference_url" | "kie_character_id" | "speech_gender"> | null;
 }): OmniCharacterContract {
   const avatarName = cleanText(input.avatar?.display_name);
   const avatarPrompt = cleanText(input.avatar?.prompt);
+  const speechGender = requireAvatarSpeechGender(input.avatar?.speech_gender);
   const productAvatarNotes = cleanText(input.product.avatar_reference_notes);
   const clothingFromProduct = extractClothingDescription(productAvatarNotes);
   const clothingFromAvatar = extractClothingDescription(avatarPrompt);
@@ -38,6 +46,8 @@ export function buildOmniCharacterContract(input: {
     sourceRuleLine:
       "единственный источник outfit - строка ОДЕЖДА и описание главного персонажа; товарные image_urls задают продукт, а не одежду героя; одежда сохраняется одинаковой во всех частях",
     clothingSource: clothingFromProduct ? "product_avatar_notes" : clothingFromAvatar ? "avatar_prompt" : "fallback",
+    speechGender,
+    speechGenderLine: renderRussianSpeechGenderRule(speechGender),
   };
 }
 

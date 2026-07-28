@@ -33,6 +33,12 @@ try {
   const aliasContract = join(output, "node_modules", "@", "lib", "omni", "creative-contract.js");
   mkdirSync(dirname(aliasContract), { recursive: true });
   copyFileSync(contractOutput, aliasContract);
+  for (const fileName of ["omni-storyboard-timing.js", "omni-storyboard-types.js", "omni-storyboard-contract.js"]) {
+    const source = findFile(compiled, fileName);
+    const target = join(output, "node_modules", "@", "lib", "omni", "storyboard", fileName);
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(source, target);
+  }
 
   const { buildOmniSegmentPrompts } = require(findFile(compiled, "omni-prompt-builder.js"));
   const directorPrompts = buildOmniSegmentPrompts(buildInput("director_reference"));
@@ -92,6 +98,7 @@ function buildInput(wardrobeSource) {
       id: 1,
       project_id: 1,
       display_name: "Илья",
+      speech_gender: "male",
       prompt: "Мужчина 32 лет, одежда: темно-синий худи и прямые джинсы.",
       reference_url: "https://example.com/avatar.png",
       status: "approved",

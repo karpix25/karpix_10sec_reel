@@ -71,6 +71,7 @@ try {
       id: 1,
       project_id: 1,
       display_name: "Анна",
+      speech_gender: "female",
       prompt: "Доброжелательная женщина 30 лет, домашний живой образ.",
       reference_url: "https://example.com/avatar.png",
       status: "approved",
@@ -353,6 +354,7 @@ try {
     },
     avatar: {
       ...baseInput.avatar,
+      speech_gender: "male",
       prompt: "Спортивный мужчина в фартуке на кухне.",
     },
     wardrobeSource: "avatar_reference",
