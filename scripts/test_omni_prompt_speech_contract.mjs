@@ -70,6 +70,8 @@ try {
     assert.ok(item.prompt.includes("Лицо и личность персонажа бери из avatar/character reference"), "storyboard prompt must limit avatar reference to identity");
     assert.ok(item.prompt.includes("одежду, свет, фон, ракурс и действия бери из раскадровки"), "storyboard prompt must make storyboard wardrobe and scene authoritative");
     assert.ok(item.prompt.includes("те же волосы, пробор, аксессуары"), "storyboard prompt must keep hair and outfit details stable");
+    assert.ok(item.prompt.includes("один и тот же комплект на весь ролик"), "storyboard prompt must lock one outfit across all segments");
+    assert.ok(item.prompt.includes("не заменяй слой футболкой"), "storyboard prompt must prevent layer swaps");
     assert.ok(item.prompt.includes("смотрит прямо в объектив"), "storyboard prompt must keep eye contact across camera angles");
     assert.ok(item.prompt.includes("Состояние продукта держи одинаковым"), "storyboard prompt must keep product physical state stable");
     assert.ok(item.prompt.includes("Персонаж в кадре сам произносит эти слова"), "storyboard prompt must provide direct segment speech text");

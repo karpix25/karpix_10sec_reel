@@ -179,7 +179,8 @@ function renderStoryboardWardrobe(
     brief.clothing.style,
     brief.clothing.fit_details,
     colors,
-    brief.clothing.adaptation_notes,
+    "ONE EXACT OUTFIT FOR THE WHOLE REEL: keep the same garments, layers, neckline, sleeves, fabric texture, fit, accessories, and color placement in every frame and every segment",
+    "if a jacket, blazer, overshirt, or shirt layer is present, it stays on and is not replaced by a t-shirt or a different shirt",
   ].filter(Boolean).join("; ");
 }
 
