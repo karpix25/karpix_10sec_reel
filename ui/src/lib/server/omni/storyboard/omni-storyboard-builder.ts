@@ -10,6 +10,8 @@ import {
 import { validateOmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-contract";
 import type { OmniCharacterContract } from "../omni-character-contract";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
+import type { DirectorBrief } from "../director-analysis-types";
+import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
 
 const CLEAN_STORYBOARD_STYLE = "чистая натуральная картинка без лишней декоративной графики, стрелок и рекламных надписей";
 
@@ -21,6 +23,8 @@ export function buildStoryboardFromCreativePlan(input: {
   characterContract: OmniCharacterContract;
   segmentIndex: number;
   durationSeconds: number;
+  directorBrief?: DirectorBrief | null;
+  wardrobeSource?: OmniWardrobeSource;
 }): OmniStoryboardSegment {
   const words = splitWords(input.plan.voiceoverText);
   const frameCount = getOmniStoryboardFrameCount(input.durationSeconds);
@@ -43,6 +47,8 @@ export function buildStoryboardFromCreativePlan(input: {
         productVisualPassport: input.productVisualPassport,
         productPhysicalHint: input.productPhysicalHint,
         characterContract: input.characterContract,
+        directorBrief: input.directorBrief,
+        wardrobeSource: input.wardrobeSource,
         spokenText,
         frameIndex: index + 1,
         frameCount,
@@ -98,6 +104,8 @@ function buildFrame(input: {
   productVisualPassport?: string | null;
   productPhysicalHint?: string | null;
   characterContract: OmniCharacterContract;
+  directorBrief?: DirectorBrief | null;
+  wardrobeSource?: OmniWardrobeSource;
   spokenText: string;
   frameIndex: number;
   frameCount: number;
@@ -111,9 +119,9 @@ function buildFrame(input: {
   return {
     spokenText: input.spokenText,
     visualAction: renderFrameAction(beat?.action, isCutawayFrame),
-    camera: renderFrameCamera(input.frameIndex, input.frameCount, isCutawayFrame),
-    environment: "то же окружение и свет, что заданы сценой сегмента",
-    wardrobe: input.characterContract.clothingLine,
+    camera: renderFrameCamera(input.frameIndex, input.frameCount, isCutawayFrame, renderDirectorCamera(input.directorBrief)),
+    environment: renderDirectorEnvironment(input.directorBrief),
+    wardrobe: renderStoryboardWardrobe(input.characterContract, input.directorBrief, input.wardrobeSource),
     productPlacement: renderProductPlacement(
       input.plan,
       input.productName,
@@ -126,12 +134,64 @@ function buildFrame(input: {
   };
 }
 
-function renderFrameCamera(frameIndex: number, frameCount: number, isCutawayFrame: boolean) {
-  if (isCutawayFrame) return "быстрая перебивка крупнее обычного: продукт, рука или деталь среды в движении";
-  if (frameIndex === 1) return "триггерный селфи ракурс с легкого верхнего угла, близко к лицу, живое движение телефона";
-  if (frameIndex === frameCount) return "возврат к лицу средним планом, камера чуть приближается для финальной фразы";
-  if (frameIndex % 2 === 0) return "средний план сбоку, герой делает жест рукой и смещается в кадре";
-  return "полукрупный план с легким handheld движением, не статичная рекламная подача";
+function renderFrameCamera(
+  frameIndex: number,
+  frameCount: number,
+  isCutawayFrame: boolean,
+  directorCamera: string
+) {
+  const base = isCutawayFrame
+    ? "быстрая перебивка крупнее обычного: продукт, рука или деталь среды в движении"
+    : frameIndex === 1
+      ? "триггерный кадр с живым движением камеры"
+      : frameIndex === frameCount
+        ? "возврат к лицу, камера чуть приближается для финальной фразы"
+        : frameIndex % 2 === 0
+          ? "средний план сбоку, герой делает жест рукой и смещается в кадре"
+          : "полукрупный план с легким handheld движением, не статичная рекламная подача";
+  return directorCamera ? `${base}; ${directorCamera}` : base;
+}
+
+function renderDirectorEnvironment(brief?: DirectorBrief | null) {
+  const timeline = brief?.location_timeline?.[0];
+  const parts = [
+    timeline?.setting || brief?.atmosphere.setting,
+    timeline?.environment,
+    timeline?.lighting || brief?.atmosphere.lighting,
+    brief?.atmosphere.color_grading,
+    brief?.atmosphere.mood,
+  ].filter(Boolean);
+  return parts.length
+    ? `REFERENCE SCENE LOCK: ${parts.join("; ")}`
+    : "то же окружение и свет, что заданы сценой сегмента";
+}
+
+function renderStoryboardWardrobe(
+  characterContract: OmniCharacterContract,
+  brief?: DirectorBrief | null,
+  wardrobeSource?: OmniWardrobeSource
+) {
+  if (normalizeOmniWardrobeSource(wardrobeSource) === "avatar_reference") return characterContract.clothingLine;
+  if (!brief?.clothing.style) return characterContract.clothingLine;
+  const colors = brief.clothing.color_palette.length ? `colors: ${brief.clothing.color_palette.join(", ")}` : "";
+  return [
+    "REFERENCE WARDROBE LOCK:",
+    brief.clothing.style,
+    brief.clothing.fit_details,
+    colors,
+    brief.clothing.adaptation_notes,
+  ].filter(Boolean).join("; ");
+}
+
+function renderDirectorCamera(brief?: DirectorBrief | null) {
+  if (!brief) return "";
+  return compactText([
+    "reference camera lock:",
+    brief.camera.shot_types.join(", "),
+    brief.camera.angles.length ? `angles ${brief.camera.angles.join(", ")}` : "",
+    brief.camera.movements.length ? `movement ${brief.camera.movements.join(", ")}` : "",
+    brief.camera.stabilization,
+  ].filter(Boolean).join("; "), 220);
 }
 
 function renderFrameEffect(frameIndex: number, frameCount: number, isCutawayFrame: boolean) {

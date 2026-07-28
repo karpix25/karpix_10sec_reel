@@ -214,6 +214,8 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       characterContract,
       segmentIndex,
       durationSeconds: segmentSeconds,
+      directorBrief,
+      wardrobeSource: input.wardrobeSource,
     });
     const storyboardValidation = validateBuiltStoryboard(storyboardPlan);
     const prompt = renderCompactRussianOmniStoryboardPrompt({

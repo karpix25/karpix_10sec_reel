@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
@@ -33,10 +33,12 @@ try {
   }));
 
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
+  mirrorAlias("lib/omni/storyboard");
 
   const types = require(findFile(compiled, "omni-storyboard-types.js"));
   const contract = require(findFile(compiled, "omni-storyboard-contract.js"));
   const renderer = require(findFile(compiled, "omni-storyboard-renderer.js"));
+  const builder = require(findFile(compiled, "omni-storyboard-builder.js"));
   const fileReference = require(findFile(compiled, "omni-storyboard-file-reference.js"));
 
   assert.deepEqual([...types.OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS], [4, 6, 8, 10]);
@@ -87,6 +89,24 @@ try {
   assert.ok(physicalPrompt.includes("PRODUCT PHYSICAL CONTRACT:"));
   assert.ok(physicalPrompt.includes("cohesive soft translucent jelly dessert"));
   assert.equal(normalizedCount(physicalPrompt, "PRODUCT PHYSICAL CONTRACT:"), 1);
+
+  const directorStoryboard = builder.buildStoryboardFromCreativePlan({
+    plan: buildCreativePlan(),
+    productName: "Коллаген",
+    characterContract: {
+      identityLine: "approved avatar identity",
+      clothingLine: "молочная домашняя футболка из avatar",
+      sourceRuleLine: "avatar defines identity",
+      clothingSource: "avatar",
+    },
+    segmentIndex: 1,
+    durationSeconds: 10,
+    directorBrief: buildDirectorBrief(),
+    wardrobeSource: "director_reference",
+  });
+  assert.ok(directorStoryboard.frames[0].environment.includes("warm amber studio wall"));
+  assert.ok(directorStoryboard.frames[0].wardrobe.includes("black fitted turtleneck"));
+  assert.ok(directorStoryboard.frames[0].camera.includes("medium close-up"));
 
   assert.equal(
     fileReference.resolveOmniStoryboardFileReference([{ role: "product" }, { role: "storyboard" }]),
@@ -174,6 +194,67 @@ function buildValidStoryboard() {
   };
 }
 
+function buildCreativePlan() {
+  return {
+    segmentIndex: 1,
+    lifeFormatId: "talking_head_cutaways",
+    speechStartsAtSeconds: 0,
+    voiceoverText: "Ваш организм перестает вырабатывать коллаген после тридцати лет это естественный процесс коллаген это основной строительный белок для кожи суставов связок",
+    productRole: "hidden",
+    continuityProps: [],
+    beats: [
+      { startSeconds: 0, endSeconds: 4, action: "персонаж говорит в камеру" },
+      { startSeconds: 4, endSeconds: 7, action: "персонаж делает жест рукой" },
+      { startSeconds: 7, endSeconds: 10, action: "персонаж возвращается к камере" },
+    ],
+  };
+}
+
+function buildDirectorBrief() {
+  return {
+    visual_hook: { action: "presenter holds product", retention_trigger: "direct expert claim" },
+    atmosphere: {
+      mood: "premium expert talking-head",
+      setting: "warm amber studio wall",
+      lighting: "soft warm frontal key light",
+      color_grading: "warm orange-brown grade",
+    },
+    clothing: {
+      style: "black fitted turtleneck",
+      color_palette: ["black"],
+      fit_details: "clean high neck, close fit",
+      source: "main presenter",
+      adaptation_notes: "keep the black fitted high-neck silhouette on the avatar",
+    },
+    location_timeline: [
+      {
+        start_sec: 0,
+        end_sec: 10,
+        setting: "warm amber studio wall",
+        environment: "minimal orange-brown interior backdrop",
+        lighting: "soft warm frontal key light",
+      },
+    ],
+    camera: {
+      shot_types: ["medium close-up", "product close-up"],
+      angles: ["eye-level"],
+      movements: ["static handheld"],
+      stabilization: "stable talking-head framing",
+    },
+    montage_rhythm: { cut_pace: "slow", beat_sync: "none", transition_style: ["hard cut"] },
+    action_beats: [],
+    prop_sources: [],
+    hand_object_interactions: [],
+    motion_continuity: [],
+    reference_action_style: "talking head",
+    reusable_mechanics: {
+      visual_mechanics: ["direct-to-camera explanation"],
+      safe_zones_for_elements: "lower center",
+      looping_pattern: "return to same seated pose",
+    },
+  };
+}
+
 function normalizedCount(haystack, needle) {
   const normalizedHaystack = normalize(haystack);
   const normalizedNeedle = normalize(needle);
@@ -182,6 +263,13 @@ function normalizedCount(haystack, needle) {
 
 function normalize(value) {
   return String(value).toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+}
+
+function mirrorAlias(relativePath) {
+  const source = join(compiled, relativePath);
+  const target = join(output, "node_modules", "@", relativePath);
+  mkdirSync(target, { recursive: true });
+  cpSync(source, target, { recursive: true });
 }
 
 function findFile(dir, fileName) {
