@@ -98,6 +98,8 @@ try {
   const omniBlock = renderProductPhysicalContractForOmni(contract);
   assert.ok(omniBlock.includes("PRODUCT PHYSICAL CONTRACT:"));
   assert.ok(omniBlock.includes("mandatory whenever the product appears"));
+  assert.ok(omniBlock.includes("Stable product state:"));
+  assert.ok(omniBlock.includes("same physical form and reference design"));
 
   const storyboardHint = renderProductPhysicalHintForStoryboard(omniBlock);
   assert.ok(storyboardHint.startsWith("физическое состояние продукта:"));
