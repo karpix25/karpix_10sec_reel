@@ -2,6 +2,7 @@ import type { WordTimestamp } from "@/types";
 import type { AudioMood } from "@/lib/audio-library/moods";
 import type { AudioTrack } from "@/lib/audio-library/types";
 import type { OmniWardrobeSource } from "./wardrobe-source";
+import type { OmniAvatarSpeechGender } from "./avatar-speech-gender";
 import type { OmniSubtitleSettings, OmniSubtitleStatus } from "./subtitle-settings";
 import type { OmniStoryboardSegment, OmniStoryboardValidationResult } from "./storyboard/omni-storyboard-types";
 
@@ -193,6 +194,7 @@ export interface OmniClientAvatar {
   id: number;
   project_id: number;
   display_name: string | null;
+  speech_gender: OmniAvatarSpeechGender | null;
   prompt: string;
   reference_url: string | null;
   status: "draft" | "queued" | "generating" | "completed" | "approved" | "failed";

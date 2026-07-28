@@ -43,6 +43,9 @@ try {
 
   copyAlias("creative-contract.js", join(output, "node_modules", "@", "lib", "omni", "creative-contract.js"));
   copyAlias("openrouter-cost.js", join(output, "node_modules", "@", "lib", "omni", "openrouter-cost.js"));
+  for (const fileName of ["omni-storyboard-timing.js", "omni-storyboard-types.js", "omni-storyboard-contract.js"]) {
+    copyAlias(fileName, join(output, "node_modules", "@", "lib", "omni", "storyboard", fileName));
+  }
 
   const {
     normalizeProductVisualProfile,
@@ -245,6 +248,7 @@ function buildPromptInput(productVisualProfile) {
       id: 1,
       project_id: 1,
       display_name: "Anna",
+      speech_gender: "female",
       prompt: "Friendly woman, realistic home UGC style.",
       reference_url: "https://example.com/avatar.png",
       status: "approved",

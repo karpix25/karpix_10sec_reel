@@ -6,6 +6,7 @@ const RETRYABLE_MODEL_ERROR_FRAGMENTS = [
   "Failed to parse script JSON",
   "Script model returned empty script",
   "Omni script contains a long dash or emoji",
+  "Russian speech gender mismatch",
 ];
 
 export function isRetryableScriptGenerationError(error: unknown) {
@@ -53,6 +54,15 @@ export function buildScriptRetryFeedback(error: unknown) {
       "Запрещены символы: -, —, –, ‒, ―, −. Если нужен разделитель, используй запятую или точку.",
       "Все числа в текстовых полях пиши словами, не цифрами.",
       "Перед отправкой проверь каждый символ в JSON: запрещены любые pictographic emoji, unicode dash symbols и обычный дефис.",
+    ].join(" ");
+  }
+
+  if (message.includes("Russian speech gender mismatch")) {
+    return [
+      `Предыдущий ответ отклонен: ${message.slice(0, 220)}.`,
+      "Перепиши тот же сценарий, сохрани смысл, длину, CTA и порядок аргументов.",
+      "Исправь только грамматический род говорящего от первого лица.",
+      "Не добавляй emoji, дефисы, тире, минусы или цифры.",
     ].join(" ");
   }
 

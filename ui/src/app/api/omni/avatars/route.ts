@@ -6,8 +6,10 @@ import {
   listOmniClientAvatars,
   updateOmniClientAvatarActive,
   updateOmniClientAvatarName,
+  updateOmniClientAvatarSpeechGender,
   updateOmniClientAvatarStatus,
 } from "@/lib/server/omni/avatars";
+import { normalizeAvatarSpeechGender } from "@/lib/omni/avatar-speech-gender";
 import { jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
 
 export async function GET(request: Request) {
@@ -37,6 +39,8 @@ export async function POST(request: Request) {
 
     const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
     if (!prompt) return jsonError("Avatar prompt is required");
+    const speechGender = normalizeAvatarSpeechGender(body.speechGender ?? body.speech_gender);
+    if (!speechGender) return jsonError("Avatar speech gender must be male or female");
     const displayName = typeof body.displayName === "string" ? body.displayName.trim() : "";
 
     const manualReferenceUrl = typeof body.referenceUrl === "string" ? body.referenceUrl.trim() : "";
@@ -48,6 +52,7 @@ export async function POST(request: Request) {
       projectId,
       displayName,
       prompt,
+      speechGender,
       referenceUrl: manualReferenceUrl || generatedReference?.referenceUrl || null,
       status: "draft",
       provider: manualReferenceUrl ? "manual_reference" : "gpt-image-2",
@@ -79,6 +84,14 @@ export async function PATCH(request: Request) {
     if (typeof body.displayName === "string") {
       return NextResponse.json(
         await updateOmniClientAvatarName({ projectId, avatarId, displayName: body.displayName })
+      );
+    }
+
+    if (body.speechGender !== undefined || body.speech_gender !== undefined) {
+      const speechGender = normalizeAvatarSpeechGender(body.speechGender ?? body.speech_gender);
+      if (!speechGender) return jsonError("Avatar speech gender must be male or female");
+      return NextResponse.json(
+        await updateOmniClientAvatarSpeechGender({ projectId, avatarId, speechGender })
       );
     }
 

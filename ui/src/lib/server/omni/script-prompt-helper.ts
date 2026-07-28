@@ -1,10 +1,12 @@
 import type { CtaMode } from "@/lib/omni/creative-contract";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
+import type { OmniAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type { DirectorBrief } from "./director-analysis-types";
 import { renderDirectorBriefForScriptPrompt } from "./director-analysis-prompt";
 import type { OmniDurationRange } from "./omni-duration-range";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
+import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
 
 export function buildPrompt(input: {
   projectName: string;
@@ -19,6 +21,7 @@ export function buildPrompt(input: {
   directorBrief?: DirectorBrief | null;
   wardrobeSource?: OmniWardrobeSource;
   durationRange?: OmniDurationRange;
+  avatarSpeechGender: OmniAvatarSpeechGender;
   retryFeedback?: string | null;
 }) {
   const durationInstruction = buildDurationInstruction(input.durationRange);
@@ -46,18 +49,19 @@ export function buildPrompt(input: {
 9. Не добавляй emoji ни в одно поле JSON.
 10. Все числа в текстовых значениях JSON пиши словами, не цифрами. Пример: "тридцать секунд", а не "30 сек".
 11. Пиши бытовым русским языком. Одна мысль в одной строке.
-12. ${durationInstruction}
-13. Планируй речь по фактической скорости KIE Gemini Omni около 2.45 полезных слов в секунду: 4с до 9 слов, 6с до 14 слов, 8с до 19 слов, 10с до 24 слов.
-14. Не пиши псевдовопросы без ответа и фальшивую эмпатию вроде "я знаю, как тебе сложно".
-15. Сначала придумай 3 разных кульминационных hook_options, затем выбери strongest selected_hook.
-16. Разбей сценарий на 2-4 beats. В каждом beat должны быть:
+12. ${renderRussianSpeechGenderRule(input.avatarSpeechGender)}
+13. ${durationInstruction}
+14. Планируй речь по фактической скорости KIE Gemini Omni около 2.45 полезных слов в секунду: 4с до 9 слов, 6с до 14 слов, 8с до 19 слов, 10с до 24 слов.
+15. Не пиши псевдовопросы без ответа и фальшивую эмпатию вроде "я знаю, как тебе сложно".
+16. Сначала придумай 3 разных кульминационных hook_options, затем выбери strongest selected_hook.
+17. Разбей сценарий на 2-4 beats. В каждом beat должны быть:
     visual_cue: конкретный кадр для режиссера, включая адаптированную одежду, фон, свет, камеру, локацию и действие.
     voiceover: точная произносимая реплика этого бита.
-17. ${visualCueInstruction}
-18. Если оригинальный продукт или процесс из reference-видео не совпадает с новым продуктом, замени его на новый продукт. Не копируй чужие B-roll процессы, еду, инструменты, рабочие сцены или случайные предметы.
-19. Поле script должно совпадать с beats.voiceover, склеенными по порядку.
-20. Перед финальным JSON проверь все текстовые значения: нет emoji, нет дефисов, нет тире, нет минусов, нет цифр.
-21. Поле background_audio_mood выбери строго из списка: energetic, calm, dramatic, inspiring, playful, serious.
+18. ${visualCueInstruction}
+19. Если оригинальный продукт или процесс из reference-видео не совпадает с новым продуктом, замени его на новый продукт. Не копируй чужие B-roll процессы, еду, инструменты, рабочие сцены или случайные предметы.
+20. Поле script должно совпадать с beats.voiceover, склеенными по порядку.
+21. Перед финальным JSON проверь все текстовые значения: нет emoji, нет дефисов, нет тире, нет минусов, нет цифр.
+22. Поле background_audio_mood выбери строго из списка: energetic, calm, dramatic, inspiring, playful, serious.
 
 Бренд: ${input.projectName}
 Целевая аудитория: ${input.targetAudience || "не указана"}

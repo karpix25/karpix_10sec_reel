@@ -18,6 +18,7 @@ import { resolveProductReferenceImageUrls } from "./omni-product-reference-image
 import { detectKieOmniVoiceGender } from "./kie-omni-audio";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
+import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -119,6 +120,7 @@ export async function createOmniReel(input: {
   const targetDuration = segmentPlan.durationSeconds;
   const segmentCount = segmentPlan.segmentCount;
   const latestAvatar = await getLatestOmniClientAvatar(input.projectId);
+  const avatarSpeechGender = requireAvatarSpeechGender(latestAvatar?.speech_gender);
   const sourceSnapshot = resolvedGeneratedScript
     ? {
         source_kind: "generated_script",
@@ -175,6 +177,7 @@ export async function createOmniReel(input: {
         reference_url: latestAvatar.reference_url,
         status: latestAvatar.status,
         provider: latestAvatar.provider,
+        speech_gender: avatarSpeechGender,
         kie_character_id: latestAvatar.kie_character_id,
         kie_character_status: latestAvatar.kie_character_status,
         voice_gender: detectKieOmniVoiceGender(latestAvatar),

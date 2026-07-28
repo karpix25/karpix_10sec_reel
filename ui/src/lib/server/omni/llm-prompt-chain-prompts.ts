@@ -1,5 +1,6 @@
 import type { CtaMode } from "@/lib/omni/creative-contract";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
+import type { OmniAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type { DirectorBrief } from "./director-analysis-types";
 import { renderDirectorBriefForScriptPrompt, renderDirectorBriefForOmniPrompt } from "./director-analysis-prompt";
@@ -7,6 +8,7 @@ import type { OmniDurationRange } from "./omni-duration-range";
 import type { CreativeScriptDraft, DirectorSegmentPlan } from "./llm-prompt-chain-types";
 import { formatPromptChainRange } from "./llm-prompt-chain-number-words";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
+import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
 
 export type PromptChainInput = {
   projectName: string;
@@ -21,6 +23,7 @@ export type PromptChainInput = {
   directorBrief?: DirectorBrief | null;
   wardrobeSource?: OmniWardrobeSource;
   durationRange?: OmniDurationRange;
+  avatarSpeechGender: OmniAvatarSpeechGender;
 };
 
 export function buildCreativeCopywriterPrompt(input: PromptChainInput) {
@@ -38,6 +41,7 @@ export function buildCreativeCopywriterPrompt(input: PromptChainInput) {
 Не копируй исходный ролик дословно, но используй его как смысловую основу.
 Сохрани главный тезис, вопрос или возражение, механизм, доказательство или пример, порядок аргументов и тип финала.
 Не выдумывай ссылки, артикулы, скидки или факты, которых нет во входных данных.
+${renderRussianSpeechGenderRule(input.avatarSpeechGender)}
 ${buildDurationLine(input.durationRange)}
 CTA: ${buildCtaLine(input.ctaMode, input.ctaValue)}
 
@@ -84,6 +88,7 @@ SFX это только естественные звуки кадра. Музы
 Одежда, свет, окружение и типаж героя должны быть едиными во всех frames одного ролика.
 Добавляй динамику UGC: необычный первый ракурс, жесты, быстрые перебивки, смену крупности и микродействия без прямой рекламной подачи.
 Не разрывай мысль на стыке сегментов. Voiceover сегмента должен заканчиваться законченной фразой.
+${renderRussianSpeechGenderRule(input.chainInput.avatarSpeechGender)}
 Запрещено заканчивать segment словами вроде вы сможете, сможете, можно, помогает, позволяет, для, и.
 В одном segment продукт должен иметь один физический статус: или на столе, или в руках, или вне кадра.
 Если cutaway frame говорит без рук, весь segment не должен включать взятие продукта в руки.
@@ -157,6 +162,7 @@ export function buildProviderPromptWriterPrompt(input: {
 
 Общие правила:
 Русская речь в voiceover должна совпадать с director plan дословно.
+${renderRussianSpeechGenderRule(input.chainInput.avatarSpeechGender)}
 Каждый provider segment обязан нести storyboard_frames по правилу duration_seconds делить на два.
 Склейка spoken_words всех storyboard_frames должна дословно совпадать с voiceover.
 Каждый frame должен сохранить четыре или пять слов финальной русской речи, детальный визуал, camera, action, product_state, sfx и reference_role.

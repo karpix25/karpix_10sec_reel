@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bot, ImagePlus, Link, Sparkles, UploadCloud } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AvatarPreviewPanel } from "@/components/screens/AvatarPreviewPanel";
+import { AvatarSpeechGenderControl } from "@/components/screens/AvatarSpeechGenderControl";
 import { AvatarWardrobeSourceControl } from "@/components/screens/AvatarWardrobeSourceControl";
 import {
   useApproveOmniAvatar,
@@ -14,6 +15,7 @@ import {
   useOmniProjects,
   useRenameOmniAvatar,
   useSetOmniAvatarActive,
+  useUpdateOmniAvatarSpeechGender,
   useUpdateOmniProjectProfile,
   useUploadOmniAvatarReference,
 } from "@/hooks/useOmniStudio";
@@ -24,6 +26,7 @@ import {
   getLatestAvatar,
 } from "@/lib/omni/workspace";
 import type { OmniClientAvatar, OmniProject } from "@/lib/omni/types";
+import type { OmniAvatarSpeechGender } from "@/lib/omni/avatar-speech-gender";
 import type { OmniWardrobeSource } from "@/lib/omni/wardrobe-source";
 import type { Client } from "@/types";
 
@@ -35,6 +38,7 @@ type AvatarScreenProps = {
 
 export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProject }: AvatarScreenProps) {
   const [displayName, setDisplayName] = useState("");
+  const [speechGender, setSpeechGender] = useState<OmniAvatarSpeechGender>("female");
   const [prompt, setPrompt] = useState("");
   const [referenceUrl, setReferenceUrl] = useState("");
 
@@ -44,6 +48,7 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
   const approveAvatarMutation = useApproveOmniAvatar();
   const deleteAvatarMutation = useDeleteOmniAvatar();
   const renameAvatarMutation = useRenameOmniAvatar();
+  const updateAvatarSpeechGenderMutation = useUpdateOmniAvatarSpeechGender();
   const setAvatarActiveMutation = useSetOmniAvatarActive();
   const updateProjectMutation = useUpdateOmniProjectProfile();
   const uploadAvatarReferenceMutation = useUploadOmniAvatarReference();
@@ -66,6 +71,7 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
     approveAvatarMutation.isPending ||
     deleteAvatarMutation.isPending ||
     renameAvatarMutation.isPending ||
+    updateAvatarSpeechGenderMutation.isPending ||
     setAvatarActiveMutation.isPending;
 
   useEffect(() => {
@@ -102,6 +108,7 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
       {
         projectId: activeProjectId,
         displayName: displayName.trim() || undefined,
+        speechGender,
         prompt: prompt.trim(),
         referenceUrl: referenceUrl.trim() || undefined,
       },
@@ -116,12 +123,15 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
 
   const handleRetryAvatar = (avatar?: OmniClientAvatar) => {
     const retryPrompt = avatar?.prompt || latestAvatar?.prompt || defaultPrompt || prompt;
+    const retrySpeechGender = avatar?.speech_gender || latestAvatar?.speech_gender || speechGender;
     if (!retryPrompt.trim()) return;
     setPrompt(retryPrompt);
+    setSpeechGender(retrySpeechGender);
     if (!activeProjectId) return;
     createAvatarMutation.mutate({
       projectId: activeProjectId,
       displayName: avatar?.display_name ? `${avatar.display_name} copy` : undefined,
+      speechGender: retrySpeechGender,
       prompt: retryPrompt.trim(),
     });
   };
@@ -132,6 +142,15 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
       projectId: activeProjectId,
       avatarId: avatar.id,
       displayName: nextName,
+    });
+  };
+
+  const handleUpdateAvatarSpeechGender = (avatar: OmniClientAvatar, nextGender: OmniAvatarSpeechGender) => {
+    if (!activeProjectId || avatar.speech_gender === nextGender) return;
+    updateAvatarSpeechGenderMutation.mutate({
+      projectId: activeProjectId,
+      avatarId: avatar.id,
+      speechGender: nextGender,
     });
   };
 
@@ -243,6 +262,12 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
             placeholder={defaultPrompt || "Например: уверенная женщина-эксперт 35 лет, натуральный свет, чистый фон, живое выражение лица, выглядит как ведущая коротких экспертных reels..."}
           />
 
+          <AvatarSpeechGenderControl
+            value={speechGender}
+            onChange={setSpeechGender}
+            disabled={isBusy}
+          />
+
           <AvatarWardrobeSourceControl
             project={activeProject}
             isSaving={updateProjectMutation.isPending}
@@ -297,6 +322,7 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
           onRetry={handleRetryAvatar}
           onDelete={handleDeleteAvatar}
           onRename={handleRenameAvatar}
+          onUpdateSpeechGender={handleUpdateAvatarSpeechGender}
           onToggleActive={handleToggleAvatarActive}
         />
       </div>

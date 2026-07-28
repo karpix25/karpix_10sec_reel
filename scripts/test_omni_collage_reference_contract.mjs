@@ -125,6 +125,7 @@ function buildReel50LikeInput() {
       id: 6,
       project_id: 6,
       display_name: "Героиня",
+      speech_gender: "female",
       prompt: "европейская Девушка 30 лет в домашней обстановке",
       reference_url: "https://example.com/avatar.jpg",
       status: "approved",

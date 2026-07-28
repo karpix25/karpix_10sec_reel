@@ -37,6 +37,7 @@ import {
   validateStoryboardProviderAlignment,
   validateStoryboardProviderPlan,
 } from "./llm-prompt-chain-storyboard-validator";
+import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const PROMPT_CHAIN_ATTEMPTS_PER_LAYER = 2;
@@ -58,6 +59,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   const providerPlan = await runProviderPromptWriter(input, directorPlan, onUsage);
   const script = sanitizeOmniScriptText(formatScenarioScript(directorPlan.totalVoiceover));
   assertOmniScriptTextContract(script);
+  assertRussianSpeechGender(script, input.avatarSpeechGender);
 
   return {
     result: {
@@ -108,6 +110,7 @@ async function runCreativeCopywriter(
       if (!draft) throw new Error("Creative copywriter returned empty script");
       const script = sanitizeOmniScriptText(formatScenarioScript(draft.script));
       assertPromptChainScriptQuality(input, script, null);
+      assertRussianSpeechGender(script, input.avatarSpeechGender);
       return {
         ...draft,
         script,
@@ -142,6 +145,7 @@ async function runDirectorSegmenter(
       const finalScript = sanitizeOmniScriptText(formatScenarioScript(plan.totalVoiceover));
       const ensuredCta = ensureOmniScriptCta(finalScript, input.ctaMode, input.ctaValue);
       if (ensuredCta !== finalScript) throw new Error("Director plan is missing the required CTA");
+      assertRussianSpeechGender(finalScript, input.avatarSpeechGender);
       const issues = [
         ...validateDirectorSegmentPlan(plan),
         ...validateStoryboardDirectorPlan(plan),
@@ -176,6 +180,10 @@ async function runProviderPromptWriter(
       });
       const plan = normalizeProviderPromptPlan(parseAndRepairJson(content));
       if (!plan) throw new Error("Provider prompt writer returned invalid JSON plan");
+      assertRussianSpeechGender(
+        plan.segmentPrompts.map((segment) => segment.voiceover).join(" "),
+        input.avatarSpeechGender
+      );
       const issues = [
         ...validateProviderPromptPlan(plan),
         ...validateStoryboardProviderPlan(plan),
@@ -268,6 +276,7 @@ function buildValidationRetry(layer: string, error: unknown) {
   return [
     `Перепиши ${layer}.`,
     `Исправь только найденные нарушения: ${getErrorMessage(error)}`,
+    "Если ошибка касается грамматического рода, исправь только род говорящего от первого лица и сохрани смысл.",
     "Не используй emoji, дефисы, тире, минусы и цифры в текстовых значениях.",
     "Сохрани живую речь и цельный режиссерский замысел.",
   ].join(" ");

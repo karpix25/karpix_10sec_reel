@@ -48,6 +48,7 @@ const statements = [
     id SERIAL PRIMARY KEY,
     project_id INTEGER NOT NULL REFERENCES omni_projects(id) ON DELETE CASCADE,
     display_name TEXT,
+    speech_gender TEXT CHECK (speech_gender IN ('female', 'male')),
     prompt TEXT NOT NULL,
     reference_url TEXT,
     status TEXT NOT NULL DEFAULT 'draft',
@@ -270,6 +271,20 @@ const statements = [
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS subtitles_settings JSONB",
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS subtitles_transcript JSONB",
   "ALTER TABLE omni_client_avatars ADD COLUMN IF NOT EXISTS display_name TEXT",
+  "ALTER TABLE omni_client_avatars ADD COLUMN IF NOT EXISTS speech_gender TEXT",
+  "UPDATE omni_client_avatars SET speech_gender = NULL WHERE speech_gender IS NOT NULL AND speech_gender NOT IN ('female', 'male')",
+  `DO $$
+   BEGIN
+     IF NOT EXISTS (
+       SELECT 1
+       FROM pg_constraint
+       WHERE conname = 'omni_client_avatars_speech_gender_check'
+     ) THEN
+       ALTER TABLE omni_client_avatars
+       ADD CONSTRAINT omni_client_avatars_speech_gender_check
+       CHECK (speech_gender IN ('female', 'male'));
+     END IF;
+   END $$`,
   "ALTER TABLE omni_client_avatars ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE",
   "ALTER TABLE omni_client_avatars ADD COLUMN IF NOT EXISTS kie_character_id TEXT",
   "ALTER TABLE omni_client_avatars ADD COLUMN IF NOT EXISTS kie_character_status TEXT",

@@ -1,6 +1,7 @@
 import type { CtaMode, OmniScriptBeatCue } from "@/lib/omni/creative-contract";
 import { detectAudioMoodFromText, normalizeAudioMood, type AudioMood } from "@/lib/audio-library/moods";
 import { normalizeOpenRouterUsage, type OpenRouterUsageRecord } from "@/lib/omni/openrouter-cost";
+import type { OmniAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import type { OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { formatScenarioScript } from "@/lib/scenario-text";
@@ -29,6 +30,7 @@ import {
   MAX_SCRIPT_GENERATION_ATTEMPTS,
 } from "./script-generation-retry";
 import { isLlmPromptChainEnabled, runLlmPromptChain } from "./llm-prompt-chain-runner";
+import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -59,6 +61,7 @@ export async function generateScript(input: {
   directorBrief?: DirectorBrief | null;
   wardrobeSource?: OmniWardrobeSource;
   durationRange?: OmniDurationRange;
+  avatarSpeechGender: OmniAvatarSpeechGender;
 }): Promise<{
   payload: GeneratedScriptResultPayload;
   qualityCheck: ScriptQualityResult;
@@ -197,6 +200,7 @@ async function requestScriptOnce(
     script = sanitizeOmniScriptText(boundaryRepair.scriptText);
   }
   assertOmniScriptTextContract(script);
+  assertRussianSpeechGender(script, input.avatarSpeechGender);
 
   const clean = (value: unknown) => sanitizeOmniScriptText(String(value || ""));
 

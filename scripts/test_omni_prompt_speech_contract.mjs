@@ -228,6 +228,7 @@ function buildInput() {
       id: 3,
       project_id: 7,
       display_name: "Елисей",
+      speech_gender: "male",
       prompt: "Мужчина в домашнем кухонном образе.",
       reference_url: "https://example.com/avatar.png",
       status: "approved",
