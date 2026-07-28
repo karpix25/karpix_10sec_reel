@@ -163,6 +163,9 @@ export async function createOmniReel(input: {
     product_visual_profile_status: product.product_visual_profile_status,
     product_visual_profile_model: product.product_visual_profile_model,
     product_visual_profile_updated_at: product.product_visual_profile_updated_at,
+    product_physical_contract: product.product_physical_contract,
+    product_physical_contract_status: product.product_physical_contract_status,
+    product_physical_contract_updated_at: product.product_physical_contract_updated_at,
     target_duration_seconds: product.target_duration_seconds,
     duration_range: durationRange,
     cta_mode: product.cta_mode,
@@ -221,6 +224,7 @@ export async function createOmniReel(input: {
     projectId: input.projectId,
     reelId: reservedReelId,
     productName: product.name,
+    productPhysicalContract: product.product_physical_contract,
     productReferenceUrls: resolveProductReferenceImageUrls(product),
     directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
     avatarReferenceUrl: latestAvatar?.reference_url || null,
@@ -331,6 +335,7 @@ async function generateStoryboardReferenceUrls(input: {
   projectId: number;
   reelId: number;
   productName: string;
+  productPhysicalContract?: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   avatarReferenceUrl: string | null;
@@ -347,6 +352,7 @@ async function generateStoryboardReferenceUrls(input: {
         segmentIndex: index + 1,
         storyboard: segmentPrompt.storyboardPlan,
         productName: input.productName,
+        productPhysicalContract: input.productPhysicalContract,
         productReferenceUrls: input.productReferenceUrls,
         directorReferenceImageUrls: Array.from(input.directorReferenceImageUrlsBySegment?.get(segmentPrompt.index) || []),
         avatarReferenceUrl: input.avatarReferenceUrl,

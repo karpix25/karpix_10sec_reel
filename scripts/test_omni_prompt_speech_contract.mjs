@@ -93,6 +93,34 @@ try {
     assert.ok(imagePrompt.includes("Одежда, стиль, свет и окружение должны оставаться одинаковыми"), "storyboard image prompt must lock outfit continuity");
     assert.ok(imagePrompt.includes("Раскадровка должна быть динамичной"), "storyboard image prompt must request dynamic UGC shots");
   }
+
+  const physicalContract = "The product remains a stable black countertop air fryer with the same hard shell, basket shape, matte finish, and compact appliance proportions throughout the scene. It moves only as one intact appliance when handled and stays visually identical to the reference.";
+  const physicalInput = buildInput();
+  physicalInput.product.product_physical_contract = physicalContract;
+  physicalInput.product.product_physical_contract_status = "edited";
+  const physicalPrompts = buildOmniSegmentPrompts(physicalInput);
+  assert.ok(
+    physicalPrompts.some((item) => item.prompt.includes("PRODUCT PHYSICAL CONTRACT:")),
+    "Omni provider prompts must include the physical contract when the product appears"
+  );
+  assert.ok(
+    physicalPrompts.some((item) => item.prompt.includes("stable black countertop air fryer")),
+    "Omni provider prompts must carry the positive physical target state"
+  );
+
+  const physicalStoryboard = physicalPrompts.find((item) => item.storyboardPlan)?.storyboardPlan;
+  assert.ok(physicalStoryboard, "physical contract test needs a storyboard plan");
+  const imagePromptWithPhysicalHint = buildStoryboardImagePrompt({
+    segmentIndex: 1,
+    storyboard: physicalStoryboard,
+    productName: "Аэрогриль",
+    productPhysicalContract: physicalContract,
+    avatarReferenceUrl: "https://example.com/avatar.png",
+    productReferenceUrls: ["https://example.com/air-fryer.png"],
+  });
+  assert.ok(!imagePromptWithPhysicalHint.includes("PRODUCT PHYSICAL CONTRACT:"), "GPT Image prompt must not receive provider contract heading");
+  assert.ok(imagePromptWithPhysicalHint.includes("физическое состояние продукта"), "GPT Image prompt should receive only a compact visual physical hint");
+
   assert.equal(normalizedCount(prompts[0].prompt, prompts[1].voiceoverText), 0);
   assert.equal(normalizedCount(prompts[1].prompt, prompts[0].voiceoverText), 0);
   assert.equal(normalizedCount(prompts[1].prompt, prompts[2].voiceoverText), 0);

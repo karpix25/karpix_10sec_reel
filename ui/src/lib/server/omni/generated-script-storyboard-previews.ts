@@ -15,6 +15,7 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
   productId: number;
   scriptId: number;
   productName: string;
+  productPhysicalContract?: string | null;
   avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls?: readonly string[];
@@ -85,6 +86,7 @@ async function tryGenerateStoryboardPreview(input: {
   productId: number;
   scriptId: number;
   productName: string;
+  productPhysicalContract?: string | null;
   avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls?: readonly string[];
@@ -101,6 +103,7 @@ async function tryGenerateStoryboardPreview(input: {
       segmentIndex: input.segmentIndex,
       storyboard: input.storyboardPlan,
       productName: input.productName,
+      productPhysicalContract: input.productPhysicalContract,
       avatarReferenceUrl: input.avatarReferenceUrl,
       productReferenceUrls: input.productReferenceUrls,
       directorReferenceImageUrls: getSegmentDirectorReferenceUrls(input, input.segmentIndex),
@@ -163,6 +166,7 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
 
 function buildReferenceSignature(input: {
   avatarReferenceUrl: string | null;
+  productPhysicalContract?: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
@@ -176,6 +180,7 @@ function buildReferenceSignature(input: {
   return [
     STORYBOARD_PREVIEW_GENERATOR_VERSION,
     normalizeUrl(input.avatarReferenceUrl) || "",
+    normalizeContract(input.productPhysicalContract),
     ...input.productReferenceUrls.map((url) => normalizeUrl(url) || "").filter(Boolean).sort(),
     ...Array.from(input.directorReferenceImageUrls || []).map((url) => normalizeUrl(url) || "").filter(Boolean).sort(),
     ...segmentReferenceUrls,
@@ -201,4 +206,8 @@ function rowsToUrlMap(rows: readonly { segment_index: number; storyboard_referen
 
 function normalizeUrl(value: string | null) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeContract(value: string | null | undefined) {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }

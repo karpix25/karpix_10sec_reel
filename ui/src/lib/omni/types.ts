@@ -43,6 +43,10 @@ export interface OmniProduct {
   product_visual_profile_model: string | null;
   product_visual_profile_error: string | null;
   product_visual_profile_updated_at: string | null;
+  product_physical_contract: string | null;
+  product_physical_contract_status: ProductPhysicalContractStatus;
+  product_physical_contract_error: string | null;
+  product_physical_contract_updated_at: string | null;
   avatar_reference_notes: string | null;
   target_duration_seconds: number;
   cta_mode: CtaMode;
@@ -54,6 +58,7 @@ export interface OmniProduct {
 }
 
 export type ProductVisualProfileStatus = "missing" | "processing" | "completed" | "failed";
+export type ProductPhysicalContractStatus = "missing" | "generated" | "edited" | "failed";
 
 export type ProductVisualProfile = {
   physical_form: string;

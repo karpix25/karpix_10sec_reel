@@ -1,9 +1,11 @@
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
+import { renderProductPhysicalStoryboardHint } from "./product-physical-contract";
 
 export function buildStoryboardImagePrompt(input: {
   segmentIndex: number;
   storyboard: OmniStoryboardSegment;
   productName: string;
+  productPhysicalContract?: string | null;
   avatarReferenceUrl: string | null;
   productReferenceUrls?: readonly string[];
   directorReferenceImageUrls?: readonly string[];
@@ -20,6 +22,7 @@ export function buildStoryboardImagePrompt(input: {
     ? `${directorRangeStart}-${directorRangeEnd}`
     : String(directorRangeStart);
   const previousReferenceIndex = productReferenceUrls.length + directorReferenceImageUrls.length + 2;
+  const productPhysicalHint = renderProductPhysicalStoryboardHint(input.productPhysicalContract);
   const frameCount = input.storyboard.frames.length;
   const frameNumbers = input.storyboard.frames.map((_, index) => String(index + 1)).join(", ");
   return [
@@ -49,6 +52,7 @@ export function buildStoryboardImagePrompt(input: {
     "Раскадровка должна быть динамичной: меняй крупность, угол камеры, жесты, положение рук, перебивки и микродействия, но сохраняй одного героя и один outfit.",
     "Первые два кадра должны быть особенно цепляющими: необычный selfie-ракурс, движение камеры, действие рукой, продуктовый POV, быстрый наклон или резкая смена крупности без прямой рекламной подачи.",
     "Если описание кадра говорит, что продукт виден, прорисуй именно продукт из входных изображений продукта, четко и детально.",
+    productPhysicalHint || "",
     "Не добавляй воду, стаканы, бутылки, шейкеры, напитки или растворение продукта, если это прямо не написано в кадре.",
     "Текст на картинке разрешен только как номер кадра, точная реплика кадра и нижние служебные подсказки. Не добавляй другие captions или рекламные надписи.",
     `Avatar reference URL: ${avatarReferenceUrl}.`,

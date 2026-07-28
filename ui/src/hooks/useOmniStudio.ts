@@ -87,6 +87,14 @@ export type AnalyzeOmniProductReferencePayload = {
   productId: number;
 };
 
+export type UpdateOmniProductPhysicalContractPayload = {
+  projectId: number;
+  productId: number;
+  mode: "generate" | "save";
+  contract?: string;
+  userInstruction?: string;
+};
+
 export function useOmniProjects() {
   return useQuery<OmniProject[]>({
     queryKey: ["omni-projects"],
@@ -230,6 +238,31 @@ export function useAnalyzeOmniProductReference() {
   });
 }
 
+export function useUpdateOmniProductPhysicalContract() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: UpdateOmniProductPhysicalContractPayload) =>
+      postOmniApi<OmniProduct>(`${API_BASE}/products/${payload.productId}/physical-contract`, {
+        projectId: payload.projectId,
+        mode: payload.mode,
+        contract: payload.contract,
+        userInstruction: payload.userInstruction,
+      }),
+    onSuccess: (updatedProduct, variables) => {
+      queryClient.setQueryData<OmniProduct[]>(["omni-products", variables.projectId], (products) =>
+        products?.map((product) => (product.id === updatedProduct.id ? updatedProduct : product)) || products
+      );
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });
+      queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId, variables.productId] });
+    },
+    onSettled: (_data, _error, variables) => {
+      if (!variables) return;
+      queryClient.invalidateQueries({ queryKey: ["omni-products", variables.projectId] });
+    },
+  });
+}
+
 export function useUploadOmniProductImages() {
   return useMutation({
     mutationFn: async (payload: UploadOmniProductImagesPayload) => {
@@ -329,6 +362,7 @@ export function useOmniStudio(
   const createProductMutation = useCreateOmniProduct();
 
   const analyzeProductReferenceMutation = useAnalyzeOmniProductReference();
+  const updateProductPhysicalContractMutation = useUpdateOmniProductPhysicalContract();
 
   const createAvatarMutation = useCreateOmniAvatar();
 
@@ -401,6 +435,7 @@ export function useOmniStudio(
     updateProjectMutation,
     createProductMutation,
     analyzeProductReferenceMutation,
+    updateProductPhysicalContractMutation,
     createAvatarMutation,
     linkLibraryMutation,
     unlinkLibraryMutation,
