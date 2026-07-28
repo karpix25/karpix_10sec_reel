@@ -66,6 +66,9 @@ try {
   assert.ok(prompt.includes("телефон, экран, интерфейс, соцсети"));
   assert.ok(prompt.includes("Оживи кадры раскадровки"));
   assert.ok(prompt.includes("точно такой же визуал как в раскадровке"));
+  assert.ok(prompt.includes("Лицо и личность персонажа бери из avatar/character reference"));
+  assert.ok(prompt.includes("одежду, свет, фон, ракурс и действия бери из раскадровки"));
+  assert.ok(prompt.includes("Состояние продукта держи одинаковым"));
   assert.ok(prompt.includes("Персонаж в кадре сам произносит эти слова"));
   assert.ok(prompt.includes("на русском языке"));
   assert.ok(prompt.includes("Не дублируй слова"));
@@ -78,7 +81,6 @@ try {
   assert.ok(!prompt.includes("субтитры примени как с референса"));
   assert.ok(!prompt.includes("действие: герой берет"));
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));
-  assert.ok(!/(одежд|лук|outfit|wardrobe|clothing|dressed)/iu.test(prompt), "storyboard provider prompt must not mention clothing");
   assert.ok(prompt.length < 1600, "storyboard provider prompt must stay short");
 
   const physicalContract = "The product remains a cohesive soft translucent jelly dessert with a glossy surface and gentle elastic wobble. It keeps the same reference shape as one intact semi-solid mass.";

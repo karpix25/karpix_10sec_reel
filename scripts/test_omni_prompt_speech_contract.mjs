@@ -67,13 +67,15 @@ try {
     assert.ok(item.prompt.includes("телефон, экран, интерфейс, соцсети"), "storyboard prompt must forbid embedded social UI");
     assert.ok(item.prompt.includes("Оживи кадры раскадровки"), "storyboard prompt must convert frames into live scenes");
     assert.ok(item.prompt.includes("точно такой же визуал как в раскадровке"), "storyboard prompt must ask to copy storyboard visual");
+    assert.ok(item.prompt.includes("Лицо и личность персонажа бери из avatar/character reference"), "storyboard prompt must limit avatar reference to identity");
+    assert.ok(item.prompt.includes("одежду, свет, фон, ракурс и действия бери из раскадровки"), "storyboard prompt must make storyboard wardrobe and scene authoritative");
+    assert.ok(item.prompt.includes("Состояние продукта держи одинаковым"), "storyboard prompt must keep product physical state stable");
     assert.ok(item.prompt.includes("Персонаж в кадре сам произносит эти слова"), "storyboard prompt must provide direct segment speech text");
     assert.ok(item.prompt.includes("на русском языке"), "storyboard prompt must force Russian character speech");
     assert.ok(item.prompt.includes("Не дублируй слова"), "storyboard prompt must forbid duplicated speech");
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
     assert.ok(item.prompt.includes("Не добавляй музыку"), "storyboard prompt must forbid Omni music");
     assert.ok(!item.prompt.includes("субтитры примени как с референса"), "storyboard prompt must not ask to copy subtitles");
-    assert.ok(!/(одежд|лук|outfit|wardrobe|clothing|dressed)/iu.test(item.prompt), "storyboard prompt must not mention clothing");
     assert.ok(item.prompt.length < 1600, "storyboard prompt must stay short");
     assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2, "storyboard frame count must follow duration");
     assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
