@@ -69,6 +69,8 @@ try {
   assert.ok(prompt.includes("Лицо и личность персонажа бери из avatar/character reference"));
   assert.ok(prompt.includes("одежду, свет, фон, ракурс и действия бери из раскадровки"));
   assert.ok(prompt.includes("те же волосы, пробор, аксессуары"));
+  assert.ok(prompt.includes("один и тот же комплект на весь ролик"));
+  assert.ok(prompt.includes("не заменяй слой футболкой"));
   assert.ok(prompt.includes("смотрит прямо в объектив"));
   assert.ok(prompt.includes("Состояние продукта держи одинаковым"));
   assert.ok(prompt.includes("Персонаж в кадре сам произносит эти слова"));
@@ -111,6 +113,8 @@ try {
   assert.ok(directorStoryboard.frames[0].environment.includes("warm amber studio wall"));
   assert.ok(directorStoryboard.frames[0].wardrobe.includes("black fitted turtleneck"));
   assert.ok(directorStoryboard.frames[0].camera.includes("medium close-up"));
+  assert.ok(directorStoryboard.frames[0].wardrobe.includes("ONE EXACT OUTFIT FOR THE WHOLE REEL"));
+  assert.ok(!directorStoryboard.frames[0].wardrobe.includes("keep the black fitted high-neck silhouette on the avatar"));
   assert.ok(
     directorStoryboard.frames.filter((frame) => !/перебивка/iu.test(frame.camera)).every((frame) => frame.camera.includes("смотрит прямо в объектив")),
     "talking-head storyboard camera lines must keep eye contact"
