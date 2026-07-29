@@ -57,10 +57,7 @@ try {
   assert.deepEqual(resolveKieOmniAudioIds({ prompt: "Мужчина в худи снимает UGC ролик" }), ["male_voice", "male_voice_2"]);
 
   clearEnv();
-  assert.throws(
-    () => resolveKieOmniAudioIds({ gender: "male" }),
-    /male avatar requires KIE_OMNI_MALE_AUDIO_ID/
-  );
+  assert.deepEqual(resolveKieOmniAudioIds({ gender: "male" }), []);
 
   clearEnv();
   assert.deepEqual(resolveKieOmniAudioIds({ gender: "female" }), ["4a786461922c4383a2010d9b8a4b4f33"]);

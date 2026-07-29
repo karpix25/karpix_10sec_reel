@@ -17,9 +17,7 @@ export function resolveKieOmniAudioIds(source?: unknown) {
   const genderAudioIds = resolveGenderAudioIds(gender);
   if (genderAudioIds) return genderAudioIds;
 
-  if (gender === "male") {
-    throw new Error("KIE.ai Omni male avatar requires KIE_OMNI_MALE_AUDIO_ID or KIE_OMNI_MALE_AUDIO_IDS");
-  }
+  if (gender === "male") return [];
 
   return [DEFAULT_FEMALE_KIE_OMNI_AUDIO_ID];
 }
