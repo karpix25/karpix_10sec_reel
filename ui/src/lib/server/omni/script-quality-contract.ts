@@ -61,6 +61,28 @@ const CHEAP_CLICKBAITS = [
   "досмотри до конца"
 ];
 
+const GENERIC_PRODUCT_WORDS = new Set([
+  "аэрогриль",
+  "бад",
+  "витамин",
+  "витамины",
+  "добавка",
+  "желе",
+  "капсулы",
+  "коллаген",
+  "крем",
+  "набор",
+  "порошок",
+  "продукт",
+  "сыворотка",
+]);
+
+const BROKEN_RUSSIAN_PATTERNS = [
+  /(?:^|[^\p{L}\p{N}])(?:такой\s+)?продукт\s+поддержать(?:$|[^\p{L}\p{N}])/iu,
+  /(?:^|[^\p{L}\p{N}])(?:он|она|оно|они|это)\s+(?:дать|помочь|поддержать|сделать|сохранить|укрепить|улучшить)(?:$|[^\p{L}\p{N}])/iu,
+  /(?:^|[^\p{L}\p{N}])в\s+идеале\s+выбор\s+зависит(?:$|[^\p{L}\p{N}])/iu,
+];
+
 function getSentences(text: string): string[] {
   return text
     .split(/(?<=[.!?])\s+/)
@@ -163,6 +185,19 @@ export function validateViralScriptContract(input: {
         `Сценарий отклонен: содержит запрещенное AI-слово/фразу "${slop}".`
       );
     }
+  }
+
+  const brokenPattern = BROKEN_RUSSIAN_PATTERNS.find((pattern) => pattern.test(normalizedScript));
+  if (brokenPattern) {
+    throw new Error("Сценарий отклонен: текст звучит неграмотно или канцелярски. Перепиши бытовым русским языком без фраз вроде «продукт поддержать».");
+  }
+  if (input.ctaMode === "article_in_description" && /(?:артикул\s+или\s+код|код\s+продукта)/iu.test(normalizedScript)) {
+    throw new Error("Сценарий отклонен: CTA звучит канцелярски. Для артикула в описании используй короткую фразу «Артикул в описании».");
+  }
+
+  const repeatedDescriptor = findRepeatedProductDescriptor(scriptText, input.productName);
+  if (repeatedDescriptor) {
+    throw new Error(`Сценарий отклонен: слово продукта «${repeatedDescriptor}» повторяется слишком часто. Назови его один раз, дальше используй «он», «формат», «банка» или просто продолжай мысль.`);
   }
 
   // 5. Minor slop and clickbaits (Warnings)
@@ -288,4 +323,24 @@ export function assertGeneratedScriptSymbolContract(value: string) {
   if (hasForbiddenOmniScriptSymbols(value)) {
     throw new Error(FORBIDDEN_SYMBOL_ERROR);
   }
+}
+
+function findRepeatedProductDescriptor(script: string, productName: string) {
+  const productWords = normalizeWords(productName).filter((word) =>
+    word.length >= 7 && !GENERIC_PRODUCT_WORDS.has(word)
+  );
+  if (!productWords.length) return null;
+  const scriptWords = normalizeWords(script);
+  for (const word of productWords) {
+    const count = scriptWords.filter((item) => item === word).length;
+    if (count >= 3) return word;
+  }
+  return null;
+}
+
+function normalizeWords(value: string) {
+  return normalizeText(value)
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .split(/\s+/u)
+    .filter(Boolean);
 }
