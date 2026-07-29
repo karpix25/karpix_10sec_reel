@@ -75,14 +75,14 @@ export function buildDirectorSegmenterPrompt(input: {
 Правила режиссуры:
 Каждый segment строится storyboard first и может длиться четыре, шесть, восемь или десять секунд.
 Количество storyboard frames зависит от duration_seconds: четыре секунды это два кадра, шесть секунд это три кадра, восемь секунд это четыре кадра, десять секунд это пять кадров.
-Каждый frame содержит ровно четыре или пять слов финальной русской речи в spoken_words.
+Каждый frame содержит ровно три, четыре или пять слов финальной русской речи в spoken_words.
 Склейка spoken_words всех frames должна дословно совпадать с voiceover segment.
 Первый frame всегда face_open. Последний frame всегда face_return. Если кадров три или больше, в середине должны быть product_cutaway или environment_cutaway.
 Cutaway frames не могут показывать персонажа, который смотрит в камеру.
 В каждом frame опиши visual_description, camera, action, product_state, sfx и reference_role.
 SFX это только естественные звуки кадра. Музыку для Omni не планируй: без фоновой музыки, джинглов и музыкальных эффектов.
 Слова spoken_words будут написаны прямо на визуальном кадре storyboard image и станут единственным источником русской речи для Omni.
-В spoken_words не добавляй лишние слова: только точная реплика кадра, четыре или пять слов.
+В spoken_words не добавляй лишние слова: только точная реплика кадра, три, четыре или пять слов.
 Переходы, стрелки и эффекты можно планировать только как подсказки внутри раскадровки, без интерфейса соцсетей и водяных знаков.
 В product_cutaway кадрах продукт обязан быть физически видимым и детально совпадать с product reference.
 Одежда, свет, окружение и типаж героя должны быть едиными во всех frames одного ролика.
@@ -122,7 +122,7 @@ ${input.draft.script}
         {
           "index": 1,
           "role": "face_open",
-          "spoken_words": "четыре или пять слов",
+          "spoken_words": "три, четыре или пять слов",
           "visual_description": "детальное описание кадра, света, окружения и персонажа",
           "camera": "крупность, движение и ракурс камеры",
           "action": "конкретное действие в кадре",
@@ -165,7 +165,7 @@ export function buildProviderPromptWriterPrompt(input: {
 ${renderRussianSpeechGenderRule(input.chainInput.avatarSpeechGender)}
 Каждый provider segment обязан нести storyboard_frames по правилу duration_seconds делить на два.
 Склейка spoken_words всех storyboard_frames должна дословно совпадать с voiceover.
-Каждый frame должен сохранить четыре или пять слов финальной русской речи, детальный визуал, camera, action, product_state, sfx и reference_role.
+Каждый frame должен сохранить три, четыре или пять слов финальной русской речи, детальный визуал, camera, action, product_state, sfx и reference_role.
 Provider prompt должен описывать storyboard как последовательные кадры по две секунды.
 Omni должен сгенерировать русскую речь и естественные SFX. Omni не должен генерировать музыку, фоновые треки, джинглы или музыкальные эффекты.
 Наша фоновая музыка добавляется после из библиотеки, поэтому в prompt пиши только no music и natural SFX.
@@ -204,7 +204,7 @@ ${JSON.stringify(input.directorPlan, null, 2)}
         {
           "index": 1,
           "role": "face_open",
-          "spoken_words": "четыре или пять слов",
+          "spoken_words": "три, четыре или пять слов",
           "visual_description": "детальное описание кадра",
           "camera": "крупность и движение камеры",
           "action": "конкретное действие",

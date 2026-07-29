@@ -30,10 +30,11 @@ try {
   const { normalizeOmniDurationRange } = require(findFile(output, "omni-duration-range.js"));
   const { reconstructVoiceSegments, splitScriptIntoVoiceSegments } = require(findFile(output, "omni-script-segmentation.js"));
 
-  assert.equal(getOmniSegmentDurationForWordCount(7), null, "segments below the storyboard speech floor are invalid");
+  assert.equal(getOmniSegmentDurationForWordCount(5), null, "segments below the storyboard speech floor are invalid");
+  assert.equal(getOmniSegmentDurationForWordCount(7), 4);
   assert.equal(getOmniSegmentDurationForWordCount(8), 4);
   assert.equal(getOmniSegmentDurationForWordCount(10), 4);
-  assert.equal(getOmniSegmentDurationForWordCount(11), null, "eleven words cannot split into frames of four or five words");
+  assert.equal(getOmniSegmentDurationForWordCount(11), 6);
   assert.equal(getOmniSegmentDurationForWordCount(12), 6);
   assert.equal(getOmniSegmentDurationForWordCount(16), 8);
   assert.equal(getOmniSegmentDurationForWordCount(20), 8);
@@ -133,6 +134,36 @@ try {
   );
   assert.equal(reconstructVoiceSegments(naturalBoundaryPlan.segments), naturalBoundaryTrap);
 
+  const geodemikaIngredients = "Я нашел решение для чистой кожи без раздражения и черных точек. Эта энзимная пенка для умывания Geodemika с протеазой и протеинами шелка эффективно борется с жирностью и черными точками. Она уменьшает высыпания, покраснения, снимает ощущение стянутости, не сушит кожу. Специальные компоненты гинкго билоба и аллантоин способствуют обновлению клеток и глубокому увлажнению. Это идеальное средство для чувствительной, проблемной и обезвоженной кожи. Оцените результат сами. Артикул в описании.";
+  const geodemikaIngredientPlan = planOmniReelSegments(geodemikaIngredients, { durationRange: exactThirty });
+  assert.equal(geodemikaIngredientPlan.segmentCount, 4);
+  assert.ok(
+    geodemikaIngredientPlan.segments.some((segment) => /протеинами шелка/iu.test(segment.text)),
+    "stable ingredient phrases must stay inside one spoken segment"
+  );
+  assert.ok(
+    !geodemikaIngredientPlan.segments.slice(0, -1).some((segment) => /[,;:]$/u.test(segment.text)),
+    "spoken segments should not end on a comma when a sentence boundary plan is viable"
+  );
+
+  const geodemikaRoutine = "Не ждите чуда от ухода за кожей без понимания одного важного правила. Даже если вы используете люксовые средства, результат не всегда идентичен, ведь кожа у каждого своя. Важно очищать кожу регулярно, поддерживая её баланс каждый день. Энзимная пенка Geodemika бережно очищает, борется с черными точками и покраснениями, не стягивая кожу. Это не просто очищение, а полноценный уход, который работает. Попробуйте сами. Артикул в описании.";
+  const exactTwentyEight = normalizeOmniDurationRange({
+    requestedMinSeconds: 28,
+    requestedMaxSeconds: 28,
+    fallbackSeconds: 28,
+    source: "client_settings",
+  });
+  const geodemikaRoutinePlan = planOmniReelSegments(geodemikaRoutine, { durationRange: exactTwentyEight });
+  assert.equal(geodemikaRoutinePlan.segmentCount, 4);
+  assert.ok(
+    geodemikaRoutinePlan.segments.some((segment) => /бережно очищает, борется/iu.test(segment.text)),
+    "verb-object phrase around the product benefit must not be split across Omni tasks"
+  );
+  assert.ok(
+    !geodemikaRoutinePlan.segments.slice(0, -1).some((segment) => /[,;:]$/u.test(segment.text)),
+    "routine script segments should end as complete spoken phrases"
+  );
+
   // Test fallback when a protected CTA cannot fit the strict segment word constraints
   // Total words = 7 + 8 + 9 = 24 words. count = 3. maxWordsPerSegment = 8.
   // The only valid split of 24 words into 3 segments with max 8 words per segment is [8, 8, 8].
@@ -150,7 +181,7 @@ try {
   );
 
   assert.throws(
-    () => planOmniReelSegments(makeScript(15)),
+    () => planOmniReelSegments(makeScript(11)),
     (error) => error instanceof Error && /слишком короткий/u.test(error.message),
     "plans below two useful segments should be rejected"
   );

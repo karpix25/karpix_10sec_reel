@@ -36,6 +36,23 @@ const BAD_ENDINGS = new Set([
   "помогает",
 ]);
 
+const BAD_STARTINGS = new Set([
+  "а",
+  "без",
+  "ведь",
+  "для",
+  "и",
+  "или",
+  "когда",
+  "но",
+  "потому",
+  "поэтому",
+  "с",
+  "со",
+  "то",
+  "чтобы",
+]);
+
 const PROTECTED_PHRASES = [
   /артикул(?:\s+\S+){0,5}\s+(?:в|под)\s+(?:описании|видео)/giu,
   /код(?:\s+\S+){0,5}\s+(?:в|под)\s+(?:описании|видео)/giu,
@@ -216,6 +233,7 @@ function solveBoundaries(
       if (!tail) continue;
       const score = segmentPenalty(tokens, start, end, target) +
         boundaryPenalty(tokens[end - 1].value) +
+        boundaryTransitionPenalty(tokens, end) +
         boundaryContextPenalty(tokens, end) +
         tail.score;
       if (!best || score < best.score) best = { score, boundaries: [end, ...tail.boundaries] };
@@ -240,9 +258,21 @@ function segmentPenalty(tokens: Token[], start: number, end: number, target: num
 function boundaryPenalty(value: string) {
   const normalized = value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
   if (BAD_ENDINGS.has(normalized)) return 120;
-  if (/[.!?][»"]?$/.test(value)) return -20;
-  if (/[,;:][»"]?$/.test(value)) return -7;
+  if (/[.!?][»"]?$/.test(value)) return -30;
+  if (/[,;:][»"]?$/.test(value)) return 24;
   return 0;
+}
+
+function boundaryTransitionPenalty(tokens: Token[], end: number) {
+  if (end <= 0 || end >= tokens.length) return 0;
+  const previous = tokens[end - 1].value;
+  const next = tokens[end].value;
+  const normalizedNext = next.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  let penalty = 0;
+  if (/[,;:][»"]?$/.test(previous)) penalty += 45;
+  if (BAD_STARTINGS.has(normalizedNext)) penalty += 90;
+  if (/^\p{Ll}/u.test(next)) penalty += 35;
+  return penalty;
 }
 
 function boundaryContextPenalty(tokens: Token[], end: number) {

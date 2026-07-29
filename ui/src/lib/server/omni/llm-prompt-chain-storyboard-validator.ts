@@ -152,7 +152,7 @@ function validateStoryboardFrames(
       issues.push({
         path: `${path}.${frameIndex}.spokenWords`,
         code: "storyboard_spoken_word_count",
-        message: "Each storyboard frame must contain four or five final spoken Russian words.",
+        message: "Each storyboard frame must contain three to five final spoken Russian words.",
         severity: "error",
       });
     }
