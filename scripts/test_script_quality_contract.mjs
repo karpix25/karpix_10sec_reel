@@ -325,6 +325,34 @@ And this is line 2."
   assert.equal(semanticResult.metrics.referenceMeaning.passed, true);
   assert.ok(semanticResult.metrics.referenceMeaning.coveredSignals.includes("пептид"));
 
+  const awkwardCollagenScript = "Думаете, весь коллаген одинаковый? Расскажу, как найти свой идеальный вариант. В идеале выбор зависит от ваших целей и образа жизни. Например, двадцать пять граммов морского коллагена с витамином С, как этот апельсиновый, отлично подходит для активных девушек. Он помогает поддерживать кожу, волосы, ногти и суставы. Такой продукт поддержать ваш ритм жизни, а не мешать ему. Если сомневаетесь, этот апельсиновый коллаген подойдет практически всем. Артикул или код продукта вы можете найти прямо в описании.";
+  assert.throws(
+    () => validateViralScriptContract({
+      script: awkwardCollagenScript,
+      rawScriptBeforeCta: awkwardCollagenScript,
+      rawScriptFromModel: awkwardCollagenScript,
+      hook: "Думаете, весь коллаген одинаковый?",
+      productName: "Апельсиновый коллаген",
+      ctaMode: "article_in_description",
+      ctaValue: null,
+    }),
+    /неграмотно|повторяется слишком часто/u
+  );
+
+  const awkwardCtaScript = "Этот коллаген удобно добавить утром после завтрака. Он поддерживает привычку без сложных шагов и вписывается в обычный уход. Артикул или код продукта можно найти в описании.";
+  assert.throws(
+    () => validateViralScriptContract({
+      script: awkwardCtaScript,
+      rawScriptBeforeCta: awkwardCtaScript,
+      rawScriptFromModel: awkwardCtaScript,
+      hook: "Этот коллаген удобно добавить утром после завтрака.",
+      productName: "Апельсиновый коллаген",
+      ctaMode: "article_in_description",
+      ctaValue: null,
+    }),
+    /CTA звучит канцелярски/u
+  );
+
   console.log("Script Quality checks passed!");
   console.log("All tests passed successfully.");
 } finally {
