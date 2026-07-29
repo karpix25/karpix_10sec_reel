@@ -2,7 +2,7 @@ export const OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS = [4, 6, 8, 10] as const;
 export type OmniStoryboardAllowedSegmentSeconds = (typeof OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS)[number];
 
 export const OMNI_STORYBOARD_SECONDS_PER_FRAME = 2;
-export const OMNI_STORYBOARD_MIN_FRAME_WORDS = 4;
+export const OMNI_STORYBOARD_MIN_FRAME_WORDS = 3;
 export const OMNI_STORYBOARD_MAX_FRAME_WORDS = 5;
 
 export function isOmniStoryboardDuration(value: number): value is OmniStoryboardAllowedSegmentSeconds {
