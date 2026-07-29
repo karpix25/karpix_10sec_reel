@@ -407,7 +407,10 @@ function getSkippedReferenceReason(input: {
   ) {
     return "product_hidden_by_creative_strategy";
   }
-  if (input.segmentIndex === 1 && input.role === "avatar_product_composite") {
+  if (
+    input.segmentIndex === 1 &&
+    (input.role === "product" || input.role === "product_secondary" || input.role === "avatar_product_composite")
+  ) {
     return "product_reveal_reserved_for_later_segments";
   }
   if (input.hasCompositeReference && input.role === "avatar") {

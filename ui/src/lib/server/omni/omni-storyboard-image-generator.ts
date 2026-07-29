@@ -37,9 +37,6 @@ export async function generateStoryboardImage(input: {
   }
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
   const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || []);
-  if (!productReferenceUrls.length) {
-    throw new Error("Storyboard image generation requires a real product reference image");
-  }
   const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
 
   const response = await createStoryboardImage({

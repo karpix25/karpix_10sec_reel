@@ -33,17 +33,20 @@ export function selectReferenceImagesForSegment(input: {
   segmentIndex: number;
   productIsVisible: boolean;
 }): ReferenceImageSelection {
+  const productReferencesAllowed = input.segmentIndex > 1 && input.productIsVisible;
   if (input.provider === "kie-ai") {
+    const sent = input.kieReferenceImages.filter((image) => productReferencesAllowed || !isProductReference(image));
+    const skippedProductReferences = input.kieReferenceImages.filter((image) => !productReferencesAllowed && isProductReference(image));
     return {
-      sent: uniqueReferenceImages(input.kieReferenceImages),
-      skipped: input.continuityImages,
+      sent: uniqueReferenceImages(sent),
+      skipped: [...input.continuityImages, ...skippedProductReferences],
     };
   }
 
-  const visibleCometReferences = input.productIsVisible
+  const visibleCometReferences = productReferencesAllowed
     ? input.cometReferenceImages
     : input.cometReferenceImages.filter((image) => image.role === "avatar");
-  const hiddenCometReferences = input.productIsVisible
+  const hiddenCometReferences = productReferencesAllowed
     ? []
     : input.cometReferenceImages.filter((image) => image.role !== "avatar");
   const cometSelection = selectReferenceImagesForComet(
@@ -56,6 +59,10 @@ export function selectReferenceImagesForSegment(input: {
     ...cometSelection,
     skipped: [...cometSelection.skipped, ...hiddenCometReferences],
   };
+}
+
+function isProductReference(image: ReelReferenceImage) {
+  return image.role === "product" || image.role === "product_secondary";
 }
 
 function selectUrlReferenceImage(images: ReelReferenceImage[], segmentIndex?: number) {

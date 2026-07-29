@@ -59,9 +59,9 @@ try {
   const prompt = renderer.renderCompactRussianOmniStoryboardPrompt({ storyboard: buildValidStoryboard() });
   assert.ok(prompt.includes("Создай видео по раскадровке"));
   assert.ok(prompt.includes("@storyboard_file"));
-  assert.ok(prompt.includes("@product_file"));
-  assert.ok(prompt.includes("Продукт бери из"));
-  assert.ok(prompt.includes("не меняй упаковку"));
+  assert.ok(!prompt.includes("@product_file"));
+  assert.ok(prompt.includes("продукт остается вне кадра"));
+  assert.ok(!prompt.includes("Продукт бери из"));
   assert.ok(prompt.includes("не показывай саму раскадровку"));
   assert.ok(prompt.includes("телефон, экран, интерфейс, соцсети"));
   assert.ok(prompt.includes("Оживи кадры раскадровки"));
@@ -72,7 +72,7 @@ try {
   assert.ok(prompt.includes("один и тот же комплект на весь ролик"));
   assert.ok(prompt.includes("не заменяй слой футболкой"));
   assert.ok(prompt.includes("смотрит прямо в объектив"));
-  assert.ok(prompt.includes("Состояние продукта держи одинаковым"));
+  assert.ok(!prompt.includes("Состояние продукта держи одинаковым"));
   assert.ok(prompt.includes("Структура видео: ровно 5 живых эпизодов"));
   assert.ok(prompt.includes("Артикул есть в описании!"));
   assert.ok(!prompt.includes("DELIVERY DIRECTION"));
@@ -95,10 +95,14 @@ try {
     segmentCount: 3,
   });
   assert.ok(finalPrompt.includes("Артикул есть в описании!"));
+  assert.ok(finalPrompt.includes("@product_file"));
+  assert.ok(finalPrompt.includes("Продукт бери из"));
+  assert.ok(finalPrompt.includes("не меняй упаковку"));
+  assert.ok(finalPrompt.includes("Состояние продукта держи одинаковым"));
 
   const physicalContract = "The product remains a cohesive soft translucent jelly dessert with a glossy surface and gentle elastic wobble. It keeps the same reference shape as one intact semi-solid mass.";
   const physicalPrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
-    storyboard: buildValidStoryboard(),
+    storyboard: { ...buildValidStoryboard(), segmentIndex: 2 },
     productPhysicalContract: physicalContract,
   });
   assert.ok(physicalPrompt.includes("PRODUCT PHYSICAL CONTRACT:"));
@@ -121,6 +125,7 @@ try {
   });
   assert.ok(directorStoryboard.frames[0].environment.includes("warm amber studio wall"));
   assert.ok(directorStoryboard.frames[0].wardrobe.includes("black fitted turtleneck"));
+  assert.ok(directorStoryboard.frames[0].productPlacement.includes("вне кадра в первой части"));
   assert.ok(directorStoryboard.frames[0].camera.includes("medium close-up"));
   assert.ok(directorStoryboard.frames[0].wardrobe.includes("ONE EXACT OUTFIT FOR THE WHOLE REEL"));
   assert.ok(!directorStoryboard.frames[0].wardrobe.includes("keep the black fitted high-neck silhouette on the avatar"));
@@ -129,12 +134,40 @@ try {
     "talking-head storyboard camera lines must keep eye contact"
   );
 
+  const maleSafeStoryboard = builder.buildStoryboardFromCreativePlan({
+    plan: { ...buildCreativePlan(), productRole: "natural_use" },
+    productName: "Пенка",
+    characterContract: {
+      identityLine: "approved male avatar identity",
+      clothingLine: "черный мужской лонгслив и темные брюки из avatar",
+      sourceRuleLine: "avatar defines identity",
+      clothingSource: "avatar",
+      speechGender: "male",
+      speechGenderLine: "мужской род",
+    },
+    segmentIndex: 2,
+    durationSeconds: 10,
+    directorBrief: {
+      ...buildDirectorBrief(),
+      clothing: {
+        style: "Casual, fitted halter top with front buttons",
+        color_palette: ["light yellow", "gold"],
+        fit_details: "Form-fitting, ribbed texture, halter neckline",
+        source: "main presenter",
+        adaptation_notes: "female presenter outfit",
+      },
+    },
+    wardrobeSource: "director_reference",
+  });
+  assert.ok(maleSafeStoryboard.frames[0].wardrobe.includes("черный мужской лонгслив"));
+  assert.ok(!maleSafeStoryboard.frames[0].wardrobe.includes("halter"));
+
   assert.equal(
     fileReference.resolveOmniStoryboardFileReference([{ role: "product" }, { role: "storyboard" }]),
     "@file2"
   );
   assert.equal(fileReference.resolveOmniProductFileReference([{ role: "storyboard" }, { role: "product" }]), "@file2");
-  const resolvedPrompt = fileReference.applyOmniStoryboardFileReference(prompt, [
+  const resolvedPrompt = fileReference.applyOmniStoryboardFileReference(finalPrompt, [
     { role: "storyboard" },
     { role: "product" },
   ]);
