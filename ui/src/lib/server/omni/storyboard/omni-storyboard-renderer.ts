@@ -11,6 +11,7 @@ import { renderProductPhysicalContractForOmni } from "../product-physical-contra
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
   productPhysicalContract?: string | null;
+  segmentCount?: number;
 }) {
   const validation = validateOmniStoryboardSegment(input.storyboard);
   if (!validation.valid) {
@@ -29,9 +30,22 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}, не меняй упаковку, цвет, форму и этикетку.`,
     "Состояние продукта держи одинаковым от первого до последнего кадра: та же консистенция, та же целостность, та же упаковка и дизайн.",
     renderProductPhysicalContractForOmni(input.productPhysicalContract),
+    renderDeliveryDirection(input.storyboard, input.segmentCount),
     "Персонаж в кадре сам произносит эти слова на русском языке:",
     voiceoverText,
     "Не дублируй слова.",
     "Не добавляй музыку, новые субтитры или новый текст на экран, аудиоэффекты можно.",
   ].join("\n");
+}
+
+function renderDeliveryDirection(storyboard: OmniStoryboardSegment, segmentCount?: number) {
+  const role = storyboard.segmentIndex === 1
+    ? "hook: быстро, живо, с любопытством и сильным первым акцентом"
+    : segmentCount && storyboard.segmentIndex === segmentCount
+      ? "payoff/CTA: тепло, уверенно, без рекламного диктора"
+      : "body: уверенно, понятно, с микропаузами на важных словах";
+  const punctuation = /[?!]/u.test(storyboard.voiceoverText)
+    ? "вопросы произноси с живым повышением, восклицания - с контролируемой энергией"
+    : "смысловые акценты ставь голосом, без лишних слов";
+  return `DELIVERY DIRECTION - НЕ ПРОИЗНОСИТЬ: ${role}; естественный темп 2-3 слова/сек; ${punctuation}.`;
 }
