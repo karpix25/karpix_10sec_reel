@@ -74,8 +74,8 @@ try {
     assert.ok(item.prompt.includes("не заменяй слой футболкой"), "storyboard prompt must prevent layer swaps");
     assert.ok(item.prompt.includes("смотрит прямо в объектив"), "storyboard prompt must keep eye contact across camera angles");
     assert.ok(item.prompt.includes("Состояние продукта держи одинаковым"), "storyboard prompt must keep product physical state stable");
-    assert.ok(item.prompt.includes("DELIVERY DIRECTION - НЕ ПРОИЗНОСИТЬ"), "storyboard prompt must keep delivery direction separate from spoken words");
-    assert.ok(item.prompt.includes("естественный темп 2-3 слова/сек"), "storyboard prompt must use natural speech pacing");
+    assert.ok(item.prompt.includes(`Структура видео: ровно ${item.storyboardPlan.frames.length} живых эпизодов`), "storyboard prompt must lock the exact storyboard frame count");
+    assert.ok(!item.prompt.includes("DELIVERY DIRECTION"), "storyboard prompt must not use weak delivery direction blocks");
     assert.ok(item.prompt.includes("Персонаж в кадре сам произносит эти слова"), "storyboard prompt must provide direct segment speech text");
     assert.ok(item.prompt.includes("на русском языке"), "storyboard prompt must force Russian character speech");
     assert.ok(item.prompt.includes("Не дублируй слова"), "storyboard prompt must forbid duplicated speech");
@@ -344,7 +344,7 @@ function normalizedCount(haystack, needle) {
 }
 
 function normalize(value) {
-  return String(value).toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+  return String(value).toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 function findFile(dir, fileName) {
