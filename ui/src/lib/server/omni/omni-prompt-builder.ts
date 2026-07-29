@@ -221,6 +221,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const prompt = renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productPhysicalContract: plan.productRole !== "hidden" ? productPhysicalContract : null,
+      segmentCount: input.segmentCount,
     });
     const validation = promptValidationFromStoryboard(storyboardValidation);
     if (!validation.valid) {
@@ -340,6 +341,7 @@ function buildStoredProviderPromptSegments(
     const prompt = renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productPhysicalContract: productRole !== "hidden" ? productPhysicalContract : null,
+      segmentCount: providerPromptPlan.segmentPrompts.length,
     });
     return {
       index: segmentIndex,

@@ -73,6 +73,9 @@ try {
   assert.ok(prompt.includes("не заменяй слой футболкой"));
   assert.ok(prompt.includes("смотрит прямо в объектив"));
   assert.ok(prompt.includes("Состояние продукта держи одинаковым"));
+  assert.ok(prompt.includes("DELIVERY DIRECTION - НЕ ПРОИЗНОСИТЬ"));
+  assert.ok(prompt.includes("hook: быстро, живо"));
+  assert.ok(prompt.includes("естественный темп 2-3 слова/сек"));
   assert.ok(prompt.includes("Персонаж в кадре сам произносит эти слова"));
   assert.ok(prompt.includes("на русском языке"));
   assert.ok(prompt.includes("Не дублируй слова"));
@@ -86,6 +89,12 @@ try {
   assert.ok(!prompt.includes("действие: герой берет"));
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));
   assert.ok(prompt.length < 1600, "storyboard provider prompt must stay short");
+
+  const finalPrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
+    storyboard: { ...buildValidStoryboard(), segmentIndex: 3 },
+    segmentCount: 3,
+  });
+  assert.ok(finalPrompt.includes("payoff/CTA: тепло, уверенно"));
 
   const physicalContract = "The product remains a cohesive soft translucent jelly dessert with a glossy surface and gentle elastic wobble. It keeps the same reference shape as one intact semi-solid mass.";
   const physicalPrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
