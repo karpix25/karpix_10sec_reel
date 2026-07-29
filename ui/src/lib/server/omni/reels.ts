@@ -353,7 +353,7 @@ async function generateStoryboardReferenceUrls(input: {
         storyboard: segmentPrompt.storyboardPlan,
         productName: input.productName,
         productPhysicalContract: input.productPhysicalContract,
-        productReferenceUrls: input.productReferenceUrls,
+        productReferenceUrls: index === 0 ? [] : input.productReferenceUrls,
         directorReferenceImageUrls: Array.from(input.directorReferenceImageUrlsBySegment?.get(segmentPrompt.index) || []),
         avatarReferenceUrl: input.avatarReferenceUrl,
         previousStoryboardReferenceUrl,

@@ -49,6 +49,7 @@ export function buildStoryboardFromCreativePlan(input: {
         characterContract: input.characterContract,
         directorBrief: input.directorBrief,
         wardrobeSource: input.wardrobeSource,
+        segmentIndex: input.segmentIndex,
         spokenText,
         frameIndex: index + 1,
         frameCount,
@@ -106,6 +107,7 @@ function buildFrame(input: {
   characterContract: OmniCharacterContract;
   directorBrief?: DirectorBrief | null;
   wardrobeSource?: OmniWardrobeSource;
+  segmentIndex: number;
   spokenText: string;
   frameIndex: number;
   frameCount: number;
@@ -126,7 +128,8 @@ function buildFrame(input: {
       input.plan,
       input.productName,
       input.productVisualPassport,
-      input.productPhysicalHint
+      input.productPhysicalHint,
+      input.segmentIndex
     ),
     sfxNotes: isCutawayFrame ? "естественный звук короткого действия с продуктом" : "тихие естественные звуки комнаты и живой речи",
     effectNotes: renderFrameEffect(input.frameIndex, input.frameCount, isCutawayFrame),
@@ -172,6 +175,7 @@ function renderStoryboardWardrobe(
   wardrobeSource?: OmniWardrobeSource
 ) {
   if (normalizeOmniWardrobeSource(wardrobeSource) === "avatar_reference") return characterContract.clothingLine;
+  if (characterContract.speechGender === "male" && isClearlyFemaleWardrobe(brief)) return characterContract.clothingLine;
   if (!brief?.clothing.style) return characterContract.clothingLine;
   const colors = brief.clothing.color_palette.length ? `colors: ${brief.clothing.color_palette.join(", ")}` : "";
   return [
@@ -215,9 +219,11 @@ function renderProductPlacement(
   plan: OmniSegmentCreativePlan,
   productName: string,
   productVisualPassport?: string | null,
-  productPhysicalHint?: string | null
+  productPhysicalHint?: string | null,
+  segmentIndex?: number
 ) {
   const productDetails = productVisualPassport ? `, детали из референса: ${compactProductReference(productVisualPassport)}` : "";
+  if (segmentIndex === 1) return `${productName} вне кадра в первой части; продукт появляется со второй части`;
   if (plan.productRole === "hidden") return `${productName} вне кадра в этом сегменте`;
   if (plan.productRole === "brief_demo") {
     return appendProductPhysicalHint(
@@ -240,6 +246,16 @@ function renderProductPlacement(
 function appendProductPhysicalHint(base: string, productPhysicalHint?: string | null) {
   const hint = productPhysicalHint?.trim();
   return hint ? `${base}; ${hint}` : base;
+}
+
+function isClearlyFemaleWardrobe(brief?: DirectorBrief | null) {
+  const clothing = [
+    brief?.clothing.style,
+    brief?.clothing.fit_details,
+    brief?.clothing.adaptation_notes,
+    ...(brief?.clothing.color_palette || []),
+  ].filter(Boolean).join(" ");
+  return /halter|bra\b|bustier|corset|dress|skirt|women'?s|feminine|бюстгальтер|корсет|плать|юбк|женск|топ\s+на\s+бретел/iu.test(clothing);
 }
 
 function renderFrameAction(action: string | undefined, isCutawayFrame: boolean) {

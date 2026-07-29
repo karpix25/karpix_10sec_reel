@@ -19,6 +19,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   }
   const voiceoverText = renderPunctuatedVoiceover(input.storyboard, input.segmentCount);
   const frameCount = input.storyboard.frames.length;
+  const productAppearsInThisSegment = input.storyboard.segmentIndex > 1;
 
   return [
     `Создай видео по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
@@ -29,9 +30,13 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     "Сохраняй те же волосы, пробор, аксессуары, посадку одежды, вырез, рукава и фактуру ткани во всех кадрах.",
     "Одежда это один и тот же комплект на весь ролик: не снимай пиджак/жакет/рубашку, не заменяй слой футболкой или другой рубашкой между частями.",
     "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
-    `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}, не меняй упаковку, цвет, форму и этикетку.`,
-    "Состояние продукта держи одинаковым от первого до последнего кадра: та же консистенция, та же целостность, та же упаковка и дизайн.",
-    renderProductPhysicalContractForOmni(input.productPhysicalContract),
+    productAppearsInThisSegment
+      ? `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}, не меняй упаковку, цвет, форму и этикетку.`
+      : "В этой первой части продукт остается вне кадра; герой говорит без продукта в руках, продукт появляется со второй части.",
+    productAppearsInThisSegment
+      ? "Состояние продукта держи одинаковым от первого до последнего кадра: та же консистенция, та же целостность, та же упаковка и дизайн."
+      : "",
+    productAppearsInThisSegment ? renderProductPhysicalContractForOmni(input.productPhysicalContract) : "",
     "Персонаж в кадре сам произносит эти слова на русском языке:",
     voiceoverText,
     "Не дублируй слова.",
