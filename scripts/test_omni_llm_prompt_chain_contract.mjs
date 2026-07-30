@@ -9,6 +9,7 @@ const root = resolve(import.meta.dirname, "..");
 const ui = join(root, "ui");
 const output = mkdtempSync(join(tmpdir(), "omni-llm-chain-"));
 const require = createRequire(import.meta.url);
+const technicalMontageTerms = /punch[ -]?in|jump cut|match cut|speed ramp|object wipe|split[ -]?screen|freeze frame|j[ -]?cut|l[ -]?cut/iu;
 
 function findFile(base, filename) {
   const queue = [base];
@@ -285,6 +286,14 @@ try {
   assert.ok(promptChainSource.includes("как смысловую основу"), "LLM chain copywriter must preserve reference meaning");
   assert.ok(promptChainSource.includes("главный тезис, вопрос или возражение, механизм"), "LLM chain must keep original argument mechanics");
   assert.ok(!promptChainSource.includes("только как пример структуры"), "LLM chain must not reduce reference to structure only");
+  assert.ok(promptChainSource.includes("прямо раскрывает смысл spoken_words"), "storyboard frames must visualize their current speech");
+  assert.ok(promptChainSource.includes("product_cutaway только когда смысл spoken_words"), "product cutaways must be meaning-driven");
+  assert.ok(promptChainSource.includes("environment_cutaway с тематическими предметами"), "non-product speech must use thematic cutaways");
+  assert.ok(promptChainSource.includes("герой с пустыми руками, товар вне кадра"), "first segment must stay product-free");
+  assert.ok(promptChainSource.includes("десять секунд это пять кадров"), "prompt chain must preserve exact frame counts");
+  assert.ok(promptChainSource.includes("Одежда, свет, окружение и типаж героя должны быть едиными"), "director must preserve wardrobe continuity");
+  assert.match(promptChainSource, /talking head frame.+смотрит прямо в объектив/iu, "talking-head frames must preserve direct gaze");
+  assert.doesNotMatch(promptChainSource, technicalMontageTerms);
 
   console.log("LLM prompt chain contract checks passed!");
 } finally {
