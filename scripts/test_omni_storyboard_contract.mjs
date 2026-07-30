@@ -60,9 +60,8 @@ try {
   const prompt = renderer.renderCompactRussianOmniStoryboardPrompt({ storyboard: buildValidStoryboard() });
   assert.ok(prompt.includes("Создай видео по раскадровке"));
   assert.ok(prompt.includes("@storyboard_file"));
-  assert.ok(!prompt.includes("@product_file"));
-  assert.ok(prompt.includes("герой с пустыми руками"));
-  assert.ok(!prompt.includes("Продукт бери из"));
+  assert.ok(prompt.includes("@product_file"));
+  assert.ok(prompt.includes("Продукт бери из"));
   assert.ok(prompt.includes("не показывай саму раскадровку"));
   assert.ok(prompt.includes("телефон, экран, интерфейс, соцсети"));
   assert.ok(prompt.includes("Оживи кадры раскадровки"));
@@ -72,7 +71,7 @@ try {
   assert.ok(prompt.includes("те же волосы, пробор, аксессуары"));
   assert.ok(prompt.includes("один и тот же полный комплект одежды"));
   assert.ok(prompt.includes("смотрит прямо в объектив"));
-  assert.ok(!prompt.includes("Состояние продукта держи одинаковым"));
+  assert.ok(prompt.includes("Состояние продукта держи одинаковым"));
   assert.ok(prompt.includes("Структура видео: ровно 5 живых эпизодов"));
   assert.ok(prompt.includes("Артикул есть в описании!"));
   assert.ok(!prompt.includes("DELIVERY DIRECTION"));
@@ -129,7 +128,7 @@ try {
     .join("\n");
   assert.ok(directorStoryboard.frames[0].environment.includes("warm amber studio wall"));
   assert.ok(directorStoryboard.frames[0].wardrobe.includes("black fitted turtleneck"));
-  assert.ok(directorStoryboard.frames[0].productPlacement.includes("с пустыми руками"));
+  assert.ok(directorStoryboard.frames[0].productPlacement.includes("продукт вне кадра"));
   assert.ok(directorStoryboard.frames[0].camera.includes("medium close-up"));
   assert.ok(directorStoryboard.frames[0].wardrobe.includes("ONE EXACT OUTFIT FOR THE WHOLE REEL"));
   assert.ok(directorStoryboard.frames[0].wardrobe.includes("ONE EXACT FABRIC FOR THE WHOLE REEL"));
@@ -137,7 +136,7 @@ try {
   assert.equal(directorStoryboard.frames.length, 5);
   assert.ok(directorStoryboard.frames[2].visualAction.includes("вечерняя спальня"));
   assert.ok(directorStoryboard.frames[2].visualAction.includes("полезной едой"));
-  assert.ok(directorStoryboard.frames[2].productPlacement.includes("пустыми руками"));
+  assert.ok(directorStoryboard.frames[2].productPlacement.includes("продукт вне кадра"));
   assert.doesNotMatch(directorStoryboardText, /коллаген|product|товар|упаковк/iu);
   assert.equal(new Set(directorStoryboard.frames.map((frame) => frame.wardrobe)).size, 1);
   assert.ok(

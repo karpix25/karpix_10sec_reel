@@ -96,14 +96,14 @@ export function applyDirectorLayoutToPlan(
 function buildCollageBeatAction(index: number, originalAction: string, showProductBackground: boolean) {
   const cue = extractScenarioCue(originalAction);
   const productLayer = showProductBackground
-    ? "background layer prominently uses the new product reference plus relevant science/skin visuals"
-    : "background layer uses relevant science/skin visuals without unrelated props";
+    ? "full-frame background layer uses new product reference plus science/skin visuals"
+    : "full-frame background layer uses science/skin visuals without unrelated props";
   const base = [
     index === 0
-      ? `collage/PIP opening frame with montage перебивка logic: ${productLayer}; main avatar is a lower-left cutout with thick white paper outline, speaking to camera`
+      ? `REFERENCE LAYOUT: COLLAGE PICTURE-IN-PICTURE; lower-left corner cutout avatar with thick white paper outline; collage/PIP opening frame; ${productLayer}`
       : index === 1
-        ? `collage/PIP background перебивка changes behind the same lower-left cutout avatar: ${productLayer}`
-        : `collage/PIP return frame after перебивка: lower-left cutout avatar stays fixed with white paper outline while ${productLayer}`,
+        ? `collage/PIP background перебивка behind the same lower-left cutout avatar; ${productLayer}`
+        : `collage/PIP return frame: lower-left cutout avatar stays fixed with white paper outline; ${productLayer}`,
     "no centered full-screen presenter shot, no generic room, no table cutaway, no subtitles",
   ].join("; ");
   return cue ? `${base}. ${cue}` : base;

@@ -19,12 +19,15 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   }
   const voiceoverText = renderPunctuatedVoiceover(input.storyboard, input.segmentCount);
   const frameCount = input.storyboard.frames.length;
-  const productAppearsInThisSegment = input.storyboard.segmentIndex > 1;
+  const productAppearsInThisSegment = input.storyboard.frames.some((frame) =>
+    !/вне\s+кадра|не\s+виден|скрыт|hidden|off\s*camera|not\s+visible/iu.test(frame.productPlacement)
+  );
 
   return [
     `Создай видео по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}, сохрани точно такой же визуал.`,
     `Структура видео: ровно ${frameCount} живых эпизодов по одному на каждый кадр, в том же порядке.`,
     `Оживи кадры раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER} как реальные сцены, не показывай саму раскадровку, телефон, экран, интерфейс, соцсети, карточки или коллаж.`,
+    "filming equipment is never visible.",
     `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
     "Сохраняй те же волосы, пробор, аксессуары во всех кадрах.",
     "Материал одежды фиксирован первым кадром первой части: воспроизводи одно и то же волокно, плетение, плотность, фактуру, швы, крой и посадку во всех кадрах и частях.",
@@ -32,7 +35,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
       ? `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}, не меняй упаковку, цвет, форму и этикетку.`
-      : "Первая часть это talking head: в кадре герой с пустыми руками, живые жесты и окружение.",
+      : "В этом сегменте продукт вне кадра: в кадре герой, живые жесты и окружение.",
     productAppearsInThisSegment
       ? "Состояние продукта держи одинаковым от первого до последнего кадра: та же консистенция, та же целостность, та же упаковка и дизайн."
       : "",

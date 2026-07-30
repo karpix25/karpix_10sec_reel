@@ -12,21 +12,6 @@ export function mentionsOmniProduct(text: string, productName: string) {
   );
 }
 
-export function assertOmniIntroWithoutProduct(input: {
-  firstSegmentText: string;
-  projectName: string;
-  productName: string;
-}) {
-  if (
-    mentionsOmniProduct(input.firstSegmentText, input.productName) ||
-    mentionsOmniProduct(input.firstSegmentText, input.projectName)
-  ) {
-    throw new Error(
-      "Сценарий отклонен: первая часть должна быть самостоятельным хуком только о проблеме или желаемом результате. Первое упоминание бренда, товара и его формы начинается во второй части."
-    );
-  }
-}
-
 function normalize(value: string) {
   return value.toLowerCase().replace(/ё/g, "е").replace(/\s+/gu, " ").trim();
 }

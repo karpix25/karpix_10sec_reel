@@ -32,7 +32,7 @@ try {
 
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
   const { selectReferenceImagesForSegment } = require(findFile(compiled, "omni-reference-images.js"));
-  const { assertOmniIntroWithoutProduct } = require(findFile(compiled, "omni-intro-product-contract.js"));
+  const { mentionsOmniProduct } = require(findFile(compiled, "omni-intro-product-contract.js"));
   const references = [
     { url: "https://example.com/storyboard.jpg", fieldName: "input_reference", role: "storyboard" },
     { url: "https://example.com/product.jpg", fieldName: "input_reference", role: "product" },
@@ -48,8 +48,8 @@ try {
     segmentIndex: 1,
     productIsVisible: true,
   });
-  assert.deepEqual(firstKie.sent.map((image) => image.role), ["storyboard"]);
-  assert.deepEqual(firstKie.skipped.map((image) => image.role), ["product", "product_secondary"]);
+  assert.deepEqual(firstKie.sent.map((image) => image.role), ["storyboard", "product", "product_secondary"]);
+  assert.deepEqual(firstKie.skipped.map((image) => image.role), []);
 
   const secondKie = selectReferenceImagesForSegment({
     provider: "kie-ai",
@@ -76,27 +76,9 @@ try {
   });
   assert.deepEqual(firstComet.sent.map((image) => image.role), ["avatar"]);
   assert.deepEqual(firstComet.skipped.map((image) => image.role), ["product", "product_secondary"]);
-  assert.doesNotThrow(() => assertOmniIntroWithoutProduct({
-    firstSegmentText: "Почему после умывания кожу снова стягивает?",
-    projectName: "Geodemika",
-    productName: "Geodemika Enzyme Cleansing Foam",
-  }));
-  assert.throws(
-    () => assertOmniIntroWithoutProduct({
-      firstSegmentText: "Эта энзимная пенка мягко очищает кожу.",
-      projectName: "Geodemika",
-      productName: "Geodemika Enzyme Cleansing Foam",
-    }),
-    /первая часть/iu
-  );
-  assert.throws(
-    () => assertOmniIntroWithoutProduct({
-      firstSegmentText: "Geodemika решает эту проблему.",
-      projectName: "Geodemika",
-      productName: "Geodemika Enzyme Cleansing Foam",
-    }),
-    /первое упоминание/iu
-  );
+  assert.equal(mentionsOmniProduct("Почему после умывания кожу снова стягивает?", "Geodemika Enzyme Cleansing Foam"), false);
+  assert.equal(mentionsOmniProduct("Эта энзимная пенка мягко очищает кожу.", "Geodemika Enzyme Cleansing Foam"), true);
+  assert.equal(mentionsOmniProduct("Geodemika решает эту проблему.", "Geodemika"), true);
 
   console.log("Omni intro product visibility contract checks passed");
 } finally {

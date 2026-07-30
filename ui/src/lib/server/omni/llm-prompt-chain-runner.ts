@@ -38,7 +38,6 @@ import {
   validateStoryboardProviderPlan,
 } from "./llm-prompt-chain-storyboard-validator";
 import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
-import { assertOmniIntroWithoutProduct } from "./omni-intro-product-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const PROMPT_CHAIN_ATTEMPTS_PER_LAYER = 2;
@@ -147,11 +146,6 @@ async function runDirectorSegmenter(
       const ensuredCta = ensureOmniScriptCta(finalScript, input.ctaMode, input.ctaValue);
       if (ensuredCta !== finalScript) throw new Error("Director plan is missing the required CTA");
       assertRussianSpeechGender(finalScript, input.avatarSpeechGender);
-      assertOmniIntroWithoutProduct({
-        firstSegmentText: plan.segments[0]?.voiceover || "",
-        projectName: input.projectName,
-        productName: input.productName,
-      });
       const issues = [
         ...validateDirectorSegmentPlan(plan),
         ...validateStoryboardDirectorPlan(plan),
