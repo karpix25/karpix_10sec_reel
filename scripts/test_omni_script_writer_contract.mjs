@@ -144,9 +144,11 @@ try {
   assert.ok(prompt.includes("не копируй его название, бренд, упаковку и свойства"), "prompt must not copy source product identity");
   assert.ok(prompt.includes("Сохрани его сценарную роль"), "prompt must preserve source product narrative role");
   assert.ok(prompt.includes("Не превращай полезный reference в отдельный рекламный питч продукта"), "prompt must block ad-pitch rewrites");
+  assert.ok(prompt.includes("Продукт обязан выполнять понятную функцию"), "prompt must require product to serve the script idea");
   assert.ok(prompt.includes("в момент первого естественного появления продукта"), "CTA must be embedded at the natural product mention");
   assert.ok(prompt.includes("После CTA продолжи полезную мысль"), "CTA must not end the reel as a sales line");
-  assert.ok(prompt.includes("главный продукт есть в описании"), "article CTA must point to the main product in description");
+  assert.ok(prompt.includes("как найти именно этот вариант через артикул в описании"), "article CTA must point to the exact product variant");
+  assert.ok(prompt.includes("В описании упоминается только артикул"), "article CTA must not add extra description info");
   assert.ok(!prompt.includes("артикул или код"), "article CTA must not ask the model to say generic code wording");
   assert.ok(prompt.includes("как смысловую основу"), "prompt must preserve reference meaning, not only structure");
   assert.ok(prompt.includes("главный тезис, вопрос или возражение, механизм"), "prompt must require the original argument mechanics");
@@ -250,10 +252,10 @@ try {
     beats: [
       { stage: "hook", visual_cue: "черный топ, синий фон", voiceover: "Хочешь проще ухаживать за кожей?" },
       { stage: "body", visual_cue: "продукт в синем свете", voiceover: "Коллаген легко встроить в утро." },
-      { stage: "cta", visual_cue: "возврат к лицу", voiceover: "Артикул можно найти в описании." },
+      { stage: "cta", visual_cue: "возврат к лицу", voiceover: "Чтобы не перепутать с похожими, артикул будет в описании." },
     ],
   });
-  assert.equal(deriveVoiceoverScriptFromPlan(plan), "Хочешь проще ухаживать за кожей? Коллаген легко встроить в утро. Артикул можно найти в описании.");
+  assert.equal(deriveVoiceoverScriptFromPlan(plan), "Хочешь проще ухаживать за кожей? Коллаген легко встроить в утро. Чтобы не перепутать с похожими, артикул будет в описании.");
   assert.equal(selectScriptBeatsForSegment(plan, 1, 2).length, 1);
   assert.equal(selectScriptBeatsForSegment(plan, 2, 2).length, 2);
 

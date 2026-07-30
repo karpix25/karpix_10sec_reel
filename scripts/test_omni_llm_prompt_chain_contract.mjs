@@ -294,7 +294,10 @@ try {
   assert.ok(promptChainSource.includes("не копируй его название, бренд, упаковку и свойства"), "LLM chain must not copy source product identity");
   assert.ok(promptChainSource.includes("Сохрани его сценарную роль"), "LLM chain must preserve source product narrative role");
   assert.ok(promptChainSource.includes("Не превращай полезный reference в отдельный рекламный питч продукта"), "LLM chain must block ad-pitch rewrites");
+  assert.ok(promptChainSource.includes("Продукт обязан выполнять понятную функцию"), "LLM chain must require product to serve the script idea");
   assert.ok(promptChainSource.includes("в момент первого естественного появления продукта"), "LLM chain CTA must be embedded at the natural product mention");
+  assert.ok(promptChainSource.includes("как найти именно этот вариант через артикул в описании"), "LLM chain article CTA must identify the exact product variant");
+  assert.ok(promptChainSource.includes("В описании упоминается только артикул"), "LLM chain article CTA must not add extra description info");
   assert.ok(promptChainSource.includes("Не ставь CTA отдельной финальной фразой"), "LLM chain CTA must not be a detached ending");
   assert.ok(!promptChainSource.includes("только как пример структуры"), "LLM chain must not reduce reference to structure only");
   assert.ok(promptChainSource.includes("прямо раскрывает смысл spoken_words"), "storyboard frames must visualize their current speech");

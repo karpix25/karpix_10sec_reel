@@ -202,7 +202,10 @@ export function validateViralScriptContract(input: {
     throw new Error("Сценарий отклонен: текст звучит неграмотно или канцелярски. Перепиши бытовым русским языком без фраз вроде «продукт поддержать».");
   }
   if (input.ctaMode === "article_in_description" && /(?:артикул\s+или\s+код|код\s+продукта)/iu.test(normalizedScript)) {
-    throw new Error("Сценарий отклонен: CTA звучит канцелярски. Для артикула в описании используй короткую фразу «Артикул в описании».");
+    throw new Error("Сценарий отклонен: CTA звучит канцелярски. Для артикула в описании связывай CTA с поиском именно этого варианта продукта.");
+  }
+  if (input.ctaMode === "article_in_description") {
+    assertArticleCtaHasContext(scriptText);
   }
 
   const repeatedDescriptor = findRepeatedProductDescriptor(scriptText, input.productName);
@@ -353,4 +356,23 @@ function normalizeWords(value: string) {
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .split(/\s+/u)
     .filter(Boolean);
+}
+
+function assertArticleCtaHasContext(script: string) {
+  const ctaSentence = getSentences(script).find((sentence) =>
+    /(?:артикул|описани)/iu.test(sentence)
+  );
+  if (!ctaSentence) return;
+
+  const normalized = normalizeText(ctaSentence);
+  const hasSearchContext =
+    /(?:если|чтобы|именно|вариант|такой\s+же|похож|перепут|искать|найти|ориентир|модель|банк|пенк|аэрогрил|коллаген)/iu.test(normalized);
+  const detachedCta =
+    /(?:^|\s)(?:я\s+)?остав(?:ил|ила|лю)\s+(?:его|ее|её|их)?\s*в\s+описании(?:$|[.!?])/iu.test(normalized) ||
+    /^(?:артикул|код)(?:\s+\S+){0,5}\s+в\s+описании[.!?]?$/iu.test(normalized) ||
+    /^(?:артикул|код)(?:\s+\S+){0,5}\s+(?:можно\s+)?(?:найти|найдете|ищите)\s+(?:прямо\s+)?в\s+описании[.!?]?$/iu.test(normalized);
+
+  if (detachedCta || !hasSearchContext) {
+    throw new Error("Сценарий отклонен: CTA про артикул вставлен без контекста. Свяжи его с поиском именно этого варианта продукта, например «чтобы не перепутать с похожими, артикул будет в описании».");
+  }
 }
