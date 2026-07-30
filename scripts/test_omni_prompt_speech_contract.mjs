@@ -111,6 +111,8 @@ try {
     assert.ok(imagePrompt.includes("точно то же волокно, плетение, плотность"), "storyboard image prompt must lock exact fabric material");
     assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");
     assert.ok(imagePrompt.includes("Смысл текущей реплики определяет содержание кадра"), "storyboard image prompt must request semantic UGC shots");
+    assert.ok(imagePrompt.includes("не hero shot"), "storyboard image prompt must prevent background props from becoming product ads");
+    assert.ok(imagePrompt.includes("Не превращай первые кадры в рекламную демонстрацию товара"), "storyboard image prompt must keep blogger framing");
     if (!productVisible) {
       assert.ok(!imagePrompt.includes("Продукт: Аэрогриль"), "first storyboard prompt must not name the product");
       assert.ok(!imagePrompt.includes("Product reference URLs"), "first storyboard prompt must not leak product references");

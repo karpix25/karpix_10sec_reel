@@ -167,9 +167,34 @@ try {
     segmentIndex: 2,
     durationSeconds: 10,
   });
-  assert.ok(mixedTopicStoryboard.frames[0].productPlacement.includes("обязательно физически виден"));
+  assert.ok(mixedTopicStoryboard.frames[0].productPlacement.includes("вспомогательный предмет"));
+  assert.ok(!mixedTopicStoryboard.frames[0].camera.includes("крупный кадр продукта"));
+  assert.ok(!mixedTopicStoryboard.frames[1].camera.includes("крупный кадр продукта"));
   assert.ok(mixedTopicStoryboard.frames[2].visualAction.includes("вечерняя спальня"));
   assert.equal(mixedTopicStoryboard.frames[2].productPlacement, "в кадре только тематические объекты и окружение текущей реплики");
+
+  const articleCtaStoryboard = builder.buildStoryboardFromCreativePlan({
+    plan: {
+      ...buildCreativePlan(),
+      voiceoverText: "Пенка Geodemika мягко очищает кожу. Артикул по ней добавлю в описание, а дальше важны сон и питание для спокойной кожи каждый день.",
+      productRole: "background_prop",
+      beats: [
+        { startSeconds: 0, endSeconds: 4, action: "Сценарный visual cue: пенка Geodemika на раковине" },
+        { startSeconds: 4, endSeconds: 8, action: "Сценарный visual cue: герой говорит про артикул без показа продукта" },
+        { startSeconds: 8, endSeconds: 10, action: "персонаж возвращается к камере" },
+      ],
+    },
+    productName: "Geodemika Enzyme Cleansing Foam",
+    characterContract: {
+      identityLine: "approved avatar identity",
+      clothingLine: "черный мужской лонгслив",
+      sourceRuleLine: "avatar defines identity",
+      clothingSource: "avatar",
+    },
+    segmentIndex: 2,
+    durationSeconds: 10,
+  });
+  assert.ok(!articleCtaStoryboard.frames.some((frame) => frame.camera.includes("крупный кадр продукта")));
 
   const maleSafeStoryboard = builder.buildStoryboardFromCreativePlan({
     plan: { ...buildCreativePlan(), productRole: "natural_use" },

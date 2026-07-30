@@ -123,6 +123,7 @@ function buildFrame(input: {
     ? renderIntroFrameAction(beat?.action, isCutawayFrame, input.productName)
     : renderFrameAction(beat?.action, isCutawayFrame);
   const productVisible = input.plan.productRole !== "hidden" &&
+    !isArticleCtaOnly(input.spokenText) &&
     mentionsOmniProduct(`${input.spokenText} ${visualAction}`, input.productName);
 
   return {
@@ -133,7 +134,8 @@ function buildFrame(input: {
       input.frameCount,
       isCutawayFrame,
       renderDirectorCamera(input.directorBrief, productVisible),
-      productVisible
+      productVisible,
+      input.plan.productRole
     ),
     environment: renderDirectorEnvironment(input.directorBrief),
     wardrobe: renderStoryboardWardrobe(input.characterContract, input.directorBrief, input.wardrobeSource),
@@ -160,11 +162,14 @@ function renderFrameCamera(
   frameCount: number,
   isCutawayFrame: boolean,
   directorCamera: string,
-  productVisible: boolean
+  productVisible: boolean,
+  productRole?: string
 ) {
   const base = isCutawayFrame
     ? productVisible
-      ? "смысловая перебивка: крупный кадр продукта в естественном окружении"
+      ? productRole === "background_prop"
+        ? "смысловая перебивка: блогерская сцена по реплике, продукт только как второстепенная деталь окружения"
+        : "смысловая перебивка: крупный кадр продукта в естественном окружении"
       : "смысловая перебивка: предметный или атмосферный кадр по текущей реплике"
     : frameIndex === 1
       ? "триггерный кадр с живым движением камеры, герой смотрит прямо в объектив"
@@ -250,6 +255,12 @@ function renderProductPlacement(
   if (!productVisible) {
     return "в кадре только тематические объекты и окружение текущей реплики";
   }
+  if (plan.productRole === "background_prop") {
+    return appendProductPhysicalHint(
+      `${productName} может быть виден только как небольшой вспомогательный предмет в блогерской сцене, без крупного рекламного плана и без демонстрации этикетки${productDetails}`,
+      productPhysicalHint
+    );
+  }
   if (plan.productRole === "brief_demo") {
     return appendProductPhysicalHint(
       `${productName} обязательно физически виден в коротком действии с рукой${productDetails}`,
@@ -266,6 +277,11 @@ function renderProductPlacement(
     `${productName} обязательно физически виден как реальный предмет в окружении${productDetails}`,
     productPhysicalHint
   );
+}
+
+function isArticleCtaOnly(text: string) {
+  return /артикул|описани|под\s+видео|ниже/iu.test(text) &&
+    !/использ|нанос|готов|полож|выбр|покаж|держ|бер|пью|принима|умыва|запека|жар|режим/iu.test(text);
 }
 
 function appendProductPhysicalHint(base: string, productPhysicalHint?: string | null) {
