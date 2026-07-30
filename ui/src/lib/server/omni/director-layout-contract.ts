@@ -82,16 +82,13 @@ export function applyDirectorLayoutToPlan(
   layout: DirectorLayoutContract | null
 ): OmniSegmentCreativePlan {
   if (!layout) return plan;
-  const productRole = layout.requiresOpeningProductBackground && plan.productRole === "hidden"
-    ? "background_prop"
-    : plan.productRole;
+  const showProductBackground = layout.requiresOpeningProductBackground && plan.productRole !== "hidden";
   return {
     ...plan,
-    productRole,
     continuityProps: layout.continuityProps,
     beats: plan.beats.map((beat, index) => ({
       ...beat,
-      action: buildCollageBeatAction(index, beat.action, layout.requiresOpeningProductBackground),
+      action: buildCollageBeatAction(index, beat.action, showProductBackground),
     })) as unknown as OmniSegmentCreativePlan["beats"],
   };
 }

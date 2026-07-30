@@ -14,6 +14,8 @@ import type { DirectorBrief } from "../director-analysis-types";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
 
 const CLEAN_STORYBOARD_STYLE = "чистая натуральная картинка без лишней декоративной графики, стрелок и рекламных надписей";
+const EXACT_FABRIC_LOCK =
+  "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
 
 export function buildStoryboardFromCreativePlan(input: {
   plan: OmniSegmentCreativePlan;
@@ -75,7 +77,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
       visualAction: frame.visualDescription || frame.action,
       camera: frame.camera,
       environment: "окружение и свет из режиссерского плана и storyboard image",
-      wardrobe: "одежда из avatar или reference contract, без смены между кадрами",
+      wardrobe: `одежда из avatar или reference contract, без смены между кадрами; ${EXACT_FABRIC_LOCK}`,
       productPlacement: renderPromptChainProductPlacement(frame.productState, input.productPhysicalHint),
       sfxNotes: frame.sfx || "естественные звуки сцены и речи",
       effectNotes: CLEAN_STORYBOARD_STYLE,
@@ -120,8 +122,16 @@ function buildFrame(input: {
 
   return {
     spokenText: input.spokenText,
-    visualAction: renderFrameAction(beat?.action, isCutawayFrame),
-    camera: renderFrameCamera(input.frameIndex, input.frameCount, isCutawayFrame, renderDirectorCamera(input.directorBrief)),
+    visualAction: input.segmentIndex === 1
+      ? renderIntroFrameAction(isCutawayFrame)
+      : renderFrameAction(beat?.action, isCutawayFrame),
+    camera: renderFrameCamera(
+      input.frameIndex,
+      input.frameCount,
+      isCutawayFrame,
+      renderDirectorCamera(input.directorBrief),
+      input.segmentIndex > 1 && input.plan.productRole !== "hidden"
+    ),
     environment: renderDirectorEnvironment(input.directorBrief),
     wardrobe: renderStoryboardWardrobe(input.characterContract, input.directorBrief, input.wardrobeSource),
     productPlacement: renderProductPlacement(
@@ -131,7 +141,9 @@ function buildFrame(input: {
       input.productPhysicalHint,
       input.segmentIndex
     ),
-    sfxNotes: isCutawayFrame ? "естественный звук короткого действия с продуктом" : "тихие естественные звуки комнаты и живой речи",
+    sfxNotes: isCutawayFrame && input.segmentIndex > 1
+      ? "естественный звук короткого действия с продуктом"
+      : "тихие естественные звуки комнаты и живой речи",
     effectNotes: renderFrameEffect(input.frameIndex, input.frameCount, isCutawayFrame),
     modelMusicNotes: null,
   };
@@ -141,10 +153,13 @@ function renderFrameCamera(
   frameIndex: number,
   frameCount: number,
   isCutawayFrame: boolean,
-  directorCamera: string
+  directorCamera: string,
+  productVisible: boolean
 ) {
   const base = isCutawayFrame
-    ? "быстрая перебивка крупнее обычного: продукт, рука или деталь среды в движении"
+    ? productVisible
+      ? "быстрая перебивка крупнее обычного: продукт, рука или деталь среды в движении"
+      : "быстрая перебивка крупнее обычного: живой жест руки или деталь среды в движении"
     : frameIndex === 1
       ? "триггерный кадр с живым движением камеры, герой смотрит прямо в объектив"
       : frameIndex === frameCount
@@ -174,16 +189,21 @@ function renderStoryboardWardrobe(
   brief?: DirectorBrief | null,
   wardrobeSource?: OmniWardrobeSource
 ) {
-  if (normalizeOmniWardrobeSource(wardrobeSource) === "avatar_reference") return characterContract.clothingLine;
-  if (characterContract.speechGender === "male" && isClearlyFemaleWardrobe(brief)) return characterContract.clothingLine;
-  if (!brief?.clothing.style) return characterContract.clothingLine;
+  if (normalizeOmniWardrobeSource(wardrobeSource) === "avatar_reference") {
+    return `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
+  }
+  if (characterContract.speechGender === "male" && isClearlyFemaleWardrobe(brief)) {
+    return `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
+  }
+  if (!brief?.clothing.style) return `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
   const colors = brief.clothing.color_palette.length ? `colors: ${brief.clothing.color_palette.join(", ")}` : "";
   return [
     "REFERENCE WARDROBE LOCK:",
     brief.clothing.style,
     brief.clothing.fit_details,
     colors,
-    "ONE EXACT OUTFIT FOR THE WHOLE REEL: keep the same garments, layers, neckline, sleeves, fabric texture, fit, accessories, and color placement in every frame and every segment",
+    "ONE EXACT OUTFIT FOR THE WHOLE REEL: keep the same garments, layers, neckline, sleeves, fit, accessories, and color placement in every frame and every segment",
+    EXACT_FABRIC_LOCK,
     "if a jacket, blazer, overshirt, or shirt layer is present, it stays on and is not replaced by a t-shirt or a different shirt",
   ].filter(Boolean).join("; ");
 }
@@ -223,7 +243,9 @@ function renderProductPlacement(
   segmentIndex?: number
 ) {
   const productDetails = productVisualPassport ? `, детали из референса: ${compactProductReference(productVisualPassport)}` : "";
-  if (segmentIndex === 1) return `${productName} вне кадра в первой части; продукт появляется со второй части`;
+  if (segmentIndex === 1) {
+    return "говорящая голова с пустыми руками; внимание на лице, жестах и атмосфере";
+  }
   if (plan.productRole === "hidden") return `${productName} вне кадра в этом сегменте`;
   if (plan.productRole === "brief_demo") {
     return appendProductPhysicalHint(
@@ -267,6 +289,12 @@ function renderFrameAction(action: string | undefined, isCutawayFrame: boolean) 
       : `персонаж говорит в камеру, визуальный ориентир: ${visualCue}`;
   }
   return compactText(normalized, 180);
+}
+
+function renderIntroFrameAction(isCutawayFrame: boolean) {
+  return isCutawayFrame
+    ? "короткая живая перебивка на жест свободной руки или деталь окружения"
+    : "персонаж с пустыми руками естественно говорит в камеру";
 }
 
 function extractVisualCue(value: string) {

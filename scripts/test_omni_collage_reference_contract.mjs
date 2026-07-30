@@ -51,17 +51,17 @@ try {
   const firstPlan = prompts[0].creativePlan;
 
   assert.equal(prompts.length, 3, "test fixture should keep the reel 50 reference while fitting current speech budgets");
-  assert.equal(firstPlan.productRole, "background_prop", "collage product background must be visible from segment 1");
-  assert.equal(prompts[0].referenceUrl, "https://example.com/orange-collagen.png", "segment 1 must send the product reference");
+  assert.equal(firstPlan.productRole, "hidden", "collage references must keep the product hidden in segment 1");
+  assert.equal(prompts[0].referenceUrl, "https://example.com/avatar.jpg", "segment 1 must use the avatar reference");
   assert.ok(joinedPrompt.includes("REFERENCE LAYOUT: COLLAGE PICTURE-IN-PICTURE"), "collage layout must reach provider prompt");
   assert.ok(joinedPrompt.includes("lower-left corner"), "lower-left avatar placement must reach provider prompt");
   assert.ok(joinedPrompt.includes("thick white paper outline"), "paper cutout outline must reach provider prompt");
   assert.ok(joinedPrompt.includes("full-frame background layer"), "background layer must reach provider prompt");
   assert.ok(joinedPrompt.includes("new product reference"), "original product must be replaced by our product reference");
   assert.ok(firstPrompt.includes("collage/PIP opening frame"), "shot plan must not degrade into a generic talking-head opening");
-  assert.ok(firstPrompt.includes("background layer prominently uses the new product reference"), "opening shot must keep product background");
+  assert.ok(firstPrompt.includes("герой с пустыми руками"), "opening shot must remain product-free");
   assert.ok(!/use the original reference only for transferable direction/u.test(joinedPrompt), "same-domain collage reference must not be downgraded to style-only");
-  assert.ok(!/продукт и упаковка не появляются/u.test(firstPrompt), "opening segment must not hide the product");
+  assert.ok(!firstPrompt.includes("@product_file"), "opening segment must not receive the product file");
   assert.ok(joinedPrompt.includes("filming equipment is never visible"), "collage prompts must ban visible filming gear");
   assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(joinedPrompt), "collage prompts must sanitize raw tripod wording");
   assert.ok(
