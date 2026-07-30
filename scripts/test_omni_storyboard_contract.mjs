@@ -60,17 +60,16 @@ try {
   assert.ok(prompt.includes("Создай видео по раскадровке"));
   assert.ok(prompt.includes("@storyboard_file"));
   assert.ok(!prompt.includes("@product_file"));
-  assert.ok(prompt.includes("продукт остается вне кадра"));
+  assert.ok(prompt.includes("герой с пустыми руками"));
   assert.ok(!prompt.includes("Продукт бери из"));
   assert.ok(prompt.includes("не показывай саму раскадровку"));
   assert.ok(prompt.includes("телефон, экран, интерфейс, соцсети"));
   assert.ok(prompt.includes("Оживи кадры раскадровки"));
-  assert.ok(prompt.includes("точно такой же визуал как в раскадровке"));
+  assert.ok(prompt.includes("сохрани точно такой же визуал"));
   assert.ok(prompt.includes("Лицо и личность персонажа бери из avatar/character reference"));
   assert.ok(prompt.includes("одежду, свет, фон, ракурс и действия бери из раскадровки"));
   assert.ok(prompt.includes("те же волосы, пробор, аксессуары"));
-  assert.ok(prompt.includes("один и тот же комплект на весь ролик"));
-  assert.ok(prompt.includes("не заменяй слой футболкой"));
+  assert.ok(prompt.includes("один и тот же полный комплект одежды"));
   assert.ok(prompt.includes("смотрит прямо в объектив"));
   assert.ok(!prompt.includes("Состояние продукта держи одинаковым"));
   assert.ok(prompt.includes("Структура видео: ровно 5 живых эпизодов"));
@@ -78,7 +77,8 @@ try {
   assert.ok(!prompt.includes("DELIVERY DIRECTION"));
   assert.ok(prompt.includes("Персонаж в кадре сам произносит эти слова"));
   assert.ok(prompt.includes("на русском языке"));
-  assert.ok(prompt.includes("Не дублируй слова"));
+  assert.ok(prompt.includes("произносится ровно один раз"));
+  assert.ok(prompt.includes("следующего еще не произнесенного слова"));
   assert.ok(!prompt.includes("Служебные блоки раскадровки"));
   assert.ok(!prompt.includes("Озвучка:"));
   assert.ok(!prompt.includes("Реплика персонажа:"));
@@ -125,9 +125,10 @@ try {
   });
   assert.ok(directorStoryboard.frames[0].environment.includes("warm amber studio wall"));
   assert.ok(directorStoryboard.frames[0].wardrobe.includes("black fitted turtleneck"));
-  assert.ok(directorStoryboard.frames[0].productPlacement.includes("вне кадра в первой части"));
+  assert.ok(directorStoryboard.frames[0].productPlacement.includes("с пустыми руками"));
   assert.ok(directorStoryboard.frames[0].camera.includes("medium close-up"));
   assert.ok(directorStoryboard.frames[0].wardrobe.includes("ONE EXACT OUTFIT FOR THE WHOLE REEL"));
+  assert.ok(directorStoryboard.frames[0].wardrobe.includes("ONE EXACT FABRIC FOR THE WHOLE REEL"));
   assert.ok(!directorStoryboard.frames[0].wardrobe.includes("keep the black fitted high-neck silhouette on the avatar"));
   assert.ok(
     directorStoryboard.frames.filter((frame) => !/перебивка/iu.test(frame.camera)).every((frame) => frame.camera.includes("смотрит прямо в объектив")),

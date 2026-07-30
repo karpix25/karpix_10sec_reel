@@ -21,6 +21,17 @@ export function validateStoryboardDirectorPlan(plan: DirectorSegmentPlan): Promp
   plan.segments.forEach((segment, segmentIndex) => {
     const path = `director.segments.${segmentIndex}.storyboardFrames`;
     validateStoryboardFrames(segment.storyboardFrames, segment.durationSeconds, path, issues);
+    if (segmentIndex === 0) {
+      if (!HIDDEN_PRODUCT_PATTERN.test(segment.productState || "")) {
+        issues.push({
+          path: `director.segments.${segmentIndex}.productState`,
+          code: "intro_product_visible",
+          message: "The first segment must keep the product off camera.",
+          severity: "error",
+        });
+      }
+      validateIntroFrames(segment.storyboardFrames, path, issues);
+    }
     if (normalize(joinStoryboardSpeech(segment.storyboardFrames)) !== normalize(segment.voiceover)) {
       issues.push({
         path,
@@ -33,11 +44,33 @@ export function validateStoryboardDirectorPlan(plan: DirectorSegmentPlan): Promp
   return issues;
 }
 
+function validateIntroFrames(
+  frames: readonly StoryboardFrame[],
+  path: string,
+  issues: PromptValidationIssue[]
+) {
+  frames.forEach((frame, frameIndex) => {
+    if (
+      frame.role === "product_cutaway" ||
+      frame.referenceRole === "product" ||
+      !HIDDEN_PRODUCT_PATTERN.test(frame.productState || "")
+    ) {
+      issues.push({
+        path: `${path}.${frameIndex}`,
+        code: "intro_product_visible",
+        message: "The first segment must keep the product off camera and use only avatar or environment frames.",
+        severity: "error",
+      });
+    }
+  });
+}
+
 export function validateStoryboardProviderPlan(plan: ProviderPromptPlan): PromptValidationIssue[] {
   const issues: PromptValidationIssue[] = [];
   plan.segmentPrompts.forEach((prompt, index) => {
     const path = `provider.segmentPrompts.${index}.storyboardFrames`;
     validateStoryboardFrames(prompt.storyboardFrames, prompt.durationSeconds, path, issues);
+    if (index === 0) validateIntroFrames(prompt.storyboardFrames, path, issues);
     if (normalize(joinStoryboardSpeech(prompt.storyboardFrames)) !== normalize(prompt.voiceover)) {
       issues.push({
         path,

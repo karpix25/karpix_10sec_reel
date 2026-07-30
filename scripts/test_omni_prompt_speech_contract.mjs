@@ -60,25 +60,32 @@ try {
     assert.ok(!item.prompt.includes("Озвучка:"), "storyboard prompt must not imply background voiceover");
     assert.ok(item.prompt.includes("Создай видео по раскадровке"), "storyboard prompt must bind video to storyboard");
     assert.ok(item.prompt.includes("@storyboard_file"), "storyboard prompt must keep file placeholder until KIE upload order is known");
-    assert.ok(item.prompt.includes("@product_file"), "storyboard prompt must keep product file placeholder until KIE upload order is known");
-    assert.ok(item.prompt.includes("Продукт бери из"), "storyboard prompt must bind the product file");
-    assert.ok(item.prompt.includes("не меняй упаковку"), "storyboard prompt must forbid product package substitution");
+    if (item.index === 1) {
+      assert.ok(!item.prompt.includes("@product_file"), "first segment must not reference the product file");
+      assert.ok(item.prompt.includes("герой с пустыми руками"), "first segment must remain a clean talking head");
+    } else {
+      assert.ok(item.prompt.includes("@product_file"), "later segments must keep the product file placeholder");
+      assert.ok(item.prompt.includes("Продукт бери из"), "later segments must bind the product file");
+      assert.ok(item.prompt.includes("не меняй упаковку"), "later segments must preserve product packaging");
+    }
     assert.ok(item.prompt.includes("не показывай саму раскадровку"), "storyboard prompt must not render storyboard panels");
     assert.ok(item.prompt.includes("телефон, экран, интерфейс, соцсети"), "storyboard prompt must forbid embedded social UI");
     assert.ok(item.prompt.includes("Оживи кадры раскадровки"), "storyboard prompt must convert frames into live scenes");
-    assert.ok(item.prompt.includes("точно такой же визуал как в раскадровке"), "storyboard prompt must ask to copy storyboard visual");
+    assert.ok(item.prompt.includes("сохрани точно такой же визуал"), "storyboard prompt must ask to copy storyboard visual");
     assert.ok(item.prompt.includes("Лицо и личность персонажа бери из avatar/character reference"), "storyboard prompt must limit avatar reference to identity");
     assert.ok(item.prompt.includes("одежду, свет, фон, ракурс и действия бери из раскадровки"), "storyboard prompt must make storyboard wardrobe and scene authoritative");
     assert.ok(item.prompt.includes("те же волосы, пробор, аксессуары"), "storyboard prompt must keep hair and outfit details stable");
-    assert.ok(item.prompt.includes("один и тот же комплект на весь ролик"), "storyboard prompt must lock one outfit across all segments");
-    assert.ok(item.prompt.includes("не заменяй слой футболкой"), "storyboard prompt must prevent layer swaps");
+    assert.ok(item.prompt.includes("один и тот же полный комплект одежды"), "storyboard prompt must lock one outfit across all segments");
     assert.ok(item.prompt.includes("смотрит прямо в объектив"), "storyboard prompt must keep eye contact across camera angles");
-    assert.ok(item.prompt.includes("Состояние продукта держи одинаковым"), "storyboard prompt must keep product physical state stable");
+    if (item.index > 1) {
+      assert.ok(item.prompt.includes("Состояние продукта держи одинаковым"), "visible product segments must keep product physical state stable");
+    }
     assert.ok(item.prompt.includes(`Структура видео: ровно ${item.storyboardPlan.frames.length} живых эпизодов`), "storyboard prompt must lock the exact storyboard frame count");
     assert.ok(!item.prompt.includes("DELIVERY DIRECTION"), "storyboard prompt must not use weak delivery direction blocks");
     assert.ok(item.prompt.includes("Персонаж в кадре сам произносит эти слова"), "storyboard prompt must provide direct segment speech text");
     assert.ok(item.prompt.includes("на русском языке"), "storyboard prompt must force Russian character speech");
-    assert.ok(item.prompt.includes("Не дублируй слова"), "storyboard prompt must forbid duplicated speech");
+    assert.ok(item.prompt.includes("произносится ровно один раз"), "storyboard prompt must request one complete delivery");
+    assert.ok(item.prompt.includes("следующего еще не произнесенного слова"), "storyboard episodes must continue speech without restarts");
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
     assert.ok(item.prompt.includes("Не добавляй музыку"), "storyboard prompt must forbid Omni music");
     assert.ok(!item.prompt.includes("субтитры примени как с референса"), "storyboard prompt must not ask to copy subtitles");
@@ -92,7 +99,7 @@ try {
       storyboard: item.storyboardPlan,
       productName: "Аэрогриль",
       avatarReferenceUrl: "https://example.com/avatar.png",
-      productReferenceUrls: ["https://example.com/air-fryer.png"],
+      productReferenceUrls: item.index === 1 ? [] : ["https://example.com/air-fryer.png"],
       directorReferenceImageUrls: ["https://example.com/source-frame.jpg"],
       previousStoryboardReferenceUrl: item.index > 1 ? "https://example.com/previous-storyboard.jpg" : null,
     });
@@ -100,8 +107,13 @@ try {
     assert.ok(imagePrompt.includes("пять кадров именно этого сегмента оригинального reference-видео"), "storyboard image prompt must use segment original frames when available");
     assert.ok(imagePrompt.includes("Одежда, стиль, свет и окружение должны оставаться одинаковыми"), "storyboard image prompt must lock outfit continuity");
     assert.ok(imagePrompt.includes("та же длина волос, пробор"), "storyboard image prompt must lock hair details");
+    assert.ok(imagePrompt.includes("точно то же волокно, плетение, плотность"), "storyboard image prompt must lock exact fabric material");
     assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");
     assert.ok(imagePrompt.includes("Раскадровка должна быть динамичной"), "storyboard image prompt must request dynamic UGC shots");
+    if (item.index === 1) {
+      assert.ok(!imagePrompt.includes("Продукт: Аэрогриль"), "first storyboard prompt must not name the product");
+      assert.ok(!imagePrompt.includes("Product reference URLs"), "first storyboard prompt must not leak product references");
+    }
   }
 
   const physicalContract = "The product remains a stable black countertop air fryer with the same hard shell, basket shape, matte finish, and compact appliance proportions throughout the scene. It moves only as one intact appliance when handled and stays visually identical to the reference.";
@@ -187,7 +199,7 @@ try {
 	  storedPrompts.forEach((item, index) => {
 	    assert.notEqual(item.prompt, storedSegments[index].prompt);
 	    assert.ok(item.prompt.includes("Создай видео по раскадровке"));
-	    assert.ok(item.prompt.includes("@product_file"));
+	    assert.equal(item.prompt.includes("@product_file"), index > 0);
       assert.equal(normalizedCount(item.prompt, item.voiceoverText), 1);
 	    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
 	    assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2);
@@ -305,7 +317,7 @@ function buildStoredPromptInput(options = {}) {
 	        index: index + 1,
 	        durationSeconds: 6,
 	        voiceover,
-	        storyboardFrames: options.omitStoryboardFrames ? [] : makeStoredStoryboardFrames(voiceover),
+	        storyboardFrames: options.omitStoryboardFrames ? [] : makeStoredStoryboardFrames(voiceover, index),
 	        referenceRole: "avatar",
 	        prompt: [
 	          "Вертикальное живое видео на кухне.",
@@ -322,18 +334,22 @@ function buildStoredPromptInput(options = {}) {
   return input;
 }
 
-function makeStoredStoryboardFrames(voiceover) {
+function makeStoredStoryboardFrames(voiceover, segmentIndex) {
   const words = voiceover.split(/\s+/u).filter(Boolean);
   return [0, 1, 2].map((index) => ({
     index: index + 1,
-    role: index === 0 ? "face_open" : index === 2 ? "face_return" : "product_cutaway",
+    role: index === 0 ? "face_open" : index === 2 ? "face_return" : segmentIndex === 0 ? "environment_cutaway" : "product_cutaway",
     spokenWords: words.slice(index * 5, index * 5 + 5).join(" "),
-    visualDescription: "живая кухня с тем же человеком и продуктом",
+    visualDescription: segmentIndex === 0
+      ? "живая кухня с тем же человеком и свободными руками"
+      : "живая кухня с тем же человеком и продуктом",
     camera: index === 2 ? "крупный план продукта" : "фронтальный план на телефон",
-    action: "персонаж продолжает мысль и показывает продукт",
-    productState: "аэрогриль стоит на столе без рук",
+    action: segmentIndex === 0
+      ? "персонаж продолжает мысль с пустыми руками"
+      : "персонаж продолжает мысль и показывает продукт",
+    productState: segmentIndex === 0 ? "товар вне кадра" : "аэрогриль стоит на столе без рук",
     sfx: "тихие естественные звуки кухни",
-    referenceRole: index === 0 || index === 4 ? "avatar" : "product",
+    referenceRole: segmentIndex === 0 || index === 0 || index === 4 ? "avatar" : "product",
   }));
 }
 

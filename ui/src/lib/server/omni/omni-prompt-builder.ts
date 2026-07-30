@@ -60,6 +60,7 @@ import {
   renderProductPhysicalHintForStoryboard,
   resolveProductPhysicalContract,
 } from "./product-physical-contract";
+import { mentionsOmniProduct } from "./omni-intro-product-contract";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -184,9 +185,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentScriptBeats,
       input.product.name
     );
-    const productRole = layoutContract?.requiresOpeningProductBackground && segmentIndex === 1 && baseProductRole === "hidden"
-      ? "background_prop"
-      : baseProductRole;
+    const productRole = segmentIndex === 1 ? "hidden" : baseProductRole;
     const segmentProductVisualPassport = productVisualPassport;
     const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
       segmentIndex,
@@ -264,11 +263,10 @@ function getSegmentProductRole(
   if (role === "hidden") return role;
   if (
     segmentIndex > 1 &&
-    segmentMentionsProduct({
-      voiceoverText,
-      scriptBeats,
-      productName,
-    })
+    mentionsOmniProduct(
+      [voiceoverText, ...scriptBeats.flatMap((beat) => [beat.voiceover, beat.visualCue])].join(" "),
+      productName
+    )
   ) {
     return "background_prop";
   }
@@ -317,7 +315,8 @@ function buildStoredProviderPromptSegments(
 
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
-    const productRole: ProductRole = segment.referenceRole === "product" ? "background_prop" : "hidden";
+    const productRole: ProductRole =
+      segmentIndex === 1 ? "hidden" : segment.referenceRole === "product" ? "background_prop" : "hidden";
 	    const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,
@@ -392,26 +391,6 @@ function selectStoredReferenceUrl(
   if (referenceRole === "product") return productReference?.url || avatarReference;
   if (referenceRole === "none") return null;
   return avatarReference;
-}
-
-function segmentMentionsProduct(input: {
-  voiceoverText: string;
-  scriptBeats: readonly OmniScriptBeatCue[];
-  productName: string;
-}) {
-  const text = [
-    input.voiceoverText,
-    ...input.scriptBeats.flatMap((beat) => [beat.voiceover, beat.visualCue]),
-  ].join(" ").toLowerCase().replace(/ё/g, "е");
-  const productWords = input.productName
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .split(/[^a-zа-я0-9]+/iu)
-    .filter((word) => word.length >= 4);
-  return (
-    productWords.some((word) => text.includes(word.slice(0, Math.max(4, word.length - 2)))) ||
-    /коллаген|продукт|упаковк|баноч|пакет|желе|капсул|витамин|бад|саше|флакон|тюбик|коробк/iu.test(text)
-  );
 }
 
 function selectReferenceUrl(

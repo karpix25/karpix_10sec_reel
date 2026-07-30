@@ -22,7 +22,9 @@ export function buildStoryboardImagePrompt(input: {
     ? `${directorRangeStart}-${directorRangeEnd}`
     : String(directorRangeStart);
   const previousReferenceIndex = productReferenceUrls.length + directorReferenceImageUrls.length + 2;
-  const productPhysicalHint = renderProductPhysicalStoryboardHint(input.productPhysicalContract);
+  const productPhysicalHint = productReferenceUrls.length
+    ? renderProductPhysicalStoryboardHint(input.productPhysicalContract)
+    : "";
   const frameCount = input.storyboard.frames.length;
   const frameNumbers = input.storyboard.frames.map((_, index) => String(index + 1)).join(", ");
   return [
@@ -40,7 +42,7 @@ export function buildStoryboardImagePrompt(input: {
     "Изображение 1 - наш аватар: лицо, возраст, телосложение, волосы и общий типаж героя.",
     productReferenceUrls.length
       ? `Изображения ${productRange} - реальный продукт: форма, цвет, упаковка, материал и размер.`
-      : "В этом сегменте изображения продукта не переданы: кадры строятся как talking-head, руки героя свободны, фокус на лице, жестах и атмосфере.",
+      : "Это talking-head сегмент: руки героя свободны, фокус на лице, жестах и атмосфере.",
     directorReferenceImageUrls.length
       ? `Изображения ${directorRange} - пять кадров именно этого сегмента оригинального reference-видео. Используй их для атмосферы, одежды, света, локации, динамики смены кадров и UGC-ракурсов, но не копируй лицо оригинального автора.`
       : "",
@@ -50,12 +52,15 @@ export function buildStoryboardImagePrompt(input: {
     "Каждый кадр должен быть отдельной вертикальной визуальной панелью с таймингом две секунды.",
     "Можно рисовать только минимальные монтажные и SFX-подсказки, которые помогают повторить раскадровку в видео.",
     "Главный герой в каждом кадре должен быть тем же человеком, что и на изображении один. Не меняй лицо, возраст, телосложение, волосы и общий типаж между кадрами.",
-    "Детали героя фиксированы во всех кадрах: та же длина волос, пробор, объем прически, линия роста волос, украшения, вырез, рукава, посадка и фактура одежды.",
+    "Детали героя фиксированы во всех кадрах: та же длина волос, пробор, объем прически, линия роста волос, украшения, вырез и рукава.",
+    "Материал одежды фиксируется первым кадром первой части. Во всех следующих кадрах и частях воспроизводи точно то же волокно, плетение, плотность, фактуру поверхности, швы, крой и посадку.",
     "Одежда, стиль, свет и окружение должны строго следовать полям одежда, окружение и камера в каждом кадре. Если там есть REFERENCE LOCK, он важнее общих UGC-догадок.",
     "Одежда, стиль, свет и окружение должны оставаться одинаковыми во всех кадрах и между частями ролика. Не меняй цвет, тип одежды, посадку, аксессуары или прическу.",
     "Во всех talking-head кадрах герой смотрит прямо в объектив, даже если камера выше, ниже, сбоку или движется.",
     "Раскадровка должна быть динамичной: меняй крупность, угол камеры, жесты, положение рук, перебивки и микродействия, но сохраняй одного героя и один outfit.",
-    "Первые два кадра должны быть особенно цепляющими: необычный selfie-ракурс, движение камеры, действие рукой, продуктовый POV, быстрый наклон или резкая смена крупности без прямой рекламной подачи.",
+    productReferenceUrls.length
+      ? "Первые два кадра должны быть особенно цепляющими: необычный selfie-ракурс, движение камеры, действие рукой, предметный POV, быстрый наклон или резкая смена крупности без прямой рекламной подачи."
+      : "Первые два кадра должны быть особенно цепляющими: необычный selfie-ракурс, движение камеры, выразительный жест свободной рукой, быстрый наклон или резкая смена крупности.",
     productReferenceUrls.length
       ? "Если описание кадра говорит, что продукт виден, прорисуй именно продукт из входных изображений продукта, четко и детально."
       : "Все кадры этого сегмента остаются talking-head без предметной демонстрации.",
@@ -66,7 +71,7 @@ export function buildStoryboardImagePrompt(input: {
     productReferenceUrls.length ? `Product reference URLs: ${productReferenceUrls.join(", ")}.` : "",
     directorReferenceImageUrls.length ? `Director reference image URLs: ${directorReferenceImageUrls.join(", ")}.` : "",
     previousStoryboardReferenceUrl ? `Previous storyboard reference URL: ${previousStoryboardReferenceUrl}.` : "",
-    `Продукт: ${input.productName}.`,
+    productReferenceUrls.length ? `Продукт: ${input.productName}.` : "",
     `Сегмент: ${input.segmentIndex}.`,
     ...input.storyboard.frames.map((frame, index) =>
       [
@@ -76,7 +81,7 @@ export function buildStoryboardImagePrompt(input: {
         `камера ${frame.camera};`,
         `окружение ${frame.environment};`,
         `одежда ${frame.wardrobe};`,
-        `продукт ${frame.productPlacement};`,
+        productReferenceUrls.length ? `продукт ${frame.productPlacement};` : `предметы ${frame.productPlacement};`,
         `звук ${frame.sfxNotes};`,
         `монтаж и эффекты ${frame.effectNotes};`,
         "нижняя подсказка должна быть короткой: РАКУРС, МОНТАЖ, ЭФФЕКТ, SFX.",
