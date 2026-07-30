@@ -285,6 +285,13 @@ try {
   );
   assert.ok(promptChainSource.includes("как смысловую основу"), "LLM chain copywriter must preserve reference meaning");
   assert.ok(promptChainSource.includes("главный тезис, вопрос или возражение, механизм"), "LLM chain must keep original argument mechanics");
+  assert.ok(promptChainSource.includes("Переписывай reference близко"), "LLM chain must keep near-copy reference adaptation");
+  assert.ok(promptChainSource.includes("Если в reference уже есть чужой продукт"), "LLM chain must handle source products safely");
+  assert.ok(promptChainSource.includes("не копируй его название, бренд, упаковку и свойства"), "LLM chain must not copy source product identity");
+  assert.ok(promptChainSource.includes("Сохрани его сценарную роль"), "LLM chain must preserve source product narrative role");
+  assert.ok(promptChainSource.includes("Не превращай полезный reference в отдельный рекламный питч продукта"), "LLM chain must block ad-pitch rewrites");
+  assert.ok(promptChainSource.includes("в момент первого естественного появления продукта"), "LLM chain CTA must be embedded at the natural product mention");
+  assert.ok(promptChainSource.includes("Не ставь CTA отдельной финальной фразой"), "LLM chain CTA must not be a detached ending");
   assert.ok(!promptChainSource.includes("только как пример структуры"), "LLM chain must not reduce reference to structure only");
   assert.ok(promptChainSource.includes("прямо раскрывает смысл spoken_words"), "storyboard frames must visualize their current speech");
   assert.ok(promptChainSource.includes("product_cutaway только когда смысл spoken_words"), "product cutaways must be meaning-driven");
