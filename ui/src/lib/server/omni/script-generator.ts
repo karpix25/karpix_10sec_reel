@@ -32,7 +32,6 @@ import {
 import { isLlmPromptChainEnabled, runLlmPromptChain } from "./llm-prompt-chain-runner";
 import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
 import { planOmniReelSegments } from "./omni-duration-planner";
-import { assertOmniIntroWithoutProduct } from "./omni-intro-product-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -230,18 +229,11 @@ async function requestScriptOnce(
     durationRange: input.durationRange,
     referenceScript: input.sourceScenario.script,
   });
-  let firstSegmentText = "";
   try {
-    firstSegmentText = planOmniReelSegments(script, { durationRange: input.durationRange }).segments[0]?.text || "";
+    planOmniReelSegments(script, { durationRange: input.durationRange });
   } catch (error) {
     throw new Error(`Сценарий отклонен: ${error instanceof Error ? error.message : String(error)}`);
   }
-  assertOmniIntroWithoutProduct({
-    firstSegmentText,
-    projectName: input.projectName,
-    productName: input.productName,
-  });
-
   return {
     payload,
     qualityCheck,

@@ -60,13 +60,14 @@ try {
     assert.ok(!item.prompt.includes("Озвучка:"), "storyboard prompt must not imply background voiceover");
     assert.ok(item.prompt.includes("Создай видео по раскадровке"), "storyboard prompt must bind video to storyboard");
     assert.ok(item.prompt.includes("@storyboard_file"), "storyboard prompt must keep file placeholder until KIE upload order is known");
-    if (item.index === 1) {
-      assert.ok(!item.prompt.includes("@product_file"), "first segment must not reference the product file");
-      assert.ok(item.prompt.includes("герой с пустыми руками"), "first segment must remain a clean talking head");
+    const productVisible = item.creativePlan.productRole !== "hidden";
+    if (productVisible) {
+      assert.ok(item.prompt.includes("@product_file"), "product-visible segments must keep the product file placeholder");
+      assert.ok(item.prompt.includes("Продукт бери из"), "product-visible segments must bind the product file");
+      assert.ok(item.prompt.includes("не меняй упаковку"), "product-visible segments must preserve product packaging");
     } else {
-      assert.ok(item.prompt.includes("@product_file"), "later segments must keep the product file placeholder");
-      assert.ok(item.prompt.includes("Продукт бери из"), "later segments must bind the product file");
-      assert.ok(item.prompt.includes("не меняй упаковку"), "later segments must preserve product packaging");
+      assert.ok(!item.prompt.includes("@product_file"), "product-hidden segments must not reference the product file");
+      assert.ok(item.prompt.includes("продукт вне кадра"), "product-hidden segments must keep the product off camera");
     }
     assert.ok(item.prompt.includes("не показывай саму раскадровку"), "storyboard prompt must not render storyboard panels");
     assert.ok(item.prompt.includes("телефон, экран, интерфейс, соцсети"), "storyboard prompt must forbid embedded social UI");
@@ -77,7 +78,7 @@ try {
     assert.ok(item.prompt.includes("те же волосы, пробор, аксессуары"), "storyboard prompt must keep hair and outfit details stable");
     assert.ok(item.prompt.includes("один и тот же полный комплект одежды"), "storyboard prompt must lock one outfit across all segments");
     assert.ok(item.prompt.includes("смотрит прямо в объектив"), "storyboard prompt must keep eye contact across camera angles");
-    if (item.index > 1) {
+    if (productVisible) {
       assert.ok(item.prompt.includes("Состояние продукта держи одинаковым"), "visible product segments must keep product physical state stable");
     }
     assert.ok(item.prompt.includes(`Структура видео: ровно ${item.storyboardPlan.frames.length} живых эпизодов`), "storyboard prompt must lock the exact storyboard frame count");
@@ -99,7 +100,7 @@ try {
       storyboard: item.storyboardPlan,
       productName: "Аэрогриль",
       avatarReferenceUrl: "https://example.com/avatar.png",
-      productReferenceUrls: item.index === 1 ? [] : ["https://example.com/air-fryer.png"],
+      productReferenceUrls: productVisible ? ["https://example.com/air-fryer.png"] : [],
       directorReferenceImageUrls: ["https://example.com/source-frame.jpg"],
       previousStoryboardReferenceUrl: item.index > 1 ? "https://example.com/previous-storyboard.jpg" : null,
     });
@@ -110,9 +111,12 @@ try {
     assert.ok(imagePrompt.includes("точно то же волокно, плетение, плотность"), "storyboard image prompt must lock exact fabric material");
     assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");
     assert.ok(imagePrompt.includes("Смысл текущей реплики определяет содержание кадра"), "storyboard image prompt must request semantic UGC shots");
-    if (item.index === 1) {
+    if (!productVisible) {
       assert.ok(!imagePrompt.includes("Продукт: Аэрогриль"), "first storyboard prompt must not name the product");
       assert.ok(!imagePrompt.includes("Product reference URLs"), "first storyboard prompt must not leak product references");
+    } else {
+      assert.ok(imagePrompt.includes("Продукт: Аэрогриль"), "product-visible storyboard prompt must name the product");
+      assert.ok(imagePrompt.includes("Product reference URLs"), "product-visible storyboard prompt must include product references");
     }
   }
 

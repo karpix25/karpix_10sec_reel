@@ -119,11 +119,10 @@ function buildFrame(input: {
     input.plan.beats[0];
   const cutawayFrameIndex = Math.ceil(input.frameCount / 2);
   const isCutawayFrame = input.frameIndex === cutawayFrameIndex;
-  const visualAction = input.segmentIndex === 1
+  const visualAction = input.segmentIndex === 1 && input.plan.productRole === "hidden"
     ? renderIntroFrameAction(beat?.action, isCutawayFrame, input.productName)
     : renderFrameAction(beat?.action, isCutawayFrame);
-  const productVisible = input.segmentIndex > 1 &&
-    input.plan.productRole !== "hidden" &&
+  const productVisible = input.plan.productRole !== "hidden" &&
     mentionsOmniProduct(`${input.spokenText} ${visualAction}`, input.productName);
 
   return {
@@ -247,10 +246,7 @@ function renderProductPlacement(
   productVisible = false
 ) {
   const productDetails = productVisualPassport ? `, детали из референса: ${compactProductReference(productVisualPassport)}` : "";
-  if (segmentIndex === 1) {
-    return "говорящая голова с пустыми руками; внимание на лице, жестах и атмосфере";
-  }
-  if (plan.productRole === "hidden") return `${productName} вне кадра в этом сегменте`;
+  if (plan.productRole === "hidden") return "продукт вне кадра в этом сегменте";
   if (!productVisible) {
     return "в кадре только тематические объекты и окружение текущей реплики";
   }
@@ -289,6 +285,7 @@ function isClearlyFemaleWardrobe(brief?: DirectorBrief | null) {
 
 function renderFrameAction(action: string | undefined, isCutawayFrame: boolean) {
   const normalized = compactText(action || "персонаж естественно говорит в камеру", 220);
+  if (/REFERENCE LAYOUT|collage\/PIP/iu.test(normalized)) return normalized;
   const visualCue = extractVisualCue(normalized);
   if (visualCue) {
     return isCutawayFrame

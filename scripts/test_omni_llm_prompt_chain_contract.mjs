@@ -286,6 +286,10 @@ try {
   assert.ok(promptChainSource.includes("как смысловую основу"), "LLM chain copywriter must preserve reference meaning");
   assert.ok(promptChainSource.includes("главный тезис, вопрос или возражение, механизм"), "LLM chain must keep original argument mechanics");
   assert.ok(promptChainSource.includes("Переписывай reference близко"), "LLM chain must keep near-copy reference adaptation");
+  assert.ok(promptChainSource.includes("Главный принцип адаптации reference"), "LLM chain must state one priority rule for reference adaptation");
+  assert.ok(promptChainSource.includes("повторяй момент появления продукта из reference"), "LLM chain must follow reference product reveal timing");
+  assert.ok(promptChainSource.includes("Если в reference продукт появляется в первом кадре или первой фразе"), "LLM chain must allow first-part product when the reference does it");
+  assert.ok(promptChainSource.includes("Чужой продукт всегда заменяй только нашим product reference"), "LLM chain must replace source products with our reference only");
   assert.ok(promptChainSource.includes("Если в reference уже есть чужой продукт"), "LLM chain must handle source products safely");
   assert.ok(promptChainSource.includes("не копируй его название, бренд, упаковку и свойства"), "LLM chain must not copy source product identity");
   assert.ok(promptChainSource.includes("Сохрани его сценарную роль"), "LLM chain must preserve source product narrative role");
@@ -296,7 +300,7 @@ try {
   assert.ok(promptChainSource.includes("прямо раскрывает смысл spoken_words"), "storyboard frames must visualize their current speech");
   assert.ok(promptChainSource.includes("product_cutaway только когда смысл spoken_words"), "product cutaways must be meaning-driven");
   assert.ok(promptChainSource.includes("environment_cutaway с тематическими предметами"), "non-product speech must use thematic cutaways");
-  assert.ok(promptChainSource.includes("герой с пустыми руками, товар вне кадра"), "first segment must stay product-free");
+  assert.ok(promptChainSource.includes("Первый segment повторяет механику reference"), "first segment must follow reference product mechanics");
   assert.ok(promptChainSource.includes("десять секунд это пять кадров"), "prompt chain must preserve exact frame counts");
   assert.ok(promptChainSource.includes("Одежда, свет, окружение и типаж героя должны быть едиными"), "director must preserve wardrobe continuity");
   assert.match(promptChainSource, /talking head frame.+смотрит прямо в объектив/iu, "talking-head frames must preserve direct gaze");

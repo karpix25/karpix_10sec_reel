@@ -33,7 +33,7 @@ export function selectReferenceImagesForSegment(input: {
   segmentIndex: number;
   productIsVisible: boolean;
 }): ReferenceImageSelection {
-  const productReferencesAllowed = input.segmentIndex > 1 && input.productIsVisible;
+  const productReferencesAllowed = input.productIsVisible;
   if (input.provider === "kie-ai") {
     const sent = input.kieReferenceImages.filter((image) => productReferencesAllowed || !isProductReference(image));
     const skippedProductReferences = input.kieReferenceImages.filter((image) => !productReferencesAllowed && isProductReference(image));

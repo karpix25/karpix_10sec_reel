@@ -47,21 +47,24 @@ try {
   delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
 
   const joinedPrompt = prompts.map((item) => item.prompt).join("\n");
+  const joinedStoryboard = prompts
+    .flatMap((item) => item.storyboardPlan.frames)
+    .flatMap((frame) => [frame.visualAction, frame.productPlacement])
+    .join("\n");
   const firstPrompt = prompts[0].prompt;
   const firstPlan = prompts[0].creativePlan;
 
   assert.equal(prompts.length, 3, "test fixture should keep the reel 50 reference while fitting current speech budgets");
-  assert.equal(firstPlan.productRole, "hidden", "collage references must keep the product hidden in segment 1");
-  assert.equal(prompts[0].referenceUrl, "https://example.com/avatar.jpg", "segment 1 must use the avatar reference");
-  assert.ok(joinedPrompt.includes("REFERENCE LAYOUT: COLLAGE PICTURE-IN-PICTURE"), "collage layout must reach provider prompt");
-  assert.ok(joinedPrompt.includes("lower-left corner"), "lower-left avatar placement must reach provider prompt");
-  assert.ok(joinedPrompt.includes("thick white paper outline"), "paper cutout outline must reach provider prompt");
-  assert.ok(joinedPrompt.includes("full-frame background layer"), "background layer must reach provider prompt");
-  assert.ok(joinedPrompt.includes("new product reference"), "original product must be replaced by our product reference");
-  assert.ok(firstPrompt.includes("collage/PIP opening frame"), "shot plan must not degrade into a generic talking-head opening");
-  assert.ok(firstPrompt.includes("герой с пустыми руками"), "opening shot must remain product-free");
+  assert.equal(firstPlan.productRole, "background_prop", "collage references may show the product in segment 1 when the hook names it");
+  assert.equal(prompts[0].referenceUrl, "https://example.com/orange-collagen.png", "segment 1 must use the product reference when product is visible");
+  assert.ok(joinedStoryboard.includes("REFERENCE LAYOUT: COLLAGE PICTURE-IN-PICTURE"), "collage layout must reach storyboard");
+  assert.ok(joinedStoryboard.includes("lower-left corner"), "lower-left avatar placement must reach storyboard");
+  assert.ok(joinedStoryboard.includes("thick white paper outline"), "paper cutout outline must reach storyboard");
+  assert.ok(joinedStoryboard.includes("full-frame background layer"), "background layer must reach storyboard");
+  assert.ok(joinedStoryboard.includes("new product reference"), "original product must be replaced by our product reference");
+  assert.ok(joinedStoryboard.includes("collage/PIP opening frame"), "shot plan must not degrade into a generic talking-head opening");
+  assert.ok(firstPrompt.includes("@product_file"), "opening segment must receive the product file when the hook names it");
   assert.ok(!/use the original reference only for transferable direction/u.test(joinedPrompt), "same-domain collage reference must not be downgraded to style-only");
-  assert.ok(!firstPrompt.includes("@product_file"), "opening segment must not receive the product file");
   assert.ok(joinedPrompt.includes("filming equipment is never visible"), "collage prompts must ban visible filming gear");
   assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(joinedPrompt), "collage prompts must sanitize raw tripod wording");
   assert.ok(
@@ -81,6 +84,7 @@ try {
         promptExcerpt: firstPrompt.split("\n").filter((line) =>
           /REFERENCE LAYOUT|REFERENCE SCENE PASSPORT|collage\/PIP opening|CLEAN FRAME/iu.test(line)
         ),
+        storyboardExcerpt: prompts[0].storyboardPlan.frames.map((frame) => frame.visualAction),
       },
     }, null, 2));
   }
@@ -97,7 +101,7 @@ function buildReel50LikeInput() {
       id: 54,
       project_id: 6,
       product_id: 6,
-      script: "Пить или не пить коллаген? Новые исследования дают однозначный ответ. Вы наверняка слышали, что коллаген это просто белок. Но это не так. Он работает как строительный материал и сигнал для обновления кожи. Даже распавшийся коллаген активирует гены коллагена в коже. Улучшает ее показатели и маркеры старения. В описании вы найдете артикул нашего апельсинового коллагена.",
+      script: "Пить или не пить коллаген? Новые исследования дают однозначный ответ. Вы наверняка слышали, что коллаген это просто белок. Но это не так. Он работает как строительный материал и сигнал для обновления кожи. Даже распавшийся коллаген активирует гены коллагена в коже. Улучшает ее показатели и маркеры старения. В описании вы найдете артикул нашего апельсинового коллагена подробно.",
       source_snapshot: {
         director_analysis: buildCollageDirectorBrief(),
       },

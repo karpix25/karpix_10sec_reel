@@ -185,7 +185,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentScriptBeats,
       input.product.name
     );
-    const productRole = segmentIndex === 1 ? "hidden" : baseProductRole;
+    const productRole = baseProductRole;
     const segmentProductVisualPassport = productVisualPassport;
     const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
       segmentIndex,
@@ -262,7 +262,6 @@ function getSegmentProductRole(
 ): ProductRole {
   if (role === "hidden") return role;
   if (
-    segmentIndex > 1 &&
     mentionsOmniProduct(
       [voiceoverText, ...scriptBeats.flatMap((beat) => [beat.voiceover, beat.visualCue])].join(" "),
       productName
@@ -270,7 +269,7 @@ function getSegmentProductRole(
   ) {
     return "background_prop";
   }
-  if (role === "background_prop") return segmentIndex === 1 ? "hidden" : role;
+  if (role === "background_prop") return role;
   if (segmentIndex !== segmentCount) return "hidden";
   return countWords(voiceoverText) > 18 ? "background_prop" : role;
 }
@@ -316,8 +315,8 @@ function buildStoredProviderPromptSegments(
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
     const productRole: ProductRole =
-      segmentIndex === 1 ? "hidden" : segment.referenceRole === "product" ? "background_prop" : "hidden";
-	    const creativePlan = buildStoredCreativePlan({
+      segment.referenceRole === "product" ? "background_prop" : "hidden";
+    const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,
       voiceoverText: segment.voiceover,

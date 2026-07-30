@@ -133,8 +133,8 @@ try {
       segmentIndex: 1,
       productIsVisible: false,
     });
-    assert.deepEqual(result.sent, [imgProduct, imgProductSide], "KIE must send product refs even when product role is hidden");
-    assert.deepEqual(result.skipped, [imgPreviousFrame], "KIE must not send previous last frame continuity refs");
+    assert.deepEqual(result.sent, [], "KIE must not send product refs when product role is hidden");
+    assert.deepEqual(result.skipped, [imgPreviousFrame, imgProduct, imgProductSide], "KIE must skip continuity and product refs when product is hidden");
   }
 
   {

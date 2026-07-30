@@ -136,6 +136,10 @@ try {
   assert.ok(prompt.includes("нет дефисов, нет тире, нет минусов, нет цифр"), "prompt must require final symbol self-check");
   assert.ok(prompt.includes("Поле script должно совпадать"), "script must match beat voiceovers");
   assert.ok(prompt.includes("Переписывай reference близко"), "prompt must keep close reference adaptation");
+  assert.ok(prompt.includes("Главный принцип адаптации reference"), "prompt must state one priority rule for reference adaptation");
+  assert.ok(prompt.includes("повторяй момент появления продукта из reference"), "prompt must follow reference product reveal timing");
+  assert.ok(prompt.includes("Если в reference продукт появляется в первом кадре или первой фразе"), "prompt must allow first-beat product when the reference does it");
+  assert.ok(prompt.includes("Чужой продукт всегда заменяй только нашим product reference"), "prompt must replace source products with our reference only");
   assert.ok(prompt.includes("Если в reference уже есть чужой продукт"), "prompt must handle source products safely");
   assert.ok(prompt.includes("не копируй его название, бренд, упаковку и свойства"), "prompt must not copy source product identity");
   assert.ok(prompt.includes("Сохрани его сценарную роль"), "prompt must preserve source product narrative role");
@@ -149,8 +153,8 @@ try {
   assert.ok(!prompt.includes("только как пример структуры"), "prompt must not reduce reference to structure only");
   assert.ok(prompt.includes('"background_audio_mood"'), "prompt must request background audio mood");
   assert.ok(prompt.includes("energetic, calm, dramatic, inspiring, playful, serious"), "prompt must constrain mood enum");
-  assert.ok(prompt.includes("Первый beat это самостоятельная законченная первая часть ролика"), "first beat must be a complete product-free hook");
-  assert.ok(prompt.includes("впервые появляются и произносятся во втором beat"), "product reveal must begin in the second beat");
+  assert.ok(prompt.includes("Первый beat повторяет механику reference"), "first beat must follow reference product mechanics");
+  assert.ok(prompt.includes("если original hook был с продуктом"), "prompt must permit product in the hook when reference uses it");
   assert.ok(prompt.includes("Вопросительный и восклицательный знаки"), "script prompt must guide natural speech punctuation");
   assert.ok(prompt.includes("Целевая длительность итогового ролика: 30-30 сек"), "prompt must include configured duration range");
   assert.ok(prompt.includes("60-72 слов"), "prompt must include computed word range");
