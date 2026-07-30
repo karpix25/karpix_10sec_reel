@@ -211,6 +211,78 @@ And this is line 2."
     /слишком короткий для выбранной длины ролика/u
   );
 
+  const nearDurationMinScript = makeScript(61);
+  const nearDurationMinResult = validateViralScriptContract({
+    script: nearDurationMinScript,
+    rawScriptBeforeCta: nearDurationMinScript,
+    rawScriptFromModel: nearDurationMinScript,
+    hook: "слово1",
+    productName: "слово1",
+    ctaMode: "no_explicit_cta",
+    ctaValue: null,
+    durationRange: {
+      requestedMinSeconds: 30,
+      requestedMaxSeconds: 30,
+      minSeconds: 30,
+      maxSeconds: 30,
+      minWords: 62,
+      maxWords: 75,
+      source: "client_settings",
+      wasClamped: false,
+    }
+  });
+  assert.equal(nearDurationMinResult.metrics.wordCount, 61);
+  assert.ok(
+    nearDurationMinResult.warnings.some((warning) => warning.includes("принят в пределах допуска")),
+    "near-miss lower word count must pass with an explicit warning"
+  );
+
+  assert.throws(
+    () => validateViralScriptContract({
+      script: makeScript(59),
+      rawScriptBeforeCta: makeScript(59),
+      rawScriptFromModel: makeScript(59),
+      hook: "слово1",
+      productName: "слово1",
+      ctaMode: "no_explicit_cta",
+      ctaValue: null,
+      durationRange: {
+        requestedMinSeconds: 30,
+        requestedMaxSeconds: 30,
+        minSeconds: 30,
+        maxSeconds: 30,
+        minWords: 62,
+        maxWords: 75,
+        source: "client_settings",
+        wasClamped: false,
+      }
+    }),
+    /слишком короткий для выбранной длины ролика/u
+  );
+
+  assert.throws(
+    () => validateViralScriptContract({
+      script: makeScript(76),
+      rawScriptBeforeCta: makeScript(76),
+      rawScriptFromModel: makeScript(76),
+      hook: "слово1",
+      productName: "слово1",
+      ctaMode: "no_explicit_cta",
+      ctaValue: null,
+      durationRange: {
+        requestedMinSeconds: 30,
+        requestedMaxSeconds: 30,
+        minSeconds: 30,
+        maxSeconds: 30,
+        minWords: 62,
+        maxWords: 75,
+        source: "client_settings",
+        wasClamped: false,
+      }
+    }),
+    /слишком длинный для выбранной длины ролика/u
+  );
+
   // C. Too long hook (should throw)
   assert.throws(
     () => validateViralScriptContract({

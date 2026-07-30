@@ -11,6 +11,7 @@ import type { OmniDurationRange } from "./omni-duration-range";
 import { validateReferenceMeaningCoverage, type ReferenceMeaningCoverage } from "./reference-meaning-contract";
 
 const FORBIDDEN_SYMBOL_ERROR = "Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.";
+const DURATION_MIN_WORD_TOLERANCE = 2;
 
 export interface ScriptQualityResult {
   score: number;
@@ -151,9 +152,18 @@ export function validateViralScriptContract(input: {
     );
   }
   if (input.durationRange) {
-    if (totalWordCount < input.durationRange.minWords) {
+    const toleratedMinWords = Math.max(
+      OMNI_MIN_SCRIPT_WORDS,
+      input.durationRange.minWords - DURATION_MIN_WORD_TOLERANCE
+    );
+    if (totalWordCount < toleratedMinWords) {
       throw new Error(
         `Сценарий отклонен: слишком короткий для выбранной длины ролика (${totalWordCount} слов). Нужно ${input.durationRange.minWords}-${input.durationRange.maxWords} слов для ${input.durationRange.minSeconds}-${input.durationRange.maxSeconds} сек.`
+      );
+    }
+    if (totalWordCount < input.durationRange.minWords) {
+      warnings.push(
+        `Сценарий чуть короче настройки (${totalWordCount} слов вместо ${input.durationRange.minWords}-${input.durationRange.maxWords}), принят в пределах допуска ${DURATION_MIN_WORD_TOLERANCE} слова.`
       );
     }
     if (totalWordCount > input.durationRange.maxWords) {
