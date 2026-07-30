@@ -1,4 +1,4 @@
-import type { OmniPromptValidationResult, OmniSegmentCreativePlan } from "@/lib/omni/creative-contract";
+import type { OmniPromptValidationResult, OmniSegmentCreativePlan } from "../../../omni/creative-contract";
 import {
   OMNI_STORYBOARD_MAX_FRAME_WORDS,
   OMNI_STORYBOARD_MIN_FRAME_WORDS,
@@ -6,14 +6,14 @@ import {
   type OmniStoryboardFrame,
   type OmniStoryboardSegment,
   type OmniStoryboardValidationResult,
-} from "@/lib/omni/storyboard/omni-storyboard-types";
-import { validateOmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-contract";
+} from "../../../omni/storyboard/omni-storyboard-types";
+import { validateOmniStoryboardSegment } from "../../../omni/storyboard/omni-storyboard-contract";
 import type { OmniCharacterContract } from "../omni-character-contract";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
 import type { DirectorBrief } from "../director-analysis-types";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
+import { mentionsOmniProduct } from "../omni-intro-product-contract";
 
-const CLEAN_STORYBOARD_STYLE = "чистая натуральная картинка без лишней декоративной графики, стрелок и рекламных надписей";
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
 
@@ -80,7 +80,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
       wardrobe: `одежда из avatar или reference contract, без смены между кадрами; ${EXACT_FABRIC_LOCK}`,
       productPlacement: renderPromptChainProductPlacement(frame.productState, input.productPhysicalHint),
       sfxNotes: frame.sfx || "естественные звуки сцены и речи",
-      effectNotes: CLEAN_STORYBOARD_STYLE,
+      effectNotes: null,
       modelMusicNotes: null,
     })),
   };
@@ -119,18 +119,22 @@ function buildFrame(input: {
     input.plan.beats[0];
   const cutawayFrameIndex = Math.ceil(input.frameCount / 2);
   const isCutawayFrame = input.frameIndex === cutawayFrameIndex;
+  const visualAction = input.segmentIndex === 1
+    ? renderIntroFrameAction(beat?.action, isCutawayFrame, input.productName)
+    : renderFrameAction(beat?.action, isCutawayFrame);
+  const productVisible = input.segmentIndex > 1 &&
+    input.plan.productRole !== "hidden" &&
+    mentionsOmniProduct(`${input.spokenText} ${visualAction}`, input.productName);
 
   return {
     spokenText: input.spokenText,
-    visualAction: input.segmentIndex === 1
-      ? renderIntroFrameAction(isCutawayFrame)
-      : renderFrameAction(beat?.action, isCutawayFrame),
+    visualAction,
     camera: renderFrameCamera(
       input.frameIndex,
       input.frameCount,
       isCutawayFrame,
-      renderDirectorCamera(input.directorBrief),
-      input.segmentIndex > 1 && input.plan.productRole !== "hidden"
+      renderDirectorCamera(input.directorBrief, productVisible),
+      productVisible
     ),
     environment: renderDirectorEnvironment(input.directorBrief),
     wardrobe: renderStoryboardWardrobe(input.characterContract, input.directorBrief, input.wardrobeSource),
@@ -139,12 +143,15 @@ function buildFrame(input: {
       input.productName,
       input.productVisualPassport,
       input.productPhysicalHint,
-      input.segmentIndex
+      input.segmentIndex,
+      productVisible
     ),
-    sfxNotes: isCutawayFrame && input.segmentIndex > 1
-      ? "естественный звук короткого действия с продуктом"
+    sfxNotes: isCutawayFrame
+      ? productVisible
+        ? "естественный звук короткого действия с продуктом"
+        : "естественный звук предметов и окружения текущей сцены"
       : "тихие естественные звуки комнаты и живой речи",
-    effectNotes: renderFrameEffect(input.frameIndex, input.frameCount, isCutawayFrame),
+    effectNotes: null,
     modelMusicNotes: null,
   };
 }
@@ -158,8 +165,8 @@ function renderFrameCamera(
 ) {
   const base = isCutawayFrame
     ? productVisible
-      ? "быстрая перебивка крупнее обычного: продукт, рука или деталь среды в движении"
-      : "быстрая перебивка крупнее обычного: живой жест руки или деталь среды в движении"
+      ? "смысловая перебивка: крупный кадр продукта в естественном окружении"
+      : "смысловая перебивка: предметный или атмосферный кадр по текущей реплике"
     : frameIndex === 1
       ? "триггерный кадр с живым движением камеры, герой смотрит прямо в объектив"
       : frameIndex === frameCount
@@ -208,22 +215,18 @@ function renderStoryboardWardrobe(
   ].filter(Boolean).join("; ");
 }
 
-function renderDirectorCamera(brief?: DirectorBrief | null) {
+function renderDirectorCamera(brief: DirectorBrief | null | undefined, productVisible: boolean) {
   if (!brief) return "";
+  const shotTypes = productVisible
+    ? brief.camera.shot_types
+    : brief.camera.shot_types.filter((shotType) => !/product|packag|продукт|упаков/iu.test(shotType));
   return compactText([
     "reference camera lock:",
-    brief.camera.shot_types.join(", "),
+    shotTypes.join(", "),
     brief.camera.angles.length ? `angles ${brief.camera.angles.join(", ")}` : "",
     brief.camera.movements.length ? `movement ${brief.camera.movements.join(", ")}` : "",
     brief.camera.stabilization,
   ].filter(Boolean).join("; "), 220);
-}
-
-function renderFrameEffect(frameIndex: number, frameCount: number, isCutawayFrame: boolean) {
-  if (isCutawayFrame) return `${CLEAN_STORYBOARD_STYLE}; быстрый match cut или короткий punch in без графических стикеров`;
-  if (frameIndex === 1) return `${CLEAN_STORYBOARD_STYLE}; сильный UGC hook кадр с легким handheld стартом`;
-  if (frameIndex === frameCount) return `${CLEAN_STORYBOARD_STYLE}; короткая стабилизация на финальную реплику`;
-  return `${CLEAN_STORYBOARD_STYLE}; быстрый живой jump cut между репликами`;
 }
 
 function renderPromptChainProductPlacement(productState: string | null | undefined, productPhysicalHint?: string | null) {
@@ -240,13 +243,17 @@ function renderProductPlacement(
   productName: string,
   productVisualPassport?: string | null,
   productPhysicalHint?: string | null,
-  segmentIndex?: number
+  segmentIndex?: number,
+  productVisible = false
 ) {
   const productDetails = productVisualPassport ? `, детали из референса: ${compactProductReference(productVisualPassport)}` : "";
   if (segmentIndex === 1) {
     return "говорящая голова с пустыми руками; внимание на лице, жестах и атмосфере";
   }
   if (plan.productRole === "hidden") return `${productName} вне кадра в этом сегменте`;
+  if (!productVisible) {
+    return "в кадре только тематические объекты и окружение текущей реплики";
+  }
   if (plan.productRole === "brief_demo") {
     return appendProductPhysicalHint(
       `${productName} обязательно физически виден в коротком действии с рукой${productDetails}`,
@@ -291,9 +298,13 @@ function renderFrameAction(action: string | undefined, isCutawayFrame: boolean) 
   return compactText(normalized, 180);
 }
 
-function renderIntroFrameAction(isCutawayFrame: boolean) {
+function renderIntroFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string) {
+  const visualCue = extractVisualCue(compactText(action || "", 220));
+  if (isCutawayFrame && visualCue && !mentionsOmniProduct(visualCue, productName)) {
+    return `смысловой предметный или атмосферный кадр по хуку: ${visualCue}`;
+  }
   return isCutawayFrame
-    ? "короткая живая перебивка на жест свободной руки или деталь окружения"
+    ? "смысловой кадр окружения по теме хука"
     : "персонаж с пустыми руками естественно говорит в камеру";
 }
 

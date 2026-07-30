@@ -34,12 +34,15 @@ export function buildTalkingHeadCreativePlan(input: {
   const scriptCue = renderScriptCueSummary(input.scriptBeats);
   const cueOpening = sanitizeProviderVisualCue(input.scriptBeats?.[0]?.visualCue || "");
   const cueClosing = sanitizeProviderVisualCue(input.scriptBeats?.[input.scriptBeats.length - 1]?.visualCue || "");
-  const cutaway = cueCutaway(input.scriptBeats, input.productRole) || (input.productRole === "hidden"
-    ? "короткая спокойная перебивка на фон, стол или деталь интерьера без действия руками"
-    : "короткая спокойная перебивка на продукт на столе без рук, без поворота упаковки и без рекламного крупного плана");
+  const cutaway = cueCutaway(input.scriptBeats, input.productRole) || (
+    "короткая спокойная предметная или атмосферная сцена, которая прямо визуализирует смысл текущей реплики; " +
+    (input.productRole === "hidden"
+      ? "товар остается вне кадра"
+      : "товар появляется только если его требует смысл текущей реплики")
+  );
   const opening = input.segmentIndex === 1
     ? buildTalkingHeadHookOpening(input.strategy, input.opening)
-    : `говорит в камеру новым монтажным кадром: ${lowerFirst(input.opening)}`;
+    : `говорит в камеру с новой крупностью: ${lowerFirst(input.opening)}`;
   const guidedOpening = cueOpening
     ? `говорит в камеру по visual cue сценариста: ${cueOpening}; ${lowerFirst(opening)}`
     : opening;
@@ -74,12 +77,13 @@ function buildTalkingHeadTiming(segmentSeconds: number) {
 }
 
 function cueCutaway(scriptBeats: readonly OmniScriptBeatCue[] | undefined, productRole: ProductRole) {
-  const cutawayBeat = scriptBeats?.find((beat) => /перебив|insert|продукт|product|стол|фон|детал/iu.test(beat.visualCue));
+  const visualBeats = scriptBeats?.filter((beat) => beat.visualCue.trim()) || [];
+  const cutawayBeat = visualBeats[Math.floor(visualBeats.length / 2)];
   if (!cutawayBeat) return "";
   const productRule = productRole === "hidden"
-    ? "без показа продукта, если он не нужен в этой части"
-    : "если в cue есть продукт, показывать только новый продукт";
-  return `короткая спокойная перебивка по visual cue сценариста: ${sanitizeProviderVisualCue(cutawayBeat.visualCue)}; ${productRule}; без субтитров и сложной хореографии`;
+    ? "товар остается вне кадра"
+    : "товар показывается только если этого требует смысл текущей реплики, строго по product reference";
+  return `короткая спокойная смысловая сцена по visual cue сценариста: ${sanitizeProviderVisualCue(cutawayBeat.visualCue)}; ${productRule}; в кадре только физическая сцена, камера и естественное действие`;
 }
 
 function renderScriptCueSummary(scriptBeats: readonly OmniScriptBeatCue[] | undefined) {

@@ -11,6 +11,7 @@ const output = mkdtempSync(join(tmpdir(), "omni-storyboard-contract-"));
 const compiled = join(output, "compiled");
 const tsconfig = join(output, "tsconfig.json");
 const require = createRequire(import.meta.url);
+const technicalMontageTerms = /punch[ -]?in|jump cut|match cut|speed ramp|object wipe|split[ -]?screen|freeze frame|j[ -]?cut|l[ -]?cut/iu;
 
 try {
   writeFileSync(tsconfig, JSON.stringify({
@@ -123,6 +124,9 @@ try {
     directorBrief: buildDirectorBrief(),
     wardrobeSource: "director_reference",
   });
+  const directorStoryboardText = directorStoryboard.frames
+    .flatMap((frame) => Object.values(frame).filter(Boolean))
+    .join("\n");
   assert.ok(directorStoryboard.frames[0].environment.includes("warm amber studio wall"));
   assert.ok(directorStoryboard.frames[0].wardrobe.includes("black fitted turtleneck"));
   assert.ok(directorStoryboard.frames[0].productPlacement.includes("с пустыми руками"));
@@ -130,10 +134,43 @@ try {
   assert.ok(directorStoryboard.frames[0].wardrobe.includes("ONE EXACT OUTFIT FOR THE WHOLE REEL"));
   assert.ok(directorStoryboard.frames[0].wardrobe.includes("ONE EXACT FABRIC FOR THE WHOLE REEL"));
   assert.ok(!directorStoryboard.frames[0].wardrobe.includes("keep the black fitted high-neck silhouette on the avatar"));
+  assert.equal(directorStoryboard.frames.length, 5);
+  assert.ok(directorStoryboard.frames[2].visualAction.includes("вечерняя спальня"));
+  assert.ok(directorStoryboard.frames[2].visualAction.includes("полезной едой"));
+  assert.ok(directorStoryboard.frames[2].productPlacement.includes("пустыми руками"));
+  assert.doesNotMatch(directorStoryboardText, /коллаген|product|товар|упаковк/iu);
+  assert.equal(new Set(directorStoryboard.frames.map((frame) => frame.wardrobe)).size, 1);
   assert.ok(
     directorStoryboard.frames.filter((frame) => !/перебивка/iu.test(frame.camera)).every((frame) => frame.camera.includes("смотрит прямо в объектив")),
     "talking-head storyboard camera lines must keep eye contact"
   );
+  assert.doesNotMatch(`${prompt}\n${finalPrompt}\n${directorStoryboardText}`, technicalMontageTerms);
+
+  const mixedTopicStoryboard = builder.buildStoryboardFromCreativePlan({
+    plan: {
+      ...buildCreativePlan(),
+      segmentIndex: 2,
+      voiceoverText: "Пенка Geodemika мягко очищает кожу. Полноценный сон, вода и питание поддерживают естественное восстановление кожи и помогают сохранять спокойный ровный тон каждый день.",
+      productRole: "background_prop",
+      beats: [
+        { startSeconds: 0, endSeconds: 4, action: "Сценарный visual cue: пенка Geodemika в естественной ванной комнате" },
+        { startSeconds: 4, endSeconds: 8, action: "Сценарный visual cue: вечерняя спальня, вода и полноценная еда" },
+        { startSeconds: 8, endSeconds: 10, action: "персонаж возвращается к камере" },
+      ],
+    },
+    productName: "Geodemika Enzyme Cleansing Foam",
+    characterContract: {
+      identityLine: "approved avatar identity",
+      clothingLine: "черный мужской лонгслив",
+      sourceRuleLine: "avatar defines identity",
+      clothingSource: "avatar",
+    },
+    segmentIndex: 2,
+    durationSeconds: 10,
+  });
+  assert.ok(mixedTopicStoryboard.frames[0].productPlacement.includes("обязательно физически виден"));
+  assert.ok(mixedTopicStoryboard.frames[2].visualAction.includes("вечерняя спальня"));
+  assert.equal(mixedTopicStoryboard.frames[2].productPlacement, "в кадре только тематические объекты и окружение текущей реплики");
 
   const maleSafeStoryboard = builder.buildStoryboardFromCreativePlan({
     plan: { ...buildCreativePlan(), productRole: "natural_use" },
@@ -254,12 +291,12 @@ function buildCreativePlan() {
     segmentIndex: 1,
     lifeFormatId: "talking_head_cutaways",
     speechStartsAtSeconds: 0,
-    voiceoverText: "Ваш организм перестает вырабатывать коллаген после тридцати лет это естественный процесс коллаген это основной строительный белок для кожи суставов связок",
+    voiceoverText: "Чистая кожа зависит не только от умывания. Обратите внимание на сон, воду и полноценное питание, ведь ежедневный режим поддерживает естественное восстановление кожи.",
     productRole: "hidden",
     continuityProps: [],
     beats: [
       { startSeconds: 0, endSeconds: 4, action: "персонаж говорит в камеру" },
-      { startSeconds: 4, endSeconds: 7, action: "персонаж делает жест рукой" },
+      { startSeconds: 4, endSeconds: 7, action: "Сценарный visual cue: вечерняя спальня, стакан воды и тарелка с полезной едой" },
       { startSeconds: 7, endSeconds: 10, action: "персонаж возвращается к камере" },
     ],
   };

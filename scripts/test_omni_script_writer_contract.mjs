@@ -11,6 +11,7 @@ const output = mkdtempSync(join(tmpdir(), "omni-script-writer-"));
 const compiled = join(output, "compiled");
 const tsconfig = join(output, "tsconfig.json");
 const require = createRequire(import.meta.url);
+const technicalMontageTerms = /punch[ -]?in|jump cut|match cut|speed ramp|object wipe|split[ -]?screen|freeze frame|j[ -]?cut|l[ -]?cut/iu;
 
 try {
   writeFileSync(tsconfig, JSON.stringify({
@@ -123,6 +124,9 @@ try {
   assert.ok(prompt.includes('"beats"'), "prompt must request structured beats");
   assert.ok(prompt.includes('"visual_cue"'), "prompt must request visual cue per beat");
   assert.ok(prompt.includes('"voiceover"'), "prompt must request voiceover per beat");
+  assert.ok(prompt.includes("Продукт показывай только когда текущая реплика"), "visual cues must not default to product-only cutaways");
+  assert.ok(prompt.includes("описывай только то, что физически находится и происходит внутри кадра"), "visual cues must describe only in-frame action");
+  assert.doesNotMatch(prompt, technicalMontageTerms);
   assert.ok(prompt.includes("адаптированную одежду главного персонажа"), "prompt must bind writer to adapted reference wardrobe");
   assert.ok(prompt.includes("локацию, окружение, свет и камеру"), "prompt must bind writer to reference location and environment");
   assert.ok(prompt.includes("Не пиши псевдовопросы"), "prompt must ban pseudo questions");
