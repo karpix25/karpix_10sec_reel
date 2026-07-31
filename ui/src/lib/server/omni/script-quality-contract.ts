@@ -367,12 +367,16 @@ function assertArticleCtaHasContext(script: string) {
   const normalized = normalizeText(ctaSentence);
   const hasSearchContext =
     /(?:если|чтобы|именно|вариант|такой\s+же|похож|перепут|искать|найти|ориентир|модель|банк|пенк|аэрогрил|коллаген)/iu.test(normalized);
+  const stockCta =
+    /чтобы\s+не\s+перепутать/iu.test(normalized) ||
+    /если\s+будете\s+искать\s+именно\s+этот\s+вариант/iu.test(normalized) ||
+    /^артикул\s+будет\s+в\s+описании[.!?]?$/iu.test(normalized);
   const detachedCta =
     /(?:^|\s)(?:я\s+)?остав(?:ил|ила|лю)\s+(?:его|ее|её|их)?\s*в\s+описании(?:$|[.!?])/iu.test(normalized) ||
     /^(?:артикул|код)(?:\s+\S+){0,5}\s+в\s+описании[.!?]?$/iu.test(normalized) ||
     /^(?:артикул|код)(?:\s+\S+){0,5}\s+(?:можно\s+)?(?:найти|найдете|ищите)\s+(?:прямо\s+)?в\s+описании[.!?]?$/iu.test(normalized);
 
-  if (detachedCta || !hasSearchContext) {
-    throw new Error("Сценарий отклонен: CTA про артикул вставлен без контекста. Свяжи его с поиском именно этого варианта продукта, например «чтобы не перепутать с похожими, артикул будет в описании».");
+  if (stockCta || detachedCta || !hasSearchContext) {
+    throw new Error("Сценарий отклонен: CTA про артикул вставлен без контекста. Упомяни артикул нативно внутри полезной мысли об этом продукте.");
   }
 }

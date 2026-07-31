@@ -147,8 +147,10 @@ try {
   assert.ok(prompt.includes("Продукт обязан выполнять понятную функцию"), "prompt must require product to serve the script idea");
   assert.ok(prompt.includes("в момент первого естественного появления продукта"), "CTA must be embedded at the natural product mention");
   assert.ok(prompt.includes("После CTA продолжи полезную мысль"), "CTA must not end the reel as a sales line");
-  assert.ok(prompt.includes("как найти именно этот вариант через артикул в описании"), "article CTA must point to the exact product variant");
+  assert.ok(prompt.includes("артикул именно этого продукта есть в описании"), "article CTA must point to the exact product variant");
+  assert.ok(prompt.includes("Не используй готовые шаблонные формулировки"), "article CTA must avoid copy-pasted wording");
   assert.ok(prompt.includes("В описании упоминается только артикул"), "article CTA must not add extra description info");
+  assert.ok(!prompt.includes("чтобы не перепутать с похожими"), "article CTA must not give a phrase template");
   assert.ok(!prompt.includes("артикул или код"), "article CTA must not ask the model to say generic code wording");
   assert.ok(prompt.includes("как смысловую основу"), "prompt must preserve reference meaning, not only structure");
   assert.ok(prompt.includes("главный тезис, вопрос или возражение, механизм"), "prompt must require the original argument mechanics");

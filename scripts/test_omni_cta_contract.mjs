@@ -25,9 +25,9 @@ try {
 
   const { ensureOmniScriptCta } = require(join(output, "server/omni/omni-cta-contract.js"));
   const base = "Короткий сценарий о продукте и его пользе.";
-  assert.equal(
-    ensureOmniScriptCta(base, "article_in_description"),
-    `${base} Артикул можно найти в описании.`
+  assert.throws(
+    () => ensureOmniScriptCta(base, "article_in_description"),
+    /нет нативного упоминания артикула/u
   );
   assert.equal(
     ensureOmniScriptCta(`${base} Артикул ищи в описании.`, "article_in_description"),
