@@ -7,6 +7,7 @@ const RETRYABLE_MODEL_ERROR_FRAGMENTS = [
   "Script model returned empty script",
   "Omni script contains a long dash or emoji",
   "Russian speech gender mismatch",
+  "нет нативного упоминания артикула",
 ];
 
 export function isRetryableScriptGenerationError(error: unknown) {

@@ -21,7 +21,7 @@ export function ensureOmniScriptCta(script: string, mode: CtaMode, value?: strin
     return appendSentence(script, "Подробности можно найти по ссылке в профиле.");
   }
   if (mode === "article_in_description" && !signals.mentionsArticle) {
-    return appendSentence(script, "Артикул можно найти в описании.");
+    throw new Error("В сценарии нет нативного упоминания артикула продукта в описании.");
   }
   return script;
 }
