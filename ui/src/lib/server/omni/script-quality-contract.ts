@@ -84,6 +84,12 @@ const BROKEN_RUSSIAN_PATTERNS = [
   /(?:^|[^\p{L}\p{N}])в\s+идеале\s+выбор\s+зависит(?:$|[^\p{L}\p{N}])/iu,
 ];
 
+const SELF_CLAIMED_EXPERT_PATTERNS = [
+  /(?:^|[^\p{L}\p{N}])я\s+(?:врач|доктор|косметолог|нутрициолог|диетолог|эксперт|специалист)(?:$|[^\p{L}\p{N}])/iu,
+  /(?:^|[^\p{L}\p{N}])я\s+(?:врач|доктор)[-\s]?(?:косметолог|диетолог)?(?:$|[^\p{L}\p{N}])/iu,
+  /(?:^|[^\p{L}\p{N}])как\s+(?:врач|доктор|косметолог|нутрициолог|диетолог|эксперт|специалист)\b/iu,
+];
+
 function getSentences(text: string): string[] {
   return text
     .split(/(?<=[.!?])\s+/)
@@ -200,6 +206,9 @@ export function validateViralScriptContract(input: {
   const brokenPattern = BROKEN_RUSSIAN_PATTERNS.find((pattern) => pattern.test(normalizedScript));
   if (brokenPattern) {
     throw new Error("Сценарий отклонен: текст звучит неграмотно или канцелярски. Перепиши бытовым русским языком без фраз вроде «продукт поддержать».");
+  }
+  if (SELF_CLAIMED_EXPERT_PATTERNS.some((pattern) => pattern.test(normalizedScript))) {
+    throw new Error("Сценарий отклонен: нельзя переносить профессиональную роль автора reference на аватара. Убери фразы от первого лица вроде «я врач», «я косметолог», «как эксперт».");
   }
   if (input.ctaMode === "article_in_description" && /(?:артикул\s+или\s+код|код\s+продукта)/iu.test(normalizedScript)) {
     throw new Error("Сценарий отклонен: CTA звучит канцелярски. Для артикула в описании связывай CTA с поиском именно этого варианта продукта.");
@@ -376,7 +385,13 @@ function assertArticleCtaHasContext(script: string) {
     /^(?:артикул|код)(?:\s+\S+){0,5}\s+в\s+описании[.!?]?$/iu.test(normalized) ||
     /^(?:артикул|код)(?:\s+\S+){0,5}\s+(?:можно\s+)?(?:найти|найдете|ищите)\s+(?:прямо\s+)?в\s+описании[.!?]?$/iu.test(normalized);
 
-  if (stockCta || detachedCta || !hasSearchContext) {
+  if (stockCta || detachedCta) {
+    throw new Error("Сценарий отклонен: CTA про артикул вставлен без контекста. Упомяни артикул нативно внутри полезной мысли об этом продукте.");
+  }
+  if (!/(?:артикул|арт\.?\s)/iu.test(normalized)) {
+    throw new Error("Сценарий отклонен: CTA должен произнести слово «артикул», а не заменять его на «детали» или «подробности».");
+  }
+  if (!hasSearchContext) {
     throw new Error("Сценарий отклонен: CTA про артикул вставлен без контекста. Упомяни артикул нативно внутри полезной мысли об этом продукте.");
   }
 }

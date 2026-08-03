@@ -283,10 +283,12 @@ try {
     join(ui, "src/lib/server/omni/llm-prompt-chain-prompts.ts"),
     "utf8"
   );
-  assert.ok(promptChainSource.includes("как смысловую основу"), "LLM chain copywriter must preserve reference meaning");
+  assert.ok(promptChainSource.includes("как почти готовый текст"), "LLM chain copywriter must treat reference as near-source text");
+  assert.ok(promptChainSource.includes("Меняй слова синонимами только там"), "LLM chain must only lightly synonymize reference text");
   assert.ok(promptChainSource.includes("главный тезис, вопрос или возражение, механизм"), "LLM chain must keep original argument mechanics");
   assert.ok(promptChainSource.includes("Переписывай reference близко"), "LLM chain must keep near-copy reference adaptation");
   assert.ok(promptChainSource.includes("Главный принцип адаптации reference"), "LLM chain must state one priority rule for reference adaptation");
+  assert.ok(promptChainSource.includes("не переноси эту роль на аватара"), "LLM chain must strip source author expert roles");
   assert.ok(promptChainSource.includes("повторяй момент появления продукта из reference"), "LLM chain must follow reference product reveal timing");
   assert.ok(promptChainSource.includes("Если в reference продукт появляется в первом кадре или первой фразе"), "LLM chain must allow first-part product when the reference does it");
   assert.ok(promptChainSource.includes("Чужой продукт всегда заменяй только нашим product reference"), "LLM chain must replace source products with our reference only");
@@ -297,6 +299,7 @@ try {
   assert.ok(promptChainSource.includes("Продукт обязан выполнять понятную функцию"), "LLM chain must require product to serve the script idea");
   assert.ok(promptChainSource.includes("в момент первого естественного появления продукта"), "LLM chain CTA must be embedded at the natural product mention");
   assert.ok(promptChainSource.includes("артикул именно этого продукта есть в описании"), "LLM chain article CTA must identify the exact product variant");
+  assert.ok(promptChainSource.includes("не произносить номер артикула"), "LLM chain article CTA must not speak article number");
   assert.ok(promptChainSource.includes("Не используй готовые шаблонные формулировки"), "LLM chain article CTA must avoid copy-pasted wording");
   assert.ok(promptChainSource.includes("В описании упоминается только артикул"), "LLM chain article CTA must not add extra description info");
   assert.ok(promptChainSource.includes("Не ставь CTA отдельной финальной фразой"), "LLM chain CTA must not be a detached ending");

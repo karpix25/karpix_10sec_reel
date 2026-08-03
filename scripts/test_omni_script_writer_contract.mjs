@@ -135,8 +135,11 @@ try {
   assert.ok(prompt.includes("Все числа в текстовых значениях JSON пиши словами"), "prompt must force numbers as words in generated text values");
   assert.ok(prompt.includes("нет дефисов, нет тире, нет минусов, нет цифр"), "prompt must require final symbol self-check");
   assert.ok(prompt.includes("Поле script должно совпадать"), "script must match beat voiceovers");
+  assert.ok(prompt.includes("как почти готовый текст"), "prompt must treat reference as near-source text");
+  assert.ok(prompt.includes("Меняй слова синонимами только там"), "prompt must only lightly synonymize reference text");
   assert.ok(prompt.includes("Переписывай reference близко"), "prompt must keep close reference adaptation");
   assert.ok(prompt.includes("Главный принцип адаптации reference"), "prompt must state one priority rule for reference adaptation");
+  assert.ok(prompt.includes("не переноси эту роль на аватара"), "prompt must strip source author expert roles");
   assert.ok(prompt.includes("повторяй момент появления продукта из reference"), "prompt must follow reference product reveal timing");
   assert.ok(prompt.includes("Если в reference продукт появляется в первом кадре или первой фразе"), "prompt must allow first-beat product when the reference does it");
   assert.ok(prompt.includes("Чужой продукт всегда заменяй только нашим product reference"), "prompt must replace source products with our reference only");
@@ -148,11 +151,12 @@ try {
   assert.ok(prompt.includes("в момент первого естественного появления продукта"), "CTA must be embedded at the natural product mention");
   assert.ok(prompt.includes("После CTA продолжи полезную мысль"), "CTA must not end the reel as a sales line");
   assert.ok(prompt.includes("артикул именно этого продукта есть в описании"), "article CTA must point to the exact product variant");
+  assert.ok(prompt.includes("не произноси номер артикула"), "article CTA must not speak article number");
   assert.ok(prompt.includes("Не используй готовые шаблонные формулировки"), "article CTA must avoid copy-pasted wording");
   assert.ok(prompt.includes("В описании упоминается только артикул"), "article CTA must not add extra description info");
   assert.ok(!prompt.includes("чтобы не перепутать с похожими"), "article CTA must not give a phrase template");
   assert.ok(!prompt.includes("артикул или код"), "article CTA must not ask the model to say generic code wording");
-  assert.ok(prompt.includes("как смысловую основу"), "prompt must preserve reference meaning, not only structure");
+  assert.ok(prompt.includes("как почти готовый текст"), "prompt must preserve reference meaning, not only structure");
   assert.ok(prompt.includes("главный тезис, вопрос или возражение, механизм"), "prompt must require the original argument mechanics");
   assert.ok(!prompt.includes("только как пример структуры"), "prompt must not reduce reference to structure only");
   assert.ok(prompt.includes('"background_audio_mood"'), "prompt must request background audio mood");
