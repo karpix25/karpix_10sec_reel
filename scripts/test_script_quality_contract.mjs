@@ -453,6 +453,34 @@ And this is line 2."
     /CTA про артикул вставлен без контекста/u
   );
 
+  const detailsInsteadOfArticleScript = "Этот коллаген удобно добавить утром после завтрака. Он поддерживает привычку без сложных шагов и вписывается в обычный уход. Детали на этот продукт есть в описании.";
+  assert.throws(
+    () => validateViralScriptContract({
+      script: detailsInsteadOfArticleScript,
+      rawScriptBeforeCta: detailsInsteadOfArticleScript,
+      rawScriptFromModel: detailsInsteadOfArticleScript,
+      hook: "Этот коллаген удобно добавить утром после завтрака.",
+      productName: "Апельсиновый коллаген",
+      ctaMode: "article_in_description",
+      ctaValue: null,
+    }),
+    /должен произнести слово «артикул»/u
+  );
+
+  const expertClaimScript = "Мне тридцать лет, я врач косметолог, и вот мои три принципа в домашнем уходе. Первое, мягкое умывание. Энзимная пенка Geodemika мягко очищает кожу, а артикул именно на нее есть в описании.";
+  assert.throws(
+    () => validateViralScriptContract({
+      script: expertClaimScript,
+      rawScriptBeforeCta: expertClaimScript,
+      rawScriptFromModel: expertClaimScript,
+      hook: "Мне тридцать лет",
+      productName: "Geodemika Enzyme Cleansing Foam",
+      ctaMode: "article_in_description",
+      ctaValue: null,
+    }),
+    /профессиональную роль автора reference/u
+  );
+
   console.log("Script Quality checks passed!");
   console.log("All tests passed successfully.");
 } finally {

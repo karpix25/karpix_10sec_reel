@@ -54,8 +54,10 @@ try {
 
   assert.equal(russianContract.validateRussianSpeechGender("я заметил это сразу", "male").length, 0);
   assert.equal(russianContract.validateRussianSpeechGender("я заметила это сразу", "male")[0].matchedText, "я заметила");
+  assert.equal(russianContract.validateRussianSpeechGender("я мама и мой макияж поплыл", "male")[0].matchedText, "я мама");
   assert.equal(russianContract.validateRussianSpeechGender("я заметила это сразу", "female").length, 0);
   assert.equal(russianContract.validateRussianSpeechGender("я заметил это сразу", "female")[0].matchedText, "я заметил");
+  assert.equal(russianContract.validateRussianSpeechGender("я отец и это мой уход", "female")[0].matchedText, "я отец");
   assert.throws(
     () => russianContract.assertRussianSpeechGender("я попробовала и поняла", "male"),
     /Russian speech gender mismatch/
@@ -93,6 +95,7 @@ try {
   const copywriterPrompt = promptChainPrompts.buildCreativeCopywriterPrompt(promptInput);
   assert.ok(copywriterPrompt.includes("Грамматический род говорящего: женский"));
   assert.ok(copywriterPrompt.includes("я заметила"));
+  assert.ok(copywriterPrompt.includes("адаптируй мужские бытовые маркеры под женского аватара"));
 
   const directorPrompt = promptChainPrompts.buildDirectorSegmenterPrompt({
     chainInput: promptInput,
@@ -103,6 +106,7 @@ try {
   const classicPrompt = scriptPrompt.buildPrompt({ ...promptInput, avatarSpeechGender: "male" });
   assert.ok(classicPrompt.includes("Грамматический род говорящего: мужской"));
   assert.ok(classicPrompt.includes("я заметил"));
+  assert.ok(classicPrompt.includes("адаптируй женские бытовые маркеры под мужского аватара"));
 
   console.log("Omni avatar speech gender contract checks passed");
 } finally {
