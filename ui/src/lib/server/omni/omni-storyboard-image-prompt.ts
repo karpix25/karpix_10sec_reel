@@ -1,6 +1,7 @@
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import { isProductVisibleInStoryboardFrame } from "./omni-intro-product-contract";
 import { renderProductPhysicalStoryboardHint } from "./product-physical-contract";
+import { OMNI_PHYSICAL_ACTION_CONTRACT } from "./omni-physical-action-contract";
 
 export function buildStoryboardImagePrompt(input: {
   segmentIndex: number;
@@ -56,6 +57,7 @@ export function buildStoryboardImagePrompt(input: {
       : "",
     "Каждый кадр должен быть отдельной вертикальной визуальной панелью с таймингом две секунды.",
     "Раскадровка описывает только то, что физически видно в сцене: композицию, ракурс, окружение и действие.",
+    OMNI_PHYSICAL_ACTION_CONTRACT,
     "Avatar reference отвечает только за идентичность и пол героя: лицо, возраст, телосложение, волосы и общий типаж. Не бери из avatar reference одежду, атмосферу, предметы, камеру или действия.",
     "Главный герой в каждом кадре должен быть тем же человеком, что и на изображении один. Не меняй лицо, возраст, телосложение, волосы и общий типаж между кадрами.",
     "Детали героя фиксированы во всех кадрах: та же длина волос, пробор, объем прически, линия роста волос, украшения, вырез и рукава.",

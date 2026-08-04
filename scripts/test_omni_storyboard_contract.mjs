@@ -96,6 +96,7 @@ try {
   assert.equal(normalizedCount(prompt, buildValidStoryboard().voiceoverText), 1);
   assert.equal(normalizedCount(prompt, buildValidStoryboard().frames[0].spokenText), 1);
   assert.ok(prompt.includes("Не добавляй музыку"));
+  assert.ok(prompt.includes("обе руки у лица"));
   assert.ok(!prompt.includes("субтитры примени как с референса"));
   assert.ok(!prompt.includes("действие: герой берет"));
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));

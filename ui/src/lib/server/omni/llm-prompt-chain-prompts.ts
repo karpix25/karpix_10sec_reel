@@ -9,6 +9,7 @@ import type { CreativeScriptDraft, DirectorSegmentPlan } from "./llm-prompt-chai
 import { formatPromptChainRange } from "./llm-prompt-chain-number-words";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
+import { OMNI_PHYSICAL_ACTION_CONTRACT } from "./omni-physical-action-contract";
 
 export type PromptChainInput = {
   projectName: string;
@@ -103,6 +104,7 @@ ${renderRussianSpeechGenderRule(input.chainInput.avatarSpeechGender)}
 Запрещено заканчивать segment словами вроде вы сможете, сможете, можно, помогает, позволяет, для, и.
 В одном segment продукт должен иметь один физический статус: или на столе, или в руках, или вне кадра.
 Если cutaway frame говорит без рук, весь segment не должен включать взятие продукта в руки.
+${OMNI_PHYSICAL_ACTION_CONTRACT}
 Аватарный character_id передается Omni отдельно. Product reference передается Omni отдельно. Не пиши идентификаторы или ссылки в JSON.
 Все числа в текстовых значениях JSON пиши словами. Не используй emoji, дефисы, тире или минусы.
 
@@ -195,6 +197,7 @@ ${wardrobeRule}
 Все числа в текстовых значениях JSON пиши словами. Не используй emoji, дефисы, тире или минусы.
 Если продукт на столе, не пиши что персонаж держит его в руках.
 Если перебивка без рук, не пиши что рука двигает или берет продукт.
+${OMNI_PHYSICAL_ACTION_CONTRACT}
 Talking head prompt должен начинаться с лица, иметь короткую середину cutaway и возвращаться к лицу.
 
 Продукт: ${input.chainInput.productName}

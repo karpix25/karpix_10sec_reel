@@ -122,6 +122,7 @@ try {
     assert.ok(imagePrompt.includes("синхронизированы с текущей репликой"), "storyboard image prompt must synchronize source frames with the current speech");
     assert.ok(imagePrompt.includes("действия, атмосферу, одежду, предметы, камеру и ритм"), "storyboard image prompt must preserve the source visual contract");
     assert.ok(imagePrompt.includes("Одежда, стиль, свет и окружение должны оставаться одинаковыми"), "storyboard image prompt must lock outfit continuity");
+    assert.ok(imagePrompt.includes("обе руки у лица"), "storyboard image prompt must keep hand and product actions physically consistent");
     assert.ok(imagePrompt.includes("та же длина волос, пробор"), "storyboard image prompt must lock hair details");
     assert.ok(imagePrompt.includes("точно то же волокно, плетение, плотность"), "storyboard image prompt must lock exact fabric material");
     assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");

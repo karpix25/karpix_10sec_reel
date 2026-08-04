@@ -10,6 +10,7 @@ import { isProductVisibleInStoryboardFrame } from "../omni-intro-product-contrac
 import { renderProductPhysicalContractForOmni } from "../product-physical-contract";
 import type { DirectorBrief } from "../director-analysis-types";
 import { renderReferenceTransitionCue } from "./omni-storyboard-effects";
+import { OMNI_PHYSICAL_ACTION_CONTRACT } from "../omni-physical-action-contract";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
@@ -36,25 +37,26 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     `Оживи кадры раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER} как реальные сцены; не показывай саму раскадровку, телефон, экран, интерфейс, соцсети, карточки или коллаж.`,
     "filming equipment is never visible.",
     `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
-    "Сохраняй те же волосы, пробор, аксессуары во всех кадрах.",
+    "Фиксируй те же волосы, пробор, аксессуары.",
     "Канонический outfit задается первым кадром первой части: один и тот же полный комплект одежды во всех частях; не меняй цвет, ткань, крой или аксессуары.",
-    "Материал и цвет одежды фиксированы первым кадром: та же фактура, оттенок, швы, крой и посадка во всех кадрах; светлый деним не темнеет.",
+    "Материал и цвет одежды фиксированы первым кадром; не меняй фактуру, оттенок и крой.",
     "WARDROBE AUTHORITY: первый outfit из раскадровки единственный; не бери одежду из avatar reference и не меняй outfit.",
     renderReferenceTransitionCue(input.directorBrief),
     renderStoryboardCameraLock(input.storyboard),
     renderVehicleCameraLock(input.directorBrief),
     "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
-      ? `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}; не меняй упаковку; впервые покажи его только в кадре ${productRevealFrame}, затем непрерывно сохраняй тот же физический продукт в той же руке или на том же месте до конца части; не допускай исчезновения, повторного появления, телепортации, дублирования или смены положения без видимого движения руки.`
+      ? `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}; не меняй упаковку; впервые покажи его только в кадре ${productRevealFrame}; дальше сохраняй в той же руке или на том же месте; не допускай исчезновения, телепортации или смены положения без движения руки.`
       : "В этом сегменте продукт вне кадра; не переноси его из reference-кадра.",
     productAppearsInThisSegment
-      ? "Состояние продукта держи одинаковым от первого до последнего кадра: та же консистенция, та же целостность, та же упаковка и дизайн."
+      ? "Состояние продукта держи одинаковым."
       : "",
     productAppearsInThisSegment ? renderProductPhysicalContractForOmni(input.productPhysicalContract) : "",
+    OMNI_PHYSICAL_ACTION_CONTRACT,
     "Персонаж в кадре сам произносит эти слова на русском языке:",
     voiceoverText,
     "Это одна непрерывная реплика, она произносится ровно один раз от первого до последнего слова.",
-    "Каждый эпизод продолжает речь со следующего еще не произнесенного слова. После последнего слова персонаж замолкает.",
+    "Каждый эпизод продолжает речь со следующего еще не произнесенного слова. После последнего слова молчит.",
     "Не добавляй музыку, новые субтитры или новый текст на экран, аудиоэффекты можно.",
   ].join("\n");
 }
