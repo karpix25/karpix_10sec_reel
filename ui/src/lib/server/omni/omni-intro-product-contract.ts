@@ -12,6 +12,12 @@ export function mentionsOmniProduct(text: string, productName: string) {
   );
 }
 
+export function isProductPlacementVisible(placement: string, productName: string) {
+  const normalized = normalize(placement);
+  if (!normalized || /продукт\s+(?:вне\s+кадра|не\s+виден)|hidden|off\s*camera/iu.test(normalized)) return false;
+  return mentionsOmniProduct(placement, productName);
+}
+
 function normalize(value: string) {
   return value.toLowerCase().replace(/ё/g, "е").replace(/\s+/gu, " ").trim();
 }

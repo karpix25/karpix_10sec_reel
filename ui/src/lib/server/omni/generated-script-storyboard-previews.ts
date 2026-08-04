@@ -1,5 +1,6 @@
 import pool from "@/lib/db";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
+import { isProductPlacementVisible } from "./omni-intro-product-contract";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
 import { ensureOmniSchema } from "./schema";
 
@@ -8,7 +9,7 @@ type StoryboardPromptSegment = {
   storyboardPlan: OmniStoryboardSegment | null;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-speech-director-refs-v2";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-speech-director-refs-v3";
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
@@ -105,7 +106,9 @@ async function tryGenerateStoryboardPreview(input: {
       productName: input.productName,
       productPhysicalContract: input.productPhysicalContract,
       avatarReferenceUrl: input.avatarReferenceUrl,
-      productReferenceUrls: input.productReferenceUrls,
+      productReferenceUrls: isProductVisibleInStoryboard(input.storyboardPlan, input.productName)
+        ? input.productReferenceUrls
+        : [],
       directorReferenceImageUrls: getSegmentDirectorReferenceUrls(input, input.segmentIndex),
       previousStoryboardReferenceUrl: input.previousStoryboardReferenceUrl,
     });
@@ -120,6 +123,10 @@ async function tryGenerateStoryboardPreview(input: {
     });
     return null;
   }
+}
+
+function isProductVisibleInStoryboard(storyboard: OmniStoryboardSegment, productName: string) {
+  return storyboard.frames.some((frame) => isProductPlacementVisible(frame.productPlacement, productName));
 }
 
 async function upsertGeneratedScriptStoryboardUrl(input: {

@@ -18,6 +18,7 @@ import { resolveProductReferenceImageUrls } from "./omni-product-reference-image
 import { detectKieOmniVoiceGender } from "./kie-omni-audio";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
+import { isProductPlacementVisible } from "./omni-intro-product-contract";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 
 function normalizeReel(row: OmniReel): OmniReel {
@@ -218,6 +219,7 @@ export async function createOmniReel(input: {
     segments: promptPlan.map((segment) => ({
       index: segment.index,
       durationSeconds: segment.durationSeconds,
+      wordCount: segmentPlan.segments[segment.index - 1]?.wordCount,
     })),
   });
   const storyboardReferenceUrls = await generateStoryboardReferenceUrls({
@@ -353,7 +355,9 @@ async function generateStoryboardReferenceUrls(input: {
         storyboard: segmentPrompt.storyboardPlan,
         productName: input.productName,
         productPhysicalContract: input.productPhysicalContract,
-        productReferenceUrls: index === 0 ? [] : input.productReferenceUrls,
+        productReferenceUrls: segmentPrompt.storyboardPlan?.frames.some((frame) =>
+          isProductPlacementVisible(frame.productPlacement, input.productName)
+        ) ? input.productReferenceUrls : [],
         directorReferenceImageUrls: Array.from(input.directorReferenceImageUrlsBySegment?.get(segmentPrompt.index) || []),
         avatarReferenceUrl: input.avatarReferenceUrl,
         previousStoryboardReferenceUrl,

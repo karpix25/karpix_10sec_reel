@@ -1,9 +1,49 @@
-export const STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT = 5;
+export const STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT = 4;
+
+export type StoryboardReferenceWord = {
+  start: number;
+  end: number;
+};
 
 export type StoryboardReferenceSegment = {
   index: number;
   durationSeconds: number;
+  wordCount?: number;
 };
+
+export function buildSegmentReferenceSeekSecondsFromWords(input: {
+  segment: StoryboardReferenceSegment;
+  segments: readonly StoryboardReferenceSegment[];
+  words: readonly StoryboardReferenceWord[];
+  framesPerSegment?: number;
+}) {
+  const words = input.words
+    .filter((word) => Number.isFinite(word.start) && Number.isFinite(word.end) && word.end > word.start)
+    .sort((left, right) => left.start - right.start);
+  if (!words.length) return [];
+
+  const sortedSegments = [...input.segments].sort((a, b) => a.index - b.index);
+  const position = sortedSegments.findIndex((segment) => segment.index === input.segment.index);
+  if (position < 0) return [];
+  const useWordWeights = sortedSegments.every((segment) => Number.isFinite(segment.wordCount) && (segment.wordCount || 0) > 0);
+  const weight = (segment: StoryboardReferenceSegment) => useWordWeights
+    ? segment.wordCount || 0
+    : normalizeDuration(segment.durationSeconds, 0) || 0;
+  const totalWeight = sortedSegments.reduce((sum, segment) => sum + weight(segment), 0);
+  if (!totalWeight) return [];
+
+  const startRatio = sortedSegments.slice(0, position).reduce((sum, segment) => sum + weight(segment), 0) / totalWeight;
+  const endRatio = startRatio + weight(input.segment) / totalWeight;
+  const startWordIndex = Math.min(words.length - 1, Math.floor(startRatio * words.length));
+  const endWordIndex = Math.min(words.length - 1, Math.max(startWordIndex, Math.ceil(endRatio * words.length) - 1));
+
+  return spreadSeekSeconds(
+    words[startWordIndex].start,
+    words[endWordIndex].end,
+    normalizeFrameCount(input.framesPerSegment),
+    false
+  );
+}
 
 export function buildSegmentReferenceSeekSeconds(input: {
   segment: StoryboardReferenceSegment;
@@ -34,9 +74,9 @@ export function readSourceDurationSeconds(value: unknown): number | null {
   return readDurationSeconds(value, 0);
 }
 
-function spreadSeekSeconds(startSeconds: number, endSeconds: number, count: number) {
+function spreadSeekSeconds(startSeconds: number, endSeconds: number, count: number, enforceMinimumSpan = true) {
   const safeStart = Math.max(0, startSeconds);
-  const safeEnd = Math.max(safeStart + 0.5, endSeconds);
+  const safeEnd = enforceMinimumSpan ? Math.max(safeStart + 0.5, endSeconds) : Math.max(safeStart, endSeconds);
   const span = safeEnd - safeStart;
   return Array.from({ length: count }, (_, index) => {
     const seek = safeStart + (span * (index + 1)) / (count + 1);

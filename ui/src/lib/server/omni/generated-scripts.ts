@@ -115,6 +115,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     segments: promptPlan.map((segment) => ({
       index: segment.index,
       durationSeconds: segment.durationSeconds,
+      wordCount: segmentPlan.segments[segment.index - 1]?.wordCount,
     })),
   });
   const storyboardUrls = await ensureGeneratedScriptStoryboardUrls({
