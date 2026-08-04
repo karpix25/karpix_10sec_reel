@@ -64,6 +64,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
   segmentIndex: number;
   durationSeconds: number;
   voiceoverText: string;
+  productName: string;
   frames: readonly StoryboardFrame[];
   productPhysicalHint?: string | null;
 }): OmniStoryboardSegment {
@@ -74,11 +75,15 @@ export function buildStoryboardFromPromptChainFrames(input: {
     voiceoverText: input.voiceoverText,
     frames: input.frames.map((frame) => ({
       spokenText: frame.spokenWords,
-      visualAction: frame.visualDescription || frame.action,
+      visualAction: mentionsOmniProduct(frame.spokenWords, input.productName)
+        ? frame.visualDescription || frame.action
+        : renderNonProductFrameAction(frame.visualDescription || frame.action, false, input.productName),
       camera: frame.camera,
       environment: "окружение и свет из режиссерского плана и storyboard image",
       wardrobe: `одежда из avatar или reference contract, без смены между кадрами; ${EXACT_FABRIC_LOCK}`,
-      productPlacement: renderPromptChainProductPlacement(frame.productState, input.productPhysicalHint),
+      productPlacement: mentionsOmniProduct(frame.spokenWords, input.productName)
+        ? renderPromptChainProductPlacement(frame.productState, input.productPhysicalHint)
+        : "в кадре только тематические объекты и окружение текущей реплики",
       sfxNotes: frame.sfx || "естественные звуки сцены и речи",
       effectNotes: null,
       modelMusicNotes: null,
@@ -119,12 +124,14 @@ function buildFrame(input: {
     input.plan.beats[0];
   const cutawayFrameIndex = Math.ceil(input.frameCount / 2);
   const isCutawayFrame = input.frameIndex === cutawayFrameIndex;
-  const visualAction = input.segmentIndex === 1 && input.plan.productRole === "hidden"
-    ? renderIntroFrameAction(beat?.action, isCutawayFrame, input.productName)
-    : renderFrameAction(beat?.action, isCutawayFrame);
   const productVisible = input.plan.productRole !== "hidden" &&
     !isArticleCtaOnly(input.spokenText) &&
-    mentionsOmniProduct(`${input.spokenText} ${visualAction}`, input.productName);
+    mentionsOmniProduct(input.spokenText, input.productName);
+  const visualAction = input.segmentIndex === 1 && input.plan.productRole === "hidden"
+    ? renderIntroFrameAction(beat?.action, isCutawayFrame, input.productName)
+    : productVisible
+      ? renderFrameAction(beat?.action, isCutawayFrame)
+      : renderNonProductFrameAction(beat?.action, isCutawayFrame, input.productName);
 
   return {
     spokenText: input.spokenText,
@@ -235,7 +242,7 @@ function renderDirectorCamera(brief: DirectorBrief | null | undefined, productVi
 
 function renderPromptChainProductPlacement(productState: string | null | undefined, productPhysicalHint?: string | null) {
   const state = productState?.trim() || "продукт следует физическому состоянию storyboard";
-  if (/вне\s+кадра|не\s+виден|hidden|off\s*camera/iu.test(state)) return state;
+  if (/(?:продукт|товар)\s+(?:вне\s+кадра|не\s+виден|скрыт)|hidden|off\s*camera/iu.test(state)) return state;
   return appendProductPhysicalHint(
     `${state}; продукт физически виден как реальный предмет с деталями из product reference`,
     productPhysicalHint
@@ -309,6 +316,14 @@ function renderFrameAction(action: string | undefined, isCutawayFrame: boolean) 
       : `персонаж говорит в камеру, визуальный ориентир: ${visualCue}`;
   }
   return compactText(normalized, 180);
+}
+
+function renderNonProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string) {
+  const normalized = compactText(action || "", 220);
+  if (!mentionsOmniProduct(normalized, productName)) return renderFrameAction(action, isCutawayFrame);
+  return isCutawayFrame
+    ? "смысловая перебивка по текущей реплике без товара"
+    : "персонаж говорит в камеру, спокойный жест руками, без товара в кадре";
 }
 
 function renderIntroFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string) {

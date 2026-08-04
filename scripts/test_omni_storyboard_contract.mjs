@@ -109,6 +109,41 @@ try {
   assert.ok(physicalPrompt.includes("cohesive soft translucent jelly dessert"));
   assert.equal(normalizedCount(physicalPrompt, "PRODUCT PHYSICAL CONTRACT:"), 1);
 
+  const mixedProductStoryboard = buildValidStoryboard();
+  mixedProductStoryboard.voiceoverText = "Кожа спокойная сон важен Пенка мягко очищает кожу Уход нужен каждый день Артикул в описании И все без лишней рекламы";
+  mixedProductStoryboard.frames = [
+    { ...mixedProductStoryboard.frames[0], spokenText: "Кожа спокойная сон важен", productPlacement: "в кадре только тематические объекты" },
+    { ...mixedProductStoryboard.frames[1], spokenText: "Пенка мягко очищает кожу", productPlacement: "пенка в руке" },
+    { ...mixedProductStoryboard.frames[2], spokenText: "Уход нужен каждый день", productPlacement: "в кадре только тематические объекты" },
+    { ...mixedProductStoryboard.frames[3], spokenText: "Артикул в описании", productPlacement: "в кадре только тематические объекты" },
+    { ...mixedProductStoryboard.frames[4], spokenText: "И все без лишней рекламы", productPlacement: "в кадре только тематические объекты" },
+  ];
+  const mixedProductPrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
+    storyboard: mixedProductStoryboard,
+    productName: "Пенка",
+  });
+  assert.ok(mixedProductPrompt.includes("; 2;"));
+  assert.ok(mixedProductPrompt.includes("остальные без товара"));
+
+  const visualCueProductPlan = builder.buildStoryboardFromCreativePlan({
+    plan: {
+      ...buildCreativePlan(),
+      productRole: "background_prop",
+      beats: [{ startSeconds: 0, endSeconds: 10, action: "Сценарный visual cue: продукт на столе крупным планом" }],
+    },
+    productName: "Geodemika Enzyme Cleansing Foam",
+    characterContract: {
+      identityLine: "approved avatar identity",
+      clothingLine: "черный мужской лонгслив",
+      sourceRuleLine: "avatar defines identity",
+      clothingSource: "avatar",
+    },
+    segmentIndex: 2,
+    durationSeconds: 10,
+  });
+  assert.ok(visualCueProductPlan.frames.every((frame) => frame.productPlacement.includes("только тематические объекты")));
+  assert.ok(visualCueProductPlan.frames.every((frame) => !/продукт|пенк|упаков/iu.test(frame.visualAction)));
+
   const directorStoryboard = builder.buildStoryboardFromCreativePlan({
     plan: buildCreativePlan(),
     productName: "Коллаген",

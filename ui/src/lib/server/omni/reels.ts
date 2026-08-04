@@ -18,7 +18,7 @@ import { resolveProductReferenceImageUrls } from "./omni-product-reference-image
 import { detectKieOmniVoiceGender } from "./kie-omni-audio";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
-import { isProductPlacementVisible } from "./omni-intro-product-contract";
+import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 
 function normalizeReel(row: OmniReel): OmniReel {
@@ -355,9 +355,9 @@ async function generateStoryboardReferenceUrls(input: {
         storyboard: segmentPrompt.storyboardPlan,
         productName: input.productName,
         productPhysicalContract: input.productPhysicalContract,
-        productReferenceUrls: segmentPrompt.storyboardPlan?.frames.some((frame) =>
-          isProductPlacementVisible(frame.productPlacement, input.productName)
-        ) ? input.productReferenceUrls : [],
+        productReferenceUrls: hasProductVisibleStoryboardFrame(segmentPrompt.storyboardPlan, input.productName)
+          ? input.productReferenceUrls
+          : [],
         directorReferenceImageUrls: Array.from(input.directorReferenceImageUrlsBySegment?.get(segmentPrompt.index) || []),
         avatarReferenceUrl: input.avatarReferenceUrl,
         previousStoryboardReferenceUrl,
