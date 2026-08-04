@@ -88,7 +88,7 @@ try {
   assert.ok(!prompt.includes("субтитры примени как с референса"));
   assert.ok(!prompt.includes("действие: герой берет"));
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));
-  assert.ok(prompt.length < 1600, "storyboard provider prompt must stay short");
+  assert.ok(prompt.length < 2000, "storyboard provider prompt must stay short");
 
   const finalPrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
     storyboard: { ...buildValidStoryboard(), segmentIndex: 3 },
@@ -122,7 +122,7 @@ try {
     storyboard: mixedProductStoryboard,
     productName: "Пенка",
   });
-  assert.ok(mixedProductPrompt.includes("; 2;"));
+  assert.ok(mixedProductPrompt.includes("в кадрах 2"));
   assert.ok(mixedProductPrompt.includes("остальные без товара"));
 
   const visualCueProductPlan = builder.buildStoryboardFromCreativePlan({
@@ -174,6 +174,25 @@ try {
   assert.ok(directorStoryboard.frames[2].productPlacement.includes("продукт вне кадра"));
   assert.doesNotMatch(directorStoryboardText, /коллаген|product|товар|упаковк/iu);
   assert.equal(new Set(directorStoryboard.frames.map((frame) => frame.wardrobe)).size, 1);
+
+  const maleAdaptedWardrobeBrief = buildDirectorBrief();
+  maleAdaptedWardrobeBrief.clothing.adaptation_notes = "adapt the original women's shirt styling to the male avatar";
+  const maleAdaptedStoryboard = builder.buildStoryboardFromCreativePlan({
+    plan: buildCreativePlan(),
+    productName: "Коллаген",
+    characterContract: {
+      identityLine: "approved male avatar identity",
+      clothingLine: "fallback light top",
+      sourceRuleLine: "avatar defines identity",
+      clothingSource: "fallback",
+    },
+    segmentIndex: 1,
+    durationSeconds: 10,
+    directorBrief: maleAdaptedWardrobeBrief,
+    wardrobeSource: "director_reference",
+  });
+  assert.ok(maleAdaptedStoryboard.frames[0].wardrobe.includes("black fitted turtleneck"));
+  assert.ok(!maleAdaptedStoryboard.frames[0].wardrobe.includes("fallback light top"));
   assert.ok(
     directorStoryboard.frames.filter((frame) => !/перебивка/iu.test(frame.camera)).every((frame) => frame.camera.includes("смотрит прямо в объектив")),
     "talking-head storyboard camera lines must keep eye contact"

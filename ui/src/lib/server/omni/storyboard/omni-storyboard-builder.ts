@@ -143,7 +143,7 @@ function buildFrame(input: {
   const visualAction = input.segmentIndex === 1 && input.plan.productRole === "hidden"
     ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName)
     : productVisible
-      ? renderFrameAction(visualActionSource, isCutawayFrame)
+      ? renderProductFrameAction(visualActionSource, isCutawayFrame, input.productName)
       : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName);
 
   return {
@@ -313,7 +313,6 @@ function isClearlyFemaleWardrobe(brief?: DirectorBrief | null) {
   const clothing = [
     brief?.clothing.style,
     brief?.clothing.fit_details,
-    brief?.clothing.adaptation_notes,
     ...(brief?.clothing.color_palette || []),
   ].filter(Boolean).join(" ");
   return /halter|bra\b|bustier|corset|dress|skirt|women'?s|feminine|бюстгальтер|корсет|плать|юбк|женск|топ\s+на\s+бретел/iu.test(clothing);
@@ -329,6 +328,12 @@ function renderFrameAction(action: string | undefined, isCutawayFrame: boolean) 
       : `персонаж говорит в камеру, визуальный ориентир: ${visualCue}`;
   }
   return compactText(normalized, 180);
+}
+
+function renderProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string) {
+  const rendered = renderFrameAction(action, isCutawayFrame);
+  if (mentionsOmniProduct(rendered, productName)) return rendered;
+  return `${rendered}; герой естественно берет ${productName} в одну руку на уровне груди, упаковка повернута лицевой стороной к камере`;
 }
 
 function renderNonProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string) {
