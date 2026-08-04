@@ -8,9 +8,11 @@ import {
 } from "./omni-video-storage";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { extractDirectorReferenceVideoUrl } from "./director-reference-video-url";
+import { transcribeAudioFileWithDeepgram } from "./deepgram-transcription";
 import {
   STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT,
   buildSegmentReferenceSeekSeconds,
+  buildSegmentReferenceSeekSecondsFromWords,
   readSourceDurationSeconds,
   type StoryboardReferenceSegment,
 } from "./storyboard-reference-frame-timing";
@@ -77,14 +79,33 @@ export async function prepareSegmentStoryboardDirectorReferenceUrls(input: {
   if (videoUrl) {
     try {
       const sourceDurationSeconds = readSourceDurationSeconds(input.sourceSnapshot);
-      for (const segment of input.segments) {
-        const seekSeconds = buildSegmentReferenceSeekSeconds({
-          segment,
-          segments: input.segments,
-          sourceDurationSeconds,
-          framesPerSegment,
+      const videoBuffer = await downloadVideoBuffer(videoUrl);
+      let transcriptWords = null;
+      try {
+        transcriptWords = await transcribeReferenceVideo(videoBuffer);
+      } catch (error) {
+        console.warn("Reference video transcription unavailable; using legacy frame timing:", {
+          error: formatError(error),
         });
-        const frameBuffers = await extractFramesFromVideoUrl(videoUrl, framesPerSegment, seekSeconds);
+      }
+      for (const segment of input.segments) {
+        const transcriptSeekSeconds = transcriptWords?.length
+          ? buildSegmentReferenceSeekSecondsFromWords({
+              segment,
+              segments: input.segments,
+              words: transcriptWords,
+              framesPerSegment,
+            })
+          : [];
+        const seekSeconds = transcriptSeekSeconds.length
+          ? transcriptSeekSeconds
+          : buildSegmentReferenceSeekSeconds({
+              segment,
+              segments: input.segments,
+              sourceDurationSeconds,
+              framesPerSegment,
+            });
+        const frameBuffers = await extractFramesFromVideoBuffer(videoBuffer, framesPerSegment, seekSeconds);
         const uploaded = [];
         for (let index = 0; index < frameBuffers.length; index += 1) {
           uploaded.push(await uploadDirectorReferenceFrame({
@@ -130,6 +151,11 @@ function formatError(error: unknown) {
 async function extractFramesFromVideoUrl(videoUrl: string, maxFrames: number, seekSeconds: readonly number[] = SEEK_SECONDS) {
   if (maxFrames <= 0) return [];
   const videoBuffer = await downloadVideoBuffer(videoUrl);
+  return extractFramesFromVideoBuffer(videoBuffer, maxFrames, seekSeconds);
+}
+
+async function extractFramesFromVideoBuffer(videoBuffer: Buffer, maxFrames: number, seekSeconds: readonly number[] = SEEK_SECONDS) {
+  if (maxFrames <= 0) return [];
   const workdir = await mkdtemp(path.join(tmpdir(), "omni-director-ref-"));
   const videoPath = path.join(workdir, "reference-video.mp4");
 
@@ -152,6 +178,34 @@ async function extractFramesFromVideoUrl(videoUrl: string, maxFrames: number, se
       frames.push(Buffer.from(frames[frames.length - 1]));
     }
     return frames;
+  } finally {
+    await rm(workdir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+async function transcribeReferenceVideo(videoBuffer: Buffer) {
+  const workdir = await mkdtemp(path.join(tmpdir(), "omni-director-transcript-"));
+  const videoPath = path.join(workdir, "reference-video.mp4");
+  const audioPath = path.join(workdir, "reference-audio.wav");
+
+  try {
+    await writeFile(videoPath, videoBuffer);
+    await runFfmpeg([
+      "-y",
+      "-i",
+      videoPath,
+      "-vn",
+      "-ac",
+      "1",
+      "-ar",
+      "16000",
+      "-c:a",
+      "pcm_s16le",
+      audioPath,
+    ]);
+    const transcript = await transcribeAudioFileWithDeepgram(audioPath);
+    if (!transcript.words.length) throw new Error("Deepgram returned no reference video word timestamps");
+    return transcript.words;
   } finally {
     await rm(workdir, { recursive: true, force: true }).catch(() => {});
   }
