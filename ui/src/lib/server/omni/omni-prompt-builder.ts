@@ -258,7 +258,7 @@ function getSegmentProductRole(
 ): ProductRole {
   if (role === "hidden") return role;
   if (mentionsOmniProduct(voiceoverText, productName)) {
-    return "background_prop";
+    return "brief_demo";
   }
   return "hidden";
 }
@@ -304,7 +304,9 @@ function buildStoredProviderPromptSegments(
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
     const productRole: ProductRole =
-      segment.referenceRole === "product" ? "background_prop" : "hidden";
+      segment.referenceRole === "product" && mentionsOmniProduct(segment.voiceover, input.product.name)
+        ? "brief_demo"
+        : "hidden";
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,

@@ -79,6 +79,7 @@ try {
     assert.ok(item.prompt.includes("одежду, свет, фон, ракурс и действия бери из раскадровки"), "storyboard prompt must make storyboard wardrobe and scene authoritative");
     assert.ok(item.prompt.includes("те же волосы, пробор, аксессуары"), "storyboard prompt must keep hair and outfit details stable");
     assert.ok(item.prompt.includes("один и тот же полный комплект одежды"), "storyboard prompt must lock one outfit across all segments");
+    assert.ok(item.prompt.includes("Канонический outfit задается первым кадром первой части"), "storyboard prompt must make the first outfit canonical");
     assert.ok(item.prompt.includes("смотрит прямо в объектив"), "storyboard prompt must keep eye contact across camera angles");
     if (productVisible) {
       assert.ok(item.prompt.includes("Состояние продукта держи одинаковым"), "visible product segments must keep product physical state stable");
@@ -92,7 +93,7 @@ try {
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
     assert.ok(item.prompt.includes("Не добавляй музыку"), "storyboard prompt must forbid Omni music");
     assert.ok(!item.prompt.includes("субтитры примени как с референса"), "storyboard prompt must not ask to copy subtitles");
-    assert.ok(item.prompt.length < 1600, "storyboard prompt must stay short");
+    assert.ok(item.prompt.length < 2000, "storyboard prompt must stay short");
     assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2, "storyboard frame count must follow duration");
     assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
     assert.ok(!item.prompt.includes(`"${item.voiceoverText}"`), "spoken text must not be wrapped in quotes");
@@ -119,10 +120,11 @@ try {
     assert.ok(imagePrompt.includes("та же длина волос, пробор"), "storyboard image prompt must lock hair details");
     assert.ok(imagePrompt.includes("точно то же волокно, плетение, плотность"), "storyboard image prompt must lock exact fabric material");
     assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");
+    assert.ok(imagePrompt.includes("Канонический outfit задается первым кадром первой части"), "storyboard image prompt must make the first outfit canonical");
     assert.ok(imagePrompt.includes("Avatar reference отвечает только за идентичность и пол героя"), "storyboard image prompt must limit avatar reference to identity and gender");
     assert.ok(imagePrompt.includes("Смысл текущей реплики и соответствующий reference-кадр определяют содержание панели"), "storyboard image prompt must request semantic reference-driven shots");
     if (productVisible) {
-      assert.ok(imagePrompt.includes("не hero shot"), "storyboard image prompt must prevent background props from becoming product ads");
+      assert.ok(imagePrompt.includes("покажи его один раз естественно в руке"), "storyboard image prompt must require a clear natural product reveal");
     }
     assert.ok(imagePrompt.includes("Не превращай первые кадры в рекламную демонстрацию товара"), "storyboard image prompt must keep blogger framing");
     if (!productVisible) {
