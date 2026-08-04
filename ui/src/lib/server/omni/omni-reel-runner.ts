@@ -33,6 +33,7 @@ import { processOmniReelSubtitlesIfNeeded } from "./omni-reel-subtitles";
 import { storeCompletedSegment, stitchAndStoreReel } from "./omni-segment-completion";
 import { detectKieOmniVoiceGender, resolveKieOmniAudioIds, type KieOmniVoiceGender } from "./kie-omni-audio";
 import { applyOmniStoryboardFileReference } from "./storyboard/omni-storyboard-file-reference";
+import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 
 type ReelBundle = {
   reel: OmniReel;
@@ -215,7 +216,12 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
               : "continuity_chain_disabled",
           },
         };
-    const productIsVisible = segment.creative_plan?.productRole !== "hidden";
+    const productName = typeof reel.product_snapshot?.name === "string"
+      ? reel.product_snapshot.name
+      : typeof reel.product_snapshot?.product_name === "string"
+        ? reel.product_snapshot.product_name
+        : "";
+    const productIsVisible = hasProductVisibleStoryboardFrame(segment.storyboard_plan, productName);
     const continuityImages = continuity.image ? [continuity.image] : [];
     const storyboardImages = segment.storyboard_reference_url
       ? [{ url: segment.storyboard_reference_url, fieldName: referenceImageField, role: "storyboard" }]

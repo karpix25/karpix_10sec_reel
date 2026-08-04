@@ -179,10 +179,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const segmentScriptBeats = selectScriptBeatsForSegment(scriptPlan, segmentIndex, input.segmentCount);
     const baseProductRole = getSegmentProductRole(
       strategy.productRole,
-      segmentIndex,
-      input.segmentCount,
       voiceSegments[index].text,
-      segmentScriptBeats,
       input.product.name
     );
     const productRole = baseProductRole;
@@ -219,6 +216,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const storyboardValidation = validateBuiltStoryboard(storyboardPlan);
     const prompt = renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
+      productName: input.product.name,
       productPhysicalContract: plan.productRole !== "hidden" ? productPhysicalContract : null,
       segmentCount: input.segmentCount,
     });
@@ -254,24 +252,14 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
 
 function getSegmentProductRole(
   role: ProductRole,
-  segmentIndex: number,
-  segmentCount: number,
   voiceoverText: string,
-  scriptBeats: readonly OmniScriptBeatCue[] = [],
   productName = ""
 ): ProductRole {
   if (role === "hidden") return role;
-  if (
-    mentionsOmniProduct(
-      [voiceoverText, ...scriptBeats.flatMap((beat) => [beat.voiceover, beat.visualCue])].join(" "),
-      productName
-    )
-  ) {
+  if (mentionsOmniProduct(voiceoverText, productName)) {
     return "background_prop";
   }
-  if (role === "background_prop") return role;
-  if (segmentIndex !== segmentCount) return "hidden";
-  return countWords(voiceoverText) > 18 ? "background_prop" : role;
+  return "hidden";
 }
 
 function buildStoredProviderPromptSegments(
@@ -329,6 +317,7 @@ function buildStoredProviderPromptSegments(
       durationSeconds: segment.durationSeconds,
       voiceoverText: segment.voiceover,
       frames: segment.storyboardFrames,
+      productName: input.product.name,
       productPhysicalHint,
     });
     const storyboardValidation = validateBuiltStoryboard(storyboardPlan);
@@ -338,6 +327,7 @@ function buildStoredProviderPromptSegments(
     }
     const prompt = renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
+      productName: input.product.name,
       productPhysicalContract: productRole !== "hidden" ? productPhysicalContract : null,
       segmentCount: providerPromptPlan.segmentPrompts.length,
     });
@@ -399,10 +389,6 @@ function selectReferenceUrl(
 ) {
   if (role === "hidden") return avatarReference;
   return productReference?.url || avatarReference;
-}
-
-function countWords(value: string) {
-  return value.split(/\s+/).filter(Boolean).length;
 }
 
 function getPrimaryReference(refs: OmniReferenceAsset[]) {

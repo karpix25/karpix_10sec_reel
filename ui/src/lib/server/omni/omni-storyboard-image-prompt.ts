@@ -1,4 +1,5 @@
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
+import { isProductVisibleInStoryboardFrame } from "./omni-intro-product-contract";
 import { renderProductPhysicalStoryboardHint } from "./product-physical-contract";
 
 export function buildStoryboardImagePrompt(input: {
@@ -27,6 +28,9 @@ export function buildStoryboardImagePrompt(input: {
     : "";
   const frameCount = input.storyboard.frames.length;
   const frameNumbers = input.storyboard.frames.map((_, index) => String(index + 1)).join(", ");
+  const productFrameNumbers = input.storyboard.frames
+    .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName) ? index + 1 : null)
+    .filter((index): index is number => index !== null);
   return [
     "Создай одну широкую production storyboard картинку в стиле темной UGC-раскадровки как референс для генерации Reels.",
     `Стандарт макета обязателен: черный фон, ровно ${frameCount} вертикальных карточек-кадров в один горизонтальный ряд, тонкие белые разделители, без второго ряда и без таблиц.`,
@@ -61,7 +65,7 @@ export function buildStoryboardImagePrompt(input: {
     "Смысл текущей реплики определяет содержание кадра. Чередуй говорящего героя, конкретные предметные детали и атмосферные сцены по теме реплики; меняй крупность, угол камеры, жесты и положение рук, сохраняя одного героя и один outfit.",
     "Первые два кадра должны быть особенно цепляющими: необычный selfie-ракурс, движение камеры, выразительный жест, предметный POV, быстрый наклон или резкая смена крупности. Не превращай первые кадры в рекламную демонстрацию товара, если это не написано в кадре.",
     productReferenceUrls.length
-      ? "Если описание кадра говорит, что продукт виден, прорисуй именно продукт из входных изображений продукта, четко и детально."
+      ? `Если описание кадра говорит, что продукт виден, прорисуй именно продукт из входных изображений продукта, четко и детально. Товар разрешен только в панелях ${productFrameNumbers.length ? productFrameNumbers.join(", ") : "не указан ни в одной"}; во всех остальных панелях товара быть не должно, даже если он попал в исходные кадры.`
       : "Этот сегмент чередует talking-head героя с тематическими объектами и окружением текущих реплик; руки героя свободны.",
     productReferenceUrls.length
       ? "Поле продукта в каждом кадре определяет его роль: если продукт назван вспомогательным предметом, он остается маленькой естественной деталью блогерской сцены, не hero shot, не рекламный close-up и не демонстрация этикетки. Крупный продуктовый кадр делай только когда поле продукта прямо требует демонстрации или использования."
@@ -86,7 +90,11 @@ export function buildStoryboardImagePrompt(input: {
         `камера ${frame.camera};`,
         `окружение ${frame.environment};`,
         `одежда ${frame.wardrobe};`,
-        productReferenceUrls.length ? `продукт ${frame.productPlacement};` : `предметы ${frame.productPlacement};`,
+        productReferenceUrls.length
+          ? isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName)
+            ? `продукт ${frame.productPlacement};`
+            : "продукт в этом кадре не показывай;"
+          : `предметы ${frame.productPlacement};`,
         `звук ${frame.sfxNotes};`,
         "нижняя подсказка должна быть короткой: РАКУРС, ДЕЙСТВИЕ.",
       ].join(" ")

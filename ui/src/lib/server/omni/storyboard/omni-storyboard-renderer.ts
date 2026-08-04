@@ -6,10 +6,12 @@ import {
   OMNI_PRODUCT_FILE_PLACEHOLDER,
   OMNI_STORYBOARD_FILE_PLACEHOLDER,
 } from "./omni-storyboard-file-reference";
+import { isProductVisibleInStoryboardFrame } from "../omni-intro-product-contract";
 import { renderProductPhysicalContractForOmni } from "../product-physical-contract";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
+  productName?: string;
   productPhysicalContract?: string | null;
   segmentCount?: number;
 }) {
@@ -19,9 +21,10 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   }
   const voiceoverText = renderPunctuatedVoiceover(input.storyboard, input.segmentCount);
   const frameCount = input.storyboard.frames.length;
-  const productAppearsInThisSegment = input.storyboard.frames.some((frame) =>
-    !/вне\s+кадра|не\s+виден|скрыт|hidden|off\s*camera|not\s+visible/iu.test(frame.productPlacement)
-  );
+  const productFrameNumbers = input.storyboard.frames
+    .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName || "") ? index + 1 : null)
+    .filter((index): index is number => index !== null);
+  const productAppearsInThisSegment = productFrameNumbers.length > 0;
 
   return [
     `Создай видео по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}, сохрани точно такой же визуал.`,
@@ -34,8 +37,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     "Во всех частях герой носит один и тот же полный комплект одежды с теми же слоями и деталями.",
     "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
-      ? `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}, не меняй упаковку, цвет, форму и этикетку.`
-      : "В этом сегменте продукт вне кадра: в кадре герой, живые жесты и окружение.",
+      ? `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}; не меняй упаковку; ${productFrameNumbers.join(",")}; остальные без товара.`
+      : "В этом сегменте продукт вне кадра; не переноси его из reference-кадра.",
     productAppearsInThisSegment
       ? "Состояние продукта держи одинаковым от первого до последнего кадра: та же консистенция, та же целостность, та же упаковка и дизайн."
       : "",

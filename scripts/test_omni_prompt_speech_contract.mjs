@@ -60,7 +60,9 @@ try {
     assert.ok(!item.prompt.includes("Озвучка:"), "storyboard prompt must not imply background voiceover");
     assert.ok(item.prompt.includes("Создай видео по раскадровке"), "storyboard prompt must bind video to storyboard");
     assert.ok(item.prompt.includes("@storyboard_file"), "storyboard prompt must keep file placeholder until KIE upload order is known");
-    const productVisible = item.creativePlan.productRole !== "hidden";
+    const productVisible = item.storyboardPlan.frames.some((frame) =>
+      !/в\s+кадре\s+только\s+тематические|(?:продукт|товар)\s+вне\s+кадра/iu.test(frame.productPlacement)
+    );
     if (productVisible) {
       assert.ok(item.prompt.includes("@product_file"), "product-visible segments must keep the product file placeholder");
       assert.ok(item.prompt.includes("Продукт бери из"), "product-visible segments must bind the product file");
@@ -119,7 +121,9 @@ try {
     assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");
     assert.ok(imagePrompt.includes("Avatar reference отвечает только за идентичность и пол героя"), "storyboard image prompt must limit avatar reference to identity and gender");
     assert.ok(imagePrompt.includes("Смысл текущей реплики определяет содержание кадра"), "storyboard image prompt must request semantic UGC shots");
-    assert.ok(imagePrompt.includes("не hero shot"), "storyboard image prompt must prevent background props from becoming product ads");
+    if (productVisible) {
+      assert.ok(imagePrompt.includes("не hero shot"), "storyboard image prompt must prevent background props from becoming product ads");
+    }
     assert.ok(imagePrompt.includes("Не превращай первые кадры в рекламную демонстрацию товара"), "storyboard image prompt must keep blogger framing");
     if (!productVisible) {
       assert.ok(!imagePrompt.includes("Продукт: Аэрогриль"), "first storyboard prompt must not name the product");
@@ -157,6 +161,24 @@ try {
   });
   assert.ok(!imagePromptWithPhysicalHint.includes("PRODUCT PHYSICAL CONTRACT:"), "GPT Image prompt must not receive provider contract heading");
   assert.ok(imagePromptWithPhysicalHint.includes("физическое состояние продукта"), "GPT Image prompt should receive only a compact visual physical hint");
+
+  const frameGatedStoryboard = {
+    ...physicalStoryboard,
+    frames: physicalStoryboard.frames.map((frame, index) => ({
+      ...frame,
+      spokenText: index === 1 ? "Аэрогриль в этой реплике" : frame.spokenText,
+      productPlacement: index === 1 ? "аэрогриль в руке" : "в кадре только тематические объекты",
+    })),
+  };
+  const frameGatedImagePrompt = buildStoryboardImagePrompt({
+    segmentIndex: 1,
+    storyboard: frameGatedStoryboard,
+    productName: "Аэрогриль",
+    avatarReferenceUrl: "https://example.com/avatar.png",
+    productReferenceUrls: ["https://example.com/air-fryer.png"],
+  });
+  assert.ok(frameGatedImagePrompt.includes("Товар разрешен только в панелях 2"));
+  assert.ok(frameGatedImagePrompt.includes("продукт в этом кадре не показывай"));
 
   assert.equal(normalizedCount(prompts[0].prompt, prompts[1].voiceoverText), 0);
   assert.equal(normalizedCount(prompts[1].prompt, prompts[0].voiceoverText), 0);
@@ -214,7 +236,11 @@ try {
 	  storedPrompts.forEach((item, index) => {
 	    assert.notEqual(item.prompt, storedSegments[index].prompt);
 	    assert.ok(item.prompt.includes("Создай видео по раскадровке"));
-	    assert.equal(item.prompt.includes("@product_file"), index > 0);
+    const storedProductVisible = item.storyboardPlan.frames.some((frame) =>
+      /аэрогрил/iu.test(`${frame.spokenText} ${frame.productPlacement}`) &&
+      !/в\s+кадре\s+только\s+тематические|(?:продукт|товар)\s+вне\s+кадра/iu.test(frame.productPlacement)
+    );
+	    assert.equal(item.prompt.includes("@product_file"), storedProductVisible);
       assert.equal(normalizedCount(item.prompt, item.voiceoverText), 1);
 	    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
 	    assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2);

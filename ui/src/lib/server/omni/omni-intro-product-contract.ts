@@ -14,8 +14,31 @@ export function mentionsOmniProduct(text: string, productName: string) {
 
 export function isProductPlacementVisible(placement: string, productName: string) {
   const normalized = normalize(placement);
-  if (!normalized || /продукт\s+(?:вне\s+кадра|не\s+виден)|hidden|off\s*camera/iu.test(normalized)) return false;
+  if (!normalized || /(?:продукт|товар)\s+(?:вне\s+кадра|не\s+виден|скрыт)|hidden|off\s*camera/iu.test(normalized)) return false;
   return mentionsOmniProduct(placement, productName);
+}
+
+export function isProductVisibleInStoryboardFrame(
+  frame: Record<string, unknown>,
+  productName: string
+) {
+  const spokenText = String(frame.spokenText || frame.spoken_text || frame.spokenWords || frame.spoken_words || "");
+  const placement = String(frame.productPlacement || frame.product_placement || "");
+  return mentionsOmniProduct(spokenText, productName) && isProductPlacementVisible(placement, productName);
+}
+
+export function hasProductVisibleStoryboardFrame(storyboard: unknown, productName: string) {
+  const candidate = storyboard && typeof storyboard === "object" ? storyboard as Record<string, unknown> : null;
+  const frames = Array.isArray(storyboard)
+    ? storyboard
+    : Array.isArray(candidate?.frames)
+      ? candidate.frames
+      : Array.isArray(candidate?.storyboardFrames)
+        ? candidate.storyboardFrames
+        : Array.isArray(candidate?.storyboard_frames)
+          ? candidate.storyboard_frames
+          : [];
+  return frames.some((frame) => frame && typeof frame === "object" && isProductVisibleInStoryboardFrame(frame as Record<string, unknown>, productName));
 }
 
 function normalize(value: string) {
