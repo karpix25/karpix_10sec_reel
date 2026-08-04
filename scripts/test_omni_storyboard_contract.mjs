@@ -70,6 +70,9 @@ try {
   assert.ok(prompt.includes("те же волосы, пробор, аксессуары"));
   assert.ok(prompt.includes("один и тот же полный комплект одежды"));
   assert.ok(prompt.includes("смотрит прямо в объектив"));
+  assert.ok(prompt.includes("CAMERA AUTHORITY"));
+  assert.ok(prompt.includes("MAP: 1=средний план на уровне глаз"));
+  assert.ok(prompt.includes("no left-right/front-rear, seat"));
   const vehiclePrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
     storyboard: buildValidStoryboard(),
     directorBrief: {

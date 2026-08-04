@@ -33,14 +33,15 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   return [
     `Создай видео по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}, сохрани точно такой же визуал.`,
     `Структура видео: ровно ${frameCount} живых эпизодов по одному на каждый кадр, в том же порядке.`,
-    `Оживи кадры раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER} как реальные сцены, не показывай саму раскадровку, телефон, экран, интерфейс, соцсети, карточки или коллаж.`,
+    `Оживи кадры раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER} как реальные сцены; не показывай саму раскадровку, телефон, экран, интерфейс, соцсети, карточки или коллаж.`,
     "filming equipment is never visible.",
     `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
     "Сохраняй те же волосы, пробор, аксессуары во всех кадрах.",
-    "Канонический outfit задается первым кадром первой части: один и тот же полный комплект одежды во всех частях; не меняй цвет, ткань, рукава, вырез, посадку или аксессуары.",
-    "Материал и цвет одежды фиксированы первым кадром первой части: воспроизводи то же волокно, плетение, плотность, фактуру, оттенок, wash, контраст, швы, крой и посадку во всех кадрах и частях; светлый деним не темнеет.",
-    "WARDROBE AUTHORITY: одежда, видимая в первой раскадровке, является единственно разрешенным outfit для всего ролика. Не придумывай другой комплект, не бери одежду из avatar reference и не меняй outfit при переходе между частями.",
+    "Канонический outfit задается первым кадром первой части: один и тот же полный комплект одежды во всех частях; не меняй цвет, ткань, крой или аксессуары.",
+    "Материал и цвет одежды фиксированы первым кадром: та же фактура, оттенок, швы, крой и посадка во всех кадрах; светлый деним не темнеет.",
+    "WARDROBE AUTHORITY: первый outfit из раскадровки единственный; не бери одежду из avatar reference и не меняй outfit.",
     renderReferenceTransitionCue(input.directorBrief),
+    renderStoryboardCameraLock(input.storyboard),
     renderVehicleCameraLock(input.directorBrief),
     "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
@@ -56,6 +57,13 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     "Каждый эпизод продолжает речь со следующего еще не произнесенного слова. После последнего слова персонаж замолкает.",
     "Не добавляй музыку, новые субтитры или новый текст на экран, аудиоэффекты можно.",
   ].join("\n");
+}
+
+function renderStoryboardCameraLock(storyboard: OmniStoryboardSegment) {
+  const cameraMap = storyboard.frames
+    .map((frame, index) => `${index + 1}=${frame.camera.trim()}`)
+    .join(" | ");
+  return `CAMERA AUTHORITY: follow storyboard camera. MAP: ${cameraMap}. Keep setup until change; no left-right/front-rear, seat, zoom, orbit or background changes.`;
 }
 
 function renderVehicleCameraLock(brief?: DirectorBrief | null) {
