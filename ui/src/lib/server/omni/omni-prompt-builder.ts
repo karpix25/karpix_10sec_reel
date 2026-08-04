@@ -53,7 +53,7 @@ import {
   resolveProductPhysicalContract,
 } from "./product-physical-contract";
 import {
-  mentionsExplicitOmniProduct,
+  mentionsOmniProduct,
 } from "./omni-intro-product-contract";
 
 export type OmniSegmentPrompt = {
@@ -232,7 +232,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       validation,
     });
     productIntroduced = productIntroduced || storyboardPlan.frames.some((frame) =>
-      mentionsExplicitOmniProduct(frame.spokenText, input.product.name)
+      mentionsOmniProduct(frame.spokenText, input.product.name)
     );
     previousContinuityState = continuityDirection.nextState;
   }
@@ -254,7 +254,7 @@ function getSegmentProductRole(
   productIntroduced = false
 ): ProductRole {
   if (role === "hidden") return role;
-  if (productIntroduced || mentionsExplicitOmniProduct(voiceoverText, productName)) {
+  if (productIntroduced || mentionsOmniProduct(voiceoverText, productName)) {
     return "brief_demo";
   }
   return "hidden";
@@ -293,10 +293,10 @@ function buildStoredProviderPromptSegments(
   let productIntroduced = false;
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
-    const segmentHasExplicitProduct = segment.storyboardFrames.some((frame) =>
-      mentionsExplicitOmniProduct(frame.spokenWords, input.product.name)
+    const segmentMentionsProduct = segment.storyboardFrames.some((frame) =>
+      mentionsOmniProduct(frame.spokenWords, input.product.name)
     );
-    const productRole: ProductRole = productIntroduced || segmentHasExplicitProduct ? "brief_demo" : "hidden";
+    const productRole: ProductRole = productIntroduced || segmentMentionsProduct ? "brief_demo" : "hidden";
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,
@@ -315,7 +315,7 @@ function buildStoredProviderPromptSegments(
       productAlreadyVisible: productIntroduced,
     });
     const validation = { valid: true, score: 100, errors: [], warnings: [] };
-    productIntroduced = productIntroduced || segmentHasExplicitProduct;
+    productIntroduced = productIntroduced || segmentMentionsProduct;
     const prompt = renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productName: input.product.name,
