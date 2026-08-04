@@ -10,8 +10,8 @@ import {
   describeOmniDensityGap,
   getOmniSegmentDurationForWordCount,
   getOmniSegmentDurationsForWordCount,
-  getOmniMaxScriptWords,
   getOmniSegmentWordBudget,
+  getPreferredOmniSegmentCount,
   isOmniSegmentCountViable,
   type OmniAllowedSegmentSeconds,
 } from "./omni-speech-density";
@@ -44,18 +44,16 @@ export function planOmniReelSegments(script: string, options: {
 } = {}): OmniReelSegmentPlan {
   const wordCount = countOmniScriptWords(script);
   const maxWordsPerSegment = getOmniSegmentWordBudget();
-  const maxWords = getOmniMaxScriptWords();
-  if (wordCount > maxWords) {
-    throw new Error(
-      `Сценарий слишком длинный: ${wordCount} слов. Максимум ${maxWords} слов для 4 частей по 4/6/8/10 секунд. Сократите сценарий.`
-    );
-  }
   if (wordCount < OMNI_MIN_SEGMENT_COUNT || !isAnySegmentCountViable(wordCount)) {
     throw new Error(describeOmniDensityGap(wordCount));
   }
 
+  const maxCandidateSegmentCount = Math.max(
+    OMNI_MAX_SEGMENT_COUNT,
+    Math.ceil(wordCount / maxWordsPerSegment)
+  );
   const candidates = Array.from(
-    { length: OMNI_MAX_SEGMENT_COUNT - OMNI_MIN_SEGMENT_COUNT + 1 },
+    { length: maxCandidateSegmentCount - OMNI_MIN_SEGMENT_COUNT + 1 },
     (_, index) => index + OMNI_MIN_SEGMENT_COUNT
   )
     .filter((segmentCount) => wordCount <= segmentCount * maxWordsPerSegment)
@@ -121,10 +119,7 @@ function buildCandidate(
 }
 
 function isAnySegmentCountViable(wordCount: number) {
-  for (let segmentCount = OMNI_MIN_SEGMENT_COUNT; segmentCount <= OMNI_MAX_SEGMENT_COUNT; segmentCount += 1) {
-    if (isOmniSegmentCountViable(wordCount, segmentCount)) return true;
-  }
-  return false;
+  return getPreferredOmniSegmentCount(wordCount) !== null;
 }
 
 function resolveSegmentDurations(segments: VoiceSegment[], durationRange?: OmniDurationRange) {
