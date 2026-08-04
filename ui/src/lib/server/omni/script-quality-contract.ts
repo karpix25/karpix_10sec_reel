@@ -367,24 +367,13 @@ function assertArticleCtaHasContext(script: string) {
   if (!ctaSentence) return;
 
   const normalized = normalizeText(ctaSentence);
-  const hasSearchContext =
-    /(?:если|чтобы|именно|вариант|такой\s+же|похож|перепут|искать|найти|ориентир|модель|банк|пенк|аэрогрил|коллаген)/iu.test(normalized);
-  const stockCta =
-    /чтобы\s+не\s+перепутать/iu.test(normalized) ||
-    /если\s+будете\s+искать\s+именно\s+этот\s+вариант/iu.test(normalized) ||
-    /^артикул\s+будет\s+в\s+описании[.!?]?$/iu.test(normalized);
-  const detachedCta =
-    /(?:^|\s)(?:я\s+)?остав(?:ил|ила|лю)\s+(?:его|ее|её|их)?\s*в\s+описании(?:$|[.!?])/iu.test(normalized) ||
-    /^(?:артикул|код)(?:\s+\S+){0,5}\s+в\s+описании[.!?]?$/iu.test(normalized) ||
-    /^(?:артикул|код)(?:\s+\S+){0,5}\s+(?:можно\s+)?(?:найти|найдете|ищите)\s+(?:прямо\s+)?в\s+описании[.!?]?$/iu.test(normalized);
-
-  if (stockCta || detachedCta) {
-    throw new Error("Сценарий отклонен: CTA про артикул вставлен без контекста. Упомяни артикул нативно внутри полезной мысли об этом продукте.");
+  if (/(?:детал|подробност)/iu.test(normalized)) {
+    throw new Error("Сценарий отклонен: CTA должен направлять к артикулу или самому продукту в описании, а не к дополнительным деталям.");
   }
-  if (!/(?:артикул|арт\.?\s)/iu.test(normalized)) {
-    throw new Error("Сценарий отклонен: CTA должен произнести слово «артикул», а не заменять его на «детали» или «подробности».");
-  }
-  if (!hasSearchContext) {
+  const hasDescriptionDestination = /(?:описани|под\s+видео|ниже)/iu.test(normalized);
+  const hasProductReference = /(?:артикул|арт\.?\s|названи|вариант|продукт|средств|его|ее|её|этот|эту)/iu.test(normalized);
+  const hasNaturalDirection = /(?:читай|смотр|найд|ищ|остав|указ|есть|можн|будет|пиш|ссылк)/iu.test(normalized);
+  if (!hasDescriptionDestination || (!hasProductReference && !hasNaturalDirection)) {
     throw new Error("Сценарий отклонен: CTA про артикул вставлен без контекста. Упомяни артикул нативно внутри полезной мысли об этом продукте.");
   }
 }

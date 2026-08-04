@@ -45,6 +45,7 @@ try {
       join(ui, "src/lib/server/omni/llm-prompt-chain-normalizer.ts"),
       join(ui, "src/lib/server/omni/llm-prompt-chain-runner.ts"),
       join(ui, "src/lib/server/omni/llm-prompt-chain-number-words.ts"),
+      join(ui, "src/lib/server/omni/llm-prompt-chain-storyboard-validator.ts"),
     ],
   }));
 
@@ -60,6 +61,12 @@ try {
   const runner = requireRunnerWithStubs(findFile(output, "llm-prompt-chain-runner.js"));
   const numberWords = require(findFile(output, "llm-prompt-chain-number-words.js"));
   assert.ok(runner.runLlmPromptChain, "runner smoke import must expose runLlmPromptChain");
+  const runnerSource = readFileSync(join(ui, "src/lib/server/omni/llm-prompt-chain-runner.ts"), "utf8");
+  assert.doesNotMatch(
+    runnerSource,
+    /validateStoryboard(?:DirectorPlan|ProviderPlan|ProviderAlignment)/u,
+    "storyboard validators must not block script prompt-chain retries"
+  );
 
   const directorPlan = makeDirectorPlan();
   const providerPlan = makeProviderPlan();
@@ -298,7 +305,7 @@ try {
   assert.ok(promptChainSource.includes("Не превращай полезный reference в отдельный рекламный питч продукта"), "LLM chain must block ad-pitch rewrites");
   assert.ok(promptChainSource.includes("Продукт обязан выполнять понятную функцию"), "LLM chain must require product to serve the script idea");
   assert.ok(promptChainSource.includes("в момент первого естественного появления продукта"), "LLM chain CTA must be embedded at the natural product mention");
-  assert.ok(promptChainSource.includes("артикул именно этого продукта есть в описании"), "LLM chain article CTA must identify the exact product variant");
+  assert.ok(promptChainSource.includes("этот продукт можно найти или прочитать в описании"), "LLM chain article CTA must identify the exact product variant");
   assert.ok(promptChainSource.includes("не произносить номер артикула"), "LLM chain article CTA must not speak article number");
   assert.ok(promptChainSource.includes("Не используй готовые шаблонные формулировки"), "LLM chain article CTA must avoid copy-pasted wording");
   assert.ok(promptChainSource.includes("В описании упоминается только артикул"), "LLM chain article CTA must not add extra description info");
