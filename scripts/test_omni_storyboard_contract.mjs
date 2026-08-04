@@ -4,7 +4,6 @@ import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } fr
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
-
 const root = resolve(import.meta.dirname, "..");
 const ui = join(root, "ui");
 const output = mkdtempSync(join(tmpdir(), "omni-storyboard-contract-"));
@@ -197,6 +196,8 @@ try {
     directorStoryboard.frames.filter((frame) => !/перебивка/iu.test(frame.camera)).every((frame) => frame.camera.includes("смотрит прямо в объектив")),
     "talking-head storyboard camera lines must keep eye contact"
   );
+  assert.equal(new Set(directorStoryboard.frames.map((frame) => frame.camera)).size, 1, "reference camera lock must prevent automatic camera alternation");
+  assert.ok(directorStoryboard.frames[0].camera.includes("reference camera lock"), "director storyboard must use the analyzed reference camera");
   assert.doesNotMatch(`${prompt}\n${finalPrompt}\n${directorStoryboardText}`, technicalMontageTerms);
 
   const referenceActionStoryboard = builder.buildStoryboardFromCreativePlan({

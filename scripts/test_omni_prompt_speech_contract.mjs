@@ -126,7 +126,8 @@ try {
     if (productVisible) {
       assert.ok(imagePrompt.includes("покажи его один раз естественно в руке"), "storyboard image prompt must require a clear natural product reveal");
     }
-    assert.ok(imagePrompt.includes("Не превращай первые кадры в рекламную демонстрацию товара"), "storyboard image prompt must keep blogger framing");
+    assert.ok(imagePrompt.includes("если соседние reference-кадры сняты одинаково"), "storyboard image prompt must preserve matching source camera setups");
+    assert.ok(imagePrompt.includes("Не добавляй универсальные selfie-ракурсы"), "storyboard image prompt must not invent camera transitions");
     if (!productVisible) {
       assert.ok(!imagePrompt.includes("Продукт: Аэрогриль"), "first storyboard prompt must not name the product");
       assert.ok(!imagePrompt.includes("Product reference URLs"), "first storyboard prompt must not leak product references");

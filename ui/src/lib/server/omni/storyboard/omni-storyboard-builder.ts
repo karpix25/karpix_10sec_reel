@@ -150,8 +150,6 @@ function buildFrame(input: {
     spokenText: input.spokenText,
     visualAction,
     camera: renderFrameCamera(
-      input.frameIndex,
-      input.frameCount,
       isCutawayFrame,
       renderDirectorCamera(input.directorBrief, productVisible),
       productVisible,
@@ -178,27 +176,22 @@ function buildFrame(input: {
 }
 
 function renderFrameCamera(
-  frameIndex: number,
-  frameCount: number,
   isCutawayFrame: boolean,
   directorCamera: string,
   productVisible: boolean,
   productRole?: string
 ) {
+  if (directorCamera) {
+    return `${directorCamera}; тот же исходный ракурс и направление камеры, что в соответствующем reference-кадре${isCutawayFrame ? "" : "; герой смотрит прямо в объектив"}`;
+  }
   const base = isCutawayFrame
     ? productVisible
       ? productRole === "background_prop"
         ? "смысловая перебивка: блогерская сцена по реплике, продукт только как второстепенная деталь окружения"
         : "смысловая перебивка: крупный кадр продукта в естественном окружении"
       : "смысловая перебивка: предметный или атмосферный кадр по текущей реплике"
-    : frameIndex === 1
-      ? "триггерный кадр с живым движением камеры, герой смотрит прямо в объектив"
-      : frameIndex === frameCount
-        ? "возврат к лицу, камера чуть приближается для финальной фразы, герой смотрит прямо в объектив"
-        : frameIndex % 2 === 0
-          ? "средний план под углом, герой делает жест рукой и смотрит прямо в объектив"
-          : "полукрупный план с легким handheld движением, герой смотрит прямо в объектив";
-  return directorCamera ? `${base}; ${directorCamera}` : base;
+    : "стабильный talking-head ракурс, тот же фон и направление камеры во всех кадрах, герой смотрит прямо в объектив";
+  return base;
 }
 
 function renderDirectorEnvironment(brief?: DirectorBrief | null) {

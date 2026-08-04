@@ -9,7 +9,7 @@ export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "Return only valid JSON. Do not include markdown, prose, comments, or extra keys.",
   "Do not describe or request application interfaces, social app overlays, buttons, like/share icons, comments, subtitles, captions, progress bars, brand logos, or UI elements.",
   "Focus only on raw footage: subject actions, visual hook, location timeline, atmosphere, clothing style, camera language, lighting, and reusable scene mechanics.",
-  "Do not turn the reference speaker's speech tempo, pauses, or edit rhythm into generation instructions.",
+  "Do not turn the reference speaker's speech tempo or pauses into generation instructions. Do extract visible camera changes, cuts, and transitions exactly as observed.",
   "Extract reusable direction without copying the creator identity, face, brand, exact location, logos, protected marks, or platform interface.",
 ].join("\n");
 
@@ -32,7 +32,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
     "- location_timeline must describe any location/environment changes by seconds. If the location never changes, return one item for the whole video.",
     "- clothing.source names whose outfit style is being described, usually the main presenter.",
     "- clothing.adaptation_notes must explain how to adapt the outfit style to a different avatar gender/body while keeping color, formality, layer, and mood.",
-    "- montage_rhythm is analysis only. Do not write it as something the new video must copy.",
+    "- montage_rhythm must describe only visible cuts and transitions. If the reference stays on one setup, say that it uses a continuous stable shot.",
     "- Mention only raw filming choices and human actions.",
     "- All overlays, subtitles, logos, UI cards, and interface elements belong to post-production and must not appear in this JSON.",
   ].join("\n");
@@ -56,7 +56,8 @@ export function renderDirectorBriefForScriptPrompt(brief: DirectorBrief | null) 
       : "",
     motionContinuity.length ? `- Физика движения: ${motionContinuity.join("; ")}.` : "",
     `- Механика: ${brief.reusable_mechanics.visual_mechanics.join("; ")}.`,
-    "Используй локацию, окружение, свет, камеру и адаптированную одежду как визуальную основу. Темп речи и монтаж оригинала не копируй.",
+    `- Визуальный монтаж: ${brief.montage_rhythm.transition_style.join(", ") || "непрерывный стабильный кадр без явных переходов"}. Используй только переходы, видимые в соответствующих reference-кадрах; если их нет, сохраняй непрерывный ракурс.`,
+    "Используй локацию, окружение, свет, камеру и адаптированную одежду как визуальную основу. Темп речи не копируй.",
   ].join("\n");
 }
 
@@ -73,6 +74,7 @@ export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
     `ATMOSPHERE: ${brief.atmosphere.mood}; ${brief.atmosphere.setting}; ${brief.atmosphere.lighting}; ${brief.atmosphere.color_grading}.`,
     `WARDROBE: ${brief.clothing.style}; ${brief.clothing.fit_details}; colors: ${brief.clothing.color_palette.join(", ") || "natural neutral palette"}; source: ${brief.clothing.source}.`,
     `CAMERA: ${brief.camera.shot_types.join(", ")}; angles: ${brief.camera.angles.join(", ")}; movement: ${brief.camera.movements.join(", ")}; ${sanitizeCameraStabilizationForPrompt(brief.camera.stabilization)}.`,
+    `REFERENCE CUT LANGUAGE: ${brief.montage_rhythm.transition_style.join(", ") || "continuous stable shot"}. Use this only where the storyboard reference frames show the same transition; otherwise keep the camera and background continuous.`,
     brief.location_timeline?.length
       ? `LOCATION TIMELINE: ${brief.location_timeline.map((item) => `${item.start_sec}-${item.end_sec}s ${item.setting}; ${item.environment}; ${item.lighting}`).join(" | ")}.`
       : "",
@@ -85,7 +87,7 @@ export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
       : "",
     brief.reference_action_style ? `ACTION STYLE: ${brief.reference_action_style}.` : "",
     `REUSABLE MECHANICS: ${brief.reusable_mechanics.visual_mechanics.join("; ")}; loop pattern: ${brief.reusable_mechanics.looping_pattern}.`,
-    "Adapt this direction to the new person, product, script, and clean raw footage only. Do not copy the reference speech tempo or edit rhythm.",
+    "Adapt this direction to the new person, product, script, and clean raw footage only. Copy the observed visual camera and transition language; do not copy speech tempo.",
   ].filter(Boolean).join("\n");
 }
 
