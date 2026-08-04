@@ -306,7 +306,7 @@ try {
   assert.ok(!promptChainSource.includes("только как пример структуры"), "LLM chain must not reduce reference to structure only");
   assert.ok(promptChainSource.includes("прямо раскрывает смысл spoken_words"), "storyboard frames must visualize their current speech");
   assert.ok(promptChainSource.includes("product_cutaway только когда смысл spoken_words"), "product cutaways must be meaning-driven");
-  assert.ok(promptChainSource.includes("environment_cutaway с тематическими предметами"), "non-product speech must use thematic cutaways");
+  assert.ok(promptChainSource.includes("переноси конкретный визуальный приём из соответствующего reference-кадра"), "non-product speech must use reference-driven visual devices");
   assert.ok(promptChainSource.includes("Первый segment повторяет механику reference"), "first segment must follow reference product mechanics");
   assert.ok(promptChainSource.includes("десять секунд это пять кадров"), "prompt chain must preserve exact frame counts");
   assert.ok(promptChainSource.includes("Одежда, свет, окружение и типаж героя должны быть едиными"), "director must preserve wardrobe continuity");

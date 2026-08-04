@@ -209,6 +209,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       productPhysicalHint,
       characterContract,
       segmentIndex,
+      segmentCount: input.segmentCount,
       durationSeconds: segmentSeconds,
       directorBrief,
       wardrobeSource: input.wardrobeSource,

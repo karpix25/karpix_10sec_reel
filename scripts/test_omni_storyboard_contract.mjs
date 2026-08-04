@@ -180,6 +180,42 @@ try {
   );
   assert.doesNotMatch(`${prompt}\n${finalPrompt}\n${directorStoryboardText}`, technicalMontageTerms);
 
+  const referenceActionStoryboard = builder.buildStoryboardFromCreativePlan({
+    plan: buildCreativePlan(),
+    productName: "Коллаген",
+    characterContract: {
+      identityLine: "approved avatar identity",
+      clothingLine: "черный мужской лонгслив",
+      sourceRuleLine: "avatar defines identity",
+      clothingSource: "avatar",
+    },
+    segmentIndex: 1,
+    segmentCount: 3,
+    durationSeconds: 10,
+    directorBrief: {
+      ...buildDirectorBrief(),
+      action_beats: [
+        { timestamp_sec: 0, action_description: "Герой сидит лицом к камере", actor_gesture: "руки сложены" },
+        { timestamp_sec: 8, action_description: "Герой слегка наклоняется к камере", actor_gesture: "делает короткий жест рукой" },
+        { timestamp_sec: 18, action_description: "Крупная деталь рук на столе", actor_gesture: "пальцы касаются предмета" },
+        { timestamp_sec: 28, action_description: "Герой возвращается к лицу", actor_gesture: "спокойно кивает" },
+      ],
+    },
+    wardrobeSource: "director_reference",
+  });
+  assert.ok(
+    referenceActionStoryboard.frames.some((frame) => /наклоняется|жест рукой|деталь рук/iu.test(frame.visualAction)),
+    "storyboard must transfer a reference action beat into a matching frame"
+  );
+  assert.ok(
+    referenceActionStoryboard.frames.some((frame) => /говорит в камеру|смотрит прямо в объектив/iu.test(frame.visualAction + frame.camera)),
+    "reference action transfer must keep talking-head frames when reference has no cutaway"
+  );
+  assert.ok(
+    referenceActionStoryboard.frames.every((frame) => !/^смысловой кадр окружения по теме хука$/iu.test(frame.visualAction)),
+    "reference-driven storyboard must not fall back to an empty generic environment frame"
+  );
+
   const mixedTopicStoryboard = builder.buildStoryboardFromCreativePlan({
     plan: {
       ...buildCreativePlan(),

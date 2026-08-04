@@ -24,6 +24,7 @@ export function buildStoryboardFromCreativePlan(input: {
   productPhysicalHint?: string | null;
   characterContract: OmniCharacterContract;
   segmentIndex: number;
+  segmentCount?: number;
   durationSeconds: number;
   directorBrief?: DirectorBrief | null;
   wardrobeSource?: OmniWardrobeSource;
@@ -52,6 +53,7 @@ export function buildStoryboardFromCreativePlan(input: {
         directorBrief: input.directorBrief,
         wardrobeSource: input.wardrobeSource,
         segmentIndex: input.segmentIndex,
+        segmentCount: input.segmentCount || 1,
         spokenText,
         frameIndex: index + 1,
         frameCount,
@@ -115,6 +117,7 @@ function buildFrame(input: {
   directorBrief?: DirectorBrief | null;
   wardrobeSource?: OmniWardrobeSource;
   segmentIndex: number;
+  segmentCount?: number;
   spokenText: string;
   frameIndex: number;
   frameCount: number;
@@ -122,16 +125,26 @@ function buildFrame(input: {
   const startSeconds = (input.frameIndex - 1) * 2;
   const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
     input.plan.beats[0];
-  const cutawayFrameIndex = Math.ceil(input.frameCount / 2);
-  const isCutawayFrame = input.frameIndex === cutawayFrameIndex;
+  const layoutLocked = /REFERENCE LAYOUT|collage\/PIP/iu.test(beat?.action || "");
+  const referenceAction = layoutLocked
+    ? ""
+    : selectReferenceAction({
+        brief: input.directorBrief,
+        segmentIndex: input.segmentIndex,
+        segmentCount: input.segmentCount || 1,
+        frameIndex: input.frameIndex,
+        frameCount: input.frameCount,
+      });
+  const visualActionSource = layoutLocked ? beat?.action : referenceAction || normalizeDefaultFrameAction(beat?.action);
+  const isCutawayFrame = Boolean(referenceAction && isReferenceCutawayAction(referenceAction));
   const productVisible = input.plan.productRole !== "hidden" &&
     !isArticleCtaOnly(input.spokenText) &&
     mentionsOmniProduct(input.spokenText, input.productName);
   const visualAction = input.segmentIndex === 1 && input.plan.productRole === "hidden"
-    ? renderIntroFrameAction(beat?.action, isCutawayFrame, input.productName)
+    ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName)
     : productVisible
-      ? renderFrameAction(beat?.action, isCutawayFrame)
-      : renderNonProductFrameAction(beat?.action, isCutawayFrame, input.productName);
+      ? renderFrameAction(visualActionSource, isCutawayFrame)
+      : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName);
 
   return {
     spokenText: input.spokenText,
@@ -327,13 +340,51 @@ function renderNonProductFrameAction(action: string | undefined, isCutawayFrame:
 }
 
 function renderIntroFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string) {
-  const visualCue = extractVisualCue(compactText(action || "", 220));
-  if (isCutawayFrame && visualCue && !mentionsOmniProduct(visualCue, productName)) {
-    return `смысловой предметный или атмосферный кадр по хуку: ${visualCue}`;
+  const normalized = compactText(action || "", 220);
+  const visualCue = extractVisualCue(normalized) || normalized;
+  if (visualCue && !mentionsOmniProduct(visualCue, productName)) {
+    return isCutawayFrame
+      ? `смысловой предметный или атмосферный кадр по хуку: ${visualCue}`
+      : `персонаж с пустыми руками, ${visualCue}`;
   }
   return isCutawayFrame
     ? "смысловой кадр окружения по теме хука"
     : "персонаж с пустыми руками естественно говорит в камеру";
+}
+
+function selectReferenceAction(input: {
+  brief?: DirectorBrief | null;
+  segmentIndex: number;
+  segmentCount: number;
+  frameIndex: number;
+  frameCount: number;
+}) {
+  const beats = input.brief?.action_beats
+    ?.filter((beat) => beat.action_description || beat.actor_gesture)
+    .slice()
+    .sort((left, right) => left.timestamp_sec - right.timestamp_sec) || [];
+  if (!beats.length) return "";
+  const firstTimestamp = beats[0].timestamp_sec;
+  const lastTimestamp = beats[beats.length - 1].timestamp_sec;
+  const reelPosition = ((input.segmentIndex - 1) + (input.frameIndex - 0.5) / input.frameCount) /
+    Math.max(1, input.segmentCount);
+  const targetTimestamp = firstTimestamp + (lastTimestamp - firstTimestamp) * Math.min(1, Math.max(0, reelPosition));
+  const nearest = beats.reduce((best, beat) =>
+    Math.abs(beat.timestamp_sec - targetTimestamp) < Math.abs(best.timestamp_sec - targetTimestamp) ? beat : best
+  );
+  return compactText([nearest.action_description, nearest.actor_gesture].filter(Boolean).join("; "), 220);
+}
+
+function isReferenceCutawayAction(action: string) {
+  return /background|cutaway|insert|overlay|product close|macro|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр|фон меня/iu.test(action);
+}
+
+function normalizeDefaultFrameAction(action: string | undefined) {
+  const normalized = compactText(action || "", 220);
+  if (/короткая\s+(?:спокойная\s+)?предметная|middle cutaway|смысловая перебивка/iu.test(normalized)) {
+    return "персонаж продолжает говорить в камеру с осмысленным жестом по текущей реплике";
+  }
+  return normalized || "персонаж естественно говорит в камеру с небольшим изменением жеста";
 }
 
 function extractVisualCue(value: string) {

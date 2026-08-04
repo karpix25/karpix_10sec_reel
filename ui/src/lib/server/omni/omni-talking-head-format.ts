@@ -34,12 +34,8 @@ export function buildTalkingHeadCreativePlan(input: {
   const scriptCue = renderScriptCueSummary(input.scriptBeats);
   const cueOpening = sanitizeProviderVisualCue(input.scriptBeats?.[0]?.visualCue || "");
   const cueClosing = sanitizeProviderVisualCue(input.scriptBeats?.[input.scriptBeats.length - 1]?.visualCue || "");
-  const cutaway = cueCutaway(input.scriptBeats, input.productRole) || (
-    "короткая спокойная предметная или атмосферная сцена, которая прямо визуализирует смысл текущей реплики; " +
-    (input.productRole === "hidden"
-      ? "товар остается вне кадра"
-      : "товар появляется только если его требует смысл текущей реплики")
-  );
+  const cutaway = cueCutaway(input.scriptBeats, input.productRole) ||
+    "персонаж продолжает говорить в камеру с осмысленным микродействием по текущей реплике";
   const opening = input.segmentIndex === 1
     ? buildTalkingHeadHookOpening(input.strategy, input.opening)
     : `говорит в камеру с новой крупностью: ${lowerFirst(input.opening)}`;
