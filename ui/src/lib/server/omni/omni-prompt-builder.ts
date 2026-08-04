@@ -220,6 +220,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       productName: input.product.name,
       productPhysicalContract: plan.productRole !== "hidden" ? productPhysicalContract : null,
       segmentCount: input.segmentCount,
+      directorBrief,
     });
     const validation = promptValidationFromStoryboard(storyboardValidation);
     if (!validation.valid) {
@@ -333,6 +334,7 @@ function buildStoredProviderPromptSegments(
       productName: input.product.name,
       productPhysicalContract: productRole !== "hidden" ? productPhysicalContract : null,
       segmentCount: providerPromptPlan.segmentPrompts.length,
+      directorBrief: input.directorBrief,
     });
     return {
       index: segmentIndex,

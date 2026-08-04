@@ -8,12 +8,15 @@ import {
 } from "./omni-storyboard-file-reference";
 import { isProductVisibleInStoryboardFrame } from "../omni-intro-product-contract";
 import { renderProductPhysicalContractForOmni } from "../product-physical-contract";
+import type { DirectorBrief } from "../director-analysis-types";
+import { renderReferenceTransitionCue } from "./omni-storyboard-effects";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
   productName?: string;
   productPhysicalContract?: string | null;
   segmentCount?: number;
+  directorBrief?: DirectorBrief | null;
 }) {
   const validation = validateOmniStoryboardSegment(input.storyboard);
   if (!validation.valid) {
@@ -33,9 +36,9 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     "filming equipment is never visible.",
     `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
     "Сохраняй те же волосы, пробор, аксессуары во всех кадрах.",
-    "Канонический outfit задается первым кадром первой части и повторяется без изменений во всех частях. Не заменяй футболку на свитер, рубашку, пиджак или другой верх; не меняй цвет, ткань, рукава, вырез, посадку и аксессуары.",
-    "Материал одежды фиксирован первым кадром первой части: воспроизводи одно и то же волокно, плетение, плотность, фактуру, швы, крой и посадку во всех кадрах и частях.",
-    "Во всех частях герой носит один и тот же полный комплект одежды с теми же слоями и деталями.",
+    "Канонический outfit задается первым кадром первой части: один и тот же полный комплект одежды во всех частях; не меняй цвет, ткань, рукава, вырез, посадку или аксессуары.",
+    "Материал и цвет одежды фиксированы первым кадром первой части: воспроизводи то же волокно, плетение, плотность, фактуру, оттенок, wash, контраст, швы, крой и посадку во всех кадрах и частях; светлый деним не темнеет.",
+    renderReferenceTransitionCue(input.directorBrief),
     "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
       ? `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}; не меняй упаковку; в кадрах ${productFrameNumbers.join(",")} герой должен естественно держать его на уровне груди лицевой стороной к камере; остальные без товара.`

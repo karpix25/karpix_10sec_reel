@@ -9,7 +9,7 @@ export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "Return only valid JSON. Do not include markdown, prose, comments, or extra keys.",
   "Do not describe or request application interfaces, social app overlays, buttons, like/share icons, comments, subtitles, captions, progress bars, brand logos, or UI elements.",
   "Focus only on raw footage: subject actions, visual hook, location timeline, atmosphere, clothing style, camera language, lighting, and reusable scene mechanics.",
-  "Do not turn the reference speaker's speech tempo or pauses into generation instructions. Do extract visible camera changes, cuts, and transitions exactly as observed.",
+  "Do not turn the reference speaker's speech tempo or pauses into generation instructions. Do extract visible camera changes, cuts, and transitions exactly as observed, including film burn, light leak, exposure flash, lens flare, blur, wipe, fade, or other edit treatment.",
   "Extract reusable direction without copying the creator identity, face, brand, exact location, logos, protected marks, or platform interface.",
 ].join("\n");
 
@@ -32,7 +32,8 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
     "- location_timeline must describe any location/environment changes by seconds. If the location never changes, return one item for the whole video.",
     "- clothing.source names whose outfit style is being described, usually the main presenter.",
     "- clothing.adaptation_notes must explain how to adapt the outfit style to a different avatar gender/body while keeping color, formality, layer, and mood.",
-    "- montage_rhythm must describe only visible cuts and transitions. If the reference stays on one setup, say that it uses a continuous stable shot.",
+    "- montage_rhythm must describe only visible cuts and transitions. Inspect every boundary between source shots and name the exact treatment: hard cut, jump cut, film burn/light leak, exposure flash, lens flare, blur, wipe, fade, or another visible effect. If the reference stays on one setup, say that it uses a continuous stable shot.",
+    "- Do not collapse a film burn, light leak, or exposure flash into a generic 'overlay'; state that it is a brief edit transition between two shots.",
     "- Mention only raw filming choices and human actions.",
     "- All overlays, subtitles, logos, UI cards, and interface elements belong to post-production and must not appear in this JSON.",
   ].join("\n");
