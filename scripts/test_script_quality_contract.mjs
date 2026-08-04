@@ -260,28 +260,37 @@ And this is line 2."
     /слишком короткий для выбранной длины ролика/u
   );
 
-  assert.throws(
-    () => validateViralScriptContract({
-      script: makeScript(76),
-      rawScriptBeforeCta: makeScript(76),
-      rawScriptFromModel: makeScript(76),
-      hook: "слово1",
-      productName: "слово1",
-      ctaMode: "no_explicit_cta",
-      ctaValue: null,
-      durationRange: {
-        requestedMinSeconds: 30,
-        requestedMaxSeconds: 30,
-        minSeconds: 30,
-        maxSeconds: 30,
-        minWords: 62,
-        maxWords: 75,
-        source: "client_settings",
-        wasClamped: false,
-      }
-    }),
-    /слишком длинный для выбранной длины ролика/u
-  );
+  const overDurationResult = validateViralScriptContract({
+    script: makeScript(76),
+    rawScriptBeforeCta: makeScript(76),
+    rawScriptFromModel: makeScript(76),
+    hook: "слово1",
+    productName: "слово1",
+    ctaMode: "no_explicit_cta",
+    ctaValue: null,
+    durationRange: {
+      requestedMinSeconds: 30,
+      requestedMaxSeconds: 30,
+      minSeconds: 30,
+      maxSeconds: 30,
+      minWords: 62,
+      maxWords: 75,
+      source: "client_settings",
+      wasClamped: false,
+    }
+  });
+  assert.ok(overDurationResult.warnings.some((warning) => warning.includes("добавит нужное количество частей")));
+
+  const overDefaultLimitResult = validateViralScriptContract({
+    script: makeScript(106),
+    rawScriptBeforeCta: makeScript(106),
+    rawScriptFromModel: makeScript(106),
+    hook: "слово1",
+    productName: "Тест",
+    ctaMode: "no_explicit_cta",
+    ctaValue: null,
+  });
+  assert.equal(overDefaultLimitResult.metrics.wordCount, 106);
 
   // C. Too long hook (should throw)
   assert.throws(

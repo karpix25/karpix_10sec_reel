@@ -43,13 +43,15 @@ export function getOmniMaxScriptWords() {
 }
 
 export function isOmniSegmentCountViable(wordCount: number, segmentCount: number) {
-  if (segmentCount < OMNI_MIN_SEGMENT_COUNT || segmentCount > OMNI_MAX_SEGMENT_COUNT) return false;
+  if (segmentCount < OMNI_MIN_SEGMENT_COUNT) return false;
   if (wordCount > segmentCount * getOmniSegmentWordBudget()) return false;
   return wordCount >= segmentCount * OMNI_MIN_VIABLE_SEGMENT_WORDS;
 }
 
 export function getPreferredOmniSegmentCount(wordCount: number) {
-  for (let segmentCount = OMNI_MIN_SEGMENT_COUNT; segmentCount <= OMNI_MAX_SEGMENT_COUNT; segmentCount += 1) {
+  const requiredSegmentCount = Math.ceil(wordCount / getOmniSegmentWordBudget());
+  const maxSegmentCount = Math.max(OMNI_MAX_SEGMENT_COUNT, requiredSegmentCount);
+  for (let segmentCount = OMNI_MIN_SEGMENT_COUNT; segmentCount <= maxSegmentCount; segmentCount += 1) {
     if (isOmniSegmentCountViable(wordCount, segmentCount)) return segmentCount;
   }
   return null;

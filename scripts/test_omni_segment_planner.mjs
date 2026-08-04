@@ -175,10 +175,10 @@ try {
   assert.equal(reconstructVoiceSegments(fallbackSegments), reconstructVoiceSegments(splitScriptIntoVoiceSegments(longCtaText, 1)));
   assert.ok(fallbackSegments.every(seg => seg.wordCount > 0), "no segment should be empty");
 
-  assert.throws(
-    () => planOmniReelSegments(makeScript(101)),
-    (error) => error instanceof Error && /101 слов.*Максимум 100 слов/u.test(error.message)
-  );
+  const overDefaultLimitPlan = planOmniReelSegments(makeScript(101));
+  assert.equal(overDefaultLimitPlan.segmentCount, 5);
+  assert.equal(overDefaultLimitPlan.durationSeconds, 42);
+  assert.equal(reconstructVoiceSegments(overDefaultLimitPlan.segments), makeScript(101));
 
   assert.throws(
     () => planOmniReelSegments(makeScript(11)),

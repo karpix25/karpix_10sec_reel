@@ -4,7 +4,6 @@ import {
   OMNI_MIN_SCRIPT_WORDS,
   OMNI_TARGET_SEGMENT_WORDS_MAX,
   describeOmniDensityGap,
-  getOmniMaxScriptWords,
   getPreferredOmniSegmentCount,
 } from "./omni-speech-density";
 import type { OmniDurationRange } from "./omni-duration-range";
@@ -151,12 +150,6 @@ export function validateViralScriptContract(input: {
       `Сценарий отклонен: ${describeOmniDensityGap(totalWordCount)}`
     );
   }
-  const maxScriptWords = getOmniMaxScriptWords();
-  if (totalWordCount > maxScriptWords) {
-    throw new Error(
-      `Сценарий отклонен: слишком длинный для формата Reels (${totalWordCount} слов). Максимальная длина — ${maxScriptWords} слов.`
-    );
-  }
   if (input.durationRange) {
     const toleratedMinWords = Math.max(
       OMNI_MIN_SCRIPT_WORDS,
@@ -173,8 +166,8 @@ export function validateViralScriptContract(input: {
       );
     }
     if (totalWordCount > input.durationRange.maxWords) {
-      throw new Error(
-        `Сценарий отклонен: слишком длинный для выбранной длины ролика (${totalWordCount} слов). Нужно ${input.durationRange.minWords}-${input.durationRange.maxWords} слов для ${input.durationRange.minSeconds}-${input.durationRange.maxSeconds} сек.`
+      warnings.push(
+        `Сценарий длиннее целевой настройки (${totalWordCount} слов вместо ${input.durationRange.minWords}-${input.durationRange.maxWords}); система добавит нужное количество частей без сокращения текста.`
       );
     }
   }

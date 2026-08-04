@@ -135,9 +135,10 @@ function buildDurationInstruction(durationRange?: OmniDurationRange) {
   );
   return (
     `Целевая длительность итогового ролика: ${durationRange.minSeconds}-${durationRange.maxSeconds} сек. ` +
-    `Целевая длина произносимого текста: ${durationRange.minWords}-${durationRange.maxWords} слов.${exactDurationNote}${clampedNote} ` +
-    `Перед ответом проверь: сумма всех beats.voiceover и поле script должны быть ${targetMinWords}-${durationRange.maxWords} слов и совпадать по смыслу дословно. ` +
-    "Система сама выберет 2-4 части и длительность каждой части из 4, 6, 8 или 10 секунд."
+    `Ориентир длины произносимого текста: ${durationRange.minWords}-${durationRange.maxWords} слов.${exactDurationNote}${clampedNote} ` +
+    `Для плотной подачи ориентир: ${targetMinWords}-${durationRange.maxWords} слов. ` +
+    `Перед ответом проверь: сумма всех beats.voiceover и поле script должны совпадать по смыслу дословно. ` +
+    "Система сама выберет 2-4 части, а если текста больше ориентира, добавит дополнительные части без сокращения реплики."
   );
 }
 
