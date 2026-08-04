@@ -32,6 +32,7 @@ export function appendKieReferenceOrderPrompt(
 function describeReferenceRole(role: string) {
   if (role === "previous_last_frame") return "previous segment final frame for pose, room layout, camera, lighting, and prop positions";
   if (role === "storyboard") return "storyboard reference for composition, timing, character continuity, product placement, visible speech lines, and visual actions only";
+  if (role === "storyboard_canonical") return "first storyboard reference as canonical outfit, exact clothing colors and fabric; use it for continuity only, not for speech or current actions";
   if (role === "product") return "product reference to preserve product appearance";
   if (role === "product_secondary") return "additional product reference to preserve product appearance";
   if (role === "avatar") return "avatar reference";

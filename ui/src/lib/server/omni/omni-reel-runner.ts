@@ -146,6 +146,13 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     fieldName: referenceImageField,
     role: index === 0 ? "product" : "product_secondary",
   }));
+  const canonicalStoryboardReference = segments[0]?.storyboard_reference_url
+    ? [{
+        url: segments[0].storyboard_reference_url,
+        fieldName: referenceImageField,
+        role: "storyboard_canonical",
+      }]
+    : [];
   const hasStoryboardReferences = segments.some((segment) => Boolean(segment.storyboard_reference_url));
   if (provider === "kie-ai" && !avatarCharacterId && !hasStoryboardReferences) {
     await markOmniReelPreflightFailure({
@@ -226,11 +233,12 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     const storyboardImages = segment.storyboard_reference_url
       ? [{ url: segment.storyboard_reference_url, fieldName: referenceImageField, role: "storyboard" }]
       : [];
+    const canonicalStoryboardImages = segment.segment_index > 1 ? canonicalStoryboardReference : [];
     const selectedReferenceImages = selectReferenceImagesForSegment({
       provider,
       continuityImages,
-      cometReferenceImages: [...storyboardImages, ...cometReferenceImages],
-      kieReferenceImages: [...storyboardImages, ...kieReferenceImages],
+      cometReferenceImages: [...storyboardImages, ...canonicalStoryboardImages, ...cometReferenceImages],
+      kieReferenceImages: [...storyboardImages, ...canonicalStoryboardImages, ...kieReferenceImages],
       referenceImageTransport,
       segmentIndex: segment.segment_index,
       productIsVisible,
@@ -244,9 +252,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     );
     const providerPrompt =
       provider === "kie-ai"
-        ? selectedReferenceImages.sent.some((image) => image.role === "storyboard")
-          ? kieStoryboardPrompt
-          : appendKieReferenceOrderPrompt(kieStoryboardPrompt, selectedReferenceImages.sent)
+        ? appendKieReferenceOrderPrompt(kieStoryboardPrompt, selectedReferenceImages.sent)
         : continuityPrompt;
     const usesStoryboardReference = selectedReferenceImages.sent.some((image) => image.role === "storyboard");
     const videoCharacterId = provider === "kie-ai" && usesStoryboardReference ? null : avatarCharacterId;
