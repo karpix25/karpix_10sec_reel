@@ -120,7 +120,7 @@ try {
     assert.ok(imagePrompt.includes("точно то же волокно, плетение, плотность"), "storyboard image prompt must lock exact fabric material");
     assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");
     assert.ok(imagePrompt.includes("Avatar reference отвечает только за идентичность и пол героя"), "storyboard image prompt must limit avatar reference to identity and gender");
-    assert.ok(imagePrompt.includes("Смысл текущей реплики определяет содержание кадра"), "storyboard image prompt must request semantic UGC shots");
+    assert.ok(imagePrompt.includes("Смысл текущей реплики и соответствующий reference-кадр определяют содержание панели"), "storyboard image prompt must request semantic reference-driven shots");
     if (productVisible) {
       assert.ok(imagePrompt.includes("не hero shot"), "storyboard image prompt must prevent background props from becoming product ads");
     }
