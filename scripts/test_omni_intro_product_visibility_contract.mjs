@@ -85,10 +85,11 @@ try {
   assert.equal(mentionsOmniProduct("Geodemika решает эту проблему.", "Geodemika"), true);
   assert.equal(mentionsExplicitOmniProduct("Есть ли смысл принимать коллаген после тридцати пяти лет?", "Коллаген"), false);
   assert.equal(mentionsExplicitOmniProduct("Вот этот апельсиновый коллаген, артикул в описании.", "Коллаген"), true);
+  assert.equal(mentionsOmniProduct("А еще я всегда беру с собой апельсиновый коллаген.", "Коллаген"), true);
   assert.equal(getOmniProductRevealFrame([
     "Есть ли смысл принимать коллаген после тридцати пяти лет?",
     "Вот этот апельсиновый коллаген, артикул в описании.",
-  ], "Коллаген"), 1);
+  ], "Коллаген"), 0);
 
   console.log("Omni intro product visibility contract checks passed");
 } finally {

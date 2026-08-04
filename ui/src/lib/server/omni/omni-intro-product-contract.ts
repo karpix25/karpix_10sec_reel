@@ -21,7 +21,7 @@ export function mentionsExplicitOmniProduct(text: string, productName: string) {
 }
 
 export function getOmniProductRevealFrame(spokenTexts: readonly string[], productName: string) {
-  const frameIndex = spokenTexts.findIndex((text) => mentionsExplicitOmniProduct(text, productName));
+  const frameIndex = spokenTexts.findIndex((text) => mentionsOmniProduct(text, productName));
   return frameIndex >= 0 ? frameIndex : null;
 }
 

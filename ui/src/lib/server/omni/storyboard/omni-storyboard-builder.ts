@@ -14,7 +14,6 @@ import type { DirectorBrief } from "../director-analysis-types";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
 import {
   getOmniProductRevealFrame,
-  mentionsExplicitOmniProduct,
   mentionsOmniProduct,
 } from "../omni-intro-product-contract";
 import { renderFrameTransitionNote } from "./omni-storyboard-effects";
@@ -158,7 +157,7 @@ function buildFrame(input: {
   const isCutawayFrame = Boolean(referenceAction && isReferenceCutawayAction(referenceAction));
   const productVisible = input.plan.productRole !== "hidden" &&
     !isArticleCtaOnly(input.spokenText) &&
-    (input.productAlreadyVisible || mentionsExplicitOmniProduct(input.spokenText, input.productName));
+    (input.productAlreadyVisible || mentionsOmniProduct(input.spokenText, input.productName));
   const visualAction = input.segmentIndex === 1 && input.plan.productRole === "hidden"
     ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName)
     : productVisible
