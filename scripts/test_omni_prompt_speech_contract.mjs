@@ -48,9 +48,14 @@ try {
   const { buildOmniSegmentPrompts } = require(findFile(compiled, "omni-prompt-builder.js"));
   const { validatePromptVoiceoverIsolation } = require(findFile(compiled, "omni-prompt-validator.js"));
   const { buildStoryboardImagePrompt } = require(findFile(compiled, "omni-storyboard-image-prompt.js"));
+  const { renderFrameTransitionNote, renderReferenceTransitionCue } = require(findFile(compiled, "omni-storyboard-effects.js"));
   const { extractDirectorReferenceVideoUrl } = require(findFile(compiled, "director-reference-video-url.js"));
   const frameTiming = require(findFile(compiled, "storyboard-reference-frame-timing.js"));
   const prompts = buildOmniSegmentPrompts(buildInput());
+
+  const filmTransitionBrief = { montage_rhythm: { transition_style: ["film burn / light leak"] } };
+  assert.match(renderReferenceTransitionCue(filmTransitionBrief), /film burn\/light leak/iu);
+  assert.match(renderFrameTransitionNote(filmTransitionBrief, 2), /film-burn\/light-leak/iu);
 
   assert.deepEqual(validatePromptVoiceoverIsolation(prompts), []);
   for (const item of prompts) {

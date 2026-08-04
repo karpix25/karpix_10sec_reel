@@ -13,6 +13,7 @@ import type { StoryboardFrame } from "../llm-prompt-chain-types";
 import type { DirectorBrief } from "../director-analysis-types";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
 import { mentionsOmniProduct } from "../omni-intro-product-contract";
+import { renderFrameTransitionNote } from "./omni-storyboard-effects";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -170,7 +171,7 @@ function buildFrame(input: {
         ? "естественный звук короткого действия с продуктом"
         : "естественный звук предметов и окружения текущей сцены"
       : "тихие естественные звуки комнаты и живой речи",
-    effectNotes: null,
+    effectNotes: renderFrameTransitionNote(input.directorBrief, input.frameIndex),
     modelMusicNotes: null,
   };
 }
@@ -227,6 +228,7 @@ function renderStoryboardWardrobe(
     brief.clothing.fit_details,
     colors,
     "ONE EXACT OUTFIT FOR THE WHOLE REEL: keep the same garments, layers, neckline, sleeves, fit, accessories, and color placement in every frame and every segment",
+    "EXACT COLOR LOCK: copy the exact hue, wash, pattern scale, contrast, and color placement from the first frame; a light-wash denim stays the same light-wash denim and never becomes dark denim",
     EXACT_FABRIC_LOCK,
     "if a jacket, blazer, overshirt, or shirt layer is present, it stays on and is not replaced by a t-shirt or a different shirt",
   ].filter(Boolean).join("; ");
