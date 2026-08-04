@@ -118,6 +118,24 @@ try {
       ...directorPlan,
       segments: [{
         ...directorPlan.segments[0],
+        storyboardFrames: directorPlan.segments[0].storyboardFrames.map((frame, index) => index === 1
+          ? {
+              ...frame,
+              visualDescription: "Миша касается лица обеими руками",
+              action: "Миша держит продукт в одной руке и касается лица обеими руками",
+              productState: "продукт в одной руке",
+            }
+          : frame),
+      }],
+    }),
+    "storyboard_hand_object_conflict"
+  );
+
+  assertIssue(
+    storyboardValidator.validateStoryboardDirectorPlan({
+      ...directorPlan,
+      segments: [{
+        ...directorPlan.segments[0],
         storyboardFrames: [
           { ...directorPlan.segments[0].storyboardFrames[0], spokenWords: "Слишком много слов в одном кадре" },
           ...directorPlan.segments[0].storyboardFrames.slice(1),

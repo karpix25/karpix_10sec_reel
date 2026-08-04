@@ -15,6 +15,10 @@ const NO_OMNI_MUSIC_PATTERN =
   /без\s+музык|no\s+music|музык\p{L}*\s+не\s+(?:добавляй|генерируй|создавай)|не\s+(?:добавляй|генерируй|создавай)\s+музык/iu;
 const HIDDEN_PRODUCT_PATTERN =
   /вне\s+кадра|не\s+виден|скрыт|hidden|off\s*camera|not\s+visible/iu;
+const PRODUCT_IN_HAND_PATTERN =
+  /(?:продукт|товар|коллаген|банка|упаковк\p{L}*|флакон|тюбик|средств\p{L}*)[^.!?;\n]{0,80}(?:в\s+(?:одной|правой|левой)?\s*руке|держит|holding|holds?)|(?:в\s+(?:одной|правой|левой)?\s*руке|держит|holding|holds?)[^.!?;\n]{0,80}(?:продукт|товар|коллаген|банка|упаковк\p{L}*|флакон|тюбик|средств\p{L}*)/iu;
+const BOTH_HANDS_ON_FACE_PATTERN =
+  /(?:обе(?:ими|и)?\s+рук\p{L}*|двумя\s+рук\p{L}*|both\s+hands)[^.!?\n]{0,100}(?:лиц\p{L}*|щек\p{L}*|кож\p{L}*)|(?:лиц\p{L}*|щек\p{L}*|кож\p{L}*)[^.!?\n]{0,100}(?:обе(?:ими|и)?\s+рук\p{L}*|двумя\s+рук\p{L}*|both\s+hands)/iu;
 
 export function validateStoryboardDirectorPlan(plan: DirectorSegmentPlan): PromptValidationIssue[] {
   const issues: PromptValidationIssue[] = [];
@@ -172,6 +176,14 @@ function validateStoryboardFrames(
         severity: "error",
       });
     }
+    if (hasPhysicalHandObjectConflict(`${frame.visualDescription} ${frame.action} ${frame.productState}`)) {
+      issues.push({
+        path: `${path}.${frameIndex}`,
+        code: "storyboard_hand_object_conflict",
+        message: "A product held in a hand cannot be shown while both hands touch the face.",
+        severity: "error",
+      });
+    }
     if (frame.sfx && /музык|music|jingle|джингл/iu.test(frame.sfx) && !/без\s+музык|no\s+music/iu.test(frame.sfx)) {
       issues.push({
         path: `${path}.${frameIndex}.sfx`,
@@ -181,6 +193,10 @@ function validateStoryboardFrames(
       });
     }
   });
+}
+
+function hasPhysicalHandObjectConflict(text: string) {
+  return PRODUCT_IN_HAND_PATTERN.test(text) && BOTH_HANDS_ON_FACE_PATTERN.test(text);
 }
 
 function joinStoryboardSpeech(frames: readonly StoryboardFrame[]) {
