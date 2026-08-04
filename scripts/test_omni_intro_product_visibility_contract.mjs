@@ -32,7 +32,11 @@ try {
 
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
   const { selectReferenceImagesForSegment } = require(findFile(compiled, "omni-reference-images.js"));
-  const { mentionsOmniProduct } = require(findFile(compiled, "omni-intro-product-contract.js"));
+  const {
+    getOmniProductRevealFrame,
+    mentionsExplicitOmniProduct,
+    mentionsOmniProduct,
+  } = require(findFile(compiled, "omni-intro-product-contract.js"));
   const references = [
     { url: "https://example.com/storyboard.jpg", fieldName: "input_reference", role: "storyboard" },
     { url: "https://example.com/product.jpg", fieldName: "input_reference", role: "product" },
@@ -79,6 +83,12 @@ try {
   assert.equal(mentionsOmniProduct("Почему после умывания кожу снова стягивает?", "Geodemika Enzyme Cleansing Foam"), false);
   assert.equal(mentionsOmniProduct("Эта энзимная пенка мягко очищает кожу.", "Geodemika Enzyme Cleansing Foam"), true);
   assert.equal(mentionsOmniProduct("Geodemika решает эту проблему.", "Geodemika"), true);
+  assert.equal(mentionsExplicitOmniProduct("Есть ли смысл принимать коллаген после тридцати пяти лет?", "Коллаген"), false);
+  assert.equal(mentionsExplicitOmniProduct("Вот этот апельсиновый коллаген, артикул в описании.", "Коллаген"), true);
+  assert.equal(getOmniProductRevealFrame([
+    "Есть ли смысл принимать коллаген после тридцати пяти лет?",
+    "Вот этот апельсиновый коллаген, артикул в описании.",
+  ], "Коллаген"), 1);
 
   console.log("Omni intro product visibility contract checks passed");
 } finally {

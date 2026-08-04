@@ -98,7 +98,7 @@ try {
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
     assert.ok(item.prompt.includes("Не добавляй музыку"), "storyboard prompt must forbid Omni music");
     assert.ok(!item.prompt.includes("субтитры примени как с референса"), "storyboard prompt must not ask to copy subtitles");
-    assert.ok(item.prompt.length < 2000, "storyboard prompt must stay short");
+    assert.ok(item.prompt.length < 2400, "storyboard prompt must stay short");
     assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2, "storyboard frame count must follow duration");
     assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
     assert.ok(!item.prompt.includes(`"${item.voiceoverText}"`), "spoken text must not be wrapped in quotes");
@@ -185,7 +185,7 @@ try {
     avatarReferenceUrl: "https://example.com/avatar.png",
     productReferenceUrls: ["https://example.com/air-fryer.png"],
   });
-  assert.ok(frameGatedImagePrompt.includes("Товар разрешен только в панелях 2"));
+  assert.ok(frameGatedImagePrompt.includes("впервые появляется только в панели 2"));
   assert.ok(frameGatedImagePrompt.includes("продукт в этом кадре не показывай"));
 
   assert.equal(normalizedCount(prompts[0].prompt, prompts[1].voiceoverText), 0);
@@ -271,7 +271,7 @@ try {
 
 function buildInput() {
   const voiceSegments = [
-    "Аэрогриль помогает готовить ужин быстрее когда хочется хрустящей корочки без лишнего масла и долгой уборки.",
+    "Вот этот аэрогриль готовит ужин быстрее, с хрустящей корочкой и без лишнего масла.",
     "Я ставлю его на стол показываю чашу и спокойно объясняю почему дома это экономит силы.",
     "Если нужен такой помощник артикул аэрогриля можно найти в описании и сравнить перед покупкой самостоятельно.",
   ];

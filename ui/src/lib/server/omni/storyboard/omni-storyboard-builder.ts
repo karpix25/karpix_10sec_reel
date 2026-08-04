@@ -12,7 +12,11 @@ import type { OmniCharacterContract } from "../omni-character-contract";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
 import type { DirectorBrief } from "../director-analysis-types";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
-import { mentionsOmniProduct } from "../omni-intro-product-contract";
+import {
+  getOmniProductRevealFrame,
+  mentionsExplicitOmniProduct,
+  mentionsOmniProduct,
+} from "../omni-intro-product-contract";
 import { renderFrameTransitionNote } from "./omni-storyboard-effects";
 
 const EXACT_FABRIC_LOCK =
@@ -29,6 +33,7 @@ export function buildStoryboardFromCreativePlan(input: {
   durationSeconds: number;
   directorBrief?: DirectorBrief | null;
   wardrobeSource?: OmniWardrobeSource;
+  productAlreadyVisible?: boolean;
 }): OmniStoryboardSegment {
   const words = splitWords(input.plan.voiceoverText);
   const frameCount = getOmniStoryboardFrameCount(input.durationSeconds);
@@ -40,6 +45,8 @@ export function buildStoryboardFromCreativePlan(input: {
   }
 
   const chunks = splitIntoFrameSpeech(words, frameCount);
+  const revealFrame = getOmniProductRevealFrame(chunks, input.productName);
+  const productVisibleFrom = input.productAlreadyVisible ? 0 : revealFrame;
   return {
     segmentIndex: input.segmentIndex,
     durationSeconds: input.durationSeconds,
@@ -58,6 +65,7 @@ export function buildStoryboardFromCreativePlan(input: {
         spokenText,
         frameIndex: index + 1,
         frameCount,
+        productAlreadyVisible: productVisibleFrom !== null && index >= productVisibleFrom,
       })
     ),
   };
@@ -70,27 +78,36 @@ export function buildStoryboardFromPromptChainFrames(input: {
   productName: string;
   frames: readonly StoryboardFrame[];
   productPhysicalHint?: string | null;
+  productAlreadyVisible?: boolean;
 }): OmniStoryboardSegment {
   if (!input.frames.length) throw new Error(`Storyboard segment ${input.segmentIndex} has no frames`);
+  const revealFrame = getOmniProductRevealFrame(
+    input.frames.map((frame) => frame.spokenWords),
+    input.productName
+  );
+  const productVisibleFrom = input.productAlreadyVisible ? 0 : revealFrame;
   return {
     segmentIndex: input.segmentIndex,
     durationSeconds: input.durationSeconds,
     voiceoverText: input.voiceoverText,
-    frames: input.frames.map((frame) => ({
-      spokenText: frame.spokenWords,
-      visualAction: mentionsOmniProduct(frame.spokenWords, input.productName)
-        ? frame.visualDescription || frame.action
-        : renderNonProductFrameAction(frame.visualDescription || frame.action, false, input.productName),
-      camera: frame.camera,
-      environment: "окружение и свет из режиссерского плана и storyboard image",
-      wardrobe: `одежда из avatar или reference contract, без смены между кадрами; ${EXACT_FABRIC_LOCK}`,
-      productPlacement: mentionsOmniProduct(frame.spokenWords, input.productName)
-        ? renderPromptChainProductPlacement(frame.productState, input.productPhysicalHint)
-        : "в кадре только тематические объекты и окружение текущей реплики",
-      sfxNotes: frame.sfx || "естественные звуки сцены и речи",
-      effectNotes: null,
-      modelMusicNotes: null,
-    })),
+    frames: input.frames.map((frame, index) => {
+      const productVisible = productVisibleFrom !== null && index >= productVisibleFrom;
+      return {
+        spokenText: frame.spokenWords,
+        visualAction: productVisible
+          ? frame.visualDescription || frame.action
+          : renderNonProductFrameAction(frame.visualDescription || frame.action, false, input.productName),
+        camera: frame.camera,
+        environment: "окружение и свет из режиссерского плана и storyboard image",
+        wardrobe: `одежда из avatar или reference contract, без смены между кадрами; ${EXACT_FABRIC_LOCK}`,
+        productPlacement: productVisible
+          ? renderPromptChainProductPlacement(frame.productState, input.productPhysicalHint)
+          : "в кадре только тематические объекты и окружение текущей реплики",
+        sfxNotes: frame.sfx || "естественные звуки речи и движения продукта",
+        effectNotes: null,
+        modelMusicNotes: null,
+      };
+    }),
   };
 }
 
@@ -122,6 +139,7 @@ function buildFrame(input: {
   spokenText: string;
   frameIndex: number;
   frameCount: number;
+  productAlreadyVisible?: boolean;
 }): OmniStoryboardFrame {
   const startSeconds = (input.frameIndex - 1) * 2;
   const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
@@ -140,7 +158,7 @@ function buildFrame(input: {
   const isCutawayFrame = Boolean(referenceAction && isReferenceCutawayAction(referenceAction));
   const productVisible = input.plan.productRole !== "hidden" &&
     !isArticleCtaOnly(input.spokenText) &&
-    mentionsOmniProduct(input.spokenText, input.productName);
+    (input.productAlreadyVisible || mentionsExplicitOmniProduct(input.spokenText, input.productName));
   const visualAction = input.segmentIndex === 1 && input.plan.productRole === "hidden"
     ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName)
     : productVisible

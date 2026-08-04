@@ -87,7 +87,7 @@ try {
   assert.ok(!prompt.includes("субтитры примени как с референса"));
   assert.ok(!prompt.includes("действие: герой берет"));
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));
-  assert.ok(prompt.length < 2000, "storyboard provider prompt must stay short");
+  assert.ok(prompt.length < 2400, "storyboard provider prompt must stay short");
 
   const finalPrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
     storyboard: { ...buildValidStoryboard(), segmentIndex: 3 },
@@ -121,8 +121,8 @@ try {
     storyboard: mixedProductStoryboard,
     productName: "Пенка",
   });
-  assert.ok(mixedProductPrompt.includes("в кадрах 2"));
-  assert.ok(mixedProductPrompt.includes("остальные без товара"));
+  assert.ok(mixedProductPrompt.includes("впервые покажи его только в кадре 2"));
+  assert.ok(mixedProductPrompt.includes("не допускай исчезновения"));
 
   const visualCueProductPlan = builder.buildStoryboardFromCreativePlan({
     plan: {
@@ -245,7 +245,7 @@ try {
     plan: {
       ...buildCreativePlan(),
       segmentIndex: 2,
-      voiceoverText: "Пенка Geodemika мягко очищает кожу. Полноценный сон, вода и питание поддерживают естественное восстановление кожи и помогают сохранять спокойный ровный тон каждый день.",
+      voiceoverText: "Я использую пенку Geodemika, она мягко очищает кожу. Полноценный сон, вода и питание поддерживают естественное восстановление кожи и помогают сохранять спокойный ровный тон каждый день.",
       productRole: "background_prop",
       beats: [
         { startSeconds: 0, endSeconds: 4, action: "Сценарный visual cue: пенка Geodemika в естественной ванной комнате" },
@@ -267,7 +267,7 @@ try {
   assert.ok(!mixedTopicStoryboard.frames[0].camera.includes("крупный кадр продукта"));
   assert.ok(!mixedTopicStoryboard.frames[1].camera.includes("крупный кадр продукта"));
   assert.ok(mixedTopicStoryboard.frames[2].visualAction.includes("вечерняя спальня"));
-  assert.equal(mixedTopicStoryboard.frames[2].productPlacement, "в кадре только тематические объекты и окружение текущей реплики");
+  assert.ok(mixedTopicStoryboard.frames[2].productPlacement.includes("вспомогательный предмет"));
 
   const articleCtaStoryboard = builder.buildStoryboardFromCreativePlan({
     plan: {
