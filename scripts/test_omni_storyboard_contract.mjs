@@ -215,6 +215,11 @@ try {
     referenceActionStoryboard.frames.every((frame) => !/^смысловой кадр окружения по теме хука$/iu.test(frame.visualAction)),
     "reference-driven storyboard must not fall back to an empty generic environment frame"
   );
+  assert.doesNotMatch(
+    referenceActionStoryboard.frames.map((frame) => frame.visualAction).join(" "),
+    /ретинол|retinol|spf/iu,
+    "reference action transfer must not copy source-topic details"
+  );
 
   const mixedTopicStoryboard = builder.buildStoryboardFromCreativePlan({
     plan: {

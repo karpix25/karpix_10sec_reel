@@ -372,11 +372,22 @@ function selectReferenceAction(input: {
   const nearest = beats.reduce((best, beat) =>
     Math.abs(beat.timestamp_sec - targetTimestamp) < Math.abs(best.timestamp_sec - targetTimestamp) ? beat : best
   );
-  return compactText([nearest.action_description, nearest.actor_gesture].filter(Boolean).join("; "), 220);
+  return compactText(
+    [sanitizeReferenceActionDescription(nearest.action_description), nearest.actor_gesture].filter(Boolean).join("; "),
+    220
+  );
 }
 
 function isReferenceCutawayAction(action: string) {
   return /background|cutaway|insert|overlay|product close|macro|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр|фон меня/iu.test(action);
+}
+
+function sanitizeReferenceActionDescription(value: string) {
+  const normalized = compactText(value, 160);
+  if (!normalized || /retinol|spf|collagen|cream|powder|principle|крем|пудр|ретинол|спф|коллаген|принцип|кож|уход|косметолог|врач|ретинолов/iu.test(normalized)) {
+    return "";
+  }
+  return normalized;
 }
 
 function normalizeDefaultFrameAction(action: string | undefined) {
