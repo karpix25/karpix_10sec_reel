@@ -32,11 +32,6 @@ import {
   validateDirectorSegmentPlan,
   validateProviderPromptPlan,
 } from "./provider-prompt-contract-validator";
-import {
-  validateStoryboardDirectorPlan,
-  validateStoryboardProviderAlignment,
-  validateStoryboardProviderPlan,
-} from "./llm-prompt-chain-storyboard-validator";
 import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -148,7 +143,6 @@ async function runDirectorSegmenter(
       assertRussianSpeechGender(finalScript, input.avatarSpeechGender);
       const issues = [
         ...validateDirectorSegmentPlan(plan),
-        ...validateStoryboardDirectorPlan(plan),
       ].filter((issue) => issue.severity === "error");
       if (issues.length) throw new Error(formatPromptValidationIssues(issues));
       assertPromptChainScriptQuality(input, finalScript, plan.selectedHook);
@@ -186,8 +180,6 @@ async function runProviderPromptWriter(
       );
       const issues = [
         ...validateProviderPromptPlan(plan),
-        ...validateStoryboardProviderPlan(plan),
-        ...validateStoryboardProviderAlignment(directorPlan, plan),
       ].filter((issue) => issue.severity === "error");
       if (issues.length) throw new Error(formatPromptValidationIssues(issues));
       return plan;

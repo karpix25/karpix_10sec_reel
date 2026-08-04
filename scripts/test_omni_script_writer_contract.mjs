@@ -137,6 +137,7 @@ try {
   assert.ok(prompt.includes("Поле script должно совпадать"), "script must match beat voiceovers");
   assert.ok(prompt.includes("как почти готовый текст"), "prompt must treat reference as near-source text");
   assert.ok(prompt.includes("Меняй слова синонимами только там"), "prompt must only lightly synonymize reference text");
+  assert.ok(prompt.includes("Не добавляй новые рекламные аргументы"), "prompt must preserve reference instead of inventing new ad claims");
   assert.ok(prompt.includes("Переписывай reference близко"), "prompt must keep close reference adaptation");
   assert.ok(prompt.includes("Главный принцип адаптации reference"), "prompt must state one priority rule for reference adaptation");
   assert.ok(prompt.includes("не переноси эту роль на аватара"), "prompt must strip source author expert roles");
@@ -150,7 +151,7 @@ try {
   assert.ok(prompt.includes("Продукт обязан выполнять понятную функцию"), "prompt must require product to serve the script idea");
   assert.ok(prompt.includes("в момент первого естественного появления продукта"), "CTA must be embedded at the natural product mention");
   assert.ok(prompt.includes("После CTA продолжи полезную мысль"), "CTA must not end the reel as a sales line");
-  assert.ok(prompt.includes("артикул именно этого продукта есть в описании"), "article CTA must point to the exact product variant");
+  assert.ok(prompt.includes("этот продукт можно найти или прочитать в описании"), "article CTA must point to the exact product variant");
   assert.ok(prompt.includes("не произноси номер артикула"), "article CTA must not speak article number");
   assert.ok(prompt.includes("Не используй готовые шаблонные формулировки"), "article CTA must avoid copy-pasted wording");
   assert.ok(prompt.includes("В описании упоминается только артикул"), "article CTA must not add extra description info");

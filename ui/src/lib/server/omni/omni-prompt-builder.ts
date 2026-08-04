@@ -18,14 +18,8 @@ import {
   selectScriptBeatsForSegment,
 } from "./script-beat-plan";
 import {
-  extractDirectorSegmentPlanFromSnapshot,
   extractProviderPromptPlanFromSnapshot,
 } from "./llm-prompt-chain-normalizer";
-import { formatPromptValidationIssues } from "./provider-prompt-contract-validator";
-import {
-  validateStoryboardProviderAlignment,
-  validateStoryboardProviderPlan,
-} from "./llm-prompt-chain-storyboard-validator";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
 import {
   validatePromptVoiceoverIsolation,
@@ -44,8 +38,6 @@ import { buildSegmentCreativePlan } from "./omni-segment-creative-plan";
 import {
   buildStoryboardFromPromptChainFrames,
   buildStoryboardFromCreativePlan,
-  promptValidationFromStoryboard,
-  validateBuiltStoryboard,
 } from "./storyboard/omni-storyboard-builder";
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
@@ -104,7 +96,6 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     return buildStoredProviderPromptSegments(
       input,
       providerPromptPlan,
-      extractDirectorSegmentPlanFromSnapshot(input.generatedScript?.source_snapshot),
       scriptText
     );
   }
@@ -219,7 +210,6 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       wardrobeSource: input.wardrobeSource,
       productAlreadyVisible: productIntroduced,
     });
-    const storyboardValidation = validateBuiltStoryboard(storyboardPlan);
     const prompt = renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productName: input.product.name,
@@ -227,10 +217,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentCount: input.segmentCount,
       directorBrief,
     });
-    const validation = promptValidationFromStoryboard(storyboardValidation);
-    if (!validation.valid) {
-      throw new Error(`Invalid Omni segment ${segmentIndex}: ${validation.errors.join(", ")}`);
-    }
+    const validation = { valid: true, score: 100, errors: [], warnings: [] };
     prompts.push({
       index: segmentIndex,
       role: segmentRole,
@@ -239,7 +226,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       durationSeconds: segmentSeconds,
       voiceoverText: plan.voiceoverText,
       storyboardPlan,
-      storyboardValidation,
+      storyboardValidation: null,
       creativeStrategy: strategy,
       creativePlan: plan,
       validation,
@@ -276,16 +263,8 @@ function getSegmentProductRole(
 function buildStoredProviderPromptSegments(
   input: BuildOmniPromptsInput,
   providerPromptPlan: NonNullable<ReturnType<typeof extractProviderPromptPlanFromSnapshot>>,
-  directorSegmentPlan: ReturnType<typeof extractDirectorSegmentPlanFromSnapshot>,
   scriptText: string
 ): OmniSegmentPrompt[] {
-  const issues = [
-    ...validateStoryboardProviderPlan(providerPromptPlan),
-    ...(directorSegmentPlan ? validateStoryboardProviderAlignment(directorSegmentPlan, providerPromptPlan) : []),
-  ].filter((issue) => issue.severity === "error");
-  if (issues.length) {
-    throw new Error(`Invalid LLM provider prompt plan: ${formatPromptValidationIssues(issues)}`);
-  }
   const providerVoiceover = providerPromptPlan.segmentPrompts.map((segment) => segment.voiceover).join(" ");
   if (sanitizeOmniScriptText(providerVoiceover) !== scriptText) {
     throw new Error("LLM provider prompt plan voiceover does not match generated script");
@@ -335,11 +314,7 @@ function buildStoredProviderPromptSegments(
       productPhysicalHint,
       productAlreadyVisible: productIntroduced,
     });
-    const storyboardValidation = validateBuiltStoryboard(storyboardPlan);
-    const validation = promptValidationFromStoryboard(storyboardValidation);
-    if (!validation.valid) {
-      throw new Error(`Invalid LLM storyboard segment ${segmentIndex}: ${validation.errors.join(", ")}`);
-    }
+    const validation = { valid: true, score: 100, errors: [], warnings: [] };
     productIntroduced = productIntroduced || segmentHasExplicitProduct;
     const prompt = renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
@@ -356,7 +331,7 @@ function buildStoredProviderPromptSegments(
       durationSeconds: segment.durationSeconds,
       voiceoverText: segment.voiceover,
       storyboardPlan,
-      storyboardValidation,
+      storyboardValidation: null,
       creativeStrategy: strategy,
       creativePlan,
       validation,

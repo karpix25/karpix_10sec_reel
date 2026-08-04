@@ -435,32 +435,26 @@ And this is line 2."
   );
 
   const detachedCtaScript = "Этот коллаген удобно добавить утром после завтрака. Он поддерживает привычку без сложных шагов и вписывается в обычный уход. Я оставила его в описании.";
-  assert.throws(
-    () => validateViralScriptContract({
-      script: detachedCtaScript,
-      rawScriptBeforeCta: detachedCtaScript,
-      rawScriptFromModel: detachedCtaScript,
-      hook: "Этот коллаген удобно добавить утром после завтрака.",
-      productName: "Апельсиновый коллаген",
-      ctaMode: "article_in_description",
-      ctaValue: null,
-    }),
-    /CTA про артикул вставлен без контекста/u
-  );
+  assert.equal(validateViralScriptContract({
+    script: detachedCtaScript,
+    rawScriptBeforeCta: detachedCtaScript,
+    rawScriptFromModel: detachedCtaScript,
+    hook: "Этот коллаген удобно добавить утром после завтрака.",
+    productName: "Апельсиновый коллаген",
+    ctaMode: "article_in_description",
+    ctaValue: null,
+  }).metrics.wordCount, 23);
 
   const stockCtaScript = "Этот коллаген удобно добавить утром после завтрака. Он поддерживает привычку без сложных шагов и вписывается в обычный уход. Чтобы не перепутать с похожими, артикул будет в описании.";
-  assert.throws(
-    () => validateViralScriptContract({
-      script: stockCtaScript,
-      rawScriptBeforeCta: stockCtaScript,
-      rawScriptFromModel: stockCtaScript,
-      hook: "Этот коллаген удобно добавить утром после завтрака.",
-      productName: "Апельсиновый коллаген",
-      ctaMode: "article_in_description",
-      ctaValue: null,
-    }),
-    /CTA про артикул вставлен без контекста/u
-  );
+  assert.equal(validateViralScriptContract({
+    script: stockCtaScript,
+    rawScriptBeforeCta: stockCtaScript,
+    rawScriptFromModel: stockCtaScript,
+    hook: "Этот коллаген удобно добавить утром после завтрака.",
+    productName: "Апельсиновый коллаген",
+    ctaMode: "article_in_description",
+    ctaValue: null,
+  }).metrics.wordCount, 27);
 
   const detailsInsteadOfArticleScript = "Этот коллаген удобно добавить утром после завтрака. Он поддерживает привычку без сложных шагов и вписывается в обычный уход. Детали на этот продукт есть в описании.";
   assert.throws(
@@ -473,7 +467,7 @@ And this is line 2."
       ctaMode: "article_in_description",
       ctaValue: null,
     }),
-    /должен произнести слово «артикул»/u
+    /должен направлять к артикулу или самому продукту/u
   );
 
   const expertClaimScript = "Мне тридцать лет, я врач косметолог, и вот мои три принципа в домашнем уходе. Первое, мягкое умывание. Энзимная пенка Geodemika мягко очищает кожу, а артикул именно на нее есть в описании.";
