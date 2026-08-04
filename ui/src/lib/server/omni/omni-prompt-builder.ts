@@ -60,7 +60,9 @@ import {
   renderProductPhysicalHintForStoryboard,
   resolveProductPhysicalContract,
 } from "./product-physical-contract";
-import { mentionsOmniProduct } from "./omni-intro-product-contract";
+import {
+  mentionsExplicitOmniProduct,
+} from "./omni-intro-product-contract";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -171,6 +173,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   assertOmniCtaContract(scriptText, strategy);
   const prompts: OmniSegmentPrompt[] = [];
   let previousContinuityState: OmniGenerationContinuityState | null = null;
+  let productIntroduced = false;
 
   for (let index = 0; index < voiceSegments.length; index += 1) {
     const segmentIndex = index + 1;
@@ -180,7 +183,8 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const baseProductRole = getSegmentProductRole(
       strategy.productRole,
       voiceSegments[index].text,
-      input.product.name
+      input.product.name,
+      productIntroduced
     );
     const productRole = baseProductRole;
     const segmentProductVisualPassport = productVisualPassport;
@@ -213,6 +217,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       durationSeconds: segmentSeconds,
       directorBrief,
       wardrobeSource: input.wardrobeSource,
+      productAlreadyVisible: productIntroduced,
     });
     const storyboardValidation = validateBuiltStoryboard(storyboardPlan);
     const prompt = renderCompactRussianOmniStoryboardPrompt({
@@ -239,6 +244,9 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       creativePlan: plan,
       validation,
     });
+    productIntroduced = productIntroduced || storyboardPlan.frames.some((frame) =>
+      mentionsExplicitOmniProduct(frame.spokenText, input.product.name)
+    );
     previousContinuityState = continuityDirection.nextState;
   }
 
@@ -255,10 +263,11 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
 function getSegmentProductRole(
   role: ProductRole,
   voiceoverText: string,
-  productName = ""
+  productName = "",
+  productIntroduced = false
 ): ProductRole {
   if (role === "hidden") return role;
-  if (mentionsOmniProduct(voiceoverText, productName)) {
+  if (productIntroduced || mentionsExplicitOmniProduct(voiceoverText, productName)) {
     return "brief_demo";
   }
   return "hidden";
@@ -302,12 +311,13 @@ function buildStoredProviderPromptSegments(
   });
   assertOmniCtaContract(scriptText, strategy);
 
+  let productIntroduced = false;
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
-    const productRole: ProductRole =
-      segment.referenceRole === "product" && mentionsOmniProduct(segment.voiceover, input.product.name)
-        ? "brief_demo"
-        : "hidden";
+    const segmentHasExplicitProduct = segment.storyboardFrames.some((frame) =>
+      mentionsExplicitOmniProduct(frame.spokenWords, input.product.name)
+    );
+    const productRole: ProductRole = productIntroduced || segmentHasExplicitProduct ? "brief_demo" : "hidden";
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,
@@ -323,12 +333,14 @@ function buildStoredProviderPromptSegments(
       frames: segment.storyboardFrames,
       productName: input.product.name,
       productPhysicalHint,
+      productAlreadyVisible: productIntroduced,
     });
     const storyboardValidation = validateBuiltStoryboard(storyboardPlan);
     const validation = promptValidationFromStoryboard(storyboardValidation);
     if (!validation.valid) {
       throw new Error(`Invalid LLM storyboard segment ${segmentIndex}: ${validation.errors.join(", ")}`);
     }
+    productIntroduced = productIntroduced || segmentHasExplicitProduct;
     const prompt = renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productName: input.product.name,

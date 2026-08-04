@@ -1,5 +1,7 @@
 const PRODUCT_FORM_PATTERN =
   /аэрогрил|бад\b|витамин|добавк|желе|капсул|коллаген|крем|пенк|порошок|продукт|сыворотк|саше|флакон|тюбик|упаковк|баноч|коробк|пакет/iu;
+const EXPLICIT_PRODUCT_CUE =
+  /(?:^|[\s,.;:!?])(?:вот|этот|эта|это|мой|моя|наша|наш|именно|использую|держу|показываю|оставил|оставила|артикул|код|описани)(?=$|[\s,.;:!?])|(?:^|[\s,.;:!?])(?:я|мы)\s+(?:пью|принимаю|использую)(?=$|[\s,.;:!?])/iu;
 
 export function mentionsOmniProduct(text: string, productName: string) {
   const normalizedText = normalize(text);
@@ -12,6 +14,17 @@ export function mentionsOmniProduct(text: string, productName: string) {
   );
 }
 
+export function mentionsExplicitOmniProduct(text: string, productName: string) {
+  const normalizedText = normalize(text);
+  if (!normalizedText || !mentionsOmniProduct(normalizedText, productName)) return false;
+  return EXPLICIT_PRODUCT_CUE.test(normalizedText);
+}
+
+export function getOmniProductRevealFrame(spokenTexts: readonly string[], productName: string) {
+  const frameIndex = spokenTexts.findIndex((text) => mentionsExplicitOmniProduct(text, productName));
+  return frameIndex >= 0 ? frameIndex : null;
+}
+
 export function isProductPlacementVisible(placement: string, productName: string) {
   const normalized = normalize(placement);
   if (!normalized || /(?:продукт|товар)\s+(?:вне\s+кадра|не\s+виден|скрыт)|hidden|off\s*camera/iu.test(normalized)) return false;
@@ -22,9 +35,8 @@ export function isProductVisibleInStoryboardFrame(
   frame: Record<string, unknown>,
   productName: string
 ) {
-  const spokenText = String(frame.spokenText || frame.spoken_text || frame.spokenWords || frame.spoken_words || "");
   const placement = String(frame.productPlacement || frame.product_placement || "");
-  return mentionsOmniProduct(spokenText, productName) && isProductPlacementVisible(placement, productName);
+  return isProductPlacementVisible(placement, productName);
 }
 
 export function hasProductVisibleStoryboardFrame(storyboard: unknown, productName: string) {

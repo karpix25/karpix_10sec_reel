@@ -28,6 +28,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName || "") ? index + 1 : null)
     .filter((index): index is number => index !== null);
   const productAppearsInThisSegment = productFrameNumbers.length > 0;
+  const productRevealFrame = productFrameNumbers[0] || null;
 
   return [
     `Создай видео по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}, сохрани точно такой же визуал.`,
@@ -38,10 +39,11 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     "Сохраняй те же волосы, пробор, аксессуары во всех кадрах.",
     "Канонический outfit задается первым кадром первой части: один и тот же полный комплект одежды во всех частях; не меняй цвет, ткань, рукава, вырез, посадку или аксессуары.",
     "Материал и цвет одежды фиксированы первым кадром первой части: воспроизводи то же волокно, плетение, плотность, фактуру, оттенок, wash, контраст, швы, крой и посадку во всех кадрах и частях; светлый деним не темнеет.",
+    "WARDROBE AUTHORITY: одежда, видимая в первой раскадровке, является единственно разрешенным outfit для всего ролика. Не придумывай другой комплект, не бери одежду из avatar reference и не меняй outfit при переходе между частями.",
     renderReferenceTransitionCue(input.directorBrief),
     "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
-      ? `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}; не меняй упаковку; в кадрах ${productFrameNumbers.join(",")} герой должен естественно держать его на уровне груди лицевой стороной к камере; остальные без товара.`
+      ? `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}; не меняй упаковку; впервые покажи его только в кадре ${productRevealFrame}, затем непрерывно сохраняй тот же физический продукт в той же руке или на том же месте до конца части; не допускай исчезновения, повторного появления, телепортации, дублирования или смены положения без видимого движения руки.`
       : "В этом сегменте продукт вне кадра; не переноси его из reference-кадра.",
     productAppearsInThisSegment
       ? "Состояние продукта держи одинаковым от первого до последнего кадра: та же консистенция, та же целостность, та же упаковка и дизайн."
