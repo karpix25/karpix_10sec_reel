@@ -26,14 +26,17 @@ import {
 import {
   createProviderVideoTask,
   getProviderDuration,
-  retrieveProviderVideoTask,
   type ProviderTask,
 } from "./omni-provider-tasks";
 import { processOmniReelSubtitlesIfNeeded } from "./omni-reel-subtitles";
-import { storeCompletedSegment, stitchAndStoreReel } from "./omni-segment-completion";
+import { stitchAndStoreReel } from "./omni-segment-completion";
 import { detectKieOmniVoiceGender, resolveKieOmniAudioIds, type KieOmniVoiceGender } from "./kie-omni-audio";
 import { applyOmniStoryboardFileReference } from "./storyboard/omni-storyboard-file-reference";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
+import {
+  getOmniSegmentRetryCount,
+} from "./omni-segment-retry";
+import { syncOmniReelSegments } from "./omni-segment-sync";
 
 type ReelBundle = {
   reel: OmniReel;
@@ -319,6 +322,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       storyboard_plan: segment.storyboard_plan,
       storyboard_validation: segment.storyboard_validation,
       prompt_validation: segment.prompt_validation,
+      omni_retry_count: getOmniSegmentRetryCount(segment.request_payload),
     };
 
     let task: ProviderTask;
@@ -427,45 +431,7 @@ function getSkippedReferenceReason(input: {
 
 export async function syncOmniReel(reelId: number) {
   const { reel, segments } = await getReelBundle(reelId);
-  for (const segment of segments) {
-    if (!segment.kie_task_id || segment.status === "completed") continue;
-
-    try {
-      const task = await retrieveProviderVideoTask(segment.generation_provider, segment.kie_task_id);
-      const status = task.status.toLowerCase();
-      if (status === "completed") {
-        await storeCompletedSegment({
-          projectId: reel.project_id,
-          segment,
-          task,
-        });
-      } else if (status === "failed" || status === "error") {
-        await pool.query(
-          `UPDATE omni_reel_segments
-           SET status = 'failed',
-               response_payload = $2::jsonb,
-               error_message = $3,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1`,
-          [segment.id, JSON.stringify(task.raw), JSON.stringify(task.error || "CometAPI Omni segment failed")]
-        );
-      } else {
-        await pool.query(
-          `UPDATE omni_reel_segments
-           SET status = 'processing',
-               response_payload = $2::jsonb,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1`,
-          [segment.id, JSON.stringify(task.raw)]
-        );
-      }
-    } catch (error) {
-      await pool.query(
-        "UPDATE omni_reel_segments SET error_message = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
-        [segment.id, error instanceof Error ? error.message : "Omni segment sync failed"]
-      );
-    }
-  }
+  const syncResult = await syncOmniReelSegments({ reel, segments });
 
   const updated = await getReelBundle(reelId);
   const hasFailed = updated.segments.some((segment) => segment.status === "failed");
@@ -475,7 +441,9 @@ export async function syncOmniReel(reelId: number) {
   );
 
   let stitchedNow = false;
-  if (hasFailed) {
+  if (syncResult.retried) {
+    await submitOmniReel(reelId, getReelGenerationProvider(updated.segments));
+  } else if (hasFailed) {
     await pool.query(
       "UPDATE omni_reels SET status = 'failed', error_message = 'One or more segments failed', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
       [reelId]

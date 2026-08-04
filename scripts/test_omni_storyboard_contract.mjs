@@ -70,6 +70,15 @@ try {
   assert.ok(prompt.includes("те же волосы, пробор, аксессуары"));
   assert.ok(prompt.includes("один и тот же полный комплект одежды"));
   assert.ok(prompt.includes("смотрит прямо в объектив"));
+  const vehiclePrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
+    storyboard: buildValidStoryboard(),
+    directorBrief: {
+      ...buildDirectorBrief(),
+      atmosphere: { ...buildDirectorBrief().atmosphere, setting: "inside a parked car" },
+    },
+  });
+  assert.ok(vehiclePrompt.includes("VEHICLE CAMERA LOCK"));
+  assert.ok(vehiclePrompt.includes("same seat"));
   assert.ok(prompt.includes("Состояние продукта держи одинаковым"));
   assert.ok(prompt.includes("Структура видео: ровно 5 живых эпизодов"));
   assert.ok(prompt.includes("Артикул есть в описании!"));

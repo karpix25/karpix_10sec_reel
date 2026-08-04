@@ -41,6 +41,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     "Материал и цвет одежды фиксированы первым кадром первой части: воспроизводи то же волокно, плетение, плотность, фактуру, оттенок, wash, контраст, швы, крой и посадку во всех кадрах и частях; светлый деним не темнеет.",
     "WARDROBE AUTHORITY: одежда, видимая в первой раскадровке, является единственно разрешенным outfit для всего ролика. Не придумывай другой комплект, не бери одежду из avatar reference и не меняй outfit при переходе между частями.",
     renderReferenceTransitionCue(input.directorBrief),
+    renderVehicleCameraLock(input.directorBrief),
     "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
       ? `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}; не меняй упаковку; впервые покажи его только в кадре ${productRevealFrame}, затем непрерывно сохраняй тот же физический продукт в той же руке или на том же месте до конца части; не допускай исчезновения, повторного появления, телепортации, дублирования или смены положения без видимого движения руки.`
@@ -55,6 +56,20 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     "Каждый эпизод продолжает речь со следующего еще не произнесенного слова. После последнего слова персонаж замолкает.",
     "Не добавляй музыку, новые субтитры или новый текст на экран, аудиоэффекты можно.",
   ].join("\n");
+}
+
+function renderVehicleCameraLock(brief?: DirectorBrief | null) {
+  if (!brief) return "";
+  const referenceText = [
+    brief.atmosphere.setting,
+    brief.atmosphere.mood,
+    ...brief.camera.shot_types,
+    ...brief.action_beats.flatMap((beat) => [beat.action_description, beat.actor_gesture]),
+  ].filter(Boolean).join(" ");
+  if (!/(?:car|vehicle|automobile|машин|автомобил|салон|сидень|передн(?:ем|ее)|задн(?:ем|ее) сиденье)/iu.test(referenceText)) {
+    return "";
+  }
+  return "VEHICLE CAMERA LOCK: keep one continuous camera setup inside the vehicle, with the same physical camera mount, same side of the cabin, same distance, same horizon and same seat for the woman in every frame and segment; preserve the exact front or rear seat shown in the reference; let only the visible reference cuts change the moment, never the seating position or camera location.";
 }
 
 function renderPunctuatedVoiceover(storyboard: OmniStoryboardSegment, segmentCount?: number) {
