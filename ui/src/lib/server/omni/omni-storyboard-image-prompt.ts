@@ -49,6 +49,17 @@ export function buildStoryboardImagePrompt(input: {
       ? "REFERENCE LAYOUT: оригинал целиком в PIP/collage. В каждой панели полноэкранный динамичный фон и avatar cutout в нижнем левом углу с той же позицией, размером и белой обводкой; не делай centered talking-head."
       : "",
     "Сохрани одного героя, одну одежду, одинаковые волосы, свет и окружение во всех панелях. Лицо натуральное: поры, живая кожа, естественный бытовой свет, без пластикового сглаживания.",
+    input.directorBrief?.clothing
+      ? [
+          "CLOTHING LOCK (all panels):",
+          input.directorBrief.clothing.style,
+          input.directorBrief.clothing.fit_details,
+          input.directorBrief.clothing.color_palette.length
+            ? `colors: ${input.directorBrief.clothing.color_palette.join(", ")}`
+            : "",
+          input.directorBrief.clothing.adaptation_notes || "",
+        ].filter(Boolean).join("; ") + ". Same fabric, cut, and color in every panel — any deviation is a failure."
+      : "",
     "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
     "Смысл реплики определяет кадр. Переноси из кадров оригинала ракурс, PIP, действие, жест, предмет, переход и атмосферу; не придумывай сцены и не заменяй PIP обычной съемкой.",
     OMNI_PHYSICAL_ACTION_CONTRACT,

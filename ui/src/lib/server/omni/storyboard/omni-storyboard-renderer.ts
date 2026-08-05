@@ -45,6 +45,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     "Фиксируй те же волосы, пробор, аксессуары.",
     "Канонический outfit задается первым кадром первой части: один и тот же полный комплект одежды во всех частях; не меняй цвет, ткань, крой или аксессуары.",
     "WARDROBE AUTHORITY: первый outfit из раскадровки единственный; не бери одежду из avatar reference и не меняй outfit.",
+    renderWardrobeLock(input.directorBrief),
     renderReferenceTransitionCue(input.directorBrief),
     renderStoryboardCameraLock(input.storyboard),
     renderVehicleCameraLock(input.directorBrief),
@@ -99,4 +100,18 @@ function renderPunctuatedVoiceover(storyboard: OmniStoryboardSegment, segmentCou
 
 function renderHookMark(text: string) {
   return /^(?:почему|зачем|как|что|когда|если|вы|ты|знаете|знаешь)\b/iu.test(text) ? "?" : "!";
+}
+
+function renderWardrobeLock(brief: DirectorBrief | null | undefined): string {
+  if (!brief) return "";
+  const parts = [
+    brief.clothing.style,
+    brief.clothing.fit_details,
+    brief.clothing.color_palette.length
+      ? `colors: ${brief.clothing.color_palette.join(", ")}`
+      : "",
+    brief.clothing.adaptation_notes || "",
+  ].filter(Boolean);
+  if (!parts.length) return "";
+  return `WARDROBE LOCK: ${parts.join("; ")}. Identical outfit in every segment and every frame — same fabric, cut, color, and accessories. Any deviation is a generation failure.`;
 }

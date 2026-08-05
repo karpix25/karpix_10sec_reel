@@ -8,6 +8,15 @@ export type DirectorLocationTimelineItem = {
   lighting: string;
 };
 
+export type DirectorProductIntroductionPosition = "hook" | "body" | "payoff" | "never";
+
+export type DirectorProductIntroduction = {
+  first_appearance_sec: number;
+  relative_position: DirectorProductIntroductionPosition;
+  introduction_style: string;
+  naturality_notes: string;
+};
+
 export type DirectorBrief = {
   visual_hook: {
     action: string;
@@ -52,6 +61,7 @@ export type DirectorBrief = {
     safe_zones_for_elements: string;
     looping_pattern: string;
   };
+  product_introduction?: DirectorProductIntroduction;
 };
 
 export type OmniDirectorAnalysis = {
@@ -143,6 +153,7 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
       safe_zones_for_elements: stringValue(mechanics.safe_zones_for_elements),
       looping_pattern: stringValue(mechanics.looping_pattern),
     },
+    product_introduction: normalizeProductIntroduction(candidate.product_introduction),
   };
 
   return hasRequiredDirectorText(brief) ? brief : null;
@@ -210,4 +221,19 @@ function stringValue(value: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeProductIntroduction(value: unknown): DirectorProductIntroduction | undefined {
+  if (!isRecord(value)) return undefined;
+  const position = stringValue(value.relative_position);
+  const validPositions: DirectorProductIntroductionPosition[] = ["hook", "body", "payoff", "never"];
+  const relative_position: DirectorProductIntroductionPosition =
+    validPositions.includes(position as DirectorProductIntroductionPosition)
+      ? (position as DirectorProductIntroductionPosition)
+      : "never";
+  const first_appearance_sec = Number(value.first_appearance_sec) || 0;
+  const introduction_style = stringValue(value.introduction_style);
+  const naturality_notes = stringValue(value.naturality_notes);
+  if (!introduction_style && relative_position === "never") return undefined;
+  return { first_appearance_sec, relative_position, introduction_style, naturality_notes };
 }

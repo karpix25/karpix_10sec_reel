@@ -17,7 +17,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
   return [
     "Analyze the attached video and transcript.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "visual_hook, atmosphere, clothing, location_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics.",
+    "visual_hook, atmosphere, clothing, location_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -31,11 +31,15 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
     "- Values must be descriptive but compact.",
     "- location_timeline must describe any location/environment changes by seconds. If the location never changes, return one item for the whole video.",
     "- clothing.source names whose outfit style is being described, usually the main presenter.",
-    "- clothing.adaptation_notes must explain how to adapt the outfit style to a different avatar gender/body while keeping color, formality, layer, and mood.",
+    "- clothing.adaptation_notes MUST contain a specific concrete outfit equivalent for the opposite gender body — not a generic instruction like 'adapt gendered garments'. Write what the adapted person would actually wear: name the exact garment (shirt, trousers, dress, etc.), its color matching the original palette, cut (loose, fitted, tailored, etc.), and mood. Example: if source wears a white loose blouse → write 'white loose linen shirt, untucked, same relaxed silhouette and light color'.",
     "- montage_rhythm must describe only visible cuts and transitions. Inspect every boundary between source shots and name the exact treatment: hard cut, jump cut, film burn/light leak, exposure flash, lens flare, blur, wipe, fade, or another visible effect. If the reference stays on one setup, say that it uses a continuous stable shot.",
     "- Do not collapse a film burn, light leak, or exposure flash into a generic 'overlay'; state that it is a brief edit transition between two shots.",
     "- Mention only raw filming choices and human actions.",
     "- All overlays, subtitles, logos, UI cards, and interface elements belong to post-production and must not appear in this JSON.",
+    "- product_introduction.first_appearance_sec must be the exact second when the main product first appears physically in frame. If no identifiable product is shown in the reference, set relative_position to 'never' and first_appearance_sec to 0.",
+    "- product_introduction.relative_position must be 'hook' if the product appears in the first 20% of the video, 'body' if it appears in the middle 60%, 'payoff' if it appears in the last 20%, or 'never' if no product is shown.",
+    "- product_introduction.introduction_style must describe the exact physical action: 'already holding at start', 'placed on table at Xs', 'taken from bag at Xs', 'slides into frame at Xs', 'never shown'. Be specific and include the second.",
+    "- product_introduction.naturality_notes must describe how organically the product appears: does the presenter pause to show it, or introduce it mid-sentence without breaking eye contact, etc.",
   ].join("\n");
 }
 
@@ -115,6 +119,12 @@ function buildDirectorBriefSkeleton() {
       visual_mechanics: [""],
       safe_zones_for_elements: "",
       looping_pattern: "",
+    },
+    product_introduction: {
+      first_appearance_sec: 0,
+      relative_position: "hook|body|payoff|never",
+      introduction_style: "already holding at start|placed on table at Xs|taken from bag at Xs|never shown",
+      naturality_notes: "describe how organically the product appears without breaking the presenter flow",
     },
   };
 }
