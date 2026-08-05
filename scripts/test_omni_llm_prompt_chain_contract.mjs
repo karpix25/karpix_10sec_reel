@@ -311,6 +311,8 @@ try {
   assert.ok(promptChainSource.includes("как почти готовый текст"), "LLM chain copywriter must treat reference as near-source text");
   assert.ok(promptChainSource.includes("Меняй слова синонимами только там"), "LLM chain must only lightly synonymize reference text");
   assert.ok(promptChainSource.includes("главный тезис, вопрос или возражение, механизм"), "LLM chain must keep original argument mechanics");
+  assert.ok(promptChainSource.includes("внутреннюю карту reference"), "LLM chain must require an internal reference meaning map");
+  assert.ok(promptChainSource.includes("не выбрасывай механизм, конкретный пример"), "LLM chain must preserve concrete reference substance when compressing");
   assert.ok(promptChainSource.includes("Переписывай reference близко"), "LLM chain must keep near-copy reference adaptation");
   assert.ok(promptChainSource.includes("Главный принцип адаптации reference"), "LLM chain must state one priority rule for reference adaptation");
   assert.ok(promptChainSource.includes("не переноси эту роль на аватара"), "LLM chain must strip source author expert roles");

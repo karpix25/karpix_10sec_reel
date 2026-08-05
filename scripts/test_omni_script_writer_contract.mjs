@@ -159,6 +159,8 @@ try {
   assert.ok(!prompt.includes("артикул или код"), "article CTA must not ask the model to say generic code wording");
   assert.ok(prompt.includes("как почти готовый текст"), "prompt must preserve reference meaning, not only structure");
   assert.ok(prompt.includes("главный тезис, вопрос или возражение, механизм"), "prompt must require the original argument mechanics");
+  assert.ok(prompt.includes("внутреннюю карту reference"), "prompt must require an internal reference meaning map");
+  assert.ok(prompt.includes("Не заменяй конкретный механизм"), "prompt must preserve concrete reference substance when compressing");
   assert.ok(!prompt.includes("только как пример структуры"), "prompt must not reduce reference to structure only");
   assert.ok(prompt.includes('"background_audio_mood"'), "prompt must request background audio mood");
   assert.ok(prompt.includes("energetic, calm, dramatic, inspiring, playful, serious"), "prompt must constrain mood enum");
