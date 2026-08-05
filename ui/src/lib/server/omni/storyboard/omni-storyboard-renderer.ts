@@ -34,7 +34,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   const productRevealFrame = productFrameNumbers[0] || null;
 
   return [
-    `Создай видео по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}, сохрани точно такой же визуал.`,
+    `Создай динамичный разговорный ролик по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}, сохрани точно такой же визуал.`,
     `Структура видео: ровно ${frameCount} живых эпизодов по одному на каждый кадр, в том же порядке.`,
     `Оживи кадры раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER} как реальные сцены; не показывай саму раскадровку, телефон, экран, интерфейс, соцсети или карточки.`,
     preservePipLayout

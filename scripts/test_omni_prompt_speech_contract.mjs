@@ -63,7 +63,8 @@ try {
     assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/iu.test(item.prompt));
     assert.ok(!item.prompt.includes("Реплика персонажа:"), "legacy frame speech marker must not be used");
     assert.ok(!item.prompt.includes("Озвучка:"), "storyboard prompt must not imply background voiceover");
-    assert.ok(item.prompt.includes("Создай видео по раскадровке"), "storyboard prompt must bind video to storyboard");
+    assert.ok(item.prompt.includes("по раскадровке"), "storyboard prompt must bind video to storyboard");
+    assert.ok(item.prompt.includes("динамичный разговорный ролик"), "storyboard prompt must request a dynamic conversational reel");
     assert.ok(item.prompt.includes("@storyboard_file"), "storyboard prompt must keep file placeholder until KIE upload order is known");
     const productVisible = item.storyboardPlan.frames.some((frame) =>
       !/в\s+кадре\s+только\s+тематические|(?:продукт|товар)\s+вне\s+кадра/iu.test(frame.productPlacement)
@@ -266,7 +267,7 @@ try {
   assert.equal(storedPrompts.length, storedSegments.length);
 	  storedPrompts.forEach((item, index) => {
 	    assert.notEqual(item.prompt, storedSegments[index].prompt);
-	    assert.ok(item.prompt.includes("Создай видео по раскадровке"));
+	    assert.ok(item.prompt.includes("динамичный разговорный ролик"));
     const storedProductVisible = item.storyboardPlan.frames.some((frame) =>
       /аэрогрил/iu.test(`${frame.spokenText} ${frame.productPlacement}`) &&
       !/в\s+кадре\s+только\s+тематические|(?:продукт|товар)\s+вне\s+кадра/iu.test(frame.productPlacement)
