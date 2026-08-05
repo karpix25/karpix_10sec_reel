@@ -73,7 +73,8 @@ export async function stitchAndStoreReel(input: {
     [input.reel.id]
   );
 
-  const segmentBuffers = await Promise.all(input.segments.map(loadSegmentBuffer));
+  const orderedSegments = [...input.segments].sort((left, right) => left.segment_index - right.segment_index);
+  const segmentBuffers = await Promise.all(orderedSegments.map(loadSegmentBuffer));
   const stitched = await stitchOmniSegments({ reelId: input.reel.id, segmentBuffers });
   try {
     const audio = await tryMixBackgroundAudio({

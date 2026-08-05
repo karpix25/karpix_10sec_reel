@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import { runOmniFfmpeg } from "./omni-ffmpeg";
+import { trimOmniSegmentBoundarySilence } from "./omni-segment-boundary-trimmer";
 
 function safeConcatPath(filePath: string) {
   return filePath.replace(/'/g, "'\\''");
@@ -20,9 +21,13 @@ export async function stitchOmniSegments(input: {
   try {
     const segmentPaths: string[] = [];
     for (let index = 0; index < input.segmentBuffers.length; index += 1) {
-      const segmentPath = path.join(workdir, `segment-${String(index + 1).padStart(2, "0")}.mp4`);
+      const segmentPath = path.join(workdir, `segment-${String(index + 1).padStart(2, "0")}-raw.mp4`);
+      const preparedPath = path.join(workdir, `segment-${String(index + 1).padStart(2, "0")}.mp4`);
       await writeFile(segmentPath, input.segmentBuffers[index]);
-      segmentPaths.push(segmentPath);
+      segmentPaths.push(await trimOmniSegmentBoundarySilence({
+        inputPath: segmentPath,
+        outputPath: preparedPath,
+      }));
     }
 
     const concatPath = path.join(workdir, "concat.txt");
