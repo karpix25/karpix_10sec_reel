@@ -168,6 +168,8 @@ try {
   assert.ok(prompt.includes("Целевая длительность итогового ролика: 30-30 сек"), "prompt must include configured duration range");
   assert.ok(prompt.includes("60-72 слов"), "prompt must include computed word range");
   assert.ok(prompt.includes("66-72 слов"), "prompt must give a dense target word range for exact duration");
+  assert.ok(prompt.includes("не создавай пятую часть"), "script prompt must cap storyboards at four parts");
+  assert.ok(prompt.includes("сожми формулировки"), "script prompt must compress long reference scripts");
   const scriptGeneratorSource = readFileSync(
     join(ui, "src/lib/server/omni/script-generator.ts"),
     "utf8"
@@ -239,6 +241,10 @@ try {
   assert.ok(shortRetryFeedback.includes("60-72"), "retry feedback must repeat required word range");
   assert.ok(shortRetryFeedback.includes("66-72"), "retry feedback must give a concrete target range");
   assert.ok(shortRetryFeedback.includes("Перед ответом посчитай слова"), "retry feedback must force word recount");
+  const longRetryFeedback = buildScriptRetryFeedback(
+    new Error("Сценарий отклонен: Сценарий не помещается в доступные Omni-длительности: 101 слов. Максимум 100 слов для 4 частей.")
+  );
+  assert.ok(longRetryFeedback.includes("максимум до ста слов"), "long retry feedback must force four-part compression");
   const jsonRetryFeedback = buildScriptRetryFeedback(
     new Error("No JSON object found in script model output")
   );

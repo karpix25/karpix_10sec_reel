@@ -48,10 +48,7 @@ export function planOmniReelSegments(script: string, options: {
     throw new Error(describeOmniDensityGap(wordCount));
   }
 
-  const maxCandidateSegmentCount = Math.max(
-    OMNI_MAX_SEGMENT_COUNT,
-    Math.ceil(wordCount / maxWordsPerSegment)
-  );
+  const maxCandidateSegmentCount = OMNI_MAX_SEGMENT_COUNT;
   const candidates = Array.from(
     { length: maxCandidateSegmentCount - OMNI_MIN_SEGMENT_COUNT + 1 },
     (_, index) => index + OMNI_MIN_SEGMENT_COUNT
