@@ -25,11 +25,11 @@ function getCometApiBaseUrl() {
 
 function buildAvatarImagePrompt(prompt: string) {
   return [
-    "Create a photorealistic portrait reference image for a reusable UGC video avatar.",
-    "The person must look like a real smartphone creator, not a studio render.",
-    "Single person only, visible face, natural skin texture, realistic eyes, clean hands if shown.",
-    "Neutral background, soft natural lighting, vertical portrait crop, no text, no watermark, no logo.",
-    "Keep the outfit, age, face, hair, expression, and camera style faithful to this avatar brief:",
+    "A photorealistic portrait reference image for a reusable UGC video avatar.",
+    "The subject must look like a real, authentic smartphone creator. Natural skin texture with visible pores, subtle peach fuzz, skin grain, and minor natural skin imperfections. Unretouched, no beauty filters, no airbrushed or plastic skin, no waxy CGI look.",
+    "Soft diffused window lighting from the side to bring out micro-texture and natural depth. Shot on Sony A7R V with 85mm f/1.4 lens, sharp focus on eyes, shallow depth of field, natural skin tone variation.",
+    "Single person only, looking directly at the camera. Neutral real-life background, vertical portrait crop, no text overlays, no watermarks, no logos.",
+    "Keep the outfit, age, face, hair, expression, and basic appearance faithful to this brief:",
     prompt.trim(),
   ].join("\n");
 }

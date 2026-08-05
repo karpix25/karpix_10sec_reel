@@ -5,7 +5,6 @@ import type {
   CtaMode,
   LifeFormatId,
   OmniCreativeStrategy,
-  OmniScriptBeatCue,
   OmniPromptValidationResult,
   OmniSegmentCreativePlan,
   ProductRole,
