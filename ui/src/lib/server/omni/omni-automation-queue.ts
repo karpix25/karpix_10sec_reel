@@ -112,7 +112,10 @@ export async function claimNextOmniAutomationJob(input: {
      )
      UPDATE omni_automation_jobs job
      SET status = 'processing',
-         attempt_count = job.attempt_count + 1,
+         attempt_count = CASE
+           WHEN job.current_stage = 'sync' THEN job.attempt_count
+           ELSE job.attempt_count + 1
+         END,
          worker_id = $2,
          lease_until = CURRENT_TIMESTAMP + ($1 * INTERVAL '1 second'),
          started_at = COALESCE(job.started_at, CURRENT_TIMESTAMP),
