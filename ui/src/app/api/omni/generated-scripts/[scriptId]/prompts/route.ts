@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildGeneratedScriptPromptPreview } from "@/lib/server/omni/generated-scripts";
 import { getOmniErrorStatus, jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
+import { normalizeOmniGenerationProvider } from "@/lib/omni/provider";
 
 export async function GET(
   request: Request,
@@ -12,6 +13,7 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const projectId = parsePositiveInt(searchParams.get("projectId"));
   const productId = parsePositiveInt(searchParams.get("productId"));
+  const generationProvider = normalizeOmniGenerationProvider(searchParams.get("provider"));
   const { scriptId: scriptIdParam } = await params;
   const scriptId = parsePositiveInt(scriptIdParam);
 
@@ -25,6 +27,7 @@ export async function GET(
         projectId,
         productId,
         scriptId,
+        generationProvider,
       })
     );
   } catch (error) {

@@ -360,7 +360,12 @@ function GeneratedScriptCard({
               <WandSparkles className="h-4 w-4 text-primary" />
               Prompts загружаются только для раскрытой карточки.
             </div>
-            <GeneratedScriptPromptTabs projectId={projectId} productId={productId} scriptId={script.id} />
+            <GeneratedScriptPromptTabs
+              projectId={projectId}
+              productId={productId}
+              scriptId={script.id}
+              provider={omniGenerationProvider}
+            />
           </TabsContent>
         </Tabs>
       )}

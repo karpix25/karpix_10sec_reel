@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const projectId = parsePositiveInt(body.projectId);
     const productId = parsePositiveInt(body.productId);
+    const provider = normalizeOmniGenerationProvider(body.provider);
     if (!projectId) return jsonError("projectId is required");
     if (!productId) return jsonError("productId is required");
 
@@ -40,8 +41,8 @@ export async function POST(request: Request) {
       sourceLegacyScenarioId: parsePositiveInt(body.sourceLegacyScenarioId),
       targetDurationSeconds: body.targetDurationSeconds,
       brief: body.brief,
+      generationProvider: provider,
     });
-    const provider = normalizeOmniGenerationProvider(body.provider);
     console.info("Omni reel create:", { reelId: reel.id, autoRun: Boolean(body.autoRun), provider });
     const result = body.autoRun ? await submitOmniReel(reel.id, provider) : reel;
     return NextResponse.json(result, { status: 201 });

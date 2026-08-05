@@ -139,14 +139,15 @@ export function useOmniGeneratedScripts(projectId: number | null, productId: num
 export function useOmniGeneratedScriptPrompts(
   projectId: number | null,
   productId: number | null,
-  scriptId: number | null
+  scriptId: number | null,
+  provider: OmniGenerationProvider = "cometapi"
 ) {
   return useQuery<OmniPromptPreviewSegment[]>({
-    queryKey: ["omni-generated-script-prompts", projectId, productId, scriptId],
+    queryKey: ["omni-generated-script-prompts", projectId, productId, scriptId, provider],
     queryFn: async () =>
       (
         await axios.get(`${API_BASE}/generated-scripts/${scriptId}/prompts`, {
-          params: { projectId, productId },
+          params: { projectId, productId, provider },
         })
       ).data,
     enabled: Boolean(projectId && productId && scriptId),

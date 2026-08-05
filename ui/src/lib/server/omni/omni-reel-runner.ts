@@ -156,14 +156,13 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
         role: "storyboard_canonical",
       }]
     : [];
-  const hasStoryboardReferences = segments.some((segment) => Boolean(segment.storyboard_reference_url));
-  if (provider === "kie-ai" && !avatarCharacterId && !hasStoryboardReferences) {
+  if (provider === "kie-ai" && !avatarCharacterId) {
     await markOmniReelPreflightFailure({
       reelId: reel.id,
       provider,
-      message: "KIE.ai Omni requires an approved avatar with saved character id or storyboard reference",
+      message: "KIE.ai Omni requires an approved avatar with saved character id",
     });
-    throw new Error("KIE.ai Omni requires an approved avatar with saved character id or storyboard reference");
+    throw new Error("KIE.ai Omni requires an approved avatar with saved character id");
   }
   const hasVisibleProductSegment = segments.some(
     (segment) => segment.creative_plan?.productRole !== "hidden"
@@ -258,7 +257,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
         ? appendKieReferenceOrderPrompt(kieStoryboardPrompt, selectedReferenceImages.sent)
         : continuityPrompt;
     const usesStoryboardReference = selectedReferenceImages.sent.some((image) => image.role === "storyboard");
-    const videoCharacterId = provider === "kie-ai" && usesStoryboardReference ? null : avatarCharacterId;
+    const videoCharacterId = provider === "kie-ai" ? avatarCharacterId : null;
     const continuitySourceSegmentId =
       typeof continuity.metadata.sourceSegmentId === "number"
         ? continuity.metadata.sourceSegmentId

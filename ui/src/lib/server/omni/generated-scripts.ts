@@ -17,6 +17,7 @@ import { generateScript } from "./script-generator";
 import { resolveReadyGeneratedScriptReference } from "./generated-script-reference-selection";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { ensureGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
+import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
@@ -74,6 +75,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
   projectId: number;
   productId: number;
   scriptId: number;
+  generationProvider?: OmniGenerationProvider;
 }): Promise<OmniPromptPreviewSegment[]> {
   const generatedScript = await getGeneratedScript(input);
   if (!generatedScript) throw new Error("Generated script not found for this product");
@@ -126,6 +128,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     productReferenceUrls: resolveProductReferenceImageUrls(product),
     directorReferenceImageUrlsBySegment,
     promptPlan,
+    generationProvider: input.generationProvider,
   });
 
   return promptPlan.map((segment) => ({

@@ -20,6 +20,7 @@ import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
+import type { OmniGenerationProvider } from "@/lib/omni/provider";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -76,6 +77,7 @@ export async function createOmniReel(input: {
   sourceLegacyScenarioId?: number | null;
   targetDurationSeconds?: unknown;
   brief?: unknown;
+  generationProvider?: OmniGenerationProvider;
 }) {
   await ensureOmniSchema();
   const brief = typeof input.brief === "string" && input.brief.trim() ? input.brief.trim() : null;
@@ -231,6 +233,7 @@ export async function createOmniReel(input: {
     directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
     avatarReferenceUrl: latestAvatar?.reference_url || null,
     promptPlan,
+    generationProvider: input.generationProvider,
   });
 
   const client = await pool.connect();
@@ -342,6 +345,7 @@ async function generateStoryboardReferenceUrls(input: {
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   avatarReferenceUrl: string | null;
   promptPlan: readonly ReturnType<typeof buildOmniSegmentPrompts>[number][];
+  generationProvider?: OmniGenerationProvider;
 }): Promise<(string | null)[]> {
   const urls: (string | null)[] = [];
   let previousStoryboardReferenceUrl: string | null = null;
@@ -361,6 +365,7 @@ async function generateStoryboardReferenceUrls(input: {
         directorReferenceImageUrls: Array.from(input.directorReferenceImageUrlsBySegment?.get(segmentPrompt.index) || []),
         avatarReferenceUrl: input.avatarReferenceUrl,
         previousStoryboardReferenceUrl,
+        generationProvider: input.generationProvider,
       })
       : null;
     urls.push(storyboardReferenceUrl);
