@@ -4,7 +4,12 @@ import {
 } from "./omni-video-storage";
 import { buildStoryboardImagePrompt } from "./omni-storyboard-image-prompt";
 import { createKieStoryboardImage } from "./kie-omni-client";
-import { STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
+import {
+  STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT,
+  STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT,
+} from "./storyboard-reference-frame-timing";
+import type { DirectorBrief } from "./director-analysis-types";
+import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
 
@@ -32,6 +37,7 @@ export async function generateStoryboardImage(input: {
   productReferenceUrls?: readonly string[];
   directorReferenceImageUrls?: readonly string[];
   previousStoryboardReferenceUrl?: string | null;
+  directorBrief?: DirectorBrief | null;
   generationProvider?: OmniGenerationProvider;
 }) {
   if (process.env.OMNI_STORYBOARD_IMAGE_GENERATION === "false") return null;
@@ -41,7 +47,9 @@ export async function generateStoryboardImage(input: {
   }
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
   const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || [])
-    .slice(0, STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT);
+    .slice(0, isCollagePictureInPictureReference(input.directorBrief || null)
+      ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
+      : STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT);
   const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
 
   if (input.generationProvider === "kie-ai") {
@@ -51,6 +59,7 @@ export async function generateStoryboardImage(input: {
       productReferenceUrls,
       directorReferenceImageUrls,
       previousStoryboardReferenceUrl,
+      directorBrief: input.directorBrief,
     });
   }
 
@@ -60,6 +69,7 @@ export async function generateStoryboardImage(input: {
     productReferenceUrls,
     directorReferenceImageUrls,
     previousStoryboardReferenceUrl,
+    directorBrief: input.directorBrief,
   });
 
   const payload = await response.json().catch(() => null);
@@ -112,6 +122,7 @@ async function generateKieStoryboardImage(input: {
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
   previousStoryboardReferenceUrl: string | null;
+  directorBrief?: DirectorBrief | null;
 }) {
   const inputUrls = [
     input.avatarReferenceUrl,
@@ -167,6 +178,7 @@ async function createStoryboardImage(input: {
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
   previousStoryboardReferenceUrl: string | null;
+  directorBrief?: DirectorBrief | null;
 }) {
   const references = buildReferenceFiles(input).slice(0, 16);
   if (references.length) {

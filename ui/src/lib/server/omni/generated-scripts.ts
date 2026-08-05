@@ -22,6 +22,9 @@ import { resolveProductReferenceImageUrls } from "./omni-product-reference-image
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
+import { extractDirectorBriefFromSnapshot } from "./director-analysis-types";
+import { isCollagePictureInPictureReference } from "./director-layout-contract";
+import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 
 function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
   return {
@@ -91,6 +94,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
   const durationRange = await resolveOmniDurationRange({ project, product });
   const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script, { durationRange });
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
+  const directorBrief = extractDirectorBriefFromSnapshot(resolvedGeneratedScript.source_snapshot);
   const promptPlan = buildOmniSegmentPrompts({
     generatedScript: resolvedGeneratedScript,
     legacyTranscript: null,
@@ -106,6 +110,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     ctaValue: product.cta_value,
     recentFormatIds,
     wardrobeSource: project.wardrobe_source,
+    directorBrief,
   });
   const directorReferenceImageUrlsBySegment = await prepareSegmentStoryboardDirectorReferenceUrls({
     sourceSnapshot: resolvedGeneratedScript.source_snapshot,
@@ -114,6 +119,9 @@ export async function buildGeneratedScriptPromptPreview(input: {
       projectId: input.projectId,
       scriptId: input.scriptId,
     },
+    framesPerSegment: isCollagePictureInPictureReference(directorBrief)
+      ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
+      : undefined,
     segments: promptPlan.map((segment) => ({
       index: segment.index,
       durationSeconds: segment.durationSeconds,
@@ -127,6 +135,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     avatarReferenceUrl: avatar?.reference_url || null,
     productReferenceUrls: resolveProductReferenceImageUrls(product),
     directorReferenceImageUrlsBySegment,
+    directorBrief,
     promptPlan,
     generationProvider: input.generationProvider,
   });

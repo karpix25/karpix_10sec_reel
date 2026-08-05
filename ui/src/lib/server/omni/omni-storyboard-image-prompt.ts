@@ -2,6 +2,8 @@ import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboar
 import { isProductVisibleInStoryboardFrame } from "./omni-intro-product-contract";
 import { renderProductPhysicalStoryboardHint } from "./product-physical-contract";
 import { OMNI_PHYSICAL_ACTION_CONTRACT } from "./omni-physical-action-contract";
+import type { DirectorBrief } from "./director-analysis-types";
+import { isCollagePictureInPictureReference } from "./director-layout-contract";
 
 export function buildStoryboardImagePrompt(input: {
   segmentIndex: number;
@@ -12,10 +14,15 @@ export function buildStoryboardImagePrompt(input: {
   productReferenceUrls?: readonly string[];
   directorReferenceImageUrls?: readonly string[];
   previousStoryboardReferenceUrl?: string | null;
+  directorBrief?: DirectorBrief | null;
 }) {
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
   const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || []);
   const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
+  const isPipLayout = isCollagePictureInPictureReference(input.directorBrief || null);
+  const productFileStart = 2;
+  const directorFileStart = productFileStart + productReferenceUrls.length;
+  const previousFile = directorFileStart + directorReferenceImageUrls.length;
   const productPhysicalHint = productReferenceUrls.length
     ? renderProductPhysicalStoryboardHint(input.productPhysicalContract)
     : "";
@@ -28,19 +35,22 @@ export function buildStoryboardImagePrompt(input: {
     `Создай одну широкую UGC-storyboard картинку: черный фон, ровно ${frameCount} вертикальных панелей в один ряд, белые разделители и номер панели в белом круге.`,
     "В каждой панели: сверху живой вертикальный кадр, внутри крупно точная реплика этого кадра на русском; снизу короткие серые подсказки РАКУРС и ДЕЙСТВИЕ.",
     "Не добавляй рекламный дизайн, UI, соцсети, водяные знаки, лишние captions, стикеры или декоративные эффекты.",
-    "Изображение 1 - avatar/character reference: только лицо, возраст, волосы, телосложение и личность героя. Лицо оригинального автора не копируй.",
+    "@file1 - avatar/character reference: только лицо, возраст, волосы, телосложение и личность героя. Лицо оригинального автора не копируй.",
     productReferenceUrls.length
-      ? `Следующие product reference images - точный продукт ${input.productName}: форма, цвет, упаковка, материал и размер.`
+      ? `@file${productFileStart}${productReferenceUrls.length > 1 ? `-@file${productFileStart + productReferenceUrls.length - 1}` : ""} - product reference images: точный продукт ${input.productName}, форма, цвет, упаковка, материал и размер.`
       : "Product reference не передан: продукт не показывай.",
     directorReferenceImageUrls.length
-      ? "Director reference images - только ракурс, свет, фон, одежда, предметы, действие и монтажный ритм текущего сегмента; сохраняй их порядок, но лицо бери только из avatar reference."
+      ? `@file${directorFileStart}-@file${previousFile - 1} - кадры оригинала текущего сегмента: главный источник PIP, ракурса, света, фона, одежды, действий и монтажа; порядок сохраняй, лицо только из @file1.`
       : "",
     previousStoryboardReferenceUrl
-      ? "Предыдущая storyboard image - continuity reference: тот же герой, outfit, волосы, свет, фон, стиль и продукт; не копируй ее старые действия."
+      ? `@file${previousFile} - только continuity героя, одежды, света и продукта; не источник композиции или действий.`
+      : "",
+    isPipLayout
+      ? "REFERENCE LAYOUT: оригинал целиком в PIP/collage. В каждой панели полноэкранный динамичный фон и avatar cutout в нижнем левом углу с той же позицией, размером и белой обводкой; не делай centered talking-head."
       : "",
     "Сохрани одного героя, одну одежду, одинаковые волосы, свет и окружение во всех панелях. Лицо натуральное: поры, живая кожа, естественный бытовой свет, без пластикового сглаживания.",
     "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
-    "Смысл реплики определяет кадр. Переноси только видимые в references ракурс, действие, реакцию, жест, предмет, переход или атмосферу; не придумывай новые сцены.",
+    "Смысл реплики определяет кадр. Переноси из кадров оригинала ракурс, PIP, действие, жест, предмет, переход и атмосферу; не придумывай сцены и не заменяй PIP обычной съемкой.",
     OMNI_PHYSICAL_ACTION_CONTRACT,
     "Канонический outfit задается первым кадром первой части: не меняй одежду, цвет, ткань, крой, аксессуары, волосы или прическу между панелями и частями.",
     productReferenceUrls.length

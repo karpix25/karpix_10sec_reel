@@ -21,6 +21,9 @@ import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-dire
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
+import type { DirectorBrief } from "./director-analysis-types";
+import { isCollagePictureInPictureReference } from "./director-layout-contract";
+import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -218,6 +221,9 @@ export async function createOmniReel(input: {
       projectId: input.projectId,
       reelId: reservedReelId,
     },
+    framesPerSegment: isCollagePictureInPictureReference(sourceScenarioDirectorBrief)
+      ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
+      : undefined,
     segments: promptPlan.map((segment) => ({
       index: segment.index,
       durationSeconds: segment.durationSeconds,
@@ -231,6 +237,7 @@ export async function createOmniReel(input: {
     productPhysicalContract: product.product_physical_contract,
     productReferenceUrls: resolveProductReferenceImageUrls(product),
     directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
+    directorBrief: sourceScenarioDirectorBrief,
     avatarReferenceUrl: latestAvatar?.reference_url || null,
     promptPlan,
     generationProvider: input.generationProvider,
@@ -343,6 +350,7 @@ async function generateStoryboardReferenceUrls(input: {
   productPhysicalContract?: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
+  directorBrief?: DirectorBrief | null;
   avatarReferenceUrl: string | null;
   promptPlan: readonly ReturnType<typeof buildOmniSegmentPrompts>[number][];
   generationProvider?: OmniGenerationProvider;
@@ -365,6 +373,7 @@ async function generateStoryboardReferenceUrls(input: {
         directorReferenceImageUrls: Array.from(input.directorReferenceImageUrlsBySegment?.get(segmentPrompt.index) || []),
         avatarReferenceUrl: input.avatarReferenceUrl,
         previousStoryboardReferenceUrl,
+        directorBrief: input.directorBrief,
         generationProvider: input.generationProvider,
       })
       : null;
