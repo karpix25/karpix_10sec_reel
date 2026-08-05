@@ -13,100 +13,66 @@ export function buildStoryboardImagePrompt(input: {
   directorReferenceImageUrls?: readonly string[];
   previousStoryboardReferenceUrl?: string | null;
 }) {
-  const avatarReferenceUrl = cleanUrl(input.avatarReferenceUrl);
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
   const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || []);
   const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
-  const productRange = productReferenceUrls.length > 1 ? `2-${productReferenceUrls.length + 1}` : "2";
-  const directorRangeStart = productReferenceUrls.length + 2;
-  const directorRangeEnd = directorRangeStart + directorReferenceImageUrls.length - 1;
-  const directorRange = directorReferenceImageUrls.length > 1
-    ? `${directorRangeStart}-${directorRangeEnd}`
-    : String(directorRangeStart);
-  const previousReferenceIndex = productReferenceUrls.length + directorReferenceImageUrls.length + 2;
   const productPhysicalHint = productReferenceUrls.length
     ? renderProductPhysicalStoryboardHint(input.productPhysicalContract)
     : "";
   const frameCount = input.storyboard.frames.length;
-  const frameNumbers = input.storyboard.frames.map((_, index) => String(index + 1)).join(", ");
   const productFrameNumbers = input.storyboard.frames
     .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName) ? index + 1 : null)
     .filter((index): index is number => index !== null);
   const productRevealFrame = productFrameNumbers[0] || null;
   return [
-    "Создай одну широкую production storyboard картинку в стиле темной UGC-раскадровки как референс для генерации Reels.",
-    `Стандарт макета обязателен: черный фон, ровно ${frameCount} вертикальных карточек-кадров в один горизонтальный ряд, тонкие белые разделители, без второго ряда и без таблиц.`,
-    "Каждая карточка состоит из большого визуального кадра сверху и небольшой черной зоны подсказок снизу.",
-    `В левом верхнем углу каждой карточки нарисуй белый круг с номером кадра: ${frameNumbers}.`,
-    "Внутри визуального кадра крупно напиши только реплику этого кадра на русском языке. Реплика должна совпадать дословно с полем РЕПЛИКА кадра.",
-    "Реплика на кадре должна быть читаемой, белой, UGC-стиля, без рекламного дизайна и без дополнительных фраз.",
-    "В нижней черной зоне каждой карточки добавь только маленькие серые подсказки для модели: РАКУРС: ...; ДЕЙСТВИЕ: ... .",
-    "Не рисуй отдельные служебные блоки, верхние панели, нижние правила, карточки-инструкции или повторные thumbnails.",
-    "Не добавляй UI соцсетей, кнопки приложения, водяные знаки, стрелки, стикеры или рекламные декоративные эффекты.",
-    "Лицо героя должно выглядеть натурально: живое выражение, реальные поры, естественная текстура кожи, мягкий бытовой свет, без пластикового лица, beauty filter и лишнего сглаживания.",
-    "Используй входные изображения как реальные визуальные референсы, а не как текстовые ссылки.",
-    "Изображение 1 - наш аватар: лицо, возраст, телосложение, волосы и общий типаж героя.",
+    `Создай одну широкую UGC-storyboard картинку: черный фон, ровно ${frameCount} вертикальных панелей в один ряд, белые разделители и номер панели в белом круге.`,
+    "В каждой панели: сверху живой вертикальный кадр, внутри крупно точная реплика этого кадра на русском; снизу короткие серые подсказки РАКУРС и ДЕЙСТВИЕ.",
+    "Не добавляй рекламный дизайн, UI, соцсети, водяные знаки, лишние captions, стикеры или декоративные эффекты.",
+    "Изображение 1 - avatar/character reference: только лицо, возраст, волосы, телосложение и личность героя. Лицо оригинального автора не копируй.",
     productReferenceUrls.length
-      ? `Изображения ${productRange} - реальный продукт: форма, цвет, упаковка, материал и размер.`
-      : "Это talking-head сегмент: руки героя свободны, фокус на лице, жестах и атмосфере.",
+      ? `Следующие product reference images - точный продукт ${input.productName}: форма, цвет, упаковка, материал и размер.`
+      : "Product reference не передан: продукт не показывай.",
     directorReferenceImageUrls.length
-      ? `Изображения ${directorRange} - ровно ${directorReferenceImageUrls.length} исходных кадров именно речевого интервала сегмента ${input.segmentIndex}, а не всего оригинального reference-видео. Они синхронизированы с текущей репликой и показывают ее действия, атмосферу, одежду, предметы, камеру и ритм. Сопоставляй их только с панелями и репликой этого сегмента, сохраняй их последовательность и не переноси визуальные детали из других речевых интервалов; лицо оригинального автора не копируй.`
+      ? "Director reference images - только ракурс, свет, фон, одежда, предметы, действие и монтажный ритм текущего сегмента; сохраняй их порядок, но лицо бери только из avatar reference."
       : "",
     previousStoryboardReferenceUrl
-      ? `Изображение ${previousReferenceIndex} - предыдущая раскадровка этого же ролика. Используй ее как continuity reference: тот же стиль, персонаж, одежда, свет, окружение, масштаб продукта и тот же макет. Не копируй старые действия. Ее outfit является каноничным для всего ролика: если текущие director reference кадры показывают другую одежду, игнорируй их и копируй точный outfit из предыдущей раскадровки.`
+      ? "Предыдущая storyboard image - continuity reference: тот же герой, outfit, волосы, свет, фон, стиль и продукт; не копируй ее старые действия."
       : "",
-    "Каждый кадр должен быть отдельной вертикальной визуальной панелью с таймингом две секунды.",
-    "Раскадровка описывает только то, что физически видно в сцене: композицию, ракурс, окружение и действие.",
+    "Сохрани одного героя, одну одежду, одинаковые волосы, свет и окружение во всех панелях. Лицо натуральное: поры, живая кожа, естественный бытовой свет, без пластикового сглаживания.",
+    "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
+    "Смысл реплики определяет кадр. Переноси только видимые в references ракурс, действие, реакцию, жест, предмет, переход или атмосферу; не придумывай новые сцены.",
     OMNI_PHYSICAL_ACTION_CONTRACT,
-    "Avatar reference отвечает только за идентичность и пол героя: лицо, возраст, телосложение, волосы и общий типаж. Не бери из avatar reference одежду, атмосферу, предметы, камеру или действия.",
-    "Главный герой в каждом кадре должен быть тем же человеком, что и на изображении один. Не меняй лицо, возраст, телосложение, волосы и общий типаж между кадрами.",
-    "Детали героя фиксированы во всех кадрах: та же длина волос, пробор, объем прически, линия роста волос, украшения, вырез и рукава.",
-    "Канонический outfit задается первым кадром первой части и затем повторяется без изменений во всех частях. Не заменяй футболку на свитер, рубашку, пиджак или другой верх; не меняй цвет, ткань, рукава, вырез, посадку и аксессуары.",
-    "Материал одежды фиксируется первым кадром первой части. Во всех следующих кадрах и частях воспроизводи точно то же волокно, плетение, плотность, фактуру поверхности, швы, крой и посадку.",
-    "Точный оттенок одежды фиксируется первым кадром первой части: копируй тот же hue, wash, контраст, масштаб рисунка и распределение цвета; светлый деним остается тем же светлым денимом и не становится темным.",
-    "Одежда, стиль, свет и окружение должны строго следовать полям одежда, окружение и камера в каждом кадре. Если там есть REFERENCE LOCK, он важнее общих UGC-догадок.",
-    "Одежда, стиль, свет и окружение должны оставаться одинаковыми во всех кадрах и между частями ролика. Не меняй цвет, тип одежды, посадку, аксессуары или прическу.",
-    "Во всех talking-head кадрах герой смотрит прямо в объектив, даже если камера выше, ниже, сбоку или движется.",
-    "Смысл текущей реплики и соответствующий reference-кадр определяют содержание панели. Переноси из reference только уместный визуальный приём: жест, реакцию, деталь рук, предмет окружения, действие, фактическую смену крупности или атмосферу. Сохраняй последовательность исходных кадров: если соседние reference-кадры сняты одинаково, оставляй тот же ракурс, фон и направление камеры; меняй крупность, угол или движение только там, где это видно в соответствующем reference-кадре. Не создавай пустую панель одного помещения: если reference не даёт отдельного действия, оставь героя в кадре.",
-    "На каждой границе соседних reference-кадров отдельно проверь монтажный переход. Если виден пленочный засвет, light leak, короткая экспозиционная вспышка или lens flare, укажи именно этот эффект в нижней подсказке кадра; это краткий эффект склейки, а не движение камеры, скачок фона или смена одежды.",
-    "Удержание внимания строится на естественной речи, жестах и действиях из оригинала. Не добавляй универсальные selfie-ракурсы, чередование лево-право, резкие наклоны, автоматические приближения или новые переходы. Если в оригинале нет явного визуального перехода, используй непрерывный естественный talking-head ракурс с тем же фоном.",
+    "Канонический outfit задается первым кадром первой части: не меняй одежду, цвет, ткань, крой, аксессуары, волосы или прическу между панелями и частями.",
     productReferenceUrls.length
-      ? `Если описание кадра говорит, что продукт виден, прорисуй именно продукт из входных изображений продукта, четко и детально. Товар впервые появляется только в панели ${productRevealFrame || "не указан ни в одной"}; после этого сохраняй тот же физический продукт непрерывно в той же руке или на том же месте во всех следующих панелях сегмента. Не допускай исчезновения, повторного появления, телепортации, дублирования или смены положения без видимого движения руки.`
-      : "Этот сегмент чередует talking-head героя с тематическими объектами и окружением текущих реплик; руки героя свободны.",
+      ? `Продукт впервые появляется только в панели ${productRevealFrame || "по смыслу реплики"}; прорисуй его точно по product reference и сохраняй форму, упаковку и положение физически непрерывными.`
+      : "",
     productReferenceUrls.length
-      ? "Если продукт назван обязательным коротким действием, покажи его один раз естественно в руке на уровне груди: упаковка должна быть узнаваемой и лицевой стороной к камере, без гигантского рекламного close-up. Не прячь и не уменьшай его до случайной детали."
+      ? "Показывай продукт естественно, без рекламного close-up; не дублируй и не телепортируй его."
       : "",
-    !productReferenceUrls.length
-      ? "Product reference намеренно отсутствует: продукт не показывай и не придумывай ни в одной панели этого сегмента, особенно в первом сегменте со скрытым product placement."
-      : "",
-    productPhysicalHint || "",
-    "Не добавляй воду, стаканы, бутылки, шейкеры, напитки или растворение продукта, если это прямо не написано в кадре.",
-    "Текст на картинке разрешен только как номер кадра, точная реплика кадра и нижние служебные подсказки. Не добавляй другие captions или рекламные надписи.",
-    `Avatar reference URL: ${avatarReferenceUrl}.`,
-    productReferenceUrls.length ? `Product reference URLs: ${productReferenceUrls.join(", ")}.` : "",
-    directorReferenceImageUrls.length ? `Director reference image URLs: ${directorReferenceImageUrls.join(", ")}.` : "",
-    previousStoryboardReferenceUrl ? `Previous storyboard reference URL: ${previousStoryboardReferenceUrl}.` : "",
-    productReferenceUrls.length ? `Продукт: ${input.productName}.` : "",
-    `Сегмент: ${input.segmentIndex}.`,
+    productPhysicalHint ? compactText(productPhysicalHint, 180) : "",
+    `Сегмент ${input.segmentIndex}. Каждый кадр длится две секунды.`,
     ...input.storyboard.frames.map((frame, index) =>
       [
         `Кадр ${index + 1}, ${index * 2}-${(index + 1) * 2} сек:`,
-        `РЕПЛИКА "${frame.spokenText}";`,
-        `действие ${frame.visualAction};`,
-        `камера ${frame.camera};`,
-        `окружение ${frame.environment};`,
-        `одежда ${frame.wardrobe};`,
-        frame.effectNotes ? `переход ${frame.effectNotes};` : "",
+        `РЕПЛИКА "${frame.spokenText}".`,
+        `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)}; окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};`,
+        frame.effectNotes ? `переход: ${compactText(frame.effectNotes)};` : "",
         productReferenceUrls.length
           ? isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName)
-            ? `продукт ${frame.productPlacement};`
+            ? `продукт: ${compactText(frame.productPlacement, 150)};`
             : "продукт в этом кадре не показывай;"
-          : `предметы ${frame.productPlacement};`,
-        `звук ${frame.sfxNotes};`,
-        "нижняя подсказка должна быть короткой: РАКУРС, ДЕЙСТВИЕ.",
+          : `предметы: ${compactText(frame.productPlacement)};`,
+        `звук: ${compactText(frame.sfxNotes)}.`,
       ].join(" ")
     ),
   ].filter(Boolean).join("\n");
+}
+
+function compactText(value: unknown, maxLength = 45) {
+  const text = String(value || "").replace(/\s+/gu, " ").trim();
+  if (text.length <= maxLength) return text;
+  const clipped = text.slice(0, maxLength).replace(/\s+\S*$/u, "").trim();
+  return clipped || text.slice(0, maxLength).trim();
 }
 
 function cleanUrl(value: string | null | undefined) {
