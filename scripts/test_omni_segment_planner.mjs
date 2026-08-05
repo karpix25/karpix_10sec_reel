@@ -175,10 +175,11 @@ try {
   assert.equal(reconstructVoiceSegments(fallbackSegments), reconstructVoiceSegments(splitScriptIntoVoiceSegments(longCtaText, 1)));
   assert.ok(fallbackSegments.every(seg => seg.wordCount > 0), "no segment should be empty");
 
-  const overDefaultLimitPlan = planOmniReelSegments(makeScript(101));
-  assert.equal(overDefaultLimitPlan.segmentCount, 5);
-  assert.equal(overDefaultLimitPlan.durationSeconds, 42);
-  assert.equal(reconstructVoiceSegments(overDefaultLimitPlan.segments), makeScript(101));
+  assert.throws(
+    () => planOmniReelSegments(makeScript(101)),
+    (error) => error instanceof Error && /Максимум 100 слов/u.test(error.message),
+    "scripts above the four-part limit must be rejected instead of creating a fifth segment"
+  );
 
   assert.throws(
     () => planOmniReelSegments(makeScript(11)),

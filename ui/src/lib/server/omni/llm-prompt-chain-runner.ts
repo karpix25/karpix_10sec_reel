@@ -33,6 +33,7 @@ import {
   validateProviderPromptPlan,
 } from "./provider-prompt-contract-validator";
 import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
+import { planOmniReelSegments } from "./omni-duration-planner";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const PROMPT_CHAIN_ATTEMPTS_PER_LAYER = 2;
@@ -145,6 +146,7 @@ async function runDirectorSegmenter(
         ...validateDirectorSegmentPlan(plan),
       ].filter((issue) => issue.severity === "error");
       if (issues.length) throw new Error(formatPromptValidationIssues(issues));
+      planOmniReelSegments(finalScript, { durationRange: input.durationRange });
       assertPromptChainScriptQuality(input, finalScript, plan.selectedHook);
       return plan;
     } catch (error) {
@@ -265,9 +267,14 @@ function appendRetry(prompt: string, retryFeedback: string) {
 }
 
 function buildValidationRetry(layer: string, error: unknown) {
+  const message = getErrorMessage(error);
+  const densityCorrection = /доступные Omni-длительности|Максимум .* слов|не помещается в доступные/iu.test(message)
+    ? "Сожми сценарий максимум до ста слов и четырех частей, сохранив хук, смысл продукта, главный аргумент и CTA."
+    : "";
   return [
     `Перепиши ${layer}.`,
-    `Исправь только найденные нарушения: ${getErrorMessage(error)}`,
+    `Исправь только найденные нарушения: ${message}`,
+    densityCorrection,
     "Если ошибка касается грамматического рода, исправь только род говорящего от первого лица и сохрани смысл.",
     "Не используй emoji, дефисы, тире, минусы и цифры в текстовых значениях.",
     "Сохрани живую речь и цельный режиссерский замысел.",

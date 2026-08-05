@@ -53,6 +53,7 @@ export function buildCreativeCopywriterPrompt(input: PromptChainInput) {
 Не выдумывай ссылки, артикулы, скидки или факты, которых нет во входных данных.
 ${renderRussianSpeechGenderRule(input.avatarSpeechGender)}
 ${buildDurationLine(input.durationRange)}
+Не делай больше четырех частей. Если исходный reference длиннее, сожми текст, сохранив его хук, смысл продукта, ключевой аргумент и CTA.
 CTA: ${buildCtaLine(input.ctaMode, input.ctaValue)}
 
 Бренд: ${input.projectName}
@@ -84,6 +85,7 @@ export function buildDirectorSegmenterPrompt(input: {
 
 Правила режиссуры:
 Каждый segment строится storyboard first и может длиться четыре, шесть, восемь или десять секунд.
+Итоговый план содержит не больше четырех segments. Если готовый сценарий длиннее, сожми его до четырех segments, не выбрасывая хук, смысл продукта и CTA.
 Количество storyboard frames зависит от duration_seconds: четыре секунды это два кадра, шесть секунд это три кадра, восемь секунд это четыре кадра, десять секунд это пять кадров.
 Каждый frame содержит ровно три, четыре или пять слов финальной русской речи в spoken_words.
 Склейка spoken_words всех frames должна дословно совпадать с voiceover segment.
@@ -245,7 +247,7 @@ function buildDurationLine(durationRange?: OmniDurationRange) {
   return [
     `Цель по ролику: ${secondsRange} секунд.`,
     `Текст: ${wordsRange} слов.`,
-    "Не делай сценарий короче нижней границы.",
+    "Не делай сценарий короче нижней границы. Не превышай сто слов и не создавай больше четырех частей.",
   ].join(" ");
 }
 

@@ -279,18 +279,20 @@ And this is line 2."
       wasClamped: false,
     }
   });
-  assert.ok(overDurationResult.warnings.some((warning) => warning.includes("добавит нужное количество частей")));
+  assert.ok(overDurationResult.warnings.some((warning) => warning.includes("сжать до лимита четырех частей")));
 
-  const overDefaultLimitResult = validateViralScriptContract({
-    script: makeScript(106),
-    rawScriptBeforeCta: makeScript(106),
-    rawScriptFromModel: makeScript(106),
-    hook: "слово1",
-    productName: "Тест",
-    ctaMode: "no_explicit_cta",
-    ctaValue: null,
-  });
-  assert.equal(overDefaultLimitResult.metrics.wordCount, 106);
+  assert.throws(
+    () => validateViralScriptContract({
+      script: makeScript(106),
+      rawScriptBeforeCta: makeScript(106),
+      rawScriptFromModel: makeScript(106),
+      hook: "слово1",
+      productName: "Тест",
+      ctaMode: "no_explicit_cta",
+      ctaValue: null,
+    }),
+    /Максимум 100 слов/u
+  );
 
   // C. Too long hook (should throw)
   assert.throws(

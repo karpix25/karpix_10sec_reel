@@ -50,7 +50,8 @@ export function isOmniSegmentCountViable(wordCount: number, segmentCount: number
 
 export function getPreferredOmniSegmentCount(wordCount: number) {
   const requiredSegmentCount = Math.ceil(wordCount / getOmniSegmentWordBudget());
-  const maxSegmentCount = Math.max(OMNI_MAX_SEGMENT_COUNT, requiredSegmentCount);
+  if (requiredSegmentCount > OMNI_MAX_SEGMENT_COUNT) return null;
+  const maxSegmentCount = OMNI_MAX_SEGMENT_COUNT;
   for (let segmentCount = OMNI_MIN_SEGMENT_COUNT; segmentCount <= maxSegmentCount; segmentCount += 1) {
     if (isOmniSegmentCountViable(wordCount, segmentCount)) return segmentCount;
   }
