@@ -78,6 +78,7 @@ async function runReelStage(job: OmniAutomationJob) {
     productId: job.product_id,
     sourceGeneratedScriptId: job.generated_script_id,
     sourceLegacyScenarioId: job.source_legacy_scenario_id,
+    generationProvider: job.generation_provider,
   });
   return updateOmniAutomationJobStage({
     jobId: job.id,

@@ -2,8 +2,11 @@ import { uploadKieFileFromUrl } from "./kie-file-upload-client";
 
 const DEFAULT_BASE_URL = "https://api.kie.ai";
 const DEFAULT_VIDEO_MODEL = "gemini-omni-video";
+const DEFAULT_STORYBOARD_IMAGE_MODEL = "gpt-image-2-image-to-image";
 const CHARACTER_POLL_INTERVAL_MS = 5_000;
 const CHARACTER_CREATE_ATTEMPTS = 8;
+const IMAGE_POLL_INTERVAL_MS = 3_000;
+const IMAGE_POLL_ATTEMPTS = 60;
 const TERMINAL_STATUSES = new Set(["completed", "success", "done", "failed", "error", "fail"]);
 
 export type KieOmniTask = {
@@ -25,6 +28,12 @@ export type KieOmniVideoInput = {
   audioIds: string[];
 };
 
+export type KieStoryboardImageInput = {
+  prompt: string;
+  inputUrls: string[];
+  aspectRatio?: "auto" | "1:1" | "9:16" | "16:9";
+};
+
 function getApiKey() {
   const key = process.env.KIE_API_KEY || process.env.KIE_AI_API_KEY || "";
   if (!key.trim()) throw new Error("KIE_API_KEY is not configured");
@@ -37,6 +46,15 @@ function getBaseUrl() {
 
 function getVideoModel() {
   return (process.env.KIE_GEMINI_OMNI_VIDEO_MODEL || DEFAULT_VIDEO_MODEL).trim() || DEFAULT_VIDEO_MODEL;
+}
+
+function getStoryboardImageModel() {
+  return (process.env.KIE_STORYBOARD_IMAGE_MODEL || DEFAULT_STORYBOARD_IMAGE_MODEL).trim() || DEFAULT_STORYBOARD_IMAGE_MODEL;
+}
+
+function getImagePollAttempts() {
+  const parsed = Number.parseInt(process.env.KIE_STORYBOARD_IMAGE_POLL_ATTEMPTS || "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : IMAGE_POLL_ATTEMPTS;
 }
 
 function getCharacterCreateAttempts() {
@@ -137,16 +155,48 @@ export async function createKieOmniVideoTask(input: KieOmniVideoInput) {
   );
 }
 
+export async function createKieStoryboardImage(input: KieStoryboardImageInput) {
+  const task = await postCreateTask(
+    {
+      model: getStoryboardImageModel(),
+      input: omitEmptyFields({
+        prompt: input.prompt,
+        input_urls: input.inputUrls,
+        aspect_ratio: input.aspectRatio || "auto",
+      }),
+    },
+    "storyboard image create"
+  );
+  const attempts = getImagePollAttempts();
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const payload = await retrieveKieTaskDetails(task.id);
+    const imageUrl = extractGeneratedImageUrl(payload);
+    if (imageUrl) return imageUrl;
+
+    const status = extractTaskStatus(payload);
+    if (TERMINAL_STATUSES.has(status)) {
+      throw new Error(`KIE storyboard image task ${task.id} failed: ${extractTaskError(payload)}`);
+    }
+    await sleep(IMAGE_POLL_INTERVAL_MS);
+  }
+
+  throw new Error(`KIE storyboard image task ${task.id} timed out after ${attempts} checks`);
+}
+
 export async function retrieveKieOmniTask(taskId: string) {
+  return normalizeTask(await retrieveKieTaskDetails(taskId));
+}
+
+async function retrieveKieTaskDetails(taskId: string) {
   const response = await fetch(`${getBaseUrl()}/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`, {
     headers: { Authorization: `Bearer ${getApiKey()}` },
     cache: "no-store",
   });
   if (!response.ok) {
-    throw new Error(`KIE Gemini Omni retrieve failed: ${response.status} ${await parseError(response)}`);
+    throw new Error(`KIE task retrieve failed: ${response.status} ${await parseError(response)}`);
   }
-
-  return normalizeTask((await response.json()) as Record<string, unknown>);
+  return (await response.json()) as Record<string, unknown>;
 }
 
 export async function downloadKieOmniVideo(taskId: string) {
@@ -254,6 +304,34 @@ function extractVideoUrl(data: Record<string, unknown>) {
   } catch {
     return direct || undefined;
   }
+}
+
+function extractGeneratedImageUrl(payload: Record<string, unknown>) {
+  const data = isRecord(payload.data) ? payload.data : payload;
+  const direct = pickString(data, ["image_url", "imageUrl", "url"]);
+  if (direct && /^https?:\/\//i.test(direct)) return direct;
+
+  const resultJson = pickString(data, ["resultJson", "response"]);
+  if (!resultJson) return null;
+  try {
+    const parsed = JSON.parse(resultJson) as Record<string, unknown>;
+    const urls = parsed.resultUrls || parsed.result_urls || parsed.images;
+    if (Array.isArray(urls) && typeof urls[0] === "string" && /^https?:\/\//i.test(urls[0])) return urls[0];
+    const result = pickString(parsed, ["image_url", "imageUrl", "url"]);
+    return result && /^https?:\/\//i.test(result) ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+function extractTaskStatus(payload: Record<string, unknown>) {
+  const data = isRecord(payload.data) ? payload.data : payload;
+  return (pickString(data, ["state", "status", "taskStatus"]) || "queued").toLowerCase();
+}
+
+function extractTaskError(payload: Record<string, unknown>) {
+  const data = isRecord(payload.data) ? payload.data : payload;
+  return pickString(data, ["failMsg", "message", "error"]) || JSON.stringify(data);
 }
 
 function extractCharacterId(data: Record<string, unknown>) {

@@ -3,6 +3,7 @@ import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboar
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
 import { ensureOmniSchema } from "./schema";
+import type { OmniGenerationProvider } from "@/lib/omni/provider";
 
 type StoryboardPromptSegment = {
   index: number;
@@ -22,6 +23,7 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   promptPlan: readonly StoryboardPromptSegment[];
+  generationProvider?: OmniGenerationProvider;
 }) {
   await ensureOmniSchema();
   const referenceSignature = buildReferenceSignature(input);
@@ -42,6 +44,7 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
       segmentIndex: segment.index,
       storyboardPlan: segment.storyboardPlan,
       previousStoryboardReferenceUrl,
+      generationProvider: input.generationProvider,
     });
     if (generatedUrl) {
       urls.set(segment.index, generatedUrl);
@@ -96,6 +99,7 @@ async function tryGenerateStoryboardPreview(input: {
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment;
   previousStoryboardReferenceUrl: string | null;
+  generationProvider?: OmniGenerationProvider;
 }) {
   try {
     const url = await generateStoryboardImage({
@@ -111,6 +115,7 @@ async function tryGenerateStoryboardPreview(input: {
         : [],
       directorReferenceImageUrls: getSegmentDirectorReferenceUrls(input, input.segmentIndex),
       previousStoryboardReferenceUrl: input.previousStoryboardReferenceUrl,
+      generationProvider: input.generationProvider,
     });
     if (!url) return null;
     await upsertGeneratedScriptStoryboardUrl({ ...input, url });
@@ -173,6 +178,7 @@ function buildReferenceSignature(input: {
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
+  generationProvider?: OmniGenerationProvider;
 }) {
   const segmentReferenceUrls = Array.from(input.directorReferenceImageUrlsBySegment || [])
     .flatMap(([segmentIndex, urls]) =>
@@ -182,6 +188,7 @@ function buildReferenceSignature(input: {
     .sort();
   return [
     STORYBOARD_PREVIEW_GENERATOR_VERSION,
+    input.generationProvider || "cometapi",
     normalizeUrl(input.avatarReferenceUrl) || "",
     normalizeContract(input.productPhysicalContract),
     ...input.productReferenceUrls.map((url) => normalizeUrl(url) || "").filter(Boolean).sort(),

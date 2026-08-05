@@ -3,7 +3,9 @@ import {
   uploadOmniImageBufferToS3,
 } from "./omni-video-storage";
 import { buildStoryboardImagePrompt } from "./omni-storyboard-image-prompt";
+import { createKieStoryboardImage } from "./kie-omni-client";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
+import type { OmniGenerationProvider } from "@/lib/omni/provider";
 
 const DEFAULT_COMETAPI_BASE_URL = "https://api.cometapi.com";
 const STORYBOARD_IMAGE_MODEL = "gpt-image-2";
@@ -29,6 +31,7 @@ export async function generateStoryboardImage(input: {
   productReferenceUrls?: readonly string[];
   directorReferenceImageUrls?: readonly string[];
   previousStoryboardReferenceUrl?: string | null;
+  generationProvider?: OmniGenerationProvider;
 }) {
   if (process.env.OMNI_STORYBOARD_IMAGE_GENERATION === "false") return null;
   const avatarReferenceUrl = cleanUrl(input.avatarReferenceUrl);
@@ -38,6 +41,16 @@ export async function generateStoryboardImage(input: {
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
   const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || []);
   const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
+
+  if (input.generationProvider === "kie-ai") {
+    return generateKieStoryboardImage({
+      ...input,
+      avatarReferenceUrl,
+      productReferenceUrls,
+      directorReferenceImageUrls,
+      previousStoryboardReferenceUrl,
+    });
+  }
 
   const response = await createStoryboardImage({
     ...input,
@@ -79,6 +92,61 @@ export async function generateStoryboardImage(input: {
       fileName,
       body,
       contentType: "image/jpeg",
+    });
+  }
+
+  throw new Error("Storyboard image generation requires reelId or scriptId storage target");
+}
+
+async function generateKieStoryboardImage(input: {
+  projectId: number;
+  reelId?: number;
+  scriptId?: number;
+  segmentIndex: number;
+  storyboard: OmniStoryboardSegment;
+  productName: string;
+  productPhysicalContract?: string | null;
+  avatarReferenceUrl: string;
+  productReferenceUrls: readonly string[];
+  directorReferenceImageUrls: readonly string[];
+  previousStoryboardReferenceUrl: string | null;
+}) {
+  const inputUrls = [
+    input.avatarReferenceUrl,
+    ...input.productReferenceUrls,
+    ...input.directorReferenceImageUrls,
+    ...(input.previousStoryboardReferenceUrl ? [input.previousStoryboardReferenceUrl] : []),
+  ].slice(0, 16);
+  const generatedUrl = await createKieStoryboardImage({
+    prompt: buildStoryboardImagePrompt(input),
+    inputUrls,
+    aspectRatio: "auto",
+  });
+  const response = await fetch(generatedUrl, { cache: "no-store" });
+  if (!response.ok) throw new Error(`KIE storyboard image download failed: ${response.status}`);
+  const body = Buffer.from(await response.arrayBuffer());
+  const contentType = normalizeImageContentType(response.headers.get("content-type")) || "image/jpeg";
+  const fileName = `storyboard_${String(input.segmentIndex).padStart(2, "0")}.${contentType.split("/")[1]}`;
+
+  if (typeof input.reelId === "number") {
+    return uploadOmniImageBufferToS3({
+      projectId: input.projectId,
+      reelId: input.reelId,
+      segmentIndex: input.segmentIndex,
+      fileName,
+      body,
+      contentType,
+    });
+  }
+
+  if (typeof input.scriptId === "number") {
+    return uploadOmniGeneratedScriptStoryboardImageBufferToS3({
+      projectId: input.projectId,
+      scriptId: input.scriptId,
+      segmentIndex: input.segmentIndex,
+      fileName,
+      body,
+      contentType,
     });
   }
 

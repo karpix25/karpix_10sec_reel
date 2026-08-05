@@ -5,17 +5,20 @@ import { Loader2, WandSparkles } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOmniGeneratedScriptPrompts } from "@/hooks/useOmniStudio";
 import { OmniSegmentPromptDetails } from "./OmniStudio/OmniSegmentPromptDetails";
+import type { OmniGenerationProvider } from "@/lib/omni/provider";
 
 export function GeneratedScriptPromptTabs({
   projectId,
   productId,
   scriptId,
+  provider,
 }: {
   projectId: number | null;
   productId: number | null;
   scriptId: number;
+  provider: OmniGenerationProvider;
 }) {
-  const promptsQuery = useOmniGeneratedScriptPrompts(projectId, productId, scriptId);
+  const promptsQuery = useOmniGeneratedScriptPrompts(projectId, productId, scriptId, provider);
   const prompts = promptsQuery.data || [];
   const firstValue = prompts[0] ? String(prompts[0].segmentIndex) : "loading";
   const errorMessage = getPromptErrorMessage(promptsQuery.error);
