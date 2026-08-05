@@ -1,4 +1,5 @@
-export const STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT = 4;
+// Keep director references sparse so the avatar remains the dominant identity reference.
+export const STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT = 2;
 
 export type StoryboardReferenceWord = {
   start: number;

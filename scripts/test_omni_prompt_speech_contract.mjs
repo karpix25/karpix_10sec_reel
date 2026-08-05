@@ -118,29 +118,29 @@ try {
       previousStoryboardReferenceUrl: item.index > 1 ? "https://example.com/previous-storyboard.jpg" : null,
     });
     assert.ok(imagePrompt.includes(`РЕПЛИКА "${item.storyboardPlan.frames[0].spokenText}"`), "storyboard image prompt must draw frame speech");
-    assert.ok(imagePrompt.includes("ровно 4 исходных кадров именно речевого интервала сегмента"), "storyboard image prompt must bind 3-4 source frames to the current speech interval");
-    assert.ok(imagePrompt.includes("синхронизированы с текущей репликой"), "storyboard image prompt must synchronize source frames with the current speech");
-    assert.ok(imagePrompt.includes("действия, атмосферу, одежду, предметы, камеру и ритм"), "storyboard image prompt must preserve the source visual contract");
-    assert.ok(imagePrompt.includes("Одежда, стиль, свет и окружение должны оставаться одинаковыми"), "storyboard image prompt must lock outfit continuity");
+    assert.ok(imagePrompt.includes(`ровно ${item.storyboardPlan.frames.length} вертикальных панелей`), "storyboard image prompt must lock the storyboard panel count");
+    assert.ok(imagePrompt.includes("Director reference images - только ракурс"), "storyboard image prompt must preserve the source visual contract");
+    assert.ok(imagePrompt.includes("сохраняй их порядок"), "storyboard image prompt must preserve source sequence");
+    assert.ok(imagePrompt.includes("Сохрани одного героя, одну одежду"), "storyboard image prompt must lock outfit continuity");
     assert.ok(imagePrompt.includes("обе руки у лица"), "storyboard image prompt must keep hand and product actions physically consistent");
-    assert.ok(imagePrompt.includes("та же длина волос, пробор"), "storyboard image prompt must lock hair details");
-    assert.ok(imagePrompt.includes("точно то же волокно, плетение, плотность"), "storyboard image prompt must lock exact fabric material");
+    assert.ok(imagePrompt.includes("одинаковые волосы"), "storyboard image prompt must lock hair details");
     assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");
     assert.ok(imagePrompt.includes("Канонический outfit задается первым кадром первой части"), "storyboard image prompt must make the first outfit canonical");
-    assert.ok(imagePrompt.includes("Avatar reference отвечает только за идентичность и пол героя"), "storyboard image prompt must limit avatar reference to identity and gender");
-    assert.ok(imagePrompt.includes("Смысл текущей реплики и соответствующий reference-кадр определяют содержание панели"), "storyboard image prompt must request semantic reference-driven shots");
+    assert.ok(imagePrompt.includes("только лицо, возраст, волосы, телосложение и личность героя"), "storyboard image prompt must limit avatar reference to identity");
+    assert.ok(imagePrompt.includes("Смысл реплики определяет кадр"), "storyboard image prompt must request semantic reference-driven shots");
     if (productVisible) {
-      assert.ok(imagePrompt.includes("покажи его один раз естественно в руке"), "storyboard image prompt must require a clear natural product reveal");
+      assert.ok(imagePrompt.includes("Продукт впервые появляется"), "storyboard image prompt must require a clear natural product reveal");
     }
-    assert.ok(imagePrompt.includes("если соседние reference-кадры сняты одинаково"), "storyboard image prompt must preserve matching source camera setups");
-    assert.ok(imagePrompt.includes("Не добавляй универсальные selfie-ракурсы"), "storyboard image prompt must not invent camera transitions");
+    assert.ok(imagePrompt.includes("Переноси только видимые в references"), "storyboard image prompt must preserve matching source camera setups");
+    assert.ok(imagePrompt.includes("Не добавляй selfie-ракурсы"), "storyboard image prompt must not invent camera transitions");
+    assert.ok(imagePrompt.length < 3500, `storyboard image prompt must stay under KIE text limit: ${imagePrompt.length}`);
     if (!productVisible) {
       assert.ok(!imagePrompt.includes("Продукт: Аэрогриль"), "first storyboard prompt must not name the product");
       assert.ok(!imagePrompt.includes("Product reference URLs"), "first storyboard prompt must not leak product references");
-      assert.ok(imagePrompt.includes("Product reference намеренно отсутствует"), "hidden product storyboard prompt must keep product refs absent");
+      assert.ok(imagePrompt.includes("Product reference не передан"), "hidden product storyboard prompt must keep product refs absent");
     } else {
-      assert.ok(imagePrompt.includes("Продукт: Аэрогриль"), "product-visible storyboard prompt must name the product");
-      assert.ok(imagePrompt.includes("Product reference URLs"), "product-visible storyboard prompt must include product references");
+      assert.ok(imagePrompt.includes("точный продукт Аэрогриль"), "product-visible storyboard prompt must name the product");
+      assert.ok(imagePrompt.includes("product reference"), "product-visible storyboard prompt must include product references");
     }
   }
 
@@ -216,7 +216,7 @@ try {
     extractDirectorReferenceVideoUrl({ product_refs: [{ url: "https://cdn.example.com/product.png" }] }),
     null
   );
-  assert.equal(frameTiming.STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT, 4);
+  assert.equal(frameTiming.STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT, 2);
   const referenceSegments = [
     { index: 1, durationSeconds: 10 },
     { index: 2, durationSeconds: 10 },
@@ -232,8 +232,8 @@ try {
     segments: referenceSegments,
     sourceDurationSeconds: 90,
   });
-  assert.equal(firstSegmentSeeks.length, 4);
-  assert.equal(secondSegmentSeeks.length, 4);
+  assert.equal(firstSegmentSeeks.length, 2);
+  assert.equal(secondSegmentSeeks.length, 2);
   assert.ok(firstSegmentSeeks.every((seek) => seek > 0 && seek < 30), "first segment seeks must stay in first source range");
   assert.ok(secondSegmentSeeks.every((seek) => seek > 30 && seek < 60), "second segment seeks must stay in second source range");
   assert.equal(frameTiming.readSourceDurationSeconds({ source_snapshot: { duration_seconds: 147 } }), 147);

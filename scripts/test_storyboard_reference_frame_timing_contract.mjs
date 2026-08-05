@@ -37,7 +37,7 @@ try {
     end: index * 1.2 + 0.8,
   }));
 
-  assert.equal(timing.STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT, 4);
+  assert.equal(timing.STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT, 2);
   const first = timing.buildSegmentReferenceSeekSecondsFromWords({
     segment: segments[0],
     segments,
@@ -48,8 +48,8 @@ try {
     segments,
     words,
   });
-  assert.equal(first.length, 4);
-  assert.equal(second.length, 4);
+  assert.equal(first.length, 2);
+  assert.equal(second.length, 2);
   assert.ok(first.every((seek) => seek > words[0].start && seek < words[5].end));
   assert.ok(second.every((seek) => seek > words[5].start && seek < words[9].end));
   assert.deepEqual(
@@ -62,7 +62,7 @@ try {
     segments: segments.map(({ index, durationSeconds }) => ({ index, durationSeconds })),
     sourceDurationSeconds: 20,
   });
-  assert.equal(legacy.length, 4);
+  assert.equal(legacy.length, 2);
   assert.ok(legacy.every((seek) => seek > 0 && seek < 10));
 
   console.log("Storyboard reference frame timing contract checks passed");

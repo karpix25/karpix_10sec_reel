@@ -4,6 +4,7 @@ import {
 } from "./omni-video-storage";
 import { buildStoryboardImagePrompt } from "./omni-storyboard-image-prompt";
 import { createKieStoryboardImage } from "./kie-omni-client";
+import { STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
 
@@ -39,7 +40,8 @@ export async function generateStoryboardImage(input: {
     throw new Error("Storyboard image generation requires the avatar reference image used for Omni character_id");
   }
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
-  const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || []);
+  const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || [])
+    .slice(0, STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT);
   const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
 
   if (input.generationProvider === "kie-ai") {

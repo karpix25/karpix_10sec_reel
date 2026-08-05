@@ -10,7 +10,7 @@ type StoryboardPromptSegment = {
   storyboardPlan: OmniStoryboardSegment | null;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-speech-director-refs-v3";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-speech-director-refs-v4";
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
