@@ -158,6 +158,7 @@ try {
   assert.ok(!prompt.includes("чтобы не перепутать с похожими"), "article CTA must not give a phrase template");
   assert.ok(!prompt.includes("артикул или код"), "article CTA must not ask the model to say generic code wording");
   assert.ok(prompt.includes("как почти готовый текст"), "prompt must preserve reference meaning, not only structure");
+  assert.ok(prompt.includes("Не пытайся сохранить большую часть фраз дословно"), "prompt must prioritize meaning over phrase count");
   assert.ok(prompt.includes("главный тезис, вопрос или возражение, механизм"), "prompt must require the original argument mechanics");
   assert.ok(prompt.includes("внутреннюю карту reference"), "prompt must require an internal reference meaning map");
   assert.ok(prompt.includes("Не заменяй конкретный механизм"), "prompt must preserve concrete reference substance when compressing");
@@ -246,7 +247,7 @@ try {
   const longRetryFeedback = buildScriptRetryFeedback(
     new Error("Сценарий отклонен: Сценарий не помещается в доступные Omni-длительности: 101 слов. Максимум 100 слов для 4 частей.")
   );
-  assert.ok(longRetryFeedback.includes("максимум до ста слов"), "long retry feedback must force four-part compression");
+  assert.ok(longRetryFeedback.includes("не больше девяноста шести слов"), "long retry feedback must force four-part compression");
   const jsonRetryFeedback = buildScriptRetryFeedback(
     new Error("No JSON object found in script model output")
   );
