@@ -6,7 +6,7 @@ const DEFAULT_STORYBOARD_IMAGE_MODEL = "gpt-image-2-image-to-image";
 const CHARACTER_POLL_INTERVAL_MS = 5_000;
 const CHARACTER_CREATE_ATTEMPTS = 8;
 const IMAGE_POLL_INTERVAL_MS = 3_000;
-const IMAGE_POLL_ATTEMPTS = 60;
+const IMAGE_POLL_ATTEMPTS = 120;
 const TERMINAL_STATUSES = new Set(["completed", "success", "done", "failed", "error", "fail"]);
 
 export type KieOmniTask = {
