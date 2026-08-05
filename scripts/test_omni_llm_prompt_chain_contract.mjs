@@ -309,6 +309,7 @@ try {
     "utf8"
   );
   assert.ok(promptChainSource.includes("как почти готовый текст"), "LLM chain copywriter must treat reference as near-source text");
+  assert.ok(promptChainSource.includes("Не пытайся сохранить большую часть фраз дословно"), "LLM chain must prioritize meaning over phrase count");
   assert.ok(promptChainSource.includes("Меняй слова синонимами только там"), "LLM chain must only lightly synonymize reference text");
   assert.ok(promptChainSource.includes("главный тезис, вопрос или возражение, механизм"), "LLM chain must keep original argument mechanics");
   assert.ok(promptChainSource.includes("внутреннюю карту reference"), "LLM chain must require an internal reference meaning map");
