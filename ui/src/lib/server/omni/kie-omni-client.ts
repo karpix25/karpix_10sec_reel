@@ -157,12 +157,13 @@ export async function createKieOmniVideoTask(input: KieOmniVideoInput) {
 }
 
 export async function createKieStoryboardImage(input: KieStoryboardImageInput) {
+  const inputUrls = await uploadStoryboardInputUrls(input.inputUrls);
   const task = await postCreateTask(
     {
       model: getStoryboardImageModel(),
       input: omitEmptyFields({
         prompt: input.prompt,
-        input_urls: input.inputUrls,
+        input_urls: inputUrls,
         aspect_ratio: input.aspectRatio || "auto",
       }),
     },
@@ -183,6 +184,16 @@ export async function createKieStoryboardImage(input: KieStoryboardImageInput) {
   }
 
   throw new Error(`KIE storyboard image task ${task.id} timed out after ${attempts} checks`);
+}
+
+async function uploadStoryboardInputUrls(inputUrls: readonly string[]) {
+  return Promise.all(inputUrls.map(async (url, index) => {
+    try {
+      return (await uploadKieFileFromUrl(url, "omni/storyboards")).url;
+    } catch (error) {
+      throw new Error(`KIE storyboard input ${index + 1} upload failed: ${formatKieError(error)}`);
+    }
+  }));
 }
 
 export async function retrieveKieOmniTask(taskId: string) {

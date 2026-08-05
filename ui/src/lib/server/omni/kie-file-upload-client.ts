@@ -15,7 +15,7 @@ function getFileUploadBaseUrl() {
   return (process.env.KIE_FILE_UPLOAD_BASE_URL || DEFAULT_FILE_UPLOAD_BASE_URL).replace(/\/$/, "");
 }
 
-export async function uploadKieFileFromUrl(fileUrl: string): Promise<KieUploadedFile> {
+export async function uploadKieFileFromUrl(fileUrl: string, uploadPath = "omni/avatars"): Promise<KieUploadedFile> {
   const cleanUrl = fileUrl.trim();
   if (!/^https?:\/\//i.test(cleanUrl)) throw new Error("KIE file upload requires a public HTTP URL");
 
@@ -27,7 +27,7 @@ export async function uploadKieFileFromUrl(fileUrl: string): Promise<KieUploaded
     },
     body: JSON.stringify({
       fileUrl: cleanUrl,
-      uploadPath: "omni/avatars",
+      uploadPath,
     }),
     cache: "no-store",
   });
