@@ -7,6 +7,7 @@ const CHARACTER_POLL_INTERVAL_MS = 5_000;
 const CHARACTER_CREATE_ATTEMPTS = 8;
 const IMAGE_POLL_INTERVAL_MS = 3_000;
 const IMAGE_POLL_ATTEMPTS = 120;
+const KIE_TASK_REQUEST_TIMEOUT_MS = 30_000;
 const TERMINAL_STATUSES = new Set(["completed", "success", "done", "failed", "error", "fail"]);
 
 export type KieOmniTask = {
@@ -192,6 +193,7 @@ async function retrieveKieTaskDetails(taskId: string) {
   const response = await fetch(`${getBaseUrl()}/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`, {
     headers: { Authorization: `Bearer ${getApiKey()}` },
     cache: "no-store",
+    signal: AbortSignal.timeout(KIE_TASK_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`KIE task retrieve failed: ${response.status} ${await parseError(response)}`);
