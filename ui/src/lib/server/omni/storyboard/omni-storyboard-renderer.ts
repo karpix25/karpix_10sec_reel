@@ -9,6 +9,7 @@ import {
 import { isProductVisibleInStoryboardFrame } from "../omni-intro-product-contract";
 import { renderProductPhysicalContractForOmni } from "../product-physical-contract";
 import type { DirectorBrief } from "../director-analysis-types";
+import { isCollagePictureInPictureReference } from "../director-layout-contract";
 import { renderReferenceTransitionCue } from "./omni-storyboard-effects";
 import { OMNI_PHYSICAL_ACTION_CONTRACT } from "../omni-physical-action-contract";
 
@@ -25,6 +26,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   }
   const voiceoverText = renderPunctuatedVoiceover(input.storyboard, input.segmentCount);
   const frameCount = input.storyboard.frames.length;
+  const preservePipLayout = isCollagePictureInPictureReference(input.directorBrief || null);
   const productFrameNumbers = input.storyboard.frames
     .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName || "") ? index + 1 : null)
     .filter((index): index is number => index !== null);
@@ -34,12 +36,14 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   return [
     `Создай видео по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}, сохрани точно такой же визуал.`,
     `Структура видео: ровно ${frameCount} живых эпизодов по одному на каждый кадр, в том же порядке.`,
-    `Оживи кадры раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER} как реальные сцены; не показывай саму раскадровку, телефон, экран, интерфейс, соцсети, карточки или коллаж.`,
+    `Оживи кадры раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER} как реальные сцены; не показывай саму раскадровку, телефон, экран, интерфейс, соцсети или карточки.`,
+    preservePipLayout
+      ? "PIP: full-screen фон; avatar lower-left cutout."
+      : "",
     "filming equipment is never visible.",
     `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
     "Фиксируй те же волосы, пробор, аксессуары.",
     "Канонический outfit задается первым кадром первой части: один и тот же полный комплект одежды во всех частях; не меняй цвет, ткань, крой или аксессуары.",
-    "Материал и цвет одежды фиксированы первым кадром; не меняй фактуру, оттенок и крой.",
     "WARDROBE AUTHORITY: первый outfit из раскадровки единственный; не бери одежду из avatar reference и не меняй outfit.",
     renderReferenceTransitionCue(input.directorBrief),
     renderStoryboardCameraLock(input.storyboard),

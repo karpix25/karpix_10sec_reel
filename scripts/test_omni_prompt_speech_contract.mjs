@@ -119,8 +119,9 @@ try {
     });
     assert.ok(imagePrompt.includes(`РЕПЛИКА "${item.storyboardPlan.frames[0].spokenText}"`), "storyboard image prompt must draw frame speech");
     assert.ok(imagePrompt.includes(`ровно ${item.storyboardPlan.frames.length} вертикальных панелей`), "storyboard image prompt must lock the storyboard panel count");
-    assert.ok(imagePrompt.includes("Director reference images - только ракурс"), "storyboard image prompt must preserve the source visual contract");
-    assert.ok(imagePrompt.includes("сохраняй их порядок"), "storyboard image prompt must preserve source sequence");
+    assert.ok(imagePrompt.includes("@file1 - avatar/character reference"), "storyboard image prompt must bind the avatar file");
+    assert.ok(imagePrompt.includes("кадры оригинала текущего сегмента"), "storyboard image prompt must preserve the source visual contract");
+    assert.ok(imagePrompt.includes("порядок сохраняй"), "storyboard image prompt must preserve source sequence");
     assert.ok(imagePrompt.includes("Сохрани одного героя, одну одежду"), "storyboard image prompt must lock outfit continuity");
     assert.ok(imagePrompt.includes("обе руки у лица"), "storyboard image prompt must keep hand and product actions physically consistent");
     assert.ok(imagePrompt.includes("одинаковые волосы"), "storyboard image prompt must lock hair details");
@@ -131,7 +132,7 @@ try {
     if (productVisible) {
       assert.ok(imagePrompt.includes("Продукт впервые появляется"), "storyboard image prompt must require a clear natural product reveal");
     }
-    assert.ok(imagePrompt.includes("Переноси только видимые в references"), "storyboard image prompt must preserve matching source camera setups");
+    assert.ok(imagePrompt.includes("Переноси из кадров оригинала"), "storyboard image prompt must preserve matching source camera setups");
     assert.ok(imagePrompt.includes("Не добавляй selfie-ракурсы"), "storyboard image prompt must not invent camera transitions");
     assert.ok(imagePrompt.length < 3500, `storyboard image prompt must stay under KIE text limit: ${imagePrompt.length}`);
     if (!productVisible) {
@@ -143,6 +144,27 @@ try {
       assert.ok(imagePrompt.includes("product reference"), "product-visible storyboard prompt must include product references");
     }
   }
+
+  const pipImagePrompt = buildStoryboardImagePrompt({
+    segmentIndex: 1,
+    storyboard: prompts[0].storyboardPlan,
+    productName: "Аэрогриль",
+    avatarReferenceUrl: "https://example.com/avatar.png",
+    directorReferenceImageUrls: ["https://example.com/source-frame-1.jpg"],
+    directorBrief: {
+      visual_hook: { action: "presenter in lower-left cutout", retention_trigger: "" },
+      atmosphere: { mood: "", lighting: "", color_grading: "", setting: "" },
+      camera: { shot_types: [], angles: [], movements: [], stabilization: "" },
+      action_beats: [],
+      reusable_mechanics: {
+        visual_mechanics: ["picture-in-picture"],
+        safe_zones_for_elements: "lower-left",
+        looping_pattern: "",
+      },
+    },
+  });
+  assert.ok(pipImagePrompt.includes("REFERENCE LAYOUT: оригинал целиком в PIP/collage"), "PIP storyboard prompt must preserve the reference layout");
+  assert.ok(pipImagePrompt.includes("не делай centered talking-head"), "PIP storyboard prompt must reject a generic centered presenter shot");
 
   const physicalContract = "The product remains a stable black countertop air fryer with the same hard shell, basket shape, matte finish, and compact appliance proportions throughout the scene. It moves only as one intact appliance when handled and stays visually identical to the reference.";
   const physicalInput = buildInput();

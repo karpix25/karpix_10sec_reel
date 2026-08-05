@@ -4,13 +4,14 @@ import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract"
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
 import { ensureOmniSchema } from "./schema";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
+import type { DirectorBrief } from "./director-analysis-types";
 
 type StoryboardPromptSegment = {
   index: number;
   storyboardPlan: OmniStoryboardSegment | null;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-speech-director-refs-v4";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-pip-reference-authority-v5";
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
@@ -22,6 +23,7 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
+  directorBrief?: DirectorBrief | null;
   promptPlan: readonly StoryboardPromptSegment[];
   generationProvider?: OmniGenerationProvider;
 }) {
@@ -95,6 +97,7 @@ async function tryGenerateStoryboardPreview(input: {
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
+  directorBrief?: DirectorBrief | null;
   referenceSignature: string;
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment;
@@ -115,6 +118,7 @@ async function tryGenerateStoryboardPreview(input: {
         : [],
       directorReferenceImageUrls: getSegmentDirectorReferenceUrls(input, input.segmentIndex),
       previousStoryboardReferenceUrl: input.previousStoryboardReferenceUrl,
+      directorBrief: input.directorBrief,
       generationProvider: input.generationProvider,
     });
     if (!url) return null;
