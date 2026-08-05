@@ -90,7 +90,8 @@ export function buildStoryboardFromPromptChainFrames(input: {
     durationSeconds: input.durationSeconds,
     voiceoverText: input.voiceoverText,
     frames: input.frames.map((frame, index) => {
-      const productVisible = productVisibleFrom !== null && index >= productVisibleFrom;
+      const isFrameHidden = /(?:продукт|товар)\s+(?:вне\s+кадра|не\s+виден|скрыт)|hidden|off\s*camera/iu.test(frame.productState || "");
+      const productVisible = !isFrameHidden && (productVisibleFrom !== null && index >= productVisibleFrom);
       return {
         spokenText: frame.spokenWords,
         visualAction: productVisible
