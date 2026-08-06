@@ -15,7 +15,7 @@ const OBJECT_INTERACTION_PATTERN = /(?:держит|держать|в руках
 const BOTH_CHEEKS_PATTERN = /(?:обеих?\s+щек|обе\s+щеки|both\s+cheeks)/iu;
 const ONE_CHEEK_PATTERN = /(?:одной\s+щек|одну\s+щеку|one\s+cheek)/iu;
 const HANDS_TO_FACE_PATTERN = /(?:обе\s+руки\s+(?:у|к)\s+лица|both\s+hands[^.;]{0,80}(?:face|jawline|cheek|щек|лиц))/iu;
-const CONSUMPTION_PATTERN = /(?:eat|eating|bite|biting|chew|chewing|drink|drinking|swallow|кус\w*|жев\w*|пив\w*|пь\w*|отпив\w*|глот\w*|(?<!\p{L})ест(?:ь)?(?=\s|$|[,.!?])|принима(?:ет|ть)(?=\s|$|[,.!?])|прием(?=\s|$|[,.!?])|приём(?=\s|$|[,.!?]))/iu;
+const CONSUMPTION_PATTERN = /(?:eat\w*|bite\w*|chew\w*|drink\w*|swallow\w*|sip\w*|tast\w*|consum\w*|кус\w*|жев\w*|пив\w*|пь\w*|отпив\w*|отхлеб\w*|выпив\w*|глот\w*|откус\w*|съед\w*|пробу\w*|дегуст\w*|смаку\w*|употребл\w*|(?<!\p{L})ест(?:ь)?(?=\s|$|[,.!?])|принима(?:ет|ть)(?=\s|$|[,.!?])|прием(?=\s|$|[,.!?])|приём(?=\s|$|[,.!?]))/iu;
 const DRIVING_PATTERN = /(?:driv|steer|moving car|за рулем|за рулём|ведет машину|ведёт машину|машина едет|автомобиль движется|движущ(?:аяся|емся|ейся)\s+машин)/iu;
 const PICK_UP_PATTERN = /(?:берет|берёт|поднимает|pick\s*up|picks\s*up)/iu;
 const PUT_DOWN_PATTERN = /(?:кладет|кладёт|ставит|полож|убирает|откладывает|put\s*down|places?)/iu;
