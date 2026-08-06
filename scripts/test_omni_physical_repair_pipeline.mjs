@@ -93,6 +93,14 @@ try {
     assert.doesNotMatch(segment.storyboardPlan.frames[0].productPlacement, /сыр|несколько|два\s+предмета/iu);
     assert.match(segment.prompt, /РУКИ|продукт в одной руке/iu);
   }
+
+  const missingValidation = await pipeline.repairOmniPromptPlanWithAi({
+    promptPlan: [{ ...segments[0], validation: undefined }],
+    productName: "Коллаген",
+    segmentCount: 1,
+  });
+  assert.equal(missingValidation[0].validation.valid, true, JSON.stringify(missingValidation[0].validation));
+  assert.doesNotMatch(missingValidation[0].storyboardPlan.frames[0].visualAction, /кус(?:ает|ать)|машин|обе\s+руки\s+у\s+лица/iu);
   console.log("Omni physical repair pipeline checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
