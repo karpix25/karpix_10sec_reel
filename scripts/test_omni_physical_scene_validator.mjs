@@ -29,10 +29,38 @@ try {
     include: [
       join(ui, "src/lib/omni/**/*.ts"),
       join(ui, "src/lib/server/omni/physical-scene-validator.ts"),
+      join(ui, "src/lib/server/omni/storyboard/omni-storyboard-speech.ts"),
     ],
   }));
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", config], { cwd: ui, stdio: "inherit" });
   const validator = require(findFile(compiled, "physical-scene-validator.js"));
+  const physicalModel = require(findFile(compiled, "physical-scene-model.js"));
+  const speech = require(findFile(compiled, "omni-storyboard-speech.js"));
+
+  const handConflictPlan = physicalModel.buildPhysicalFramePlan({
+    productName: "Коллаген",
+    spokenText: "Например вот этот",
+    visualAction: "касается обеих щек; герой держит Коллаген в одной руке",
+    camera: "средний план",
+    productPlacement: "Коллаген в одной руке",
+  });
+  assert.equal(handConflictPlan.requiredHands, 2);
+  assert.equal(handConflictPlan.occupiedHandCount, 1);
+  assert.match(
+    physicalModel.repairPhysicalFrameAction({
+      productName: "Коллаген",
+      visualAction: "касается обеих щек; герой держит Коллаген в одной руке",
+      plan: handConflictPlan,
+    }),
+    /одной щеки/iu
+  );
+
+  const speechChunks = speech.splitStoryboardSpeech(
+    "Также из белка строится наша кожа. Все рецепторы работают лучше. Белка в рационе часто не хватает.",
+    4
+  );
+  assert.equal(speechChunks.length, 4);
+  assert.ok(!speechChunks.some((chunk) => /(?:^|\s)(?:наша|а|и)\s*$/iu.test(chunk)));
 
   const safe = validator.validatePhysicalScene({
     storyboard: storyboard([
@@ -72,7 +100,7 @@ try {
 
   const voiceoverCutaway = validator.validatePhysicalScene({
     storyboard: storyboard([
-      frame("Это помогает держать ритм", "короткая перебивка: герой кусает морковь", "морковь в кадре", "крупный кадр"),
+      frame("Это помогает держать ритм", "короткая перебивка: герой кусает морковь", "морковь на столе", "крупный кадр"),
     ]),
     creativePlan: null,
     productName: "Коллаген",

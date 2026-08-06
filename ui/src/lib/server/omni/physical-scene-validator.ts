@@ -4,8 +4,9 @@ import type {
   OmniStoryboardSegment,
 } from "../../omni/storyboard/omni-storyboard-types";
 import type { OmniStoryboardPlanSource } from "../../omni/types";
+import { buildPhysicalFramePlan } from "./physical-scene-model";
 
-type PhysicalFrameState = "hidden" | "surface" | "held" | "visible";
+type PhysicalFrameState = "hidden" | "surface" | "held" | "visible" | "unknown";
 
 const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр/iu;
 const CONSUMPTION_PATTERN = /(?:eat|eating|bite|biting|chew|chewing|drink|drinking|swallow|кус(?:ает|ать|ил)|жует|жуёт|пьет|пьёт|глот(?:ает|ать))/iu;
@@ -14,8 +15,6 @@ const HOLDING_PATTERN = /(?:держит|держать|в руках|holding|ho
 const MULTI_OBJECT_PATTERN = /(?:несколько предметов|два предмета|multiple objects|two objects|(?:держит|holding|holds|в руках)[^.;]{0,90}(?: и | and |,\s*))/iu;
 const TRANSITION_PATTERN = /(?:полож|ставит|кладет|кладёт|убирает|откладывает|берет|берёт|поднимает|замен|переклад|cut|transition|смен)/iu;
 const HIDDEN_PATTERN = /(?:вне кадра|не виден|скрыт|hidden|off\s*camera|only thematic objects|только тематические объекты)/iu;
-const SURFACE_PATTERN = /(?:на столе|на поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
-const PRODUCT_REFERENCE_PATTERN = /(?:продукт|товар|product|package|упаков|баноч|бутыл|капсул|порош|крем|collagen|коллаген)/iu;
 
 const OBJECT_CUES: readonly [string, RegExp][] = [
   ["cheese", /сыр|cheese/iu],
@@ -49,11 +48,26 @@ export function validatePhysicalScene(input: {
     const text = frameText(frame);
     const spoken = frame.spokenText.trim();
     const onCamera = Boolean(spoken) && !CUTAWAY_PATTERN.test(`${frame.visualAction} ${frame.camera}`);
-    const productVisible = !HIDDEN_PATTERN.test(frame.productPlacement);
+    const placementVisible = !HIDDEN_PATTERN.test(frame.productPlacement);
     const spokenObjects = objectCues(spoken);
     const visualObjects = objectCues(`${frame.visualAction} ${frame.productPlacement}`);
-    const currentState = classifyProductState(frame);
+    const physicalPlan = frame.physicalPlan || buildPhysicalFramePlan({
+      productName: input.productName,
+      spokenText: frame.spokenText,
+      visualAction: frame.visualAction,
+      camera: frame.camera,
+      productPlacement: frame.productPlacement,
+    });
+    const currentState = physicalPlan.productState;
+    const productVisible = physicalPlan.visibleEntityIds.length > 0;
     states.push(currentState);
+
+    if (physicalPlan.requiredHands + physicalPlan.occupiedHandCount > 2) {
+      errors.push(`frame_${frameNumber}_hand_capacity_conflict`);
+    }
+    if ((physicalPlan.productState === "unknown" || physicalPlan.productState === "visible") && productVisible) {
+      errors.push(`frame_${frameNumber}_product_support_is_ambiguous`);
+    }
 
     if (onCamera && CONSUMPTION_PATTERN.test(text)) {
       errors.push(`frame_${frameNumber}_speech_during_consumption`);
@@ -64,9 +78,9 @@ export function validatePhysicalScene(input: {
     if (HOLDING_PATTERN.test(text) && MULTI_OBJECT_PATTERN.test(text)) {
       errors.push(`frame_${frameNumber}_multiple_held_objects`);
     }
-    if (productVisible && spokenObjects.size && visualObjects.size && !hasIntersection(spokenObjects, visualObjects)) {
+    if (placementVisible && spokenObjects.size && visualObjects.size && !hasIntersection(spokenObjects, visualObjects)) {
       errors.push(`frame_${frameNumber}_object_identity_mismatch`);
-    } else if (productVisible && spokenObjects.size && !visualObjects.size && !mentionsProduct(spoken, input.productName)) {
+    } else if (placementVisible && spokenObjects.size && !visualObjects.size && !mentionsProduct(spoken, input.productName)) {
       warnings.push(`frame_${frameNumber}_spoken_object_needs_visual_mapping`);
     }
   });
@@ -95,11 +109,22 @@ export function repairPhysicalScenePrompt(prompt: string, validation: OmniPrompt
   return `${prompt}\n\n${PHYSICAL_REPAIR_CONTRACT}`;
 }
 
+export function assertPhysicalPromptPlan(
+  promptPlan: readonly { index: number; validation: OmniPromptValidationResult }[]
+) {
+  const failures = promptPlan.filter((segment) => !segment.validation.valid);
+  if (!failures.length) return;
+  throw new Error(`Omni physical storyboard preflight blocked: ${failures
+    .map((segment) => `segment ${segment.index}: ${segment.validation.errors.join(", ")}`)
+    .join("; ")}`);
+}
+
 export function normalizeStoryboardSource(input: {
   source: OmniStoryboardPlanSource | null | undefined;
   segmentIndex: number;
   durationSeconds: number;
   voiceoverText: string;
+  productName: string;
 }): OmniStoryboardSegment | null {
   const frames = extractFrames(input.source);
   if (!frames.length) return null;
@@ -107,16 +132,28 @@ export function normalizeStoryboardSource(input: {
     segmentIndex: input.segmentIndex,
     durationSeconds: input.durationSeconds,
     voiceoverText: input.voiceoverText,
-    frames: frames.map((frame) => ({
-      spokenText: readText(frame, "spokenText", "spoken_text", "spokenWords", "spoken_words"),
-      visualAction: readText(frame, "visualAction", "visual_action", "action"),
-      camera: readText(frame, "camera", "cameraAngle", "camera_angle"),
-      environment: readText(frame, "environment"),
-      wardrobe: readText(frame, "wardrobe"),
-      productPlacement: readText(frame, "productPlacement", "product_placement"),
-      sfxNotes: readText(frame, "sfxNotes", "sfx_notes", "sfx"),
-      effectNotes: readOptionalText(frame, "effectNotes", "effect_notes", "effects"),
-    })),
+    frames: frames.map((frame) => {
+      const normalizedFrame: OmniStoryboardFrame = {
+        spokenText: readText(frame, "spokenText", "spoken_text", "spokenWords", "spoken_words"),
+        visualAction: readText(frame, "visualAction", "visual_action", "action"),
+        camera: readText(frame, "camera", "cameraAngle", "camera_angle"),
+        environment: readText(frame, "environment"),
+        wardrobe: readText(frame, "wardrobe"),
+        productPlacement: readText(frame, "productPlacement", "product_placement"),
+        sfxNotes: readText(frame, "sfxNotes", "sfx_notes", "sfx"),
+        effectNotes: readOptionalText(frame, "effectNotes", "effect_notes", "effects"),
+      };
+      return {
+        ...normalizedFrame,
+        physicalPlan: buildPhysicalFramePlan({
+          productName: input.productName,
+          spokenText: normalizedFrame.spokenText,
+          visualAction: normalizedFrame.visualAction,
+          camera: normalizedFrame.camera,
+          productPlacement: normalizedFrame.productPlacement,
+        }),
+      };
+    }),
   };
 }
 
@@ -132,13 +169,6 @@ function extractFrames(source: OmniStoryboardPlanSource | null | undefined): rea
 
 function frameText(frame: OmniStoryboardFrame) {
   return [frame.visualAction, frame.productPlacement, frame.sfxNotes, frame.effectNotes || ""].join(" ");
-}
-
-function classifyProductState(frame: OmniStoryboardFrame): PhysicalFrameState {
-  if (HIDDEN_PATTERN.test(frame.productPlacement)) return "hidden";
-  if (HOLDING_PATTERN.test(`${frame.visualAction} ${frame.productPlacement}`)) return "held";
-  if (SURFACE_PATTERN.test(frame.productPlacement)) return "surface";
-  return PRODUCT_REFERENCE_PATTERN.test(frame.productPlacement) ? "visible" : "hidden";
 }
 
 function objectCues(value: string) {

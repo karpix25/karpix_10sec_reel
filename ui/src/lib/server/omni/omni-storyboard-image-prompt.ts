@@ -15,6 +15,7 @@ export function buildStoryboardImagePrompt(input: {
   directorReferenceImageUrls?: readonly string[];
   previousStoryboardReferenceUrl?: string | null;
   directorBrief?: DirectorBrief | null;
+  repairInstructions?: readonly string[];
 }) {
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
   const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || []);
@@ -71,6 +72,9 @@ export function buildStoryboardImagePrompt(input: {
       ? "Показывай продукт естественно, без рекламного close-up; не дублируй и не телепортируй его."
       : "",
     productPhysicalHint ? compactText(productPhysicalHint, 180) : "",
+    input.repairInstructions?.length
+      ? `PHYSICAL REPAIR FROM PRIOR CHECK: ${input.repairInstructions.join("; ")}.`
+      : "",
     `Сегмент ${input.segmentIndex}. Каждый кадр длится две секунды.`,
     ...input.storyboard.frames.map((frame, index) =>
       [

@@ -9,6 +9,7 @@ export {
   isOmniStoryboardDuration,
   type OmniStoryboardAllowedSegmentSeconds,
 } from "./omni-storyboard-timing";
+import type { PhysicalFramePlan } from "../physical-scene-types";
 
 export const FIVE_FRAMES_PER_TEN_SECONDS = 5;
 export const OMNI_STORYBOARD_SEGMENT_SECONDS = 10;
@@ -23,6 +24,7 @@ export type OmniStoryboardFrame = {
   sfxNotes: string;
   effectNotes?: string | null;
   modelMusicNotes?: string | null;
+  physicalPlan?: PhysicalFramePlan | null;
 };
 
 export type OmniStoryboardSegment = {

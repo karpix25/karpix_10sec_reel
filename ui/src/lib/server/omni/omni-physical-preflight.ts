@@ -23,6 +23,7 @@ export async function assertOmniPhysicalPreflight(input: {
       segmentIndex: segment.segment_index,
       durationSeconds: segment.duration_seconds || 10,
       voiceoverText: segment.voiceover_text || segment.creative_plan?.voiceoverText || "",
+      productName: input.productName,
     });
     return {
       segment,
