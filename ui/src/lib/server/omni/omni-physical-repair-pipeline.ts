@@ -34,6 +34,17 @@ export function normalizeOmniPromptPlanWithPhysicalRules(input: {
     const normalizedChanged = JSON.stringify(segment.storyboardPlan) !== JSON.stringify(storyboard);
     if (!normalizedChanged && validation.valid && segment.validation?.valid) return segment;
 
+    console.warn("Omni physical normalization left segment invalid", {
+      segmentIndex: segment.index,
+      errors: validation.errors,
+      frames: storyboard.frames.map((frame, frameIndex) => ({
+        frameIndex: frameIndex + 1,
+        spokenText: frame.spokenText,
+        visualAction: frame.visualAction,
+        sfxNotes: frame.sfxNotes,
+      })),
+    });
+
     return buildRepairedSegment({
       segment,
       storyboard,
