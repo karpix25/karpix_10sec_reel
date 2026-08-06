@@ -25,6 +25,7 @@ import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import { extractDirectorBriefFromSnapshot } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
+import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 
 function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
   return {
@@ -112,6 +113,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     wardrobeSource: project.wardrobe_source,
     directorBrief,
   });
+  assertPhysicalPromptPlan(promptPlan);
   const directorReferenceImageUrlsBySegment = await prepareSegmentStoryboardDirectorReferenceUrls({
     sourceSnapshot: resolvedGeneratedScript.source_snapshot,
     storageTarget: {

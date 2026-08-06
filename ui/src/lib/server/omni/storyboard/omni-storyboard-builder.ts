@@ -17,6 +17,13 @@ import {
   mentionsOmniProduct,
 } from "../omni-intro-product-contract";
 import { renderFrameTransitionNote } from "./omni-storyboard-effects";
+import {
+  buildPhysicalFramePlan,
+  buildProductPresentationAction,
+  isProductPresentationCue,
+  repairPhysicalFrameAction,
+} from "../physical-scene-model";
+import { splitStoryboardSpeech } from "./omni-storyboard-speech";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -34,16 +41,16 @@ export function buildStoryboardFromCreativePlan(input: {
   wardrobeSource?: OmniWardrobeSource;
   productAlreadyVisible?: boolean;
 }): OmniStoryboardSegment {
-  const words = splitWords(input.plan.voiceoverText);
   const frameCount = getOmniStoryboardFrameCount(input.durationSeconds);
   if (!frameCount) throw new Error(`Storyboard segment ${input.segmentIndex} has unsupported duration ${input.durationSeconds}`);
+  const words = input.plan.voiceoverText.trim().split(/\s+/u).filter(Boolean);
   const minWords = frameCount * OMNI_STORYBOARD_MIN_FRAME_WORDS;
   const maxWords = frameCount * OMNI_STORYBOARD_MAX_FRAME_WORDS;
   if (words.length < minWords || words.length > maxWords) {
     throw new Error(`Storyboard segment ${input.segmentIndex} needs ${minWords}-${maxWords} words, got ${words.length}`);
   }
 
-  const chunks = splitIntoFrameSpeech(words, frameCount);
+  const chunks = splitStoryboardSpeech(input.plan.voiceoverText, frameCount);
   const revealFrame = getOmniProductRevealFrame(chunks, input.productName);
   const productVisibleFrom = input.productAlreadyVisible ? 0 : revealFrame;
   return {
@@ -159,15 +166,39 @@ function buildFrame(input: {
   const productVisible = input.plan.productRole !== "hidden" &&
     !isArticleCtaOnly(input.spokenText) &&
     (input.productAlreadyVisible || mentionsOmniProduct(input.spokenText, input.productName));
+  const presentationAction = productVisible && isProductPresentationCue(input.spokenText)
+    ? buildProductPresentationAction(input.productName)
+    : null;
   const visualAction = input.segmentIndex === 1 && input.plan.productRole === "hidden"
     ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName)
     : productVisible
-      ? renderProductFrameAction(visualActionSource, isCutawayFrame, input.productName)
+      ? renderProductFrameAction(presentationAction || visualActionSource, isCutawayFrame, input.productName)
       : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName);
+  const initialPhysicalPlan = buildPhysicalFramePlan({
+    productName: input.productName,
+    spokenText: input.spokenText,
+    visualAction,
+    camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible), productVisible, input.plan.productRole),
+    productPlacement: renderProductPlacement(input.plan, input.productName, input.productVisualPassport, input.productPhysicalHint, input.segmentIndex, productVisible),
+  });
+  const repairedVisualAction = repairPhysicalFrameAction({
+    productName: input.productName,
+    visualAction,
+    plan: initialPhysicalPlan,
+  });
+  const physicalPlan = repairedVisualAction === visualAction
+    ? initialPhysicalPlan
+    : buildPhysicalFramePlan({
+        productName: input.productName,
+        spokenText: input.spokenText,
+        visualAction: repairedVisualAction,
+        camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible), productVisible, input.plan.productRole),
+        productPlacement: renderProductPlacement(input.plan, input.productName, input.productVisualPassport, input.productPhysicalHint, input.segmentIndex, productVisible),
+      });
 
   return {
     spokenText: input.spokenText,
-    visualAction,
+    visualAction: repairedVisualAction,
     camera: renderFrameCamera(
       isCutawayFrame,
       renderDirectorCamera(input.directorBrief, productVisible),
@@ -191,6 +222,7 @@ function buildFrame(input: {
       : "тихие естественные звуки комнаты и живой речи",
     effectNotes: renderFrameTransitionNote(input.directorBrief, input.frameIndex),
     modelMusicNotes: null,
+    physicalPlan,
   };
 }
 
@@ -442,24 +474,4 @@ function compactProductReference(value: string) {
     .map((line) => line.replace(/^-\s*[^:]+:\s*/u, ""))
     .find(Boolean);
   return compactText(preferred || value, 160);
-}
-
-function splitIntoFrameSpeech(words: string[], frameCount: number) {
-  const chunks: string[] = [];
-  let cursor = 0;
-  for (let index = 0; index < frameCount; index += 1) {
-    const remainingFrames = frameCount - index;
-    const remainingWords = words.length - cursor;
-    const size = Math.min(
-      OMNI_STORYBOARD_MAX_FRAME_WORDS,
-      Math.max(OMNI_STORYBOARD_MIN_FRAME_WORDS, remainingWords - (remainingFrames - 1) * OMNI_STORYBOARD_MIN_FRAME_WORDS)
-    );
-    chunks.push(words.slice(cursor, cursor + size).join(" "));
-    cursor += size;
-  }
-  return chunks;
-}
-
-function splitWords(text: string) {
-  return text.trim().split(/\s+/u).filter(Boolean);
 }

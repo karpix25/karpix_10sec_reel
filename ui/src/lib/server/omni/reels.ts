@@ -24,6 +24,7 @@ import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import type { DirectorBrief } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
+import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -211,6 +212,7 @@ export async function createOmniReel(input: {
     recentFormatIds,
     wardrobeSource: project.wardrobe_source,
   });
+  assertPhysicalPromptPlan(promptPlan);
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
   const reservedReelId = await reserveOmniReelId();
   const storyboardDirectorReferenceImageUrlsBySegment = await prepareSegmentStoryboardDirectorReferenceUrls({

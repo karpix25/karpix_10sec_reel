@@ -5,6 +5,7 @@ import type { OmniWardrobeSource } from "./wardrobe-source";
 import type { OmniAvatarSpeechGender } from "./avatar-speech-gender";
 import type { OmniSubtitleSettings, OmniSubtitleStatus } from "./subtitle-settings";
 import type { OmniStoryboardSegment, OmniStoryboardValidationResult } from "./storyboard/omni-storyboard-types";
+import type { PhysicalFramePlan } from "./physical-scene-types";
 
 export type OmniProjectStatus = "active" | "archived";
 export type OmniReelStatus = "draft" | "queued" | "generating" | "stitching" | "completed" | "failed";
@@ -185,6 +186,7 @@ export interface OmniStoryboardFrame {
   effect_notes?: string | null;
   sfx?: string | null;
   effects?: string | string[] | null;
+  physicalPlan?: PhysicalFramePlan | null;
 }
 
 export interface OmniStoryboardPlan {
