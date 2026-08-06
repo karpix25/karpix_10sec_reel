@@ -73,6 +73,24 @@ try {
     /нейтральным жестом/iu
   );
   assert.match(
+    physicalModel.repairReferenceAction({
+      action: "держит чужую бутылку с яркой этикеткой",
+      spokenText: "Рассказываю о составе",
+      productName: "Коллаген",
+      productVisible: false,
+    }),
+    /без чужих продуктов и упаковок/iu
+  );
+  assert.match(
+    physicalModel.repairReferenceAction({
+      action: "держит чужую бутылку с яркой этикеткой",
+      spokenText: "Вот мой продукт",
+      productName: "Коллаген",
+      productVisible: true,
+    }),
+    /держит Коллаген в одной руке/iu
+  );
+  assert.match(
     physicalModel.normalizeVehicleContext("герой driving в машине"),
     /припаркован и неподвижен/iu
   );
@@ -128,6 +146,15 @@ try {
     productName: "Коллаген",
   });
   assert.equal(voiceoverCutaway.valid, true);
+
+  const productContractWithUsageWord = validator.validatePhysicalScene({
+    storyboard: storyboard([
+      frame("Рассказываю о составе", "герой спокойно говорит в камеру", "Коллаген стоит на столе; принимать внутрь по инструкции"),
+    ]),
+    creativePlan: null,
+    productName: "Коллаген",
+  });
+  assert.equal(productContractWithUsageWord.valid, true);
 
   console.log("Omni physical scene validator checks passed");
 } finally {

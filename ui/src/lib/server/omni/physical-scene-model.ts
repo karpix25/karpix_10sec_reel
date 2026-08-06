@@ -20,6 +20,7 @@ const DRIVING_PATTERN = /(?:driv|steer|moving car|за рулем|за рулё�
 const PICK_UP_PATTERN = /(?:берет|берёт|поднимает|pick\s*up|picks\s*up)/iu;
 const PUT_DOWN_PATTERN = /(?:кладет|кладёт|ставит|полож|убирает|откладывает|put\s*down|places?)/iu;
 const HANDOFF_PATTERN = /(?:передает|передаёт|handoff|hands?\s+(?:it|the object)\s+to)/iu;
+const FOREIGN_PRODUCT_REFERENCE_PATTERN = /(?:product|brand|package|packaging|label|jar|bottle|box|tube|sachet|snack|food|drink|cream|serum|supplement|vitamin|коллаген|сыр|морков|перекус|продукт|товар|бренд|упаков|этикет|баноч|бутыл|короб|тюбик|пакет|еда|напит|крем|сыворот|добавк|витамин)/iu;
 
 export function hasConsumptionAction(value: string) {
   return CONSUMPTION_PATTERN.test(value);
@@ -31,6 +32,10 @@ export function hasDrivingAction(value: string) {
 
 export function hasMultipleHeldObjects(value: string) {
   return MULTIPLE_HELD_OBJECTS_PATTERN.test(value);
+}
+
+export function hasForeignReferenceProduct(value: string, productName: string) {
+  return FOREIGN_PRODUCT_REFERENCE_PATTERN.test(value) && !mentionsProduct(value, productName);
 }
 
 export function normalizeVehicleContext(value: string) {
@@ -51,6 +56,12 @@ export function repairReferenceAction(input: {
   const hasMultipleObjects = hasMultipleHeldObjects(action);
   const interactsWithObject = OBJECT_INTERACTION_PATTERN.test(action);
   const product = input.productName.trim() || "продукт";
+
+  if (hasForeignReferenceProduct(action, product)) {
+    return input.productVisible
+      ? buildProductPresentationAction(product)
+      : "герой спокойно говорит в камеру с нейтральным жестом, без чужих продуктов и упаковок";
+  }
 
   if (hasDriving || (input.productVisible && interactsWithObject && !mentionsProduct(action, product))) {
     return input.productVisible
