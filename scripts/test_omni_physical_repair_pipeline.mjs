@@ -43,6 +43,7 @@ try {
 
   const pipeline = require(findFile(compiled, "omni-physical-repair-pipeline.js"));
   const validator = require(findFile(compiled, "physical-scene-validator.js"));
+  const physicalModel = require(findFile(compiled, "physical-scene-model.js"));
   const segments = [1, 2, 3].map((segmentIndex) => {
     const storyboard = {
       segmentIndex,
@@ -131,6 +132,28 @@ try {
   });
   assert.equal(sippingRepaired[0].validation.valid, true, JSON.stringify(sippingRepaired[0].validation));
   assert.doesNotMatch(sippingRepaired[0].storyboardPlan.frames[0].visualAction, /отпива|пив\w*|пь\w*/iu);
+  const stalePhysicalPlan = physicalModel.buildPhysicalFramePlan({
+    productName: "Коллаген",
+    spokenText: "Говорю в камеру",
+    visualAction: "герой отпивает коллаген из упаковки",
+    camera: "средний план",
+    productPlacement: "коллаген в одной руке",
+  });
+  const stalePlanValidation = validator.validatePhysicalScene({
+    storyboard: {
+      ...sippingStoryboard,
+      frames: sippingStoryboard.frames.map((frame) => ({
+        ...frame,
+        spokenText: "Говорю в камеру",
+        visualAction: "герой спокойно говорит в камеру с нейтральным жестом",
+        sfxNotes: "тихие естественные звуки комнаты и живой речи",
+        physicalPlan: stalePhysicalPlan,
+      })),
+    },
+    creativePlan: null,
+    productName: "Коллаген",
+  });
+  assert.equal(stalePlanValidation.errors.includes("frame_1_speech_during_consumption"), false);
   for (const action of ["герой отхлебывает напиток", "герой пробует продукт", "герой sips the drink", "герой tasting the product"]) {
     const variantValidation = validator.validatePhysicalScene({
       storyboard: {

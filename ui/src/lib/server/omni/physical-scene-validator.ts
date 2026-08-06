@@ -51,7 +51,8 @@ export function validatePhysicalScene(input: {
     const placementVisible = !HIDDEN_PATTERN.test(frame.productPlacement);
     const spokenObjects = objectCues(spoken);
     const visualObjects = objectCues(`${frame.visualAction} ${frame.productPlacement}`);
-    const physicalPlan = frame.physicalPlan || buildPhysicalFramePlan({
+    // physicalPlan is derived data and may be stale after an AI visual patch.
+    const physicalPlan = buildPhysicalFramePlan({
       productName: input.productName,
       spokenText: frame.spokenText,
       visualAction: frame.visualAction,
