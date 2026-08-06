@@ -28,7 +28,7 @@ const OBJECT_CUES: readonly [string, RegExp][] = [
 ];
 
 const PHYSICAL_REPAIR_CONTRACT =
-  "PHYSICAL CONTINUITY REPAIR: each visible object keeps one identity and one physical state; put an object down before picking up another; never show eating, drinking, chewing, or biting during on-camera speech; use voiceover-only during consumption; every handoff or replacement must be visible and physically motivated; a vehicle scene is parked unless the scene explicitly requires no driving action.";
+  "PHYSICAL CONTINUITY REPAIR: each visible object keeps one identity and one physical state; put an object down before picking up another; never show eating, drinking, chewing, or biting during on-camera speech; use voiceover-only during consumption; every handoff or replacement must be visible and physically motivated; a vehicle scene is parked unless the scene explicitly requires driving action.";
 
 export function validatePhysicalScene(input: {
   storyboard: OmniStoryboardSegment | null;

@@ -54,6 +54,28 @@ try {
     }),
     /одной щеки/iu
   );
+  assert.match(
+    physicalModel.repairReferenceAction({
+      action: "ведет машину и кусает морковь",
+      spokenText: "Показываю свой перекус",
+      productName: "Коллаген",
+      productVisible: true,
+    }),
+    /держит Коллаген в одной руке/iu
+  );
+  assert.match(
+    physicalModel.repairReferenceAction({
+      action: "кусает морковь",
+      spokenText: "Рассказываю о составе",
+      productName: "Коллаген",
+      productVisible: false,
+    }),
+    /нейтральным жестом/iu
+  );
+  assert.match(
+    physicalModel.normalizeVehicleContext("герой driving в машине"),
+    /припаркован и неподвижен/iu
+  );
 
   const speechChunks = speech.splitStoryboardSpeech(
     "Также из белка строится наша кожа. Все рецепторы работают лучше. Белка в рационе часто не хватает.",

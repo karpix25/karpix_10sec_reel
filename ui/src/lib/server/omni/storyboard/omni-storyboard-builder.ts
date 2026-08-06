@@ -21,6 +21,8 @@ import {
   buildPhysicalFramePlan,
   buildProductPresentationAction,
   isProductPresentationCue,
+  normalizeVehicleContext,
+  repairReferenceAction,
   repairPhysicalFrameAction,
 } from "../physical-scene-model";
 import { splitStoryboardSpeech } from "./omni-storyboard-speech";
@@ -152,6 +154,9 @@ function buildFrame(input: {
   const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
     input.plan.beats[0];
   const layoutLocked = /REFERENCE LAYOUT|collage\/PIP/iu.test(beat?.action || "");
+  const productVisible = input.plan.productRole !== "hidden" &&
+    !isArticleCtaOnly(input.spokenText) &&
+    (input.productAlreadyVisible || mentionsOmniProduct(input.spokenText, input.productName));
   const referenceAction = layoutLocked
     ? ""
     : selectReferenceAction({
@@ -161,11 +166,13 @@ function buildFrame(input: {
         frameIndex: input.frameIndex,
         frameCount: input.frameCount,
       });
-  const visualActionSource = layoutLocked ? beat?.action : referenceAction || normalizeDefaultFrameAction(beat?.action);
+  const visualActionSource = repairReferenceAction({
+    action: layoutLocked ? beat?.action || "" : referenceAction || normalizeDefaultFrameAction(beat?.action),
+    spokenText: input.spokenText,
+    productName: input.productName,
+    productVisible,
+  });
   const isCutawayFrame = Boolean(referenceAction && isReferenceCutawayAction(referenceAction));
-  const productVisible = input.plan.productRole !== "hidden" &&
-    !isArticleCtaOnly(input.spokenText) &&
-    (input.productAlreadyVisible || mentionsOmniProduct(input.spokenText, input.productName));
   const presentationAction = productVisible && isProductPresentationCue(input.spokenText)
     ? buildProductPresentationAction(input.productName)
     : null;
@@ -255,7 +262,7 @@ function renderDirectorEnvironment(brief?: DirectorBrief | null) {
     brief?.atmosphere.mood,
   ].filter(Boolean);
   return parts.length
-    ? `REFERENCE SCENE LOCK: ${parts.join("; ")}`
+    ? normalizeVehicleContext(`REFERENCE SCENE LOCK: ${parts.join("; ")}`)
     : "то же окружение и свет, что заданы сценой сегмента";
 }
 
@@ -289,13 +296,13 @@ function renderDirectorCamera(brief: DirectorBrief | null | undefined, productVi
   const shotTypes = productVisible
     ? brief.camera.shot_types
     : brief.camera.shot_types.filter((shotType) => !/product|packag|продукт|упаков/iu.test(shotType));
-  return compactText([
+  return normalizeVehicleContext(compactText([
     "reference camera lock:",
     shotTypes.join(", "),
     brief.camera.angles.length ? `angles ${brief.camera.angles.join(", ")}` : "",
     brief.camera.movements.length ? `movement ${brief.camera.movements.join(", ")}` : "",
     brief.camera.stabilization,
-  ].filter(Boolean).join("; "), 220);
+  ].filter(Boolean).join("; "), 220));
 }
 
 function renderPromptChainProductPlacement(productState: string | null | undefined, productPhysicalHint?: string | null) {
