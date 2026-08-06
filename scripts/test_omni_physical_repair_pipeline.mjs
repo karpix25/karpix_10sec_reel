@@ -116,6 +116,7 @@ try {
       ...frame,
       visualAction: "герой отпивает коллаген из упаковки",
       productPlacement: "коллаген в одной руке",
+      effectNotes: "герой отпивает коллаген",
     })),
   };
   const sippingValidation = validator.validatePhysicalScene({
@@ -132,6 +133,7 @@ try {
   });
   assert.equal(sippingRepaired[0].validation.valid, true, JSON.stringify(sippingRepaired[0].validation));
   assert.doesNotMatch(sippingRepaired[0].storyboardPlan.frames[0].visualAction, /отпива|пив\w*|пь\w*/iu);
+  assert.equal(sippingRepaired[0].storyboardPlan.frames[0].effectNotes, null);
   const stalePhysicalPlan = physicalModel.buildPhysicalFramePlan({
     productName: "Коллаген",
     spokenText: "Говорю в камеру",
@@ -147,6 +149,7 @@ try {
         spokenText: "Говорю в камеру",
         visualAction: "герой спокойно говорит в камеру с нейтральным жестом",
         sfxNotes: "тихие естественные звуки комнаты и живой речи",
+        effectNotes: null,
         physicalPlan: stalePhysicalPlan,
       })),
     },

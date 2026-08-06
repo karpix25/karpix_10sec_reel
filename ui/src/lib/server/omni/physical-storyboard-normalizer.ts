@@ -87,6 +87,9 @@ function normalizeFrame(frame: OmniStoryboardFrame, productName: string): OmniSt
     camera: frame.camera,
     productPlacement,
   });
+  const speechDuringConsumption = Boolean(spokenText) &&
+    !CUTAWAY_PATTERN.test(`${repairedAction} ${frame.camera}`) &&
+    hasConsumptionAction(sourceText);
 
   return {
     ...frame,
@@ -95,6 +98,7 @@ function normalizeFrame(frame: OmniStoryboardFrame, productName: string): OmniSt
     environment: drivingScene ? "припаркованная неподвижная машина" : normalizeVehicleContext(frame.environment),
     productPlacement,
     sfxNotes,
+    effectNotes: speechDuringConsumption ? null : frame.effectNotes,
     physicalPlan,
   };
 }
