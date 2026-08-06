@@ -123,6 +123,7 @@ try {
     productName: "Коллаген",
   });
   assert.equal(sippingValidation.valid, false, JSON.stringify(sippingValidation));
+  assert.match(sippingValidation.errors.join(" "), /speech_during_consumption/);
   const sippingRepaired = await pipeline.repairOmniPromptPlanWithAi({
     promptPlan: [{ ...segments[0], storyboardPlan: sippingStoryboard, validation: sippingValidation }],
     productName: "Коллаген",
