@@ -25,6 +25,7 @@ import type { DirectorBrief } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
+import { repairOmniPromptPlanWithAi } from "./omni-physical-repair-pipeline";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -195,22 +196,28 @@ export async function createOmniReel(input: {
       }
     : null;
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
-  const promptPlan = buildOmniSegmentPrompts({
-    generatedScript: resolvedGeneratedScript,
-    legacyTranscript: sourceScenario?.script || null,
-    product,
-    avatar: latestAvatar,
+  const promptPlan = await repairOmniPromptPlanWithAi({
+    promptPlan: buildOmniSegmentPrompts({
+      generatedScript: resolvedGeneratedScript,
+      legacyTranscript: sourceScenario?.script || null,
+      product,
+      avatar: latestAvatar,
+      segmentCount,
+      segmentSeconds: OMNI_SEGMENT_SECONDS,
+      voiceSegments: segmentPlan.segments,
+      segmentDurationsSeconds: segmentPlan.segmentDurationsSeconds,
+      brief,
+      directorBrief: sourceScenarioDirectorBrief,
+      targetAudience: project.target_audience,
+      ctaMode: product.cta_mode,
+      ctaValue: product.cta_value,
+      recentFormatIds,
+      wardrobeSource: project.wardrobe_source,
+    }),
+    productName: product.name,
+    productPhysicalContract: product.product_physical_contract,
     segmentCount,
-    segmentSeconds: OMNI_SEGMENT_SECONDS,
-    voiceSegments: segmentPlan.segments,
-    segmentDurationsSeconds: segmentPlan.segmentDurationsSeconds,
-    brief,
     directorBrief: sourceScenarioDirectorBrief,
-    targetAudience: project.target_audience,
-    ctaMode: product.cta_mode,
-    ctaValue: product.cta_value,
-    recentFormatIds,
-    wardrobeSource: project.wardrobe_source,
   });
   assertPhysicalPromptPlan(promptPlan);
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
