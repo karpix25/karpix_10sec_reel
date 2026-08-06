@@ -5,13 +5,14 @@ import { generateStoryboardImage } from "./omni-storyboard-image-generator";
 import { ensureOmniSchema } from "./schema";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import type { DirectorBrief } from "./director-analysis-types";
+import { buildStoryboardPlanSignature } from "./storyboard-cache-signature";
 
 type StoryboardPromptSegment = {
   index: number;
   storyboardPlan: OmniStoryboardSegment | null;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-pip-reference-authority-v5";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-pip-reference-authority-v6";
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
@@ -183,6 +184,7 @@ function buildReferenceSignature(input: {
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   generationProvider?: OmniGenerationProvider;
+  promptPlan: readonly StoryboardPromptSegment[];
 }) {
   const segmentReferenceUrls = Array.from(input.directorReferenceImageUrlsBySegment || [])
     .flatMap(([segmentIndex, urls]) =>
@@ -192,6 +194,7 @@ function buildReferenceSignature(input: {
     .sort();
   return [
     STORYBOARD_PREVIEW_GENERATOR_VERSION,
+    buildStoryboardPlanSignature(input.promptPlan),
     input.generationProvider || "cometapi",
     normalizeUrl(input.avatarReferenceUrl) || "",
     normalizeContract(input.productPhysicalContract),
