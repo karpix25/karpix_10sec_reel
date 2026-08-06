@@ -29,6 +29,7 @@ try {
     include: [
       join(ui, "src/lib/omni/**/*.ts"),
       join(ui, "src/lib/server/omni/physical-scene-validator.ts"),
+      join(ui, "src/lib/server/omni/storyboard/omni-stored-storyboard-frame-repair.ts"),
       join(ui, "src/lib/server/omni/storyboard/omni-storyboard-speech.ts"),
     ],
   }));
@@ -36,6 +37,7 @@ try {
   const validator = require(findFile(compiled, "physical-scene-validator.js"));
   const physicalModel = require(findFile(compiled, "physical-scene-model.js"));
   const speech = require(findFile(compiled, "omni-storyboard-speech.js"));
+  const storedFrameRepair = require(findFile(compiled, "omni-stored-storyboard-frame-repair.js"));
 
   const handConflictPlan = physicalModel.buildPhysicalFramePlan({
     productName: "Коллаген",
@@ -155,6 +157,56 @@ try {
     productName: "Коллаген",
   });
   assert.equal(productContractWithUsageWord.valid, true);
+
+  const repairedStoredFrame = storedFrameRepair.buildStoredStoryboardFrame({
+    frame: {
+      index: 2,
+      role: "product_cutaway",
+      spokenWords: "Рассказываю о составе",
+      visualDescription: "герой кусает морковь и держит сыр и Коллаген",
+      camera: "средний план",
+      action: "ест перекус",
+      productState: "держит морковь и Коллаген в руках",
+      sfx: "слышно жевание",
+      referenceRole: "product",
+    },
+    productName: "Коллаген",
+    productVisible: true,
+  });
+  assert.doesNotMatch(repairedStoredFrame.visualAction, /кус(?:ает|ать)|жует|сыр|морков/iu);
+  assert.doesNotMatch(repairedStoredFrame.productPlacement, /морков|сыр|несколько|два предмета/iu);
+  assert.doesNotMatch(repairedStoredFrame.sfxNotes, /жев|кус/iu);
+  const repairedStoredValidation = validator.validatePhysicalScene({
+    storyboard: storyboard([repairedStoredFrame]),
+    creativePlan: null,
+    productName: "Коллаген",
+  });
+  assert.equal(repairedStoredValidation.valid, true);
+
+  const foreignSpeechFrame = storedFrameRepair.buildStoredStoryboardFrame({
+    frame: {
+      index: 2,
+      role: "face_return",
+      spokenWords: "Показываю сыр",
+      visualDescription: "герой держит Коллаген в руке",
+      camera: "средний план",
+      action: "показывает продукт",
+      productState: "Коллаген в руке",
+      sfx: null,
+      referenceRole: "product",
+    },
+    productName: "Коллаген",
+    productVisible: true,
+  });
+  assert.match(foreignSpeechFrame.productPlacement, /тематические объекты и окружение|вне кадра/iu);
+  assert.equal(
+    validator.validatePhysicalScene({
+      storyboard: storyboard([foreignSpeechFrame]),
+      creativePlan: null,
+      productName: "Коллаген",
+    }).valid,
+    true
+  );
 
   console.log("Omni physical scene validator checks passed");
 } finally {
