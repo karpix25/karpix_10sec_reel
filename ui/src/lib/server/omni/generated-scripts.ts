@@ -26,7 +26,12 @@ import { extractDirectorBriefFromSnapshot } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
-import { repairOmniPromptPlanWithAi } from "./omni-physical-repair-pipeline";
+import {
+  normalizeOmniPromptPlanWithPhysicalRules,
+  repairOmniPromptPlanWithAi,
+} from "./omni-physical-repair-pipeline";
+
+const PROMPT_REPAIR_TIMEOUT_MS = 15_000;
 
 function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
   return {
@@ -97,29 +102,41 @@ export async function buildGeneratedScriptPromptPreview(input: {
   const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script, { durationRange });
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
   const directorBrief = extractDirectorBriefFromSnapshot(resolvedGeneratedScript.source_snapshot);
-  const promptPlan = await repairOmniPromptPlanWithAi({
-    promptPlan: buildOmniSegmentPrompts({
-      generatedScript: resolvedGeneratedScript,
-      legacyTranscript: null,
-      product,
-      avatar,
-      segmentCount: segmentPlan.segmentCount,
-      segmentSeconds: OMNI_SEGMENT_SECONDS,
-      voiceSegments: segmentPlan.segments,
-      segmentDurationsSeconds: segmentPlan.segmentDurationsSeconds,
-      brief: null,
-      targetAudience: project.target_audience,
-      ctaMode: product.cta_mode,
-      ctaValue: product.cta_value,
-      recentFormatIds,
-      wardrobeSource: project.wardrobe_source,
-      directorBrief,
-    }),
+  const basePromptPlan = buildOmniSegmentPrompts({
+    generatedScript: resolvedGeneratedScript,
+    legacyTranscript: null,
+    product,
+    avatar,
+    segmentCount: segmentPlan.segmentCount,
+    segmentSeconds: OMNI_SEGMENT_SECONDS,
+    voiceSegments: segmentPlan.segments,
+    segmentDurationsSeconds: segmentPlan.segmentDurationsSeconds,
+    brief: null,
+    targetAudience: project.target_audience,
+    ctaMode: product.cta_mode,
+    ctaValue: product.cta_value,
+    recentFormatIds,
+    wardrobeSource: project.wardrobe_source,
+    directorBrief,
+  });
+  const promptRepairPromise = repairOmniPromptPlanWithAi({
+    promptPlan: basePromptPlan,
     productName: product.name,
     productPhysicalContract: product.product_physical_contract,
     segmentCount: segmentPlan.segmentCount,
     directorBrief,
   });
+  const promptPlan = await withTimeout(
+    promptRepairPromise,
+    PROMPT_REPAIR_TIMEOUT_MS,
+    () => normalizeOmniPromptPlanWithPhysicalRules({
+      promptPlan: basePromptPlan,
+      productName: product.name,
+      productPhysicalContract: product.product_physical_contract,
+      segmentCount: segmentPlan.segmentCount,
+      directorBrief,
+    })
+  );
   assertPhysicalPromptPlan(promptPlan);
   const storyboardGeneration = prepareSegmentStoryboardDirectorReferenceUrls({
     sourceSnapshot: resolvedGeneratedScript.source_snapshot,
@@ -313,4 +330,20 @@ export async function createGeneratedScriptFromLegacy(input: {
   );
 
   return normalizeScript(rows[0]);
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: () => T) {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(fallback()), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback());
+      },
+    );
+  });
 }

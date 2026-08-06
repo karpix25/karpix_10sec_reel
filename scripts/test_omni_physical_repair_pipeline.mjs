@@ -102,6 +102,13 @@ try {
   assert.equal(missingValidation[0].validation.valid, true, JSON.stringify(missingValidation[0].validation));
   assert.doesNotMatch(missingValidation[0].storyboardPlan.frames[0].visualAction, /кус(?:ает|ать)|машин|обе\s+руки\s+у\s+лица/iu);
 
+  const missingValidValidation = pipeline.normalizeOmniPromptPlanWithPhysicalRules({
+    promptPlan: [{ ...repaired[0], validation: undefined }],
+    productName: "Коллаген",
+    segmentCount: 1,
+  });
+  assert.equal(missingValidValidation[0].validation.valid, true, JSON.stringify(missingValidValidation[0].validation));
+
   const sippingStoryboard = {
     ...segments[0].storyboardPlan,
     frames: segments[0].storyboardPlan.frames.map((frame) => ({

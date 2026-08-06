@@ -12,33 +12,29 @@ import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-stor
 
 const MAX_AI_REPAIR_ATTEMPTS_PER_SEGMENT = 2;
 
-export async function repairOmniPromptPlanWithAi(input: {
+export function normalizeOmniPromptPlanWithPhysicalRules(input: {
   promptPlan: readonly OmniSegmentPrompt[];
   productName: string;
   productPhysicalContract?: string | null;
   segmentCount: number;
   directorBrief?: DirectorBrief | null;
-  model?: string | null;
 }) {
-  const repairedPlan = [...input.promptPlan];
+  return input.promptPlan.map((segment) => {
+    if (!segment.storyboardPlan) return segment;
 
-  for (let index = 0; index < repairedPlan.length; index += 1) {
-    let segment = repairedPlan[index];
-    if (!segment.storyboardPlan) continue;
-
-    let storyboard = normalizePhysicalStoryboardSegment({
+    const storyboard = normalizePhysicalStoryboardSegment({
       storyboard: segment.storyboardPlan,
       productName: input.productName,
     });
-    let validation = validatePhysicalScene({
+    const validation = validatePhysicalScene({
       storyboard,
       creativePlan: segment.creativePlan,
       productName: input.productName,
     });
     const normalizedChanged = JSON.stringify(segment.storyboardPlan) !== JSON.stringify(storyboard);
-    if (!normalizedChanged && validation.valid) continue;
+    if (!normalizedChanged && validation.valid && segment.validation?.valid) return segment;
 
-    repairedPlan[index] = buildRepairedSegment({
+    return buildRepairedSegment({
       segment,
       storyboard,
       validation,
@@ -47,7 +43,26 @@ export async function repairOmniPromptPlanWithAi(input: {
       segmentCount: input.segmentCount,
       directorBrief: input.directorBrief,
     });
-    if (validation.valid) continue;
+  });
+}
+
+export async function repairOmniPromptPlanWithAi(input: {
+  promptPlan: readonly OmniSegmentPrompt[];
+  productName: string;
+  productPhysicalContract?: string | null;
+  segmentCount: number;
+  directorBrief?: DirectorBrief | null;
+  model?: string | null;
+}) {
+  const repairedPlan = normalizeOmniPromptPlanWithPhysicalRules(input);
+
+  for (let index = 0; index < repairedPlan.length; index += 1) {
+    let segment = repairedPlan[index];
+    if (!segment.storyboardPlan || segment.validation?.valid) continue;
+
+    let storyboard = segment.storyboardPlan;
+    let validation = segment.validation;
+    if (!validation) continue;
 
     for (let attempt = 0; attempt < MAX_AI_REPAIR_ATTEMPTS_PER_SEGMENT && !validation.valid; attempt += 1) {
       const result = await repairPhysicalStoryboardSegment({
