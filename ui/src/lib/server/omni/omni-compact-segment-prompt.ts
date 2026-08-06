@@ -11,7 +11,10 @@ import { buildCompactReferenceBrief } from "./omni-reference-brief";
 import type { OmniGenerationContinuityDirection } from "./omni-generation-continuity";
 import { renderOmniNaturalismContract } from "./omni-naturalism-contract";
 import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
-import { OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT } from "./omni-scene-safety-contract";
+import {
+  OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
+  OMNI_REFERENCE_PRODUCT_EXCLUSION_PROMPT,
+} from "./omni-scene-safety-contract";
 import { renderScriptBeatGuidance } from "./script-beat-plan";
 import { renderOmniVerticalRhythmContract } from "./omni-vertical-rhythm-contract";
 
@@ -74,6 +77,7 @@ export function renderCompactSegmentPrompt(input: {
     `CHARACTER: ${input.characterContract.identityLine}.`,
     referenceBrief.wardrobeLine,
     `PRODUCT: ${input.productName}. ${renderProductRole(input.plan.productRole)}`,
+    OMNI_REFERENCE_PRODUCT_EXCLUSION_PROMPT,
     input.productVisualPassport,
     input.productPhysicalityContract && input.plan.productRole !== "hidden" ? input.productPhysicalityContract : null,
     layoutContract?.propPassportLine || `PROP CONTINUITY: ${props}.`,

@@ -46,6 +46,7 @@ export function validatePhysicalScene(input: {
   input.storyboard.frames.forEach((frame, index) => {
     const frameNumber = index + 1;
     const text = frameText(frame);
+    const actionText = frameActionText(frame);
     const spoken = frame.spokenText.trim();
     const onCamera = Boolean(spoken) && !CUTAWAY_PATTERN.test(`${frame.visualAction} ${frame.camera}`);
     const placementVisible = !HIDDEN_PATTERN.test(frame.productPlacement);
@@ -69,7 +70,7 @@ export function validatePhysicalScene(input: {
       errors.push(`frame_${frameNumber}_product_support_is_ambiguous`);
     }
 
-    if (onCamera && CONSUMPTION_PATTERN.test(text)) {
+    if (onCamera && CONSUMPTION_PATTERN.test(actionText)) {
       errors.push(`frame_${frameNumber}_speech_during_consumption`);
     }
     if (DRIVING_PATTERN.test(`${frame.environment} ${frame.visualAction} ${frame.camera}`)) {
@@ -169,6 +170,10 @@ function extractFrames(source: OmniStoryboardPlanSource | null | undefined): rea
 
 function frameText(frame: OmniStoryboardFrame) {
   return [frame.visualAction, frame.productPlacement, frame.sfxNotes, frame.effectNotes || ""].join(" ");
+}
+
+function frameActionText(frame: OmniStoryboardFrame) {
+  return [frame.visualAction, frame.sfxNotes, frame.effectNotes || ""].join(" ");
 }
 
 function objectCues(value: string) {

@@ -2,6 +2,7 @@ import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboar
 import { isProductVisibleInStoryboardFrame } from "./omni-intro-product-contract";
 import { renderProductPhysicalStoryboardHint } from "./product-physical-contract";
 import { OMNI_PHYSICAL_ACTION_CONTRACT } from "./omni-physical-action-contract";
+import { OMNI_REFERENCE_PRODUCT_EXCLUSION_PROMPT } from "./omni-scene-safety-contract";
 import type { DirectorBrief } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 
@@ -64,6 +65,7 @@ export function buildStoryboardImagePrompt(input: {
     "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
     "Смысл реплики определяет кадр. Переноси из кадров оригинала ракурс, PIP, действие, жест, предмет, переход и атмосферу; не придумывай сцены и не заменяй PIP обычной съемкой.",
     OMNI_PHYSICAL_ACTION_CONTRACT,
+    OMNI_REFERENCE_PRODUCT_EXCLUSION_PROMPT,
     "Канонический outfit задается первым кадром первой части: не меняй одежду, цвет, ткань, крой, аксессуары, волосы или прическу между панелями и частями.",
     productReferenceUrls.length
       ? `Продукт впервые появляется только в панели ${productRevealFrame || "по смыслу реплики"}; прорисуй его точно по product reference и сохраняй форму, упаковку и положение физически непрерывными.`
