@@ -5,6 +5,10 @@ import {
   normalizeStoryboardSource,
   validatePhysicalScene,
 } from "./physical-scene-validator";
+import {
+  normalizePhysicalStoryboardSegment,
+  renderCanonicalStoryboardOverrides,
+} from "./physical-storyboard-normalizer";
 
 export async function assertOmniPhysicalPreflight(input: {
   reelId: number;
@@ -17,23 +21,47 @@ export async function assertOmniPhysicalPreflight(input: {
     !["queued", "submitted", "processing"].includes(String(segment.status)) &&
     segment.status !== "completed"
   );
-  const failures = pendingSegments.map((segment) => {
-    const storyboard = normalizeStoryboardSource({
+  const results = pendingSegments.map((segment) => {
+    const sourceStoryboard = normalizeStoryboardSource({
       source: segment.storyboard_plan || null,
       segmentIndex: segment.segment_index,
       durationSeconds: segment.duration_seconds || 10,
       voiceoverText: segment.voiceover_text || segment.creative_plan?.voiceoverText || "",
       productName: input.productName,
     });
+    const storyboard = sourceStoryboard
+      ? normalizePhysicalStoryboardSegment({ storyboard: sourceStoryboard, productName: input.productName })
+      : null;
+    const changed = JSON.stringify(sourceStoryboard) !== JSON.stringify(storyboard);
+    if (storyboard && changed) {
+      segment.storyboard_plan = storyboard;
+      segment.prompt = `${segment.prompt}\n\n${renderCanonicalStoryboardOverrides(storyboard)}`;
+    }
     return {
       segment,
+      storyboard,
+      changed,
       validation: validatePhysicalScene({
         storyboard,
         creativePlan: segment.creative_plan,
         productName: input.productName,
       }),
     };
-  }).filter((item) => !item.validation.valid);
+  });
+
+  for (const item of results.filter((entry) => entry.changed && entry.storyboard)) {
+    await pool.query(
+      `UPDATE omni_reel_segments
+       SET storyboard_plan = $2::jsonb,
+           prompt = $3,
+           prompt_validation = $4::jsonb,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [item.segment.id, JSON.stringify(item.storyboard), item.segment.prompt, JSON.stringify(item.validation)]
+    );
+  }
+
+  const failures = results.filter((item) => !item.validation.valid);
 
   if (!failures.length) return;
   const message = `Physical scene preflight blocked: ${failures

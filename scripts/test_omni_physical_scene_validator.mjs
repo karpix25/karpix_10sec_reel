@@ -29,6 +29,7 @@ try {
     include: [
       join(ui, "src/lib/omni/**/*.ts"),
       join(ui, "src/lib/server/omni/physical-scene-validator.ts"),
+      join(ui, "src/lib/server/omni/physical-storyboard-normalizer.ts"),
       join(ui, "src/lib/server/omni/storyboard/omni-stored-storyboard-frame-repair.ts"),
       join(ui, "src/lib/server/omni/storyboard/omni-storyboard-speech.ts"),
     ],
@@ -36,6 +37,7 @@ try {
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", config], { cwd: ui, stdio: "inherit" });
   const validator = require(findFile(compiled, "physical-scene-validator.js"));
   const physicalModel = require(findFile(compiled, "physical-scene-model.js"));
+  const normalizer = require(findFile(compiled, "physical-storyboard-normalizer.js"));
   const speech = require(findFile(compiled, "omni-storyboard-speech.js"));
   const storedFrameRepair = require(findFile(compiled, "omni-stored-storyboard-frame-repair.js"));
 
@@ -211,6 +213,48 @@ try {
   assert.equal(
     validator.validatePhysicalScene({
       storyboard: storyboard([foreignSpeechFrame]),
+      creativePlan: null,
+      productName: "Коллаген",
+    }).valid,
+    true
+  );
+
+  const normalizedConflict = normalizer.normalizePhysicalStoryboardSegment({
+    productName: "Коллаген",
+    storyboard: storyboard([
+      frame(
+        "Рассказываю о составе продукта",
+        "обе руки у лица, герой кусает морковь и ведет машину",
+        "держит сыр и Коллаген в руках",
+        "средний план в движущейся машине"
+      ),
+    ]),
+  });
+  assert.equal(
+    validator.validatePhysicalScene({
+      storyboard: normalizedConflict,
+      creativePlan: null,
+      productName: "Коллаген",
+    }).valid,
+    true
+  );
+  assert.doesNotMatch(normalizedConflict.frames[0].visualAction, /кус(?:ает|ать)|машин|обеs+рукиs+уs+лица/iu);
+  assert.doesNotMatch(normalizedConflict.frames[0].productPlacement, /сыр|несколько|дваs+предмета/iu);
+
+  const normalizedCheekAction = normalizer.normalizePhysicalStoryboardSegment({
+    productName: "Коллаген",
+    storyboard: storyboard([
+      frame(
+        "Рецепторы помогают коже",
+        "Both hands move up to touch jawline and cheeks",
+        "Коллаген обязательно физически виден в коротком действии с рукой"
+      ),
+    ]),
+  });
+  assert.match(normalizedCheekAction.frames[0].visualAction, /одной щек/iu);
+  assert.equal(
+    validator.validatePhysicalScene({
+      storyboard: normalizedCheekAction,
       creativePlan: null,
       productName: "Коллаген",
     }).valid,

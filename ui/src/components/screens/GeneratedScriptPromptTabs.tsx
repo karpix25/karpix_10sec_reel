@@ -19,7 +19,7 @@ export function GeneratedScriptPromptTabs({
   provider: OmniGenerationProvider;
 }) {
   const promptsQuery = useOmniGeneratedScriptPrompts(projectId, productId, scriptId, provider);
-  const prompts = promptsQuery.data || [];
+  const prompts = promptsQuery.isError ? [] : promptsQuery.data || [];
   const firstValue = prompts[0] ? String(prompts[0].segmentIndex) : "loading";
   const errorMessage = getPromptErrorMessage(promptsQuery.error);
 
