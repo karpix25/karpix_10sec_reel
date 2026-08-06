@@ -239,18 +239,25 @@ export async function createOmniReel(input: {
       wordCount: segmentPlan.segments[segment.index - 1]?.wordCount,
     })),
   });
-  const storyboardReferenceUrls = await generateStoryboardReferenceUrls({
-    projectId: input.projectId,
-    reelId: reservedReelId,
-    productName: product.name,
-    productPhysicalContract: product.product_physical_contract,
-    productReferenceUrls: resolveProductReferenceImageUrls(product),
-    directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
-    directorBrief: sourceScenarioDirectorBrief,
-    avatarReferenceUrl: latestAvatar?.reference_url || null,
-    promptPlan,
-    generationProvider: input.generationProvider,
-  });
+  const storyboardReferenceUrls = resolvedGeneratedScript
+    ? await getGeneratedScriptStoryboardUrls({
+      projectId: input.projectId,
+      productId: input.productId,
+      scriptId: resolvedGeneratedScript.id,
+      segmentCount,
+    })
+    : await generateStoryboardReferenceUrls({
+      projectId: input.projectId,
+      reelId: reservedReelId,
+      productName: product.name,
+      productPhysicalContract: product.product_physical_contract,
+      productReferenceUrls: resolveProductReferenceImageUrls(product),
+      directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
+      directorBrief: sourceScenarioDirectorBrief,
+      avatarReferenceUrl: latestAvatar?.reference_url || null,
+      promptPlan,
+      generationProvider: input.generationProvider,
+    });
 
   const client = await pool.connect();
   try {
@@ -388,6 +395,28 @@ async function generateStoryboardReferenceUrls(input: {
       : null;
     urls.push(storyboardReferenceUrl);
     if (storyboardReferenceUrl) previousStoryboardReferenceUrl = storyboardReferenceUrl;
+  }
+  return urls;
+}
+
+async function getGeneratedScriptStoryboardUrls(input: {
+  projectId: number;
+  productId: number;
+  scriptId: number;
+  segmentCount: number;
+}) {
+  const { rows } = await pool.query<{ segment_index: number; storyboard_reference_url: string | null }>(
+    `SELECT segment_index, storyboard_reference_url
+     FROM omni_generated_script_storyboards
+     WHERE project_id = $1 AND product_id = $2 AND generated_script_id = $3
+       AND storyboard_reference_url IS NOT NULL
+     ORDER BY segment_index ASC, updated_at DESC`,
+    [input.projectId, input.productId, input.scriptId]
+  );
+  const urls: (string | null)[] = Array.from({ length: input.segmentCount }, () => null);
+  for (const row of rows) {
+    const index = Number(row.segment_index) - 1;
+    if (index >= 0 && index < urls.length && !urls[index]) urls[index] = row.storyboard_reference_url;
   }
   return urls;
 }
