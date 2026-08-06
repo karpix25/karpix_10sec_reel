@@ -10,6 +10,8 @@ const HIDDEN_PATTERN = /(?:вне кадра|не виден|скрыт|hidden|o
 const SURFACE_PATTERN = /(?:на столе|на поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
 const HOLDING_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|одной рукой|в одну руку|двумя руками)/iu;
 const PRODUCT_PATTERN = /(?:продукт|товар|product|package|упаков|баноч|бутыл|капсул|порош|крем|collagen|коллаген)/iu;
+const MULTIPLE_HELD_OBJECTS_PATTERN = /(?:несколько предметов|два предмета|multiple objects|two objects|(?:держит|holding|holds|в руках)[^.;]{0,90}(?: и | and |,\s*))/iu;
+const OBJECT_INTERACTION_PATTERN = /(?:держит|держать|в руках|holding|holds|показывает|показать|showing|shows|кус(?:ает|ать|ил)|eat(?:s|ing)?|bite(?:s|ing)?|drink(?:s|ing)?)/iu;
 const BOTH_CHEEKS_PATTERN = /(?:обеих?\s+щек|обе\s+щеки|both\s+cheeks)/iu;
 const ONE_CHEEK_PATTERN = /(?:одной\s+щек|одну\s+щеку|one\s+cheek)/iu;
 const HANDS_TO_FACE_PATTERN = /(?:обе\s+руки\s+(?:у|к)\s+лица|both\s+hands[^.;]{0,30}face)/iu;
@@ -18,6 +20,54 @@ const DRIVING_PATTERN = /(?:driv|steer|moving car|за рулем|за рулё�
 const PICK_UP_PATTERN = /(?:берет|берёт|поднимает|pick\s*up|picks\s*up)/iu;
 const PUT_DOWN_PATTERN = /(?:кладет|кладёт|ставит|полож|убирает|откладывает|put\s*down|places?)/iu;
 const HANDOFF_PATTERN = /(?:передает|передаёт|handoff|hands?\s+(?:it|the object)\s+to)/iu;
+
+export function hasConsumptionAction(value: string) {
+  return CONSUMPTION_PATTERN.test(value);
+}
+
+export function hasDrivingAction(value: string) {
+  return DRIVING_PATTERN.test(value);
+}
+
+export function hasMultipleHeldObjects(value: string) {
+  return MULTIPLE_HELD_OBJECTS_PATTERN.test(value);
+}
+
+export function normalizeVehicleContext(value: string) {
+  return value.replace(DRIVING_PATTERN, "автомобиль припаркован и неподвижен");
+}
+
+export function repairReferenceAction(input: {
+  action: string;
+  spokenText: string;
+  productName: string;
+  productVisible: boolean;
+}) {
+  const action = input.action.trim();
+  if (!action) return action;
+  const hasSpeech = Boolean(input.spokenText.trim());
+  const hasDriving = hasDrivingAction(action);
+  const hasConsumption = hasConsumptionAction(action);
+  const hasMultipleObjects = hasMultipleHeldObjects(action);
+  const interactsWithObject = OBJECT_INTERACTION_PATTERN.test(action);
+  const product = input.productName.trim() || "продукт";
+
+  if (hasDriving || (input.productVisible && interactsWithObject && !mentionsProduct(action, product))) {
+    return input.productVisible
+      ? buildProductPresentationAction(product)
+      : "герой находится в припаркованной машине, автомобиль неподвижен; герой спокойно говорит в камеру";
+  }
+  if (hasConsumption && hasSpeech && !CUTAWAY_PATTERN.test(action)) {
+    return "герой спокойно говорит в камеру с нейтральным жестом, без еды во рту";
+  }
+  if (hasMultipleObjects && input.productVisible) {
+    return buildProductPresentationAction(product);
+  }
+  if (interactsWithObject && hasSpeech && !input.productVisible) {
+    return "герой показывает только один предмет из текущей реплики одной рукой; остальные предметы вне кадра";
+  }
+  return action;
+}
 
 export function buildPhysicalFramePlan(input: {
   productName: string;
@@ -95,6 +145,10 @@ function classifyProductState(value: string, productName: string): PhysicalObjec
   if (HOLDING_PATTERN.test(value)) return "held";
   if (SURFACE_PATTERN.test(value)) return "surface";
   return "visible";
+}
+
+function mentionsProduct(value: string, productName: string) {
+  return value.toLocaleLowerCase().includes(productName.toLocaleLowerCase());
 }
 
 function slug(value: string) {
