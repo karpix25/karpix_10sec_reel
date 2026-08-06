@@ -24,7 +24,7 @@ export async function repairOmniPromptPlanWithAi(input: {
 
   for (let index = 0; index < repairedPlan.length; index += 1) {
     let segment = repairedPlan[index];
-    if (!segment.storyboardPlan || segment.validation?.valid !== false) continue;
+    if (!segment.storyboardPlan) continue;
 
     let storyboard = normalizePhysicalStoryboardSegment({
       storyboard: segment.storyboardPlan,
@@ -35,6 +35,9 @@ export async function repairOmniPromptPlanWithAi(input: {
       creativePlan: segment.creativePlan,
       productName: input.productName,
     });
+    const normalizedChanged = JSON.stringify(segment.storyboardPlan) !== JSON.stringify(storyboard);
+    if (!normalizedChanged && validation.valid) continue;
+
     repairedPlan[index] = buildRepairedSegment({
       segment,
       storyboard,
