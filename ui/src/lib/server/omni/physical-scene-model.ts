@@ -8,19 +8,19 @@ import type {
 const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр/iu;
 const HIDDEN_PATTERN = /(?:вне кадра|не виден|скрыт|hidden|off\s*camera|only thematic objects|только тематические объекты)/iu;
 const SURFACE_PATTERN = /(?:на столе|на поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
-const HOLDING_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|одной рукой|в одну руку|двумя руками)/iu;
+const HOLDING_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|одной рукой|в одну руку|в одной руке|двумя руками|в двух руках)/iu;
 const PRODUCT_PATTERN = /(?:продукт|товар|product|package|упаков|баноч|бутыл|капсул|порош|крем|collagen|коллаген)/iu;
 const MULTIPLE_HELD_OBJECTS_PATTERN = /(?:несколько предметов|два предмета|multiple objects|two objects|(?:держит|holding|holds|в руках)[^.;]{0,90}(?: и | and |,\s*))/iu;
 const OBJECT_INTERACTION_PATTERN = /(?:держит|держать|в руках|holding|holds|показывает|показать|showing|shows|кус(?:ает|ать|ил)|eat(?:s|ing)?|bite(?:s|ing)?|drink(?:s|ing)?)/iu;
 const BOTH_CHEEKS_PATTERN = /(?:обеих?\s+щек|обе\s+щеки|both\s+cheeks)/iu;
 const ONE_CHEEK_PATTERN = /(?:одной\s+щек|одну\s+щеку|one\s+cheek)/iu;
 const HANDS_TO_FACE_PATTERN = /(?:обе\s+руки\s+(?:у|к)\s+лица|both\s+hands[^.;]{0,30}face)/iu;
-const CONSUMPTION_PATTERN = /(?:eat|eating|bite|biting|chew|chewing|drink|drinking|swallow|кус(?:ает|ать|ил)|жует|жуёт|пьет|пьёт|глот(?:ает|ать))/iu;
+const CONSUMPTION_PATTERN = /(?:eat|eating|bite|biting|chew|chewing|drink|drinking|swallow|кус(?:ает|ать|ил)|жеван|жует|жуёт|пьет|пьёт|глот(?:ает|ать))/iu;
 const DRIVING_PATTERN = /(?:driv|steer|moving car|за рулем|за рулём|ведет машину|ведёт машину|машина едет|автомобиль движется)/iu;
 const PICK_UP_PATTERN = /(?:берет|берёт|поднимает|pick\s*up|picks\s*up)/iu;
 const PUT_DOWN_PATTERN = /(?:кладет|кладёт|ставит|полож|убирает|откладывает|put\s*down|places?)/iu;
 const HANDOFF_PATTERN = /(?:передает|передаёт|handoff|hands?\s+(?:it|the object)\s+to)/iu;
-const FOREIGN_PRODUCT_REFERENCE_PATTERN = /(?:product|brand|package|packaging|label|jar|bottle|box|tube|sachet|snack|food|drink|cream|serum|supplement|vitamin|коллаген|сыр|морков|перекус|продукт|товар|бренд|упаков|этикет|баноч|бутыл|короб|тюбик|пакет|еда|напит|крем|сыворот|добавк|витамин)/iu;
+const FOREIGN_PRODUCT_REFERENCE_PATTERN = /(?:product|brand|package|packaging|label|jar|bottle|box|tube|sachet|snack|food|drink|cream|serum|supplement|vitamin|apple|banana|fruit|vegetable|коллаген|сыр|морков|перекус|яблок|банан|фрукт|овощ|продукт|товар|бренд|упаков|этикет|баноч|бутыл|короб|тюбик|пакет|еда|напит|крем|сыворот|добавк|витамин)/iu;
 
 export function hasConsumptionAction(value: string) {
   return CONSUMPTION_PATTERN.test(value);

@@ -26,6 +26,7 @@ import {
   repairPhysicalFrameAction,
 } from "../physical-scene-model";
 import { splitStoryboardSpeech } from "./omni-storyboard-speech";
+import { buildStoredStoryboardFrame } from "./omni-stored-storyboard-frame-repair";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -101,21 +102,12 @@ export function buildStoryboardFromPromptChainFrames(input: {
     frames: input.frames.map((frame, index) => {
       const isFrameHidden = /(?:продукт|товар)\s+(?:вне\s+кадра|не\s+виден|скрыт)|hidden|off\s*camera/iu.test(frame.productState || "");
       const productVisible = !isFrameHidden && (productVisibleFrom !== null && index >= productVisibleFrom);
-      return {
-        spokenText: frame.spokenWords,
-        visualAction: productVisible
-          ? frame.visualDescription || frame.action
-          : renderNonProductFrameAction(frame.visualDescription || frame.action, false, input.productName),
-        camera: frame.camera,
-        environment: "окружение и свет из режиссерского плана и storyboard image",
-        wardrobe: `одежда из avatar или reference contract, без смены между кадрами; ${EXACT_FABRIC_LOCK}`,
-        productPlacement: productVisible
-          ? renderPromptChainProductPlacement(frame.productState, input.productPhysicalHint)
-          : "в кадре только тематические объекты и окружение текущей реплики",
-        sfxNotes: frame.sfx || "естественные звуки речи и движения продукта",
-        effectNotes: null,
-        modelMusicNotes: null,
-      };
+      return buildStoredStoryboardFrame({
+        frame,
+        productName: input.productName,
+        productPhysicalHint: input.productPhysicalHint,
+        productVisible,
+      });
     }),
   };
 }
