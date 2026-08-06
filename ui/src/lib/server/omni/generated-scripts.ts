@@ -28,8 +28,6 @@ import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-refere
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 import { repairOmniPromptPlanWithAi } from "./omni-physical-repair-pipeline";
 
-const STORYBOARD_PREVIEW_TIMEOUT_MS = 30_000;
-
 function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
   return {
     ...row,
@@ -123,7 +121,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     directorBrief,
   });
   assertPhysicalPromptPlan(promptPlan);
-  const directorReferenceImageUrlsBySegment = await prepareSegmentStoryboardDirectorReferenceUrls({
+  const storyboardGeneration = prepareSegmentStoryboardDirectorReferenceUrls({
     sourceSnapshot: resolvedGeneratedScript.source_snapshot,
     storageTarget: {
       kind: "generated_script",
@@ -138,8 +136,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
       durationSeconds: segment.durationSeconds,
       wordCount: segmentPlan.segments[segment.index - 1]?.wordCount,
     })),
-  });
-  const storyboardUrlsPromise = ensureGeneratedScriptStoryboardUrls({
+  }).then((directorReferenceImageUrlsBySegment) => ensureGeneratedScriptStoryboardUrls({
     ...input,
     productName: product.name,
     productPhysicalContract: product.product_physical_contract,
@@ -149,20 +146,14 @@ export async function buildGeneratedScriptPromptPreview(input: {
     directorBrief,
     promptPlan,
     generationProvider: input.generationProvider,
-  }).catch((error) => {
-    console.warn("Generated script storyboard preview skipped:", {
+  }));
+  void storyboardGeneration.catch((error) => {
+    console.warn("Generated script storyboard background job failed:", {
       scriptId: input.scriptId,
       error: error instanceof Error ? error.message : String(error),
     });
-    return new Map<number, string>();
-    });
-  const storyboardUrls = await withTimeout(storyboardUrlsPromise, STORYBOARD_PREVIEW_TIMEOUT_MS, () => {
-    console.warn("Generated script storyboard preview timed out:", {
-      scriptId: input.scriptId,
-      timeoutMs: STORYBOARD_PREVIEW_TIMEOUT_MS,
-    });
-    return new Map<number, string>();
   });
+  const storyboardUrls = new Map<number, string>();
 
   return promptPlan.map((segment) => ({
     segmentIndex: segment.index,
@@ -178,19 +169,6 @@ export async function buildGeneratedScriptPromptPreview(input: {
     storyboardReferenceUrl: storyboardUrls.get(segment.index) || null,
     validation: segment.validation,
   }));
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, onTimeout: () => T) {
-  return new Promise<T>((resolve) => {
-    const timer = setTimeout(() => resolve(onTimeout()), timeoutMs);
-    promise.then((value) => {
-      clearTimeout(timer);
-      resolve(value);
-    }, () => {
-      clearTimeout(timer);
-      resolve(onTimeout());
-    });
-  });
 }
 
 export async function createGeneratedScriptFromLegacy(input: {
