@@ -54,6 +54,10 @@ import {
 import {
   mentionsOmniProduct,
 } from "./omni-intro-product-contract";
+import {
+  repairPhysicalScenePrompt,
+  validatePhysicalScene,
+} from "./physical-scene-validator";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -209,14 +213,19 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       wardrobeSource: input.wardrobeSource,
       productAlreadyVisible: productIntroduced,
     });
-    const prompt = renderCompactRussianOmniStoryboardPrompt({
+    const physicalValidation = validatePhysicalScene({
+      storyboard: storyboardPlan,
+      creativePlan: plan,
+      productName: input.product.name,
+    });
+    const validation = physicalValidation;
+    const prompt = repairPhysicalScenePrompt(renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productName: input.product.name,
       productPhysicalContract: plan.productRole !== "hidden" ? productPhysicalContract : null,
       segmentCount: input.segmentCount,
       directorBrief,
-    });
-    const validation = { valid: true, score: 100, errors: [], warnings: [] };
+    }), validation);
     prompts.push({
       index: segmentIndex,
       role: segmentRole,
@@ -313,15 +322,19 @@ function buildStoredProviderPromptSegments(
       productPhysicalHint,
       productAlreadyVisible: productIntroduced,
     });
-    const validation = { valid: true, score: 100, errors: [], warnings: [] };
+    const validation = validatePhysicalScene({
+      storyboard: storyboardPlan,
+      creativePlan,
+      productName: input.product.name,
+    });
     productIntroduced = productIntroduced || segmentMentionsProduct;
-    const prompt = renderCompactRussianOmniStoryboardPrompt({
+    const prompt = repairPhysicalScenePrompt(renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productName: input.product.name,
       productPhysicalContract: productRole !== "hidden" ? productPhysicalContract : null,
       segmentCount: providerPromptPlan.segmentPrompts.length,
       directorBrief: input.directorBrief,
-    });
+    }), validation);
     return {
       index: segmentIndex,
       role: getSegmentRole(segmentIndex, providerPromptPlan.segmentPrompts.length),

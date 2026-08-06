@@ -37,6 +37,7 @@ import {
   getOmniSegmentRetryCount,
 } from "./omni-segment-retry";
 import { syncOmniReelSegments } from "./omni-segment-sync";
+import { assertOmniPhysicalPreflight } from "./omni-physical-preflight";
 
 type ReelBundle = {
   reel: OmniReel;
@@ -164,6 +165,12 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     });
     throw new Error("KIE.ai Omni requires an approved avatar with saved character id");
   }
+  const productName = typeof reel.product_snapshot?.name === "string"
+    ? reel.product_snapshot.name
+    : typeof reel.product_snapshot?.product_name === "string"
+      ? reel.product_snapshot.product_name
+      : "";
+  await assertOmniPhysicalPreflight({ reelId: reel.id, provider, productName, segments });
   const hasVisibleProductSegment = segments.some(
     (segment) => segment.creative_plan?.productRole !== "hidden"
   );
@@ -225,11 +232,6 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
               : "continuity_chain_disabled",
           },
         };
-    const productName = typeof reel.product_snapshot?.name === "string"
-      ? reel.product_snapshot.name
-      : typeof reel.product_snapshot?.product_name === "string"
-        ? reel.product_snapshot.product_name
-        : "";
     const productIsVisible = hasProductVisibleStoryboardFrame(segment.storyboard_plan, productName);
     const continuityImages = continuity.image ? [continuity.image] : [];
     const storyboardImages = segment.storyboard_reference_url
