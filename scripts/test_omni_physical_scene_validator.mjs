@@ -158,6 +158,15 @@ try {
   });
   assert.equal(productContractWithUsageWord.valid, true);
 
+  const oneHeldProductWithDescriptor = validator.validatePhysicalScene({
+    storyboard: storyboard([
+      frame("Рассказываю о составе", "герой спокойно говорит в камеру", "Коллаген в одной руке, без других продуктов и упаковок"),
+    ]),
+    creativePlan: null,
+    productName: "Коллаген",
+  });
+  assert.equal(oneHeldProductWithDescriptor.valid, true);
+
   const repairedStoredFrame = storedFrameRepair.buildStoredStoryboardFrame({
     frame: {
       index: 2,

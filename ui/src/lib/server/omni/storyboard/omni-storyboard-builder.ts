@@ -173,19 +173,25 @@ function buildFrame(input: {
     : productVisible
       ? renderProductFrameAction(presentationAction || visualActionSource, isCutawayFrame, input.productName)
       : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName);
+  const finalVisualAction = repairReferenceAction({
+    action: visualAction,
+    spokenText: input.spokenText,
+    productName: input.productName,
+    productVisible,
+  });
   const initialPhysicalPlan = buildPhysicalFramePlan({
     productName: input.productName,
     spokenText: input.spokenText,
-    visualAction,
+    visualAction: finalVisualAction,
     camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible), productVisible, input.plan.productRole),
     productPlacement: renderProductPlacement(input.plan, input.productName, input.productVisualPassport, input.productPhysicalHint, input.segmentIndex, productVisible),
   });
   const repairedVisualAction = repairPhysicalFrameAction({
     productName: input.productName,
-    visualAction,
+    visualAction: finalVisualAction,
     plan: initialPhysicalPlan,
   });
-  const physicalPlan = repairedVisualAction === visualAction
+  const physicalPlan = repairedVisualAction === finalVisualAction
     ? initialPhysicalPlan
     : buildPhysicalFramePlan({
         productName: input.productName,
