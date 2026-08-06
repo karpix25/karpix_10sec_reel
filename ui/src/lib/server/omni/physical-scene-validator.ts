@@ -4,12 +4,11 @@ import type {
   OmniStoryboardSegment,
 } from "../../omni/storyboard/omni-storyboard-types";
 import type { OmniStoryboardPlanSource } from "../../omni/types";
-import { buildPhysicalFramePlan } from "./physical-scene-model";
+import { buildPhysicalFramePlan, hasConsumptionAction } from "./physical-scene-model";
 
 type PhysicalFrameState = "hidden" | "surface" | "held" | "visible" | "unknown";
 
 const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр/iu;
-const CONSUMPTION_PATTERN = /(?:eat|eating|bite|biting|chew|chewing|drink|drinking|swallow|кус\w*|жев\w*|пив\w*|пь\w*|отпив\w*|глот\w*|(?<!\p{L})ест(?:ь)?(?=\s|$|[,.!?])|принима(?:ет|ть)(?=\s|$|[,.!?])|прием(?=\s|$|[,.!?])|приём(?=\s|$|[,.!?]))/iu;
 const DRIVING_PATTERN = /(?:driv|steer|moving car|за рулем|за рулём|ведет машину|ведёт машину|машина едет|автомобиль движется)/iu;
 const HOLDING_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|одной рукой|в одной руке|двумя руками|в двух руках)/iu;
 const MULTI_OBJECT_PATTERN = /(?:несколько предметов|два предмета|multiple objects|two objects|(?:держит|holding|holds|в руках)[^.;]{0,90}(?: и | and ))/iu;
@@ -70,7 +69,7 @@ export function validatePhysicalScene(input: {
       errors.push(`frame_${frameNumber}_product_support_is_ambiguous`);
     }
 
-    if (onCamera && CONSUMPTION_PATTERN.test(actionText)) {
+    if (onCamera && hasConsumptionAction(actionText)) {
       errors.push(`frame_${frameNumber}_speech_during_consumption`);
     }
     if (DRIVING_PATTERN.test(`${frame.environment} ${frame.visualAction} ${frame.camera}`)) {
@@ -96,7 +95,7 @@ export function validatePhysicalScene(input: {
     }
   }
 
-  if (input.creativePlan?.beats.some((beat) => CONSUMPTION_PATTERN.test(beat.action)) &&
+  if (input.creativePlan?.beats.some((beat) => hasConsumptionAction(beat.action)) &&
       input.storyboard.frames.some((frame) => Boolean(frame.spokenText.trim()) && !CUTAWAY_PATTERN.test(frame.visualAction))) {
     warnings.push("scene_contains_consumption_beat_and_on_camera_speech");
   }

@@ -131,6 +131,17 @@ try {
   });
   assert.equal(sippingRepaired[0].validation.valid, true, JSON.stringify(sippingRepaired[0].validation));
   assert.doesNotMatch(sippingRepaired[0].storyboardPlan.frames[0].visualAction, /отпива|пив\w*|пь\w*/iu);
+  for (const action of ["герой отхлебывает напиток", "герой пробует продукт", "герой sips the drink", "герой tasting the product"]) {
+    const variantValidation = validator.validatePhysicalScene({
+      storyboard: {
+        ...sippingStoryboard,
+        frames: sippingStoryboard.frames.map((frame) => ({ ...frame, visualAction: action })),
+      },
+      creativePlan: null,
+      productName: "Коллаген",
+    });
+    assert.equal(variantValidation.errors.includes("frame_1_speech_during_consumption"), true, action);
+  }
   console.log("Omni physical repair pipeline checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
