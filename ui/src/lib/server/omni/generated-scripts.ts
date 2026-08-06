@@ -126,7 +126,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     segmentCount: segmentPlan.segmentCount,
     directorBrief,
   });
-  const promptPlan = await withTimeout(
+  const repairedPromptPlan = await withTimeout(
     promptRepairPromise,
     PROMPT_REPAIR_TIMEOUT_MS,
     () => normalizeOmniPromptPlanWithPhysicalRules({
@@ -137,6 +137,13 @@ export async function buildGeneratedScriptPromptPreview(input: {
       directorBrief,
     })
   );
+  const promptPlan = normalizeOmniPromptPlanWithPhysicalRules({
+    promptPlan: repairedPromptPlan,
+    productName: product.name,
+    productPhysicalContract: product.product_physical_contract,
+    segmentCount: segmentPlan.segmentCount,
+    directorBrief,
+  });
   assertPhysicalPromptPlan(promptPlan);
   const storyboardGeneration = prepareSegmentStoryboardDirectorReferenceUrls({
     sourceSnapshot: resolvedGeneratedScript.source_snapshot,
