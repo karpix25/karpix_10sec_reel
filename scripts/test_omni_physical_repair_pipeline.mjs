@@ -101,6 +101,28 @@ try {
   });
   assert.equal(missingValidation[0].validation.valid, true, JSON.stringify(missingValidation[0].validation));
   assert.doesNotMatch(missingValidation[0].storyboardPlan.frames[0].visualAction, /кус(?:ает|ать)|машин|обе\s+руки\s+у\s+лица/iu);
+
+  const sippingStoryboard = {
+    ...segments[0].storyboardPlan,
+    frames: segments[0].storyboardPlan.frames.map((frame) => ({
+      ...frame,
+      visualAction: "герой отпивает коллаген из упаковки",
+      productPlacement: "коллаген в одной руке",
+    })),
+  };
+  const sippingValidation = validator.validatePhysicalScene({
+    storyboard: sippingStoryboard,
+    creativePlan: null,
+    productName: "Коллаген",
+  });
+  assert.equal(sippingValidation.valid, false, JSON.stringify(sippingValidation));
+  const sippingRepaired = await pipeline.repairOmniPromptPlanWithAi({
+    promptPlan: [{ ...segments[0], storyboardPlan: sippingStoryboard, validation: sippingValidation }],
+    productName: "Коллаген",
+    segmentCount: 1,
+  });
+  assert.equal(sippingRepaired[0].validation.valid, true, JSON.stringify(sippingRepaired[0].validation));
+  assert.doesNotMatch(sippingRepaired[0].storyboardPlan.frames[0].visualAction, /отпива|пив\w*|пь\w*/iu);
   console.log("Omni physical repair pipeline checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
