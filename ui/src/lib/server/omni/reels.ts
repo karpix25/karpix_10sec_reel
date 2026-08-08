@@ -390,6 +390,7 @@ async function generateStoryboardReferenceUrls(input: {
         avatarReferenceUrl: input.avatarReferenceUrl,
         previousStoryboardReferenceUrl,
         directorBrief: input.directorBrief,
+        referencePolicy: segmentPrompt.referencePolicy,
         generationProvider: input.generationProvider,
       })
       : null;

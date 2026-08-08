@@ -6,13 +6,15 @@ import { ensureOmniSchema } from "./schema";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import type { DirectorBrief } from "./director-analysis-types";
 import { buildStoryboardPlanSignature } from "./storyboard-cache-signature";
+import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 
 type StoryboardPromptSegment = {
   index: number;
   storyboardPlan: OmniStoryboardSegment | null;
+  referencePolicy?: ReferenceTransferPolicy;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-pip-reference-authority-v6";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-semantic-transfer-v7";
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
@@ -46,6 +48,7 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
       referenceSignature,
       segmentIndex: segment.index,
       storyboardPlan: segment.storyboardPlan,
+      referencePolicy: segment.referencePolicy,
       previousStoryboardReferenceUrl,
       generationProvider: input.generationProvider,
     });
@@ -99,6 +102,7 @@ async function tryGenerateStoryboardPreview(input: {
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   directorBrief?: DirectorBrief | null;
+  referencePolicy?: ReferenceTransferPolicy;
   referenceSignature: string;
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment;
@@ -120,6 +124,7 @@ async function tryGenerateStoryboardPreview(input: {
       directorReferenceImageUrls: getSegmentDirectorReferenceUrls(input, input.segmentIndex),
       previousStoryboardReferenceUrl: input.previousStoryboardReferenceUrl,
       directorBrief: input.directorBrief,
+      referencePolicy: input.referencePolicy,
       generationProvider: input.generationProvider,
     });
     if (!url) return null;

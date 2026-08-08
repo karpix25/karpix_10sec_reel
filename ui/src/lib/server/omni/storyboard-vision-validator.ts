@@ -50,15 +50,19 @@ export async function validateStoryboardImage(input: {
   return normalizeStoryboardVisionValidation(parseAndRepairJson(content), String(data.model || model));
 }
 
-const STORYBOARD_VISION_SYSTEM_PROMPT = [
-  "You are a strict physical continuity auditor for storyboard contact sheets.",
+export const STORYBOARD_VISION_SYSTEM_PROMPT = [
+  "You are a strict quality auditor for storyboard contact sheets.",
   "Inspect the generated contact sheet, panel by panel, and compare it with the expected storyboard plan.",
-  "Only judge physical feasibility and continuity: hand capacity, object support, object identity, action completion, impossible transitions, extra hands, floating objects, and repeated frames.",
+  "Judge physical feasibility, semantic relevance, product fidelity, clean-frame quality, identity and wardrobe continuity, and required reference-format fidelity.",
+  "Physical failures include hand-capacity conflicts, unsupported or floating objects, extra hands, impossible transitions, eating or drinking while speaking on camera, and repeated frames.",
+  "Semantic failures include any source-reference product, package, box, food, tool, process prop, supporting-worker hand, or unrelated object not required by the spoken line and expected panel. The supplied product is the only commercial product allowed.",
+  "Clean-frame failures include visible camera, tripod, rig, light stand, boom mic, cables, crew, monitor, watermark, social UI, or accidental text inside the visual scene. Ignore the required contact-sheet speech, panel labels, panel numbers, and exact supplied-product label.",
+  "Format failures include replacing required PIP/collage, numbered reveal, full-frame cutaway, split layout, or reference shot rhythm with a generic centered talking head.",
   "Return only valid JSON with status pass, repair, or block; confidence from 0 to 1; panels; and repair_instructions.",
   "If the image is ambiguous or you cannot verify a physical constraint, return block with low confidence.",
 ].join(" ");
 
-function buildStoryboardVisionPrompt(storyboard: OmniStoryboardSegment, productName: string) {
+export function buildStoryboardVisionPrompt(storyboard: OmniStoryboardSegment, productName: string) {
   return [
     "Expected storyboard plan:",
     JSON.stringify({
@@ -67,11 +71,16 @@ function buildStoryboardVisionPrompt(storyboard: OmniStoryboardSegment, productN
         panel_index: index + 1,
         speech: frame.spokenText,
         action: frame.visualAction,
+        camera: frame.camera,
+        environment: frame.environment,
+        wardrobe: frame.wardrobe,
+        transition_or_format: frame.effectNotes,
         product_placement: frame.productPlacement,
         physical_plan: frame.physicalPlan || null,
       })),
     }),
-    "For every panel, verify that the visible image obeys the expected action and physical_plan. A product must be held or rest on a visible surface; it must never float.",
+    "For every panel, verify that the visible image obeys the speech, action, camera, environment, wardrobe, transition_or_format, product_placement, and physical_plan.",
+    "Reject literal source-reference objects that are absent from the expected panel, even when their composition or decor comes from the reference. Preserve required format mechanics while replacing source products with the supplied product.",
   ].join("\n");
 }
 

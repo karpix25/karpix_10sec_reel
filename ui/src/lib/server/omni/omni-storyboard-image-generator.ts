@@ -14,6 +14,7 @@ import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboar
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import type { StoryboardVisionValidation } from "@/lib/omni/storyboard/omni-storyboard-vision-types";
 import { validateStoryboardImage } from "./storyboard-vision-validator";
+import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 
 const DEFAULT_COMETAPI_BASE_URL = "https://api.cometapi.com";
 const STORYBOARD_IMAGE_MODEL = "gpt-image-2";
@@ -40,6 +41,7 @@ type StoryboardImageInput = {
   directorReferenceImageUrls?: readonly string[];
   previousStoryboardReferenceUrl?: string | null;
   directorBrief?: DirectorBrief | null;
+  referencePolicy?: ReferenceTransferPolicy;
   generationProvider?: OmniGenerationProvider;
 };
 
@@ -106,6 +108,7 @@ async function generateKieStoryboardImageBytes(input: {
   directorReferenceImageUrls: readonly string[];
   previousStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
+  referencePolicy?: ReferenceTransferPolicy;
   repairInstructions: readonly string[];
 }): Promise<GeneratedStoryboardImage> {
   const inputUrls = [
@@ -139,6 +142,7 @@ async function generateCometStoryboardImageBytes(input: {
   directorReferenceImageUrls: readonly string[];
   previousStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
+  referencePolicy?: ReferenceTransferPolicy;
   repairInstructions: readonly string[];
 }): Promise<GeneratedStoryboardImage> {
   const response = await createStoryboardImage(input);
@@ -167,6 +171,7 @@ async function createStoryboardImage(input: {
   directorReferenceImageUrls: readonly string[];
   previousStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
+  referencePolicy?: ReferenceTransferPolicy;
   repairInstructions: readonly string[];
 }) {
   const references = buildReferenceFiles(input).slice(0, 16);
