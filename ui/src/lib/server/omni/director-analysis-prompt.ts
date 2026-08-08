@@ -1,14 +1,15 @@
 import type { DirectorBrief } from "./director-analysis-types";
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v3";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v4";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
   "Analyze short-form vertical source videos for reusable visual direction.",
   "Return only valid JSON. Do not include markdown, prose, comments, or extra keys.",
-  "Do not describe or request application interfaces, social app overlays, buttons, like/share icons, comments, subtitles, captions, progress bars, brand logos, or UI elements.",
-  "Focus only on raw footage: subject actions, visual hook, location timeline, atmosphere, clothing style, camera language, lighting, and reusable scene mechanics.",
+  "Ignore application interfaces, social app buttons, like/share icons, comments, subtitles, captions, progress bars, brand logos, and exact on-screen text.",
+  "Do extract non-platform structural retention graphics and layouts when they define the format: numbered progression, collage or picture-in-picture, split layout, persistent decor anchors, and visual reveal order.",
+  "Focus on subject actions, visual hook, location timeline, atmosphere, clothing style, camera language, lighting, structural layout, and reusable scene mechanics.",
   "Do not turn the reference speaker's speech tempo or pauses into generation instructions. Do extract visible camera changes, cuts, and transitions exactly as observed, including film burn, light leak, exposure flash, lens flare, blur, wipe, fade, or other edit treatment.",
   "Extract reusable direction without copying the creator identity, face, brand, exact location, logos, protected marks, or platform interface.",
 ].join("\n");
@@ -35,7 +36,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
     "- montage_rhythm must describe only visible cuts and transitions. Inspect every boundary between source shots and name the exact treatment: hard cut, jump cut, film burn/light leak, exposure flash, lens flare, blur, wipe, fade, or another visible effect. If the reference stays on one setup, say that it uses a continuous stable shot.",
     "- Do not collapse a film burn, light leak, or exposure flash into a generic 'overlay'; state that it is a brief edit transition between two shots.",
     "- Mention only raw filming choices and human actions.",
-    "- All overlays, subtitles, logos, UI cards, and interface elements belong to post-production and must not appear in this JSON.",
+    "- Exclude subtitles, logos, social UI, interface controls, and exact text content. Preserve non-platform format mechanics such as a 1/2/3 progression, opening collage/PIP, split layout, and persistent decorative anchors in reusable_mechanics.visual_mechanics.",
     "- product_introduction.first_appearance_sec must be the exact second when the main product first appears physically in frame. If no identifiable product is shown in the reference, set relative_position to 'never' and first_appearance_sec to 0.",
     "- product_introduction.relative_position must be 'hook' if the product appears in the first 20% of the video, 'body' if it appears in the middle 60%, 'payoff' if it appears in the last 20%, or 'never' if no product is shown.",
     "- product_introduction.introduction_style must describe the exact physical action: 'already holding at start', 'placed on table at Xs', 'taken from bag at Xs', 'slides into frame at Xs', 'never shown'. Be specific and include the second.",

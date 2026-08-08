@@ -12,7 +12,7 @@ import {
   selectReferenceImagesForSegment,
   type ReelReferenceImage,
 } from "./omni-reference-images";
-import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
+import { resolveProductIdentityReferenceImageUrls } from "./omni-product-reference-images";
 import { createOmniCompositeReference } from "./omni-composite-reference";
 import {
   appendContinuityPromptContract,
@@ -34,6 +34,7 @@ import { detectKieOmniVoiceGender, resolveKieOmniAudioIds, type KieOmniVoiceGend
 import { applyOmniStoryboardFileReference } from "./storyboard/omni-storyboard-file-reference";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import {
+  appendOmniSegmentRetryPrompt,
   getOmniSegmentRetryCount,
 } from "./omni-segment-retry";
 import { syncOmniReelSegments } from "./omni-segment-sync";
@@ -74,7 +75,7 @@ function getAvatarReferenceUrl(reel: OmniReel) {
 }
 
 function getProductReferenceUrls(reel: OmniReel) {
-  return resolveProductReferenceImageUrls(reel.product_snapshot || {});
+  return resolveProductIdentityReferenceImageUrls(reel.product_snapshot || {});
 }
 
 function getAvatarCharacterId(reel: OmniReel) {
@@ -247,9 +248,10 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       segmentIndex: segment.segment_index,
       productIsVisible,
     });
+    const retryPrompt = appendOmniSegmentRetryPrompt(segment.prompt, segment.request_payload);
     const continuityPrompt = continuity.image
-      ? appendContinuityPromptContract(segment.prompt)
-      : segment.prompt;
+      ? appendContinuityPromptContract(retryPrompt)
+      : retryPrompt;
     const kieStoryboardPrompt = applyOmniStoryboardFileReference(
       continuityPrompt,
       selectedReferenceImages.sent

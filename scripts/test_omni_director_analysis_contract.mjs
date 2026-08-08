@@ -57,11 +57,20 @@ try {
 
   const { normalizeDirectorBrief } = require(findFile(compiled, "director-analysis-types.js"));
   const { shouldAnalyzeDirectorReference } = require(findFile(compiled, "director-analysis-policy.js"));
-  const { renderDirectorBriefForOmniPrompt } = require(findFile(compiled, "director-analysis-prompt.js"));
+  const {
+    DIRECTOR_ANALYSIS_PROMPT_VERSION,
+    DIRECTOR_ANALYSIS_SYSTEM_PROMPT,
+    buildDirectorAnalysisUserPrompt,
+    renderDirectorBriefForOmniPrompt,
+  } = require(findFile(compiled, "director-analysis-prompt.js"));
   const { buildReferenceTransferPolicy } = require(findFile(compiled, "omni-reference-transfer-policy.js"));
   const { renderSimpleFullBodyUgcPrompt } = require(findFile(compiled, "omni-simple-ugc-prompt.js"));
   const { extractScrapeCreatorsInstagramVideo } = require(findFile(compiled, "scrapecreators-client.js"));
   const { analyzeDirectorVideo } = require(findFile(compiled, "openrouter-director-analysis-client.js"));
+
+  assert.equal(DIRECTOR_ANALYSIS_PROMPT_VERSION, "director-brief-v4");
+  assert.match(DIRECTOR_ANALYSIS_SYSTEM_PROMPT, /numbered progression/u);
+  assert.match(buildDirectorAnalysisUserPrompt({ transcript: "test" }), /opening collage\/PIP/u);
 
   const scrapeResult = extractScrapeCreatorsInstagramVideo({
     data: {

@@ -6,6 +6,7 @@ import {
   buildOmniSegmentRetryPayload,
   canRetryOmniSegment,
 } from "./omni-segment-retry";
+import { OmniSegmentOutputValidationError } from "./omni-segment-output-validator";
 
 export async function syncOmniReelSegments(input: {
   reel: OmniReel;
@@ -20,7 +21,7 @@ export async function syncOmniReelSegments(input: {
       const status = task.status.toLowerCase();
       if (status === "completed") {
         await storeCompletedSegment({
-          projectId: input.reel.project_id,
+          reel: input.reel,
           segment,
           task,
         });
@@ -43,6 +44,16 @@ export async function syncOmniReelSegments(input: {
         );
       }
     } catch (error) {
+      if (error instanceof OmniSegmentOutputValidationError) {
+        const response = { output_validation: error.validation };
+        if (canRetryOmniSegment(segment.request_payload)) {
+          await resetSegmentForRetry(segment, response, error.message);
+          retried = true;
+        } else {
+          await markSegmentFailed(segment, response, error.message);
+        }
+        continue;
+      }
       await pool.query(
         "UPDATE omni_reel_segments SET error_message = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
         [segment.id, error instanceof Error ? error.message : "Omni segment sync failed"]

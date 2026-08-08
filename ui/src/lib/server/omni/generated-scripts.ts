@@ -18,7 +18,7 @@ import { resolveReadyGeneratedScriptReference } from "./generated-script-referen
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { ensureGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
-import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
+import { resolveProductIdentityReferenceImageUrls } from "./omni-product-reference-images";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
@@ -165,7 +165,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     productName: product.name,
     productPhysicalContract: product.product_physical_contract,
     avatarReferenceUrl: avatar?.reference_url || null,
-    productReferenceUrls: resolveProductReferenceImageUrls(product),
+    productReferenceUrls: resolveProductIdentityReferenceImageUrls(product),
     directorReferenceImageUrlsBySegment,
     directorBrief,
     promptPlan,

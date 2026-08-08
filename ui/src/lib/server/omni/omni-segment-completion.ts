@@ -10,9 +10,13 @@ import { createContinuityFrameAsset } from "./omni-frame-continuity";
 import { downloadProviderVideo, type ProviderTask } from "./omni-provider-tasks";
 import { startOmniReelSubtitlesIfEnabled } from "./omni-reel-subtitles";
 import { mixBackgroundAudioForReel } from "./omni-background-audio";
+import {
+  OmniSegmentOutputValidationError,
+  validateOmniSegmentOutput,
+} from "./omni-segment-output-validator";
 
 export async function storeCompletedSegment(input: {
-  projectId: number;
+  reel: OmniReel;
   segment: OmniReelSegment;
   task: ProviderTask;
 }) {
@@ -22,20 +26,29 @@ export async function storeCompletedSegment(input: {
 
   const provider = normalizeOmniGenerationProvider(input.segment.generation_provider);
   const videoBuffer = await downloadProviderVideo(provider, input.segment.kie_task_id);
+  const outputValidation = await validateOmniSegmentOutput({
+    reel: input.reel,
+    segment: input.segment,
+    videoBuffer,
+  });
+  if (outputValidation.status === "block") {
+    throw new OmniSegmentOutputValidationError(outputValidation);
+  }
   const videoUrl = await uploadOmniVideoBufferToS3({
-    projectId: input.projectId,
+    projectId: input.reel.project_id,
     reelId: input.segment.reel_id,
     fileName: `segment_${String(input.segment.segment_index).padStart(2, "0")}.mp4`,
     body: videoBuffer,
     segmentIndex: input.segment.segment_index,
   });
   const continuity = await tryCreateContinuityFrame({
-    projectId: input.projectId,
+    projectId: input.reel.project_id,
     segment: input.segment,
     videoBuffer,
   });
   const responsePayload = {
     ...input.task.raw,
+    output_validation: outputValidation,
     continuity_frame: continuity.payload,
   };
 

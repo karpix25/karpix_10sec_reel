@@ -14,7 +14,7 @@ import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-plan
 import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
-import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
+import { resolveProductIdentityReferenceImageUrls } from "./omni-product-reference-images";
 import { detectKieOmniVoiceGender } from "./kie-omni-audio";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
@@ -251,7 +251,7 @@ export async function createOmniReel(input: {
       reelId: reservedReelId,
       productName: product.name,
       productPhysicalContract: product.product_physical_contract,
-      productReferenceUrls: resolveProductReferenceImageUrls(product),
+      productReferenceUrls: resolveProductIdentityReferenceImageUrls(product),
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
       directorBrief: sourceScenarioDirectorBrief,
       avatarReferenceUrl: latestAvatar?.reference_url || null,
