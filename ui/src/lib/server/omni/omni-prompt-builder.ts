@@ -37,9 +37,13 @@ import { buildSegmentCreativePlan } from "./omni-segment-creative-plan";
 import {
   buildStoryboardFromPromptChainFrames,
   buildStoryboardFromCreativePlan,
+  validateBuiltStoryboard,
 } from "./storyboard/omni-storyboard-builder";
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
-import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
+import {
+  buildReferenceTransferPolicy,
+  type ReferenceTransferPolicy,
+} from "./omni-reference-transfer-policy";
 import { applyDirectorLayoutToPlan, buildDirectorLayoutContract } from "./director-layout-contract";
 import {
   buildProductVisualProfileFromText,
@@ -68,6 +72,7 @@ export type OmniSegmentPrompt = {
   voiceoverText: string;
   storyboardPlan: OmniStoryboardSegment | null;
   storyboardValidation: OmniStoryboardValidationResult | null;
+  referencePolicy: ReferenceTransferPolicy;
   creativeStrategy: OmniCreativeStrategy;
   creativePlan: OmniSegmentCreativePlan;
   validation: OmniPromptValidationResult;
@@ -210,6 +215,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentCount: input.segmentCount,
       durationSeconds: segmentSeconds,
       directorBrief,
+      referencePolicy,
       wardrobeSource: input.wardrobeSource,
       productAlreadyVisible: productIntroduced,
     });
@@ -234,7 +240,8 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       durationSeconds: segmentSeconds,
       voiceoverText: plan.voiceoverText,
       storyboardPlan,
-      storyboardValidation: null,
+      storyboardValidation: validateBuiltStoryboard(storyboardPlan),
+      referencePolicy,
       creativeStrategy: strategy,
       creativePlan: plan,
       validation,
@@ -279,6 +286,15 @@ function buildStoredProviderPromptSegments(
   }
 
   const productReference = getPrimaryReference(input.product.product_refs);
+  const directorBrief =
+    input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
+  const referencePolicy = buildReferenceTransferPolicy({
+    directorBrief,
+    productName: input.product.name,
+    productDescription: input.product.description,
+    productReferenceNotes: input.product.product_reference_notes,
+    hasProductReference: Boolean(productReference),
+  });
   const avatarReference = input.avatar?.reference_url || null;
   const productPhysicalContract = resolveProductPhysicalContract({
     product: input.product,
@@ -321,6 +337,7 @@ function buildStoredProviderPromptSegments(
       productName: input.product.name,
       productPhysicalHint,
       productAlreadyVisible: productIntroduced,
+      referencePolicy,
     });
     const validation = validatePhysicalScene({
       storyboard: storyboardPlan,
@@ -343,7 +360,8 @@ function buildStoredProviderPromptSegments(
       durationSeconds: segment.durationSeconds,
       voiceoverText: segment.voiceover,
       storyboardPlan,
-      storyboardValidation: null,
+      storyboardValidation: validateBuiltStoryboard(storyboardPlan),
+      referencePolicy,
       creativeStrategy: strategy,
       creativePlan,
       validation,

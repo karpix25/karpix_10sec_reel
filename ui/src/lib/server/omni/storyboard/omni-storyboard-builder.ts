@@ -27,6 +27,9 @@ import {
 } from "../physical-scene-model";
 import { splitStoryboardSpeech } from "./omni-storyboard-speech";
 import { buildStoredStoryboardFrame } from "./omni-stored-storyboard-frame-repair";
+import type { ReferenceTransferPolicy } from "../omni-reference-transfer-policy";
+import { sanitizeReferenceWorldText } from "../omni-scene-world-sanitizer";
+import { selectStoryboardReferenceAction } from "./omni-reference-action-transfer";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -41,6 +44,7 @@ export function buildStoryboardFromCreativePlan(input: {
   segmentCount?: number;
   durationSeconds: number;
   directorBrief?: DirectorBrief | null;
+  referencePolicy?: ReferenceTransferPolicy;
   wardrobeSource?: OmniWardrobeSource;
   productAlreadyVisible?: boolean;
 }): OmniStoryboardSegment {
@@ -68,6 +72,7 @@ export function buildStoryboardFromCreativePlan(input: {
         productPhysicalHint: input.productPhysicalHint,
         characterContract: input.characterContract,
         directorBrief: input.directorBrief,
+        referencePolicy: input.referencePolicy,
         wardrobeSource: input.wardrobeSource,
         segmentIndex: input.segmentIndex,
         segmentCount: input.segmentCount || 1,
@@ -88,6 +93,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
   frames: readonly StoryboardFrame[];
   productPhysicalHint?: string | null;
   productAlreadyVisible?: boolean;
+  referencePolicy?: ReferenceTransferPolicy;
 }): OmniStoryboardSegment {
   if (!input.frames.length) throw new Error(`Storyboard segment ${input.segmentIndex} has no frames`);
   const revealFrame = getOmniProductRevealFrame(
@@ -107,6 +113,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
         productName: input.productName,
         productPhysicalHint: input.productPhysicalHint,
         productVisible,
+        referencePolicy: input.referencePolicy,
       });
     }),
   };
@@ -134,6 +141,7 @@ function buildFrame(input: {
   productPhysicalHint?: string | null;
   characterContract: OmniCharacterContract;
   directorBrief?: DirectorBrief | null;
+  referencePolicy?: ReferenceTransferPolicy;
   wardrobeSource?: OmniWardrobeSource;
   segmentIndex: number;
   segmentCount?: number;
@@ -149,10 +157,11 @@ function buildFrame(input: {
   const productVisible = input.plan.productRole !== "hidden" &&
     !isArticleCtaOnly(input.spokenText) &&
     (input.productAlreadyVisible || mentionsOmniProduct(input.spokenText, input.productName));
-  const referenceAction = layoutLocked
-    ? ""
-    : selectReferenceAction({
+  const referenceAction = layoutLocked ? "" : selectStoryboardReferenceAction({
         brief: input.directorBrief,
+        policy: input.referencePolicy,
+        productName: input.productName,
+        productVisible,
         segmentIndex: input.segmentIndex,
         segmentCount: input.segmentCount || 1,
         frameIndex: input.frameIndex,
@@ -210,8 +219,8 @@ function buildFrame(input: {
       productVisible,
       input.plan.productRole
     ),
-    environment: renderDirectorEnvironment(input.directorBrief),
-    wardrobe: renderStoryboardWardrobe(input.characterContract, input.directorBrief, input.wardrobeSource),
+    environment: renderDirectorEnvironment(input.directorBrief, input.referencePolicy),
+    wardrobe: renderStoryboardWardrobe(input.characterContract, input.directorBrief, input.wardrobeSource, input.referencePolicy),
     productPlacement: renderProductPlacement(
       input.plan,
       input.productName,
@@ -250,7 +259,7 @@ function renderFrameCamera(
   return base;
 }
 
-function renderDirectorEnvironment(brief?: DirectorBrief | null) {
+function renderDirectorEnvironment(brief?: DirectorBrief | null, policy?: ReferenceTransferPolicy) {
   const timeline = brief?.location_timeline?.[0];
   const parts = [
     timeline?.setting || brief?.atmosphere.setting,
@@ -258,7 +267,10 @@ function renderDirectorEnvironment(brief?: DirectorBrief | null) {
     timeline?.lighting || brief?.atmosphere.lighting,
     brief?.atmosphere.color_grading,
     brief?.atmosphere.mood,
-  ].filter(Boolean);
+  ].filter(Boolean).map((part) => policy?.mode === "style_only"
+    ? sanitizeReferenceWorldText(part || "", "")
+    : part
+  ).filter(Boolean);
   return parts.length
     ? normalizeVehicleContext(`REFERENCE SCENE LOCK: ${parts.join("; ")}`)
     : "то же окружение и свет, что заданы сценой сегмента";
@@ -267,12 +279,16 @@ function renderDirectorEnvironment(brief?: DirectorBrief | null) {
 function renderStoryboardWardrobe(
   characterContract: OmniCharacterContract,
   brief?: DirectorBrief | null,
-  wardrobeSource?: OmniWardrobeSource
+  wardrobeSource?: OmniWardrobeSource,
+  policy?: ReferenceTransferPolicy
 ) {
   if (normalizeOmniWardrobeSource(wardrobeSource) === "avatar_reference") {
     return `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
   }
   if (characterContract.speechGender === "male" && isClearlyFemaleWardrobe(brief)) {
+    return `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
+  }
+  if (policy?.mode === "style_only" && isReferenceUniform(brief)) {
     return `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
   }
   if (!brief?.clothing.style) return `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
@@ -301,15 +317,6 @@ function renderDirectorCamera(brief: DirectorBrief | null | undefined, productVi
     brief.camera.movements.length ? `movement ${brief.camera.movements.join(", ")}` : "",
     brief.camera.stabilization,
   ].filter(Boolean).join("; "), 220));
-}
-
-function renderPromptChainProductPlacement(productState: string | null | undefined, productPhysicalHint?: string | null) {
-  const state = productState?.trim() || "продукт следует физическому состоянию storyboard";
-  if (/(?:продукт|товар)\s+(?:вне\s+кадра|не\s+виден|скрыт)|hidden|off\s*camera/iu.test(state)) return state;
-  return appendProductPhysicalHint(
-    `${state}; продукт физически виден как реальный предмет с деталями из product reference`,
-    productPhysicalHint
-  );
 }
 
 function renderProductPlacement(
@@ -368,6 +375,11 @@ function isClearlyFemaleWardrobe(brief?: DirectorBrief | null) {
   return /halter|bra\b|bustier|corset|dress|skirt|women'?s|feminine|бюстгальтер|корсет|плать|юбк|женск|топ\s+на\s+бретел/iu.test(clothing);
 }
 
+function isReferenceUniform(brief?: DirectorBrief | null) {
+  const clothing = [brief?.clothing.style, brief?.clothing.fit_details].filter(Boolean).join(" ");
+  return /uniform|lab coat|doctor|nurse|scrubs|gloves|medical|culinary|униформ|халат|перчат|врач|повар/iu.test(clothing);
+}
+
 function renderFrameAction(action: string | undefined, isCutawayFrame: boolean) {
   const normalized = compactText(action || "персонаж естественно говорит в камеру", 220);
   if (/REFERENCE LAYOUT|collage\/PIP/iu.test(normalized)) return normalized;
@@ -407,42 +419,8 @@ function renderIntroFrameAction(action: string | undefined, isCutawayFrame: bool
     : "персонаж с пустыми руками естественно говорит в камеру";
 }
 
-function selectReferenceAction(input: {
-  brief?: DirectorBrief | null;
-  segmentIndex: number;
-  segmentCount: number;
-  frameIndex: number;
-  frameCount: number;
-}) {
-  const beats = input.brief?.action_beats
-    ?.filter((beat) => beat.action_description || beat.actor_gesture)
-    .slice()
-    .sort((left, right) => left.timestamp_sec - right.timestamp_sec) || [];
-  if (!beats.length) return "";
-  const firstTimestamp = beats[0].timestamp_sec;
-  const lastTimestamp = beats[beats.length - 1].timestamp_sec;
-  const reelPosition = ((input.segmentIndex - 1) + (input.frameIndex - 0.5) / input.frameCount) /
-    Math.max(1, input.segmentCount);
-  const targetTimestamp = firstTimestamp + (lastTimestamp - firstTimestamp) * Math.min(1, Math.max(0, reelPosition));
-  const nearest = beats.reduce((best, beat) =>
-    Math.abs(beat.timestamp_sec - targetTimestamp) < Math.abs(best.timestamp_sec - targetTimestamp) ? beat : best
-  );
-  return compactText(
-    [sanitizeReferenceActionDescription(nearest.action_description), nearest.actor_gesture].filter(Boolean).join("; "),
-    220
-  );
-}
-
 function isReferenceCutawayAction(action: string) {
   return /background|cutaway|insert|overlay|product close|macro|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр|фон меня/iu.test(action);
-}
-
-function sanitizeReferenceActionDescription(value: string) {
-  const normalized = compactText(value, 160);
-  if (!normalized || /retinol|spf|collagen|cream|powder|principle|крем|пудр|ретинол|спф|коллаген|принцип|кож|уход|косметолог|врач|ретинолов/iu.test(normalized)) {
-    return "";
-  }
-  return normalized;
 }
 
 function normalizeDefaultFrameAction(action: string | undefined) {

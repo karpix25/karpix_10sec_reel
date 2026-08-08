@@ -12,6 +12,7 @@ import type { DirectorBrief } from "../director-analysis-types";
 import { isCollagePictureInPictureReference } from "../director-layout-contract";
 import { renderReferenceTransitionCue } from "./omni-storyboard-effects";
 import { OMNI_PHYSICAL_ACTION_CONTRACT } from "../omni-physical-action-contract";
+import { OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT } from "../omni-scene-safety-contract";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
@@ -40,7 +41,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     preservePipLayout
       ? "PIP: full-screen фон; avatar lower-left cutout."
       : "",
-    "filming equipment is never visible.",
+    OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
     `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
     "Фиксируй те же волосы, пробор, аксессуары.",
     "Канонический outfit задается первым кадром первой части: один и тот же полный комплект одежды во всех частях; не меняй цвет, ткань, крой или аксессуары.",
