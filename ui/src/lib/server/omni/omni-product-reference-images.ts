@@ -1,12 +1,5 @@
 export function resolveProductReferenceImageUrls(snapshot: unknown) {
-  if (!isRecord(snapshot)) return [];
-  const refs = snapshot.product_refs;
-  if (!Array.isArray(refs)) return [];
-
-  const imageRefs = refs.filter((ref) => {
-    if (!isRecord(ref)) return false;
-    return ref.kind === "image" && ref.status !== "failed" && cleanText(ref.url);
-  });
+  const imageRefs = getProductImageRefs(snapshot);
   const orderedRefs = [
     ...imageRefs.filter((ref) => Boolean(ref.is_primary)),
     ...imageRefs.filter((ref) => !Boolean(ref.is_primary)),
@@ -17,6 +10,26 @@ export function resolveProductReferenceImageUrls(snapshot: unknown) {
       .map((ref) => resolvePublicReferenceUrl(cleanText(ref.url)))
       .filter(Boolean)
   );
+}
+
+export function resolveProductIdentityReferenceImageUrls(snapshot: unknown) {
+  const imageRefs = getProductImageRefs(snapshot);
+  const identityRefs = imageRefs.filter(
+    (ref) => ref.role === "product_primary" || Boolean(ref.is_primary)
+  );
+  const selected = identityRefs.length ? identityRefs : imageRefs.slice(0, 1);
+  return uniqueStrings(
+    selected
+      .map((ref) => resolvePublicReferenceUrl(cleanText(ref.url)))
+      .filter(Boolean)
+  );
+}
+
+function getProductImageRefs(snapshot: unknown) {
+  if (!isRecord(snapshot) || !Array.isArray(snapshot.product_refs)) return [];
+  return snapshot.product_refs.filter((ref): ref is Record<string, unknown> => (
+    isRecord(ref) && ref.kind === "image" && ref.status !== "failed" && Boolean(cleanText(ref.url))
+  ));
 }
 
 function resolvePublicReferenceUrl(url: string) {
