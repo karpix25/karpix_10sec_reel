@@ -112,7 +112,10 @@ async function runSyncStage(job: OmniAutomationJob) {
     return completeOmniAutomationJob(job.id);
   }
   if (bundle.reel.status === "failed") {
-    throw new Error(bundle.reel.error_message || "Omni reel failed");
+    return failOmniAutomationJob({
+      jobId: job.id,
+      errorMessage: bundle.reel.error_message || "Omni reel failed",
+    });
   }
 
   return requeueOmniAutomationJob({
