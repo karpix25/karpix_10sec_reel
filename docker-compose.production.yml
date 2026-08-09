@@ -28,7 +28,7 @@ services:
       DB_NAME: ${DB_NAME:-postgres}
       DB_USER: ${DB_USER:-postgres}
       DB_PASS: ${DB_PASS:-postgres}
-      OLD_DB_HOST: ${OLD_DB_HOST:-}
+      OLD_DB_HOST: n8n_ai_avatars-postgres-1
       OLD_DB_PORT: ${OLD_DB_PORT:-5432}
       OLD_DB_NAME: ${OLD_DB_NAME:-}
       OLD_DB_USER: ${OLD_DB_USER:-}
