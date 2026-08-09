@@ -35,10 +35,15 @@ export function buildStoryboardImagePrompt(input: {
     .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName) ? index + 1 : null)
     .filter((index): index is number => index !== null);
   const productRevealFrame = productFrameNumbers[0] || null;
+  const panelLayout = frameCount <= 3
+    ? `один ряд из ${frameCount} панелей`
+    : `два ряда, порядок чтения слева направо и сверху вниз: ${Math.ceil(frameCount / 2)} панели сверху и ${Math.floor(frameCount / 2)} снизу`;
+  const shotLabels = Array.from({ length: frameCount }, (_, index) => `SHOT ${String.fromCharCode(65 + index)}`).join(", ");
   return [
-    `Создай одну широкую UGC-storyboard картинку: черный фон, ровно ${frameCount} вертикальных панелей в один ряд, белые разделители и номер панели в белом круге.`,
-    "В каждой панели: сверху живой вертикальный кадр, внутри крупно точная реплика этого кадра на русском; снизу короткие серые подсказки РАКУРС и ДЕЙСТВИЕ.",
-    "Не добавляй рекламный дизайн, UI, соцсети, водяные знаки, лишние captions, стикеры или декоративные эффекты. Разрешены только структурный номер, PIP или collage, если они прямо заданы reference-механикой или действием кадра.",
+    `Одна квадратная UGC contact sheet: черный фон, ровно ${frameCount} панелей 9:16, ${panelLayout}.`,
+    `Снаружи кадров поставь ${shotLabels}; ячейки раздели белыми линиями.`,
+    "В ячейке сверху чистый кадр без текста, снизу отдельная инструкция: реплика, РАКУРС и ДЕЙСТВИЕ.",
+    "Не добавляй UI, водяные знаки или новый декор. Сохраняй reference-декор, PIP/collage, numbered reveal и цветовые акценты вирусной механики.",
     "@file1 - avatar/character reference: только лицо, возраст, волосы, телосложение и личность героя. Лицо оригинального автора не копируй.",
     productReferenceUrls.length
       ? `@file${productFileStart}${productReferenceUrls.length > 1 ? `-@file${productFileStart + productReferenceUrls.length - 1}` : ""} - product reference images: точный продукт ${input.productName}, форма, цвет, упаковка, материал и размер.`
@@ -67,12 +72,12 @@ export function buildStoryboardImagePrompt(input: {
         ].filter(Boolean).join("; ") + ". Same fabric, cut, and color in every panel — any deviation is a failure."
       : "",
     "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
-    "Смысл реплики и действие нужной панели определяют кадр. Переноси из кадров оригинала композицию, ракурс, PIP, свет, фон, позу, переход и атмосферу, но не буквальные продукты, упаковки, коробки, еду, инструменты или реквизит. Сохраняй функцию вирусной механики, а не случайные предметы. Не заменяй PIP, numbered reveal или полноэкранную перебивку обычной talking-head съемкой.",
+    "Реплика и действие панели определяют кадр. Из оригинала бери композицию, ракурс, PIP, свет, фон, позу, переход и атмосферу, но не чужие продукты и случайный реквизит. Не заменяй PIP, numbered reveal или полноэкранную перебивку обычным talking head.",
     OMNI_PHYSICAL_ACTION_CONTRACT,
     OMNI_REFERENCE_PRODUCT_EXCLUSION_PROMPT,
     "Канонический outfit задается первым кадром первой части: не меняй одежду, цвет, ткань, крой, аксессуары, волосы или прическу между панелями и частями.",
     productReferenceUrls.length
-      ? `Продукт впервые появляется только в панели ${productRevealFrame || "по смыслу реплики"}; прорисуй его точно по product reference и сохраняй форму, упаковку и положение физически непрерывными.`
+      ? `Продукт впервые появляется только в ${productRevealFrame ? `SHOT ${String.fromCharCode(64 + productRevealFrame)}` : "SHOT по смыслу реплики"}; прорисуй его точно по product reference и сохраняй форму, упаковку и положение физически непрерывными.`
       : "",
     productReferenceUrls.length
       ? "Показывай продукт естественно, без рекламного close-up; не дублируй и не телепортируй его."
@@ -84,7 +89,7 @@ export function buildStoryboardImagePrompt(input: {
     `Сегмент ${input.segmentIndex}. Каждый кадр длится две секунды.`,
     ...input.storyboard.frames.map((frame, index) =>
       [
-        `Кадр ${index + 1}, ${index * 2}-${(index + 1) * 2} сек:`,
+        `SHOT ${String.fromCharCode(65 + index)}, ${index * 2}-${(index + 1) * 2} сек:`,
         `РЕПЛИКА "${frame.spokenText}".`,
         `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)}; окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};`,
         frame.effectNotes ? `переход: ${compactText(frame.effectNotes)};` : "",

@@ -6,6 +6,7 @@
     "dev": "next dev --webpack",
     "dev:turbopack": "next dev",
     "build": "next build",
+    "test:omni-reference": "tsc scripts/omni-reference-contract-smoke.ts src/lib/server/omni/omni-continuity-prompt.ts src/lib/server/omni/storyboard/omni-storyboard-file-reference.ts --target ES2022 --module commonjs --moduleResolution node --outDir /tmp/omni-reference-contract-smoke --skipLibCheck --strict --esModuleInterop && node /tmp/omni-reference-contract-smoke/scripts/omni-reference-contract-smoke.js",
     "start": "next start",
     "lint": "eslint"
   },

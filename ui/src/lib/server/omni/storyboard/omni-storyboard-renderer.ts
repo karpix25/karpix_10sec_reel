@@ -35,41 +35,58 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   const productRevealFrame = productFrameNumbers[0] || null;
 
   return [
-    `Создай динамичный разговорный ролик по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}, сохрани точно такой же визуал.`,
-    `Структура видео: ровно ${frameCount} живых эпизодов по одному на каждый кадр, в том же порядке.`,
-    `Оживи кадры раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER} как реальные сцены; не показывай саму раскадровку, телефон, экран, интерфейс, соцсети или карточки.`,
+    `Create one live-action vertical video from the single storyboard instruction board ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
+    `The board contains exactly ${frameCount} ordered SHOT panels. Animate one shot per panel in the timestamped order below.`,
+    "Preserve the storyboard composition, lighting, environment, wardrobe, decor, PIP or collage mechanics, visible format elements, and edit rhythm.",
+    "Replace only the original performer with the supplied character identity and the original commercial product with the supplied product reference.",
+    "Do not render the storyboard grid, separators, SHOT labels, instruction text, social interface, or subtitles.",
     preservePipLayout
-      ? "PIP: full-screen фон; avatar lower-left cutout."
+      ? "FORMAT LOCK: keep the full-screen background and the avatar cutout in the lower-left PIP position shown on the storyboard."
       : "",
     OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
-    `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
-    "Фиксируй те же волосы, пробор, аксессуары.",
-    "Канонический outfit задается первым кадром первой части: один и тот же полный комплект одежды во всех частях; не меняй цвет, ткань, крой или аксессуары.",
-    "WARDROBE AUTHORITY: первый outfit из раскадровки единственный; не бери одежду из avatar reference и не меняй outfit.",
+    "Use the supplied character identity only for face, age, hair, body, and identity. Use the storyboard for outfit, lighting, background, camera relationship, and action.",
+    "Keep the same hair, parting, accessories, and complete outfit across every shot and segment.",
     renderWardrobeLock(input.directorBrief),
     renderReferenceTransitionCue(input.directorBrief),
-    renderStoryboardCameraLock(input.storyboard),
+    renderStoryboardTimeline(input.storyboard),
     renderVehicleCameraLock(input.directorBrief),
-    "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
+    "In every presenter shot, the character looks directly into the lens.",
     productAppearsInThisSegment
-      ? `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}; не меняй упаковку; впервые покажи его только в кадре ${productRevealFrame}; дальше сохраняй в той же руке или на том же месте; не допускай исчезновения, телепортации или смены положения без движения руки.`
-      : "В этом сегменте продукт вне кадра; не переноси его из reference-кадра.",
+      ? `Use ${OMNI_PRODUCT_FILE_PLACEHOLDER} only for product identity. Reveal it first in SHOT ${shotLabel((productRevealFrame || 1) - 1)} and preserve its packaging, scale, state, hand, and physical position until a visible action moves it.`
+      : "Keep the product outside the frame for this entire segment.",
     productAppearsInThisSegment
-      ? "Состояние продукта держи одинаковым."
+      ? "Keep one physically continuous product instance; never duplicate, teleport, or transform it."
       : "",
     productAppearsInThisSegment ? renderProductPhysicalContractForOmni(input.productPhysicalContract) : "",
     OMNI_PHYSICAL_ACTION_CONTRACT,
-    "Точная реплика персонажа на русском языке (произноси только текст в кавычках, ничего кроме него):",
+    "EXACT SPOKEN RUSSIAN LINE. Speak the quoted text once and say nothing else:",
     `"${voiceoverText}"`,
-    "Правила аудио: произнеси строго указанную реплику в кавычках один раз, плавно и без пауз. Не зачитывай технические инструкции. После завершения реплики персонаж молчит. Без фоновой музыки и субтитров.",
+    "Deliver it naturally without long pauses. Never read technical instructions aloud. After the line, remain silent. No background music or subtitles.",
+    `Use ${OMNI_STORYBOARD_FILE_PLACEHOLDER} as a visual reference board, not as a literal first frame.`,
   ].join("\n");
 }
 
-function renderStoryboardCameraLock(storyboard: OmniStoryboardSegment) {
-  const cameraMap = storyboard.frames
-    .map((frame, index) => `${index + 1}=${frame.camera.trim()}`)
-    .join(" | ");
-  return `CAMERA AUTHORITY: follow storyboard camera. MAP: ${cameraMap}. Keep setup until change; no left-right/front-rear, seat, zoom, orbit or background changes.`;
+function renderStoryboardTimeline(storyboard: OmniStoryboardSegment) {
+  const secondsPerShot = storyboard.durationSeconds / storyboard.frames.length;
+  return storyboard.frames.map((frame, index) => {
+    const start = formatSeconds(index * secondsPerShot);
+    const end = formatSeconds((index + 1) * secondsPerShot);
+    return [
+      `[${start}-${end}s] Animate SHOT ${shotLabel(index)} from the storyboard.`,
+      `Subject motion: ${frame.visualAction.trim()}.`,
+      `Camera behavior: ${frame.camera.trim()}.`,
+      frame.effectNotes ? `Transition behavior: ${frame.effectNotes.trim()}.` : "",
+      "Keep every other visible detail exactly as shown in that SHOT panel.",
+    ].filter(Boolean).join(" ");
+  }).join("\n");
+}
+
+function shotLabel(index: number) {
+  return String.fromCharCode(65 + index);
+}
+
+function formatSeconds(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
 function renderVehicleCameraLock(brief?: DirectorBrief | null) {

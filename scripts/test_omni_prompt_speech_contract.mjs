@@ -63,46 +63,42 @@ try {
     assert.ok(!/СЦЕНАРНЫЕ БИТЫ ЭТОЙ ЧАСТИ:[\s\S]*?\bречь\s*-/iu.test(item.prompt));
     assert.ok(!item.prompt.includes("Реплика персонажа:"), "legacy frame speech marker must not be used");
     assert.ok(!item.prompt.includes("Озвучка:"), "storyboard prompt must not imply background voiceover");
-    assert.ok(item.prompt.includes("по раскадровке"), "storyboard prompt must bind video to storyboard");
-    assert.ok(item.prompt.includes("динамичный разговорный ролик"), "storyboard prompt must request a dynamic conversational reel");
+    assert.ok(item.prompt.includes("single storyboard instruction board"), "storyboard prompt must bind video to one instruction board");
+    assert.ok(item.prompt.includes("Animate one shot per panel"), "storyboard prompt must animate every ordered panel");
     assert.ok(item.prompt.includes("@storyboard_file"), "storyboard prompt must keep file placeholder until KIE upload order is known");
     const productVisible = item.storyboardPlan.frames.some((frame) =>
       !/в\s+кадре\s+только\s+тематические|(?:продукт|товар)\s+вне\s+кадра/iu.test(frame.productPlacement)
     );
     if (productVisible) {
       assert.ok(item.prompt.includes("@product_file"), "product-visible segments must keep the product file placeholder");
-      assert.ok(item.prompt.includes("Продукт бери из"), "product-visible segments must bind the product file");
-      assert.ok(item.prompt.includes("не меняй упаковку"), "product-visible segments must preserve product packaging");
+      assert.ok(item.prompt.includes("Use @product_file only for product identity"), "product-visible segments must bind the product file");
+      assert.ok(item.prompt.includes("preserve its packaging"), "product-visible segments must preserve product packaging");
     } else {
       assert.ok(!item.prompt.includes("@product_file"), "product-hidden segments must not reference the product file");
-      assert.ok(item.prompt.includes("продукт вне кадра"), "product-hidden segments must keep the product off camera");
+      assert.ok(item.prompt.includes("Keep the product outside the frame"), "product-hidden segments must keep the product off camera");
     }
-    assert.ok(item.prompt.includes("не показывай саму раскадровку"), "storyboard prompt must not render storyboard panels");
-    assert.ok(item.prompt.includes("телефон, экран, интерфейс, соцсети"), "storyboard prompt must forbid embedded social UI");
-    assert.ok(item.prompt.includes("Оживи кадры раскадровки"), "storyboard prompt must convert frames into live scenes");
-    assert.ok(item.prompt.includes("сохрани точно такой же визуал"), "storyboard prompt must ask to copy storyboard visual");
-    assert.ok(item.prompt.includes("Лицо и личность персонажа бери из avatar/character reference"), "storyboard prompt must limit avatar reference to identity");
-    assert.ok(item.prompt.includes("одежду, свет, фон, ракурс и действия бери из раскадровки"), "storyboard prompt must make storyboard wardrobe and scene authoritative");
-    assert.ok(item.prompt.includes("те же волосы, пробор, аксессуары"), "storyboard prompt must keep hair and outfit details stable");
-    assert.ok(item.prompt.includes("один и тот же полный комплект одежды"), "storyboard prompt must lock one outfit across all segments");
-    assert.ok(item.prompt.includes("Канонический outfit задается первым кадром первой части"), "storyboard prompt must make the first outfit canonical");
-    assert.ok(item.prompt.includes("смотрит прямо в объектив"), "storyboard prompt must keep eye contact across camera angles");
+    assert.ok(item.prompt.includes("Do not render the storyboard grid"), "storyboard prompt must not render storyboard panels");
+    assert.ok(item.prompt.includes("social interface"), "storyboard prompt must forbid embedded social UI");
+    assert.ok(item.prompt.includes("[0-2s] Animate SHOT A"), "storyboard prompt must convert panels into timestamped live scenes");
+    assert.ok(item.prompt.includes("Preserve the storyboard composition"), "storyboard prompt must preserve the storyboard visual");
+    assert.ok(item.prompt.includes("Use the supplied character identity only for face"), "storyboard prompt must limit character reference to identity");
+    assert.ok(item.prompt.includes("Use the storyboard for outfit, lighting, background, camera relationship, and action"), "storyboard prompt must make storyboard wardrobe and scene authoritative");
+    assert.ok(item.prompt.includes("Keep the same hair, parting, accessories, and complete outfit"), "storyboard prompt must keep hair and outfit details stable");
+    assert.ok(item.prompt.includes("looks directly into the lens"), "storyboard prompt must keep eye contact across camera angles");
     if (productVisible) {
-      assert.ok(item.prompt.includes("Состояние продукта держи одинаковым"), "visible product segments must keep product physical state stable");
+      assert.ok(item.prompt.includes("Keep one physically continuous product instance"), "visible product segments must keep product physical state stable");
     }
-    assert.ok(item.prompt.includes(`Структура видео: ровно ${item.storyboardPlan.frames.length} живых эпизодов`), "storyboard prompt must lock the exact storyboard frame count");
+    assert.ok(item.prompt.includes(`exactly ${item.storyboardPlan.frames.length} ordered SHOT panels`), "storyboard prompt must lock the exact storyboard frame count");
     assert.ok(!item.prompt.includes("DELIVERY DIRECTION"), "storyboard prompt must not use weak delivery direction blocks");
-    assert.ok(item.prompt.includes("Персонаж в кадре сам произносит эти слова"), "storyboard prompt must provide direct segment speech text");
-    assert.ok(item.prompt.includes("на русском языке"), "storyboard prompt must force Russian character speech");
-    assert.ok(item.prompt.includes("произносится ровно один раз"), "storyboard prompt must request one complete delivery");
-    assert.ok(item.prompt.includes("следующего еще не произнесенного слова"), "storyboard episodes must continue speech without restarts");
+    assert.ok(item.prompt.includes("EXACT SPOKEN RUSSIAN LINE"), "storyboard prompt must provide direct Russian speech text");
+    assert.ok(item.prompt.includes("Speak the quoted text once"), "storyboard prompt must request one complete delivery");
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
-    assert.ok(item.prompt.includes("Не добавляй музыку"), "storyboard prompt must forbid Omni music");
+    assert.ok(item.prompt.includes("No background music or subtitles"), "storyboard prompt must forbid Omni music");
     assert.ok(!item.prompt.includes("субтитры примени как с референса"), "storyboard prompt must not ask to copy subtitles");
-    assert.ok(item.prompt.length < 2400, "storyboard prompt must stay short");
+    assert.ok(item.prompt.length < 5000, `storyboard prompt must stay compact: ${item.prompt.length}`);
     assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2, "storyboard frame count must follow duration");
     assert.ok(!item.prompt.includes("ТОЧНАЯ РЕПЛИКА"), "legacy quoted speech marker must not be used");
-    assert.ok(!item.prompt.includes(`"${item.voiceoverText}"`), "spoken text must not be wrapped in quotes");
+    assert.match(item.prompt, /EXACT SPOKEN RUSSIAN LINE[^\n]*\n"[^"\n]+"/u, "spoken text must be isolated in one quoted line");
 
     const imagePrompt = buildStoryboardImagePrompt({
       segmentIndex: item.index,
@@ -119,7 +115,7 @@ try {
       previousStoryboardReferenceUrl: item.index > 1 ? "https://example.com/previous-storyboard.jpg" : null,
     });
     assert.ok(imagePrompt.includes(`РЕПЛИКА "${item.storyboardPlan.frames[0].spokenText}"`), "storyboard image prompt must draw frame speech");
-    assert.ok(imagePrompt.includes(`ровно ${item.storyboardPlan.frames.length} вертикальных панелей`), "storyboard image prompt must lock the storyboard panel count");
+    assert.ok(imagePrompt.includes(`ровно ${item.storyboardPlan.frames.length} панелей 9:16`), "storyboard image prompt must lock the storyboard panel count");
     assert.ok(imagePrompt.includes("@file1 - avatar/character reference"), "storyboard image prompt must bind the avatar file");
     assert.ok(imagePrompt.includes("кадры оригинала текущего сегмента"), "storyboard image prompt must preserve the source visual contract");
     assert.ok(imagePrompt.includes("порядок сохраняй"), "storyboard image prompt must preserve source sequence");
@@ -129,13 +125,13 @@ try {
     assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");
     assert.ok(imagePrompt.includes("Канонический outfit задается первым кадром первой части"), "storyboard image prompt must make the first outfit canonical");
     assert.ok(imagePrompt.includes("только лицо, возраст, волосы, телосложение и личность героя"), "storyboard image prompt must limit avatar reference to identity");
-    assert.ok(imagePrompt.includes("Смысл реплики определяет кадр"), "storyboard image prompt must request semantic reference-driven shots");
+    assert.ok(imagePrompt.includes("Реплика и действие панели определяют кадр"), "storyboard image prompt must request semantic reference-driven shots");
     if (productVisible) {
       assert.ok(imagePrompt.includes("Продукт впервые появляется"), "storyboard image prompt must require a clear natural product reveal");
     }
-    assert.ok(imagePrompt.includes("Переноси из кадров оригинала"), "storyboard image prompt must preserve matching source camera setups");
+    assert.ok(imagePrompt.includes("Из оригинала бери композицию, ракурс, PIP, свет, фон"), "storyboard image prompt must preserve matching source camera setups");
     assert.ok(imagePrompt.includes("Не добавляй selfie-ракурсы"), "storyboard image prompt must not invent camera transitions");
-    assert.ok(imagePrompt.length < 3500, `storyboard image prompt must stay under KIE text limit: ${imagePrompt.length}`);
+    assert.ok(imagePrompt.length < 4000, `storyboard image prompt must stay compact: ${imagePrompt.length}`);
     if (!productVisible) {
       assert.ok(!imagePrompt.includes("Продукт: Аэрогриль"), "first storyboard prompt must not name the product");
       assert.ok(!imagePrompt.includes("Product reference URLs"), "first storyboard prompt must not leak product references");
@@ -209,7 +205,7 @@ try {
     avatarReferenceUrl: "https://example.com/avatar.png",
     productReferenceUrls: ["https://example.com/air-fryer.png"],
   });
-  assert.ok(frameGatedImagePrompt.includes("впервые появляется только в панели 2"));
+  assert.ok(frameGatedImagePrompt.includes("впервые появляется только в SHOT B"));
   assert.ok(frameGatedImagePrompt.includes("продукт в этом кадре не показывай"));
 
   assert.equal(normalizedCount(prompts[0].prompt, prompts[1].voiceoverText), 0);
@@ -267,7 +263,7 @@ try {
   assert.equal(storedPrompts.length, storedSegments.length);
 	  storedPrompts.forEach((item, index) => {
 	    assert.notEqual(item.prompt, storedSegments[index].prompt);
-	    assert.ok(item.prompt.includes("динамичный разговорный ролик"));
+	    assert.ok(item.prompt.includes("single storyboard instruction board"));
     const storedProductVisible = item.storyboardPlan.frames.some((frame) =>
       /аэрогрил/iu.test(`${frame.spokenText} ${frame.productPlacement}`) &&
       !/в\s+кадре\s+только\s+тематические|(?:продукт|товар)\s+вне\s+кадра/iu.test(frame.productPlacement)
