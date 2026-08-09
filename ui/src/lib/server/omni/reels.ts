@@ -27,7 +27,7 @@ import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-refere
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 import { repairOmniPromptPlanWithAi } from "./omni-physical-repair-pipeline";
 import { ensureGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
-import { extractDirectorBriefFromSnapshot } from "./director-analysis-types";
+import { resolveGeneratedScriptDirectorContext } from "./generated-script-director-context";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -36,6 +36,10 @@ function normalizeReel(row: OmniReel): OmniReel {
       row.source_generated_script_id === null ? null : Number(row.source_generated_script_id),
     source_legacy_scenario_id:
       row.source_legacy_scenario_id === null ? null : Number(row.source_legacy_scenario_id),
+    pilot_segment_index:
+      row.pilot_segment_index === null || row.pilot_segment_index === undefined
+        ? null
+        : Number(row.pilot_segment_index),
     background_audio_mood: normalizeAudioMood(row.background_audio_mood),
     background_audio_track_id:
       row.background_audio_track_id === null || row.background_audio_track_id === undefined
@@ -113,11 +117,16 @@ export async function createOmniReel(input: {
     : null;
   const sourceScenarioDirectorBrief =
     sourceScenarioAnalysis?.director_analysis_status === "completed" ? sourceScenarioAnalysis.director_analysis_json : null;
+  const generatedScriptDirectorContext = resolvedGeneratedScript
+    ? await resolveGeneratedScriptDirectorContext({
+        generatedScript: resolvedGeneratedScript,
+      })
+    : null;
   const directorBrief = resolvedGeneratedScript
-    ? extractDirectorBriefFromSnapshot(resolvedGeneratedScript.source_snapshot)
+    ? generatedScriptDirectorContext?.brief || null
     : sourceScenarioDirectorBrief;
   const directorReferenceImageUrls = resolvedGeneratedScript
-    ? extractDirectorReferenceImageUrls({ sourceSnapshot: resolvedGeneratedScript.source_snapshot })
+    ? generatedScriptDirectorContext?.referenceImageUrls || []
     : extractDirectorReferenceImageUrls({ directorAnalysis: sourceScenarioAnalysis });
   const scriptText = resolvedGeneratedScript?.script || sourceScenario?.script || brief || "";
   const backgroundAudioMood = normalizeAudioMood(
@@ -143,7 +152,7 @@ export async function createOmniReel(input: {
         title: resolvedGeneratedScript.title,
         hook: resolvedGeneratedScript.hook,
         script: resolvedGeneratedScript.script,
-        source_snapshot: resolvedGeneratedScript.source_snapshot,
+        source_snapshot: generatedScriptDirectorContext?.sourceSnapshot,
         wardrobe_source: project.wardrobe_source,
       }
     : sourceScenario
@@ -232,7 +241,9 @@ export async function createOmniReel(input: {
     : { kind: "reel" as const, projectId: input.projectId, reelId: reservedReelId };
   const storyboardDirectorReferenceImageUrlsBySegment = await prepareSegmentStoryboardDirectorReferenceUrls({
     directorAnalysis: resolvedGeneratedScript ? null : sourceScenarioAnalysis,
-    sourceSnapshot: resolvedGeneratedScript?.source_snapshot || sourceSnapshot,
+    sourceSnapshot: resolvedGeneratedScript
+      ? generatedScriptDirectorContext?.sourceSnapshot
+      : sourceSnapshot,
     storageTarget: storyboardStorageTarget,
     framesPerSegment: isCollagePictureInPictureReference(directorBrief)
       ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
@@ -291,9 +302,11 @@ export async function createOmniReel(input: {
        product_id,
        source_generated_script_id,
        source_legacy_scenario_id,
-         target_duration_seconds,
-         segment_count,
-         status,
+       target_duration_seconds,
+       segment_count,
+       pilot_segment_index,
+       pilot_status,
+       status,
          brief,
          source_snapshot,
          product_snapshot,
@@ -305,7 +318,7 @@ export async function createOmniReel(input: {
          stitch_status,
          updated_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, 'not_selected', 'not_ready', CURRENT_TIMESTAMP)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 'pending', 'draft', $8, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, 'not_selected', 'not_ready', CURRENT_TIMESTAMP)
        RETURNING *`,
       [
         reservedReelId,

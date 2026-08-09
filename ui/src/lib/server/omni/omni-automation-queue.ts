@@ -1,6 +1,7 @@
 import pool from "@/lib/db";
 import { normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
 import { ensureOmniSchema } from "./schema";
+import { assertOmniProductionPreflight } from "./omni-production-preflight";
 
 export type OmniAutomationJobStatus = "queued" | "processing" | "completed" | "failed";
 export type OmniAutomationStage = "script" | "reel" | "submit" | "sync";
@@ -50,6 +51,12 @@ export async function enqueueOmniAutomationJob(input: {
 }) {
   await ensureOmniSchema();
   const provider = normalizeOmniGenerationProvider(input.provider);
+  const preflight = await assertOmniProductionPreflight({
+    projectId: input.projectId,
+    productId: input.productId,
+    generatedScriptId: input.generatedScriptId,
+    provider,
+  });
   const { rows } = await pool.query<OmniAutomationJob>(
     `WITH existing AS (
        SELECT *
@@ -84,7 +91,7 @@ export async function enqueueOmniAutomationJob(input: {
       input.sourceLegacyScenarioId || null,
       provider,
       Math.max(0, Math.floor(input.priority || 0)),
-      input.generatedScriptId || null,
+      preflight.scriptId || null,
       Math.max(1, Math.floor(input.maxAttempts || 3)),
     ]
   );

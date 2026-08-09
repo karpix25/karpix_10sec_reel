@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       });
       console.info("Omni reel queued:", { jobId: job.id, generatedScriptId: sourceGeneratedScriptId, provider });
       return NextResponse.json(
-        { queued: true, jobId: job.id, generatedScriptId: sourceGeneratedScriptId, status: job.status },
+        { queued: true, jobId: job.id, generatedScriptId: job.generated_script_id, status: job.status },
         { status: 202 }
       );
     }

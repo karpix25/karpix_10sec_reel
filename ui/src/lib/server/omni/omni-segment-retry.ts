@@ -16,7 +16,7 @@ export function buildOmniSegmentRetryPayload(
   return {
     ...(payload || {}),
     omni_retry_count: getOmniSegmentRetryCount(payload) + 1,
-    omni_retry_reason: reason.slice(0, 500),
+    omni_retry_reason: reason.replace(/\s+/gu, " ").trim().slice(0, 900),
   };
 }
 

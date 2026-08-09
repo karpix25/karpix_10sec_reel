@@ -42,6 +42,8 @@ import {
 } from "./omni-segment-retry";
 import { syncOmniReelSegments } from "./omni-segment-sync";
 import { assertOmniPhysicalPreflight } from "./omni-physical-preflight";
+import { buildOmniReelFailureMessage } from "./omni-reel-failure";
+import { approveOmniPilotIfReady, getOmniSegmentsForSubmission } from "./omni-pilot-gate";
 
 type ReelBundle = {
   reel: OmniReel;
@@ -224,7 +226,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     [reel.id, provider]
   );
 
-  for (const segment of segments) {
+  for (const segment of getOmniSegmentsForSubmission(reel, segments)) {
     if (segment.kie_task_id || RUNNING_STATUSES.has(segment.status) || segment.status === "completed") continue;
     if (providerContinuityEnabled && isSegmentBlockedByContinuityChain(segment, segments)) break;
     if (!segment.prompt) throw new Error(`Segment ${segment.segment_index} has no prompt`);
@@ -455,15 +457,28 @@ export async function syncOmniReel(reelId: number) {
   const hasPendingDraft = updated.segments.some(
     (segment) => !segment.kie_task_id && segment.status !== "completed" && segment.status !== "failed"
   );
+  const pilotApproved = await approveOmniPilotIfReady(updated.reel, updated.segments);
 
   let stitchedNow = false;
   if (syncResult.retried) {
     await submitOmniReel(reelId, getReelGenerationProvider(updated.segments));
   } else if (hasFailed) {
+    const failureMessage = buildOmniReelFailureMessage(updated.segments);
     await pool.query(
-      "UPDATE omni_reels SET status = 'failed', error_message = 'One or more segments failed', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
-      [reelId]
+      `UPDATE omni_reel_segments
+       SET status = 'failed',
+           error_message = COALESCE(error_message, $2),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE reel_id = $1
+         AND status NOT IN ('completed', 'failed')`,
+      [reelId, `Aborted because another segment failed: ${failureMessage}`]
     );
+    await pool.query(
+      "UPDATE omni_reels SET status = 'failed', error_message = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+      [reelId, failureMessage]
+    );
+  } else if (pilotApproved) {
+    await submitOmniReel(reelId, getReelGenerationProvider(updated.segments));
   } else if (allCompleted && updated.reel.stitch_status !== "completed") {
     await stitchAndStoreReel({ reel: updated.reel, segments: updated.segments });
     stitchedNow = true;

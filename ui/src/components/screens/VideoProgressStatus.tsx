@@ -9,10 +9,18 @@ export function VideoProgressSteps({ reel, segments }: { reel: OmniReel; segment
   const allCompleted = segments.length > 0 && completedCount === segments.length;
   const finalReady = reel.status === "completed" && Boolean(reel.final_video_url);
   const providerLabel = getReelProviderLabel(segments);
+  const pilotPending = reel.pilot_status === "pending";
 
   return (
     <div className="grid gap-2 rounded-lg bg-muted/30 p-3">
       <VideoStep done label="План сегментов создан" />
+      {pilotPending ? (
+        <VideoStep
+          done={segments.some((segment) => segment.segment_index === (reel.pilot_segment_index || 1) && segment.status === "completed")}
+          active={submittedCount > 0}
+          label={`Контрольный сегмент: ${reel.pilot_segment_index || 1}`}
+        />
+      ) : null}
       <VideoStep
         done={submittedCount === segments.length && segments.length > 0}
         active={submittedCount > 0 && submittedCount < segments.length}
@@ -36,6 +44,9 @@ export function getVideoStageLabel(reel: OmniReel, segments: OmniReelSegment[]) 
   const providerLabel = getReelProviderLabel(segments);
   const completedCount = segments.filter((segment) => segment.status === "completed").length;
   const submittedCount = segments.filter((segment) => segment.kie_task_id).length;
+  if (reel.pilot_status === "pending" && submittedCount > 0) {
+    return `Проверяю контрольный сегмент: ${completedCount ? "пройден" : "в работе"}`;
+  }
   if (segments.length && completedCount === segments.length) return "Сегменты готовы, сохраняю и склеиваю";
   if (segments.length && submittedCount > 0) return `${providerLabel} генерирует сегменты: ${completedCount}/${segments.length} готово`;
   if (segments.length) return `План сегментов создан, готовлю отправку в ${providerLabel}`;
