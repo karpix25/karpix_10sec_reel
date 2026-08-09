@@ -6,7 +6,7 @@ import { parseAndRepairJson } from "./script-json-repair";
 import { normalizeStoryboardVisionValidation } from "./storyboard-vision-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "minimax/minimax-m3";
+const DEFAULT_MODEL = "google/gemini-2.5-flash";
 
 export async function validateStoryboardImage(input: {
   imageUrl: string;
@@ -16,7 +16,7 @@ export async function validateStoryboardImage(input: {
 }): Promise<StoryboardVisionValidation> {
   const apiKey = process.env.OPENROUTER_API_KEY || "";
   if (!apiKey.trim()) throw new Error("OPENROUTER_API_KEY is not configured for storyboard vision validation");
-  const model = input.model || process.env.OMNI_STORYBOARD_VISION_MODEL || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL || DEFAULT_MODEL;
+  const model = input.model || process.env.OMNI_STORYBOARD_VISION_MODEL || DEFAULT_MODEL;
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: {

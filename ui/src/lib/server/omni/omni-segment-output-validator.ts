@@ -15,7 +15,7 @@ import {
 } from "./omni-segment-output-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "minimax/minimax-m3";
+const DEFAULT_MODEL = "google/gemini-2.5-flash";
 
 type VisionContent =
   | { type: "text"; text: string }
@@ -101,7 +101,6 @@ async function validateVisualOutput(input: {
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured for output QA");
   const model = process.env.OMNI_SEGMENT_OUTPUT_VISION_MODEL ||
     process.env.OMNI_STORYBOARD_VISION_MODEL ||
-    process.env.OMNI_DIRECTOR_ANALYSIS_MODEL ||
     DEFAULT_MODEL;
   const productName = cleanText(input.reel.product_snapshot?.name) ||
     cleanText(input.reel.product_snapshot?.product_name);
