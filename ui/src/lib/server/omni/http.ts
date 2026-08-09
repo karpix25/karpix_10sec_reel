@@ -33,6 +33,7 @@ export function getOmniErrorStatus(error: unknown) {
     message.includes("Script is too short") ||
     message.includes("Script cannot be split") ||
     message.includes("Не удалось разделить сценарий") ||
+    message.includes("Production preflight blocked") ||
     message.includes("Reference video analysis failed") ||
     message.includes("Не удалось разобрать reference video")
   ) {

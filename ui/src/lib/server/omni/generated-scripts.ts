@@ -22,7 +22,7 @@ import { resolveProductIdentityReferenceImageUrls } from "./omni-product-referen
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
-import { extractDirectorBriefFromSnapshot } from "./director-analysis-types";
+import { resolveGeneratedScriptDirectorContext } from "./generated-script-director-context";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
@@ -101,7 +101,10 @@ export async function buildGeneratedScriptPromptPreview(input: {
   const durationRange = await resolveOmniDurationRange({ project, product });
   const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script, { durationRange });
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
-  const directorBrief = extractDirectorBriefFromSnapshot(resolvedGeneratedScript.source_snapshot);
+  const directorContext = await resolveGeneratedScriptDirectorContext({
+    generatedScript: resolvedGeneratedScript,
+  });
+  const directorBrief = directorContext.brief;
   const basePromptPlan = buildOmniSegmentPrompts({
     generatedScript: resolvedGeneratedScript,
     legacyTranscript: null,
@@ -146,7 +149,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
   });
   assertPhysicalPromptPlan(promptPlan);
   const storyboardGeneration = prepareSegmentStoryboardDirectorReferenceUrls({
-    sourceSnapshot: resolvedGeneratedScript.source_snapshot,
+    sourceSnapshot: directorContext.sourceSnapshot,
     storageTarget: {
       kind: "generated_script",
       projectId: input.projectId,

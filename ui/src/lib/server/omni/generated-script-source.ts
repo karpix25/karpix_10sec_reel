@@ -48,8 +48,14 @@ function normalizeExcludedIds(ids: readonly number[] = []) {
 }
 
 async function listActiveLegacyClientIds(projectId: number, productId: number) {
-  const projectLinks = await listLegacyLibraryLinks(projectId, null);
   const productLinks = await listLegacyLibraryLinks(projectId, productId);
+  if (productLinks.length) {
+    return Array.from(new Set(productLinks
+      .map((link) => link.legacy_client_id)
+      .filter((id) => Number.isFinite(id) && id > 0)));
+  }
+
+  const projectLinks = await listLegacyLibraryLinks(projectId, null);
   return Array.from(
     new Set(
       [...projectLinks, ...productLinks]

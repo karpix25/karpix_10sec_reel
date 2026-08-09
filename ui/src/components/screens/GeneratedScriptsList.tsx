@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertCircle,
   ChevronDown,
   ExternalLink,
   FileText,
@@ -407,6 +408,13 @@ function VideoPanel({
         </div>
         <StatusBadge status={currentReel.status} />
       </div>
+
+      {currentReel.error_message ? (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p className="min-w-0 whitespace-pre-wrap break-words">{currentReel.error_message}</p>
+        </div>
+      ) : null}
 
       {displayVideoUrl ? (
         <div className="mt-3 overflow-hidden rounded-lg border border-border bg-black">

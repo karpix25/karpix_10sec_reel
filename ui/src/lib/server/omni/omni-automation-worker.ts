@@ -10,6 +10,8 @@ import {
 import { submitOmniReel, syncOmniReel } from "./omni-reel-runner";
 import { createOmniReel } from "./reels";
 import { ensureOmniSchema } from "./schema";
+import { shouldRetryOmniAutomationError } from "./omni-automation-error-policy";
+import { assertOmniProductionPreflight } from "./omni-production-preflight";
 
 function envInt(name: string, fallback: number, min = 1) {
   const parsed = Number.parseInt(process.env[name] || "", 10);
@@ -32,7 +34,7 @@ function getRetryDelaySeconds(job: OmniAutomationJob, errorMessage: string) {
 
 async function handleJobError(job: OmniAutomationJob, error: unknown) {
   const message = getErrorMessage(error);
-  if (job.attempt_count >= job.max_attempts) {
+  if (!shouldRetryOmniAutomationError(message) || job.attempt_count >= job.max_attempts) {
     return {
       action: "failed",
       job: await failOmniAutomationJob({ jobId: job.id, errorMessage: message }),
@@ -61,6 +63,12 @@ async function runScriptStage(job: OmniAutomationJob) {
     productId: job.product_id,
     legacyScenarioId: job.source_legacy_scenario_id,
   });
+  await assertOmniProductionPreflight({
+    projectId: job.project_id,
+    productId: job.product_id,
+    generatedScriptId: script.id,
+    provider: job.generation_provider,
+  });
   return updateOmniAutomationJobStage({
     jobId: job.id,
     stage: "reel",
@@ -75,6 +83,12 @@ async function runReelStage(job: OmniAutomationJob) {
   if (!job.generated_script_id) {
     throw new Error("Omni automation job has no generated script for reel stage");
   }
+  await assertOmniProductionPreflight({
+    projectId: job.project_id,
+    productId: job.product_id,
+    generatedScriptId: job.generated_script_id,
+    provider: job.generation_provider,
+  });
 
   const reel = await createOmniReel({
     projectId: job.project_id,

@@ -148,8 +148,9 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     product: input.product,
     avatar: input.avatar,
   });
-  const directorBrief =
-    input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
+  const directorBrief = Object.prototype.hasOwnProperty.call(input, "directorBrief")
+    ? input.directorBrief || null
+    : extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
   const referencePolicy = buildReferenceTransferPolicy({
     directorBrief,
     productName: input.product.name,
@@ -286,8 +287,9 @@ function buildStoredProviderPromptSegments(
   }
 
   const productReference = getPrimaryReference(input.product.product_refs);
-  const directorBrief =
-    input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
+  const directorBrief = Object.prototype.hasOwnProperty.call(input, "directorBrief")
+    ? input.directorBrief || null
+    : extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
   const referencePolicy = buildReferenceTransferPolicy({
     directorBrief,
     productName: input.product.name,
