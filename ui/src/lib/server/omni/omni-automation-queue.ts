@@ -45,25 +45,44 @@ export async function enqueueOmniAutomationJob(input: {
   provider?: unknown;
   priority?: number;
   sourceLegacyScenarioId?: number | null;
+  generatedScriptId?: number | null;
 }) {
   await ensureOmniSchema();
   const provider = normalizeOmniGenerationProvider(input.provider);
   const { rows } = await pool.query<OmniAutomationJob>(
-    `INSERT INTO omni_automation_jobs (
-       project_id,
-       product_id,
-       source_legacy_scenario_id,
-       generation_provider,
-       priority
+    `WITH existing AS (
+       SELECT *
+       FROM omni_automation_jobs
+       WHERE $6::integer IS NOT NULL
+         AND generated_script_id = $6
+         AND status IN ('queued', 'processing')
+       ORDER BY id DESC
+       LIMIT 1
+     ), inserted AS (
+       INSERT INTO omni_automation_jobs (
+         project_id,
+         product_id,
+         source_legacy_scenario_id,
+         generated_script_id,
+         current_stage,
+         generation_provider,
+         priority
+       )
+       SELECT $1, $2, $3, $6, CASE WHEN $6::integer IS NULL THEN 'script' ELSE 'reel' END, $4, $5
+       WHERE NOT EXISTS (SELECT 1 FROM existing)
+       RETURNING *
      )
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
+     SELECT * FROM inserted
+     UNION ALL
+     SELECT * FROM existing
+     LIMIT 1`,
     [
       input.projectId,
       input.productId,
       input.sourceLegacyScenarioId || null,
       provider,
       Math.max(0, Math.floor(input.priority || 0)),
+      input.generatedScriptId || null,
     ]
   );
   return normalizeJob(rows[0]);

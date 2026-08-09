@@ -397,7 +397,10 @@ export function useOmniStudio(
       brief?: string;
       autoRun?: boolean;
       provider?: OmniGenerationProvider;
-    }) => (await axios.post(`${API_BASE}/reels`, payload)).data as OmniReel,
+    }) =>
+      (await axios.post(`${API_BASE}/reels`, payload)).data as
+        | OmniReel
+        | { queued: true; jobId: number; generatedScriptId: number; status: "queued" | "processing" },
     onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] }),
   });
 

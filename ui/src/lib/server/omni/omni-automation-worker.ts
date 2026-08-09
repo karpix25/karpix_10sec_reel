@@ -20,11 +20,14 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error || "Unknown Omni automation error");
 }
 
-function getRetryDelaySeconds(job: OmniAutomationJob) {
+function getRetryDelaySeconds(job: OmniAutomationJob, errorMessage: string) {
   const base = envInt("OMNI_AUTOMATION_RETRY_BASE_SECONDS", 60);
   const max = envInt("OMNI_AUTOMATION_RETRY_MAX_SECONDS", 1800);
   const attemptPower = Math.max(0, job.attempt_count - 1);
-  return Math.min(max, base * 2 ** attemptPower);
+  const storyboardCooldown = errorMessage.includes("Раскадровка не готова для сегментов:")
+    ? envInt("OMNI_STORYBOARD_FAILURE_COOLDOWN_SECONDS", 600, 60)
+    : 0;
+  return Math.max(storyboardCooldown, Math.min(max, base * 2 ** attemptPower));
 }
 
 async function handleJobError(job: OmniAutomationJob, error: unknown) {
@@ -41,7 +44,7 @@ async function handleJobError(job: OmniAutomationJob, error: unknown) {
     action: "requeued",
     job: await requeueOmniAutomationJob({
       jobId: job.id,
-      delaySeconds: getRetryDelaySeconds(job),
+      delaySeconds: getRetryDelaySeconds(job, message),
       errorMessage: message,
     }),
     error: message,
