@@ -3,6 +3,8 @@ import { createOmniReel, listOmniReels, listOmniReelSegments } from "@/lib/serve
 import { submitOmniReel } from "@/lib/server/omni/omni-reel-runner";
 import { getOmniErrorStatus, jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
 import { normalizeOmniGenerationProvider } from "@/lib/omni/provider";
+import { getGeneratedScript } from "@/lib/server/omni/generated-scripts";
+import { enqueueOmniAutomationJob } from "@/lib/server/omni/omni-automation-queue";
 
 export async function GET(request: Request) {
   const auth = await requireOmniUser(request);
@@ -33,11 +35,29 @@ export async function POST(request: Request) {
     const provider = normalizeOmniGenerationProvider(body.provider);
     if (!projectId) return jsonError("projectId is required");
     if (!productId) return jsonError("productId is required");
+    const sourceGeneratedScriptId = parsePositiveInt(body.sourceGeneratedScriptId);
+
+    if (body.autoRun && sourceGeneratedScriptId) {
+      const script = await getGeneratedScript({ projectId, productId, scriptId: sourceGeneratedScriptId });
+      if (!script) return jsonError("Generated script not found for this product", 404);
+      const job = await enqueueOmniAutomationJob({
+        projectId,
+        productId,
+        provider,
+        sourceLegacyScenarioId: script.source_legacy_scenario_id,
+        generatedScriptId: sourceGeneratedScriptId,
+      });
+      console.info("Omni reel queued:", { jobId: job.id, generatedScriptId: sourceGeneratedScriptId, provider });
+      return NextResponse.json(
+        { queued: true, jobId: job.id, generatedScriptId: sourceGeneratedScriptId, status: job.status },
+        { status: 202 }
+      );
+    }
 
     const reel = await createOmniReel({
       projectId,
       productId,
-      sourceGeneratedScriptId: parsePositiveInt(body.sourceGeneratedScriptId),
+      sourceGeneratedScriptId,
       sourceLegacyScenarioId: parsePositiveInt(body.sourceLegacyScenarioId),
       targetDurationSeconds: body.targetDurationSeconds,
       brief: body.brief,
