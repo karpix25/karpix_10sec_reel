@@ -31,7 +31,10 @@ import {
 import { processOmniReelSubtitlesIfNeeded } from "./omni-reel-subtitles";
 import { stitchAndStoreReel } from "./omni-segment-completion";
 import { detectKieOmniVoiceGender, resolveKieOmniAudioIds, type KieOmniVoiceGender } from "./kie-omni-audio";
-import { applyOmniStoryboardFileReference } from "./storyboard/omni-storyboard-file-reference";
+import {
+  applyOmniStoryboardFileReference,
+  getOmniImageReferenceTag,
+} from "./storyboard/omni-storyboard-file-reference";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import {
   appendOmniSegmentRetryPrompt,
@@ -117,6 +120,16 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
   const continuityChainEnabled = isOmniContinuityChainEnabled();
   const providerContinuityEnabled = provider !== "kie-ai" && continuityChainEnabled;
   if (!segments.length) throw new Error("Omni reel has no segments");
+  if (provider === "kie-ai") {
+    const missingStoryboardSegments = segments
+      .filter((segment) => !segment.storyboard_reference_url)
+      .map((segment) => segment.segment_index);
+    if (missingStoryboardSegments.length) {
+      const message = `KIE Omni requires a validated storyboard instruction board for segments: ${missingStoryboardSegments.join(", ")}`;
+      await markOmniReelPreflightFailure({ reelId: reel.id, provider, message });
+      throw new Error(message);
+    }
+  }
   const avatarReferenceUrl = getAvatarReferenceUrl(reel);
   const productReferenceUrls = getProductReferenceUrls(reel);
   const productReferenceUrl = productReferenceUrls[0] || null;
@@ -286,7 +299,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       reference_images: selectedReferenceImages.sent.map((image, index) => ({
         role: image.role,
         url: image.url,
-        file_reference: provider === "kie-ai" ? `@file${index + 1}` : null,
+        file_reference: provider === "kie-ai" ? getOmniImageReferenceTag(index) : null,
       })),
       reference_images_skipped: selectedReferenceImages.skipped.map((image) => ({
         role: image.role,
@@ -317,9 +330,9 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       prompt_contracts: [
         ...(continuity.image ? ["previous_frame_continuity_v1"] : []),
         ...(provider === "kie-ai" && selectedReferenceImages.sent.length > 0
-          ? ["kie_reference_order_v1"]
+          ? ["gemini_image_reference_tags_v2"]
           : []),
-        ...(provider === "kie-ai" && usesStoryboardReference ? ["kie_storyboard_visual_authority_v1"] : []),
+        ...(provider === "kie-ai" && usesStoryboardReference ? ["storyboard_instruction_board_v2"] : []),
       ],
       creative_plan: segment.creative_plan,
       storyboard_plan: segment.storyboard_plan,
