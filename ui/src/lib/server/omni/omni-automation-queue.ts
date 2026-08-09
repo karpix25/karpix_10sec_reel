@@ -46,6 +46,7 @@ export async function enqueueOmniAutomationJob(input: {
   priority?: number;
   sourceLegacyScenarioId?: number | null;
   generatedScriptId?: number | null;
+  maxAttempts?: number;
 }) {
   await ensureOmniSchema();
   const provider = normalizeOmniGenerationProvider(input.provider);
@@ -66,9 +67,10 @@ export async function enqueueOmniAutomationJob(input: {
          generated_script_id,
          current_stage,
          generation_provider,
-         priority
+         priority,
+         max_attempts
        )
-       SELECT $1, $2, $3, $6, CASE WHEN $6::integer IS NULL THEN 'script' ELSE 'reel' END, $4, $5
+       SELECT $1, $2, $3, $6, CASE WHEN $6::integer IS NULL THEN 'script' ELSE 'reel' END, $4, $5, $7
        WHERE NOT EXISTS (SELECT 1 FROM existing)
        RETURNING *
      )
@@ -83,6 +85,7 @@ export async function enqueueOmniAutomationJob(input: {
       provider,
       Math.max(0, Math.floor(input.priority || 0)),
       input.generatedScriptId || null,
+      Math.max(1, Math.floor(input.maxAttempts || 3)),
     ]
   );
   return normalizeJob(rows[0]);
