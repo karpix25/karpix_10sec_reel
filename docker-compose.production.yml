@@ -23,7 +23,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DB_HOST: n8n_omnireels-postgres-1
+      DB_HOST: tools_baza
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
       DB_USER: ${DB_USER:-postgres}
@@ -104,6 +104,7 @@ services:
     networks:
       - default
       - legacy_ai_avatars
+      - easypanel
     expose:
       - "3000"
     healthcheck:
@@ -125,7 +126,7 @@ services:
       - web
     command: ["python3", "services/v1/automation/final_video_worker.py"]
     environment:
-      DB_HOST: ${DB_HOST:-postgres}
+      DB_HOST: tools_baza
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
       DB_USER: ${DB_USER:-postgres}
@@ -163,6 +164,9 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
+    networks:
+      - default
+      - easypanel
 
   final-video-poller:
     build:
@@ -176,7 +180,7 @@ services:
       - web
     command: ["python3", "services/v1/automation/final_video_poller.py"]
     environment:
-      DB_HOST: ${DB_HOST:-postgres}
+      DB_HOST: tools_baza
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
       DB_USER: ${DB_USER:-postgres}
@@ -206,6 +210,9 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
+    networks:
+      - default
+      - easypanel
 
   final-video-scheduler:
     build:
@@ -218,7 +225,7 @@ services:
       - postgres
     command: ["python3", "services/v1/automation/final_video_scheduler.py"]
     environment:
-      DB_HOST: ${DB_HOST:-postgres}
+      DB_HOST: tools_baza
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
       DB_USER: ${DB_USER:-postgres}
@@ -233,6 +240,9 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
+    networks:
+      - default
+      - easypanel
 
   omni-automation-scheduler:
     build:
@@ -287,7 +297,7 @@ services:
       - postgres
     command: ["python3", "services/v1/ingestion/telegram_bot.py"]
     environment:
-      DB_HOST: ${DB_HOST:-postgres}
+      DB_HOST: tools_baza
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
       DB_USER: ${DB_USER:-postgres}
@@ -316,6 +326,9 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
+    networks:
+      - default
+      - easypanel
 
 volumes:
   postgres_data:
@@ -324,3 +337,6 @@ networks:
   legacy_ai_avatars:
     external: true
     name: n8n_ai_avatars_default
+  easypanel:
+    external: true
+    name: easypanel
