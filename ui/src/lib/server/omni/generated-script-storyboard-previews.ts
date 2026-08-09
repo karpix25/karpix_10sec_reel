@@ -15,6 +15,7 @@ type StoryboardPromptSegment = {
 };
 
 const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-semantic-transfer-v7";
+const DEFAULT_FAILURE_COOLDOWN_SECONDS = 600;
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
@@ -55,6 +56,8 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
     if (generatedUrl) {
       urls.set(segment.index, generatedUrl);
       previousStoryboardReferenceUrl = generatedUrl;
+    } else {
+      break;
     }
   }
 
@@ -109,6 +112,9 @@ async function tryGenerateStoryboardPreview(input: {
   previousStoryboardReferenceUrl: string | null;
   generationProvider?: OmniGenerationProvider;
 }) {
+  const claimed = await claimStoryboardGeneration(input);
+  if (!claimed) return null;
+
   try {
     const url = await generateStoryboardImage({
       projectId: input.projectId,
@@ -127,29 +133,31 @@ async function tryGenerateStoryboardPreview(input: {
       referencePolicy: input.referencePolicy,
       generationProvider: input.generationProvider,
     });
-    if (!url) return null;
-    await upsertGeneratedScriptStoryboardUrl({ ...input, url });
+    if (!url) throw new Error("Storyboard image generation is disabled");
+    await markGeneratedScriptStoryboardReady({ ...input, url });
     return url;
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await markGeneratedScriptStoryboardFailed({ ...input, error: message });
     console.warn("Generated script storyboard preview image failed:", {
       scriptId: input.scriptId,
       segmentIndex: input.segmentIndex,
-      error: error instanceof Error ? error.message : String(error),
+      error: message,
     });
     return null;
   }
 }
 
-async function upsertGeneratedScriptStoryboardUrl(input: {
+async function claimStoryboardGeneration(input: {
   projectId: number;
   productId: number;
   scriptId: number;
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment | null;
   referenceSignature: string;
-  url: string;
 }) {
-  await pool.query(
+  const retryAfter = new Date(Date.now() + getFailureCooldownSeconds() * 1000);
+  const { rowCount } = await pool.query(
     `INSERT INTO omni_generated_script_storyboards (
        project_id,
        product_id,
@@ -159,19 +167,72 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
        storyboard_reference_url,
        reference_signature,
        generator_version,
+       generation_status,
+       generation_error,
+       last_attempt_at,
+       retry_after,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5::jsonb, NULL, $6, $7, 'generating', NULL, CURRENT_TIMESTAMP, $8, CURRENT_TIMESTAMP)
      ON CONFLICT (generated_script_id, segment_index)
      DO UPDATE SET
+       project_id = EXCLUDED.project_id,
+       product_id = EXCLUDED.product_id,
        storyboard_plan = EXCLUDED.storyboard_plan,
-       storyboard_reference_url = EXCLUDED.storyboard_reference_url,
+       storyboard_reference_url = NULL,
        reference_signature = EXCLUDED.reference_signature,
        generator_version = EXCLUDED.generator_version,
-       updated_at = CURRENT_TIMESTAMP`,
+       generation_status = 'generating',
+       generation_error = NULL,
+       last_attempt_at = CURRENT_TIMESTAMP,
+       retry_after = EXCLUDED.retry_after,
+       updated_at = CURRENT_TIMESTAMP
+     WHERE omni_generated_script_storyboards.reference_signature IS DISTINCT FROM EXCLUDED.reference_signature
+        OR omni_generated_script_storyboards.generator_version IS DISTINCT FROM EXCLUDED.generator_version
+        OR (
+          omni_generated_script_storyboards.storyboard_reference_url IS NULL
+          AND (
+            omni_generated_script_storyboards.retry_after IS NULL
+            OR omni_generated_script_storyboards.retry_after <= CURRENT_TIMESTAMP
+          )
+        )
+     RETURNING id`,
     [
       input.projectId,
       input.productId,
+      input.scriptId,
+      input.segmentIndex,
+      input.storyboardPlan ? JSON.stringify(input.storyboardPlan) : null,
+      input.referenceSignature,
+      STORYBOARD_PREVIEW_GENERATOR_VERSION,
+      retryAfter,
+    ]
+  );
+  return Boolean(rowCount);
+}
+
+async function markGeneratedScriptStoryboardReady(input: {
+  projectId: number;
+  productId: number;
+  scriptId: number;
+  segmentIndex: number;
+  storyboardPlan: OmniStoryboardSegment | null;
+  referenceSignature: string;
+  url: string;
+}) {
+  await pool.query(
+    `UPDATE omni_generated_script_storyboards
+     SET storyboard_plan = $3::jsonb,
+         storyboard_reference_url = $4,
+         generation_status = 'ready',
+         generation_error = NULL,
+         retry_after = NULL,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE generated_script_id = $1
+       AND segment_index = $2
+       AND reference_signature = $5
+       AND generator_version = $6`,
+    [
       input.scriptId,
       input.segmentIndex,
       input.storyboardPlan ? JSON.stringify(input.storyboardPlan) : null,
@@ -180,6 +241,38 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
       STORYBOARD_PREVIEW_GENERATOR_VERSION,
     ]
   );
+}
+
+async function markGeneratedScriptStoryboardFailed(input: {
+  scriptId: number;
+  segmentIndex: number;
+  referenceSignature: string;
+  error: string;
+}) {
+  await pool.query(
+    `UPDATE omni_generated_script_storyboards
+     SET generation_status = 'failed',
+         generation_error = $3,
+         retry_after = $4,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE generated_script_id = $1
+       AND segment_index = $2
+       AND reference_signature = $5
+       AND generator_version = $6`,
+    [
+      input.scriptId,
+      input.segmentIndex,
+      input.error.slice(0, 2000),
+      new Date(Date.now() + getFailureCooldownSeconds() * 1000),
+      input.referenceSignature,
+      STORYBOARD_PREVIEW_GENERATOR_VERSION,
+    ]
+  );
+}
+
+function getFailureCooldownSeconds() {
+  const configured = Number.parseInt(process.env.OMNI_STORYBOARD_FAILURE_COOLDOWN_SECONDS || "", 10);
+  return Number.isFinite(configured) && configured >= 60 ? configured : DEFAULT_FAILURE_COOLDOWN_SECONDS;
 }
 
 function buildReferenceSignature(input: {

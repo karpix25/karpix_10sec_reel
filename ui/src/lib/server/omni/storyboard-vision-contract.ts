@@ -19,11 +19,13 @@ export function normalizeStoryboardVisionValidation(value: unknown, model?: stri
   const requestedStatus = normalizeStatus(source.status);
   const hasBlockingPanel = panels.some((panel) => panel.status === "block");
   const hasRepairPanel = panels.some((panel) => panel.status === "repair");
+  const allPanelsPass = panels.length > 0 && panels.every((panel) => panel.status === "pass");
   const status: StoryboardVisionStatus = confidence < STORYBOARD_VISION_MIN_CONFIDENCE || hasBlockingPanel
     ? "block"
-    : requestedStatus === "repair" || hasRepairPanel
+    : hasRepairPanel || (allPanelsPass && repairInstructions.length > 0)
       ? "repair"
-      : requestedStatus === "pass" && panels.length > 0 ? "pass" : "block";
+      : allPanelsPass ? "pass"
+        : requestedStatus === "repair" ? "repair" : "block";
   return { schemaVersion: "storyboard_vision_v1", status, confidence, panels, repairInstructions, model };
 }
 

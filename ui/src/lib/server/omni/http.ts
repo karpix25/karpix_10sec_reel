@@ -24,6 +24,9 @@ export function jsonError(message: string, status = 400) {
 
 export function getOmniErrorStatus(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("Раскадровка не готова для сегментов:")) {
+    return 409;
+  }
   if (
     message.includes("Сценарий отклонен:") ||
     message.includes("Invalid Omni segment") ||
