@@ -46,6 +46,7 @@ export async function POST(request: Request) {
         provider,
         sourceLegacyScenarioId: script.source_legacy_scenario_id,
         generatedScriptId: sourceGeneratedScriptId,
+        maxAttempts: 6,
       });
       console.info("Omni reel queued:", { jobId: job.id, generatedScriptId: sourceGeneratedScriptId, provider });
       return NextResponse.json(

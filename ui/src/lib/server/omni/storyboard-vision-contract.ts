@@ -18,8 +18,10 @@ export function normalizeStoryboardVisionValidation(value: unknown, model?: stri
     : [];
   const requestedStatus = normalizeStatus(source.status);
   const hasBlockingPanel = panels.some((panel) => panel.status === "block");
-  const hasRepairPanel = panels.some((panel) => panel.status === "repair");
-  const allPanelsPass = panels.length > 0 && panels.every((panel) => panel.status === "pass");
+  const hasRepairPanel = panels.some((panel) => panel.status === "repair" && panel.violations.length > 0);
+  const allPanelsPass = panels.length > 0 && panels.every(
+    (panel) => panel.status === "pass" || (panel.status === "repair" && panel.violations.length === 0)
+  );
   const status: StoryboardVisionStatus = confidence < STORYBOARD_VISION_MIN_CONFIDENCE || hasBlockingPanel
     ? "block"
     : hasRepairPanel || (allPanelsPass && repairInstructions.length > 0)

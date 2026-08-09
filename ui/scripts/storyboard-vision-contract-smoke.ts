@@ -35,4 +35,11 @@ assert.equal(normalizeStoryboardVisionValidation({
   repair_instructions: [],
 }).status, "block");
 
+assert.equal(normalizeStoryboardVisionValidation({
+  status: "repair",
+  confidence: 0.9,
+  panels: [...passingPanels.slice(0, 3), { panel_index: 4, status: "repair", violations: [] }],
+  repair_instructions: [],
+}).status, "pass");
+
 console.log("storyboard vision contract smoke: ok");
