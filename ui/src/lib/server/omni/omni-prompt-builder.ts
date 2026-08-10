@@ -76,6 +76,8 @@ export type OmniSegmentPrompt = {
   creativeStrategy: OmniCreativeStrategy;
   creativePlan: OmniSegmentCreativePlan;
   validation: OmniPromptValidationResult;
+  characterContract: ReturnType<typeof buildOmniCharacterContract>;
+  wardrobeSource: OmniWardrobeSource;
 };
 
 type BuildOmniPromptsInput = {
@@ -232,6 +234,8 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       productPhysicalContract: plan.productRole !== "hidden" ? productPhysicalContract : null,
       segmentCount: input.segmentCount,
       directorBrief,
+      characterContract,
+      wardrobeSource: input.wardrobeSource,
     }), validation);
     prompts.push({
       index: segmentIndex,
@@ -246,6 +250,8 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       creativeStrategy: strategy,
       creativePlan: plan,
       validation,
+      characterContract,
+      wardrobeSource: input.wardrobeSource || "director_reference",
     });
     productIntroduced = productIntroduced || storyboardPlan.frames.some((frame) =>
       mentionsOmniProduct(frame.spokenText, input.product.name)
@@ -303,6 +309,11 @@ function buildStoredProviderPromptSegments(
     generatedScript: input.generatedScript,
   });
   const productPhysicalHint = renderProductPhysicalHintForStoryboard(productPhysicalContract);
+  const characterContract = buildOmniCharacterContract({
+    product: input.product,
+    avatar: input.avatar,
+  });
+  const wardrobeSource = input.wardrobeSource || "director_reference";
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,
     firstSpokenLine: providerPromptPlan.segmentPrompts[0]?.voiceover,
@@ -353,6 +364,8 @@ function buildStoredProviderPromptSegments(
       productPhysicalContract: productRole !== "hidden" ? productPhysicalContract : null,
       segmentCount: providerPromptPlan.segmentPrompts.length,
       directorBrief: input.directorBrief,
+      characterContract,
+      wardrobeSource,
     }), validation);
     return {
       index: segmentIndex,
@@ -367,6 +380,8 @@ function buildStoredProviderPromptSegments(
       creativeStrategy: strategy,
       creativePlan,
       validation,
+      characterContract,
+      wardrobeSource,
     };
   });
 }

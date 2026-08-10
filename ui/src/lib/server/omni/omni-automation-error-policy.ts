@@ -12,6 +12,7 @@ const PERMANENT_ERROR_PATTERNS = [
   /belongs to another Omni project/iu,
   /Director analysis .* (?:is missing|is for legacy reference)/iu,
   /Production preflight blocked: (?:.*not found|.*requires an approved avatar|OPENROUTER_API_KEY.*not configured|compacted script did not pass|script compaction returned empty)/iu,
+  /Production preflight blocked: product .* has no (?:completed visual profile|approved physical contract)/iu,
 ];
 
 export function shouldRetryOmniAutomationError(message: string) {

@@ -120,6 +120,8 @@ function buildRepairedSegment(input: {
         : null,
       segmentCount: input.segmentCount,
       directorBrief: input.directorBrief,
+      characterContract: input.segment.characterContract,
+      wardrobeSource: input.segment.wardrobeSource,
     }), input.validation),
     storyboardPlan: input.storyboard,
     validation: input.validation,

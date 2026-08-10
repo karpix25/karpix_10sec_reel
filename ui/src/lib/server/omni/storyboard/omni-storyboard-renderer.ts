@@ -13,6 +13,8 @@ import { isCollagePictureInPictureReference } from "../director-layout-contract"
 import { renderReferenceTransitionCue } from "./omni-storyboard-effects";
 import { OMNI_PHYSICAL_ACTION_CONTRACT } from "../omni-physical-action-contract";
 import { OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT } from "../omni-scene-safety-contract";
+import type { OmniCharacterContract } from "../omni-character-contract";
+import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
@@ -20,6 +22,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   productPhysicalContract?: string | null;
   segmentCount?: number;
   directorBrief?: DirectorBrief | null;
+  characterContract?: OmniCharacterContract;
+  wardrobeSource?: OmniWardrobeSource;
 }) {
   const validation = validateOmniStoryboardSegment(input.storyboard);
   if (!validation.valid) {
@@ -37,16 +41,16 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   return [
     `Create one live-action vertical video from the single storyboard instruction board ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
     `The board contains exactly ${frameCount} ordered SHOT panels. Animate one shot per panel in the timestamped order below.`,
-    "Preserve the storyboard composition, lighting, environment, wardrobe, decor, PIP or collage mechanics, visible format elements, and edit rhythm.",
+    "Preserve the storyboard composition, lighting, environment, decor, PIP or collage mechanics, visible format elements, and edit rhythm. Use the wardrobe authority below for clothing.",
     "Replace only the original performer with the supplied character identity and the original commercial product with the supplied product reference.",
     "Do not render the storyboard grid, separators, SHOT labels, instruction text, social interface, or subtitles.",
     preservePipLayout
       ? "FORMAT LOCK: keep the full-screen background and the avatar cutout in the lower-left PIP position shown on the storyboard."
       : "",
     OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
-    "Use the supplied character identity only for face, age, hair, body, and identity. Use the storyboard for outfit, lighting, background, camera relationship, and action.",
+    renderWardrobeAuthority(input),
     "Keep the same hair, parting, accessories, and complete outfit across every shot and segment.",
-    renderWardrobeLock(input.directorBrief),
+    renderWardrobeLock(input),
     renderReferenceTransitionCue(input.directorBrief),
     renderStoryboardTimeline(input.storyboard),
     renderVehicleCameraLock(input.directorBrief),
@@ -118,7 +122,28 @@ function renderHookMark(text: string) {
   return /^(?:почему|зачем|как|что|когда|если|вы|ты|знаете|знаешь)\b/iu.test(text) ? "?" : "!";
 }
 
-function renderWardrobeLock(brief: DirectorBrief | null | undefined): string {
+function renderWardrobeAuthority(input: {
+  characterContract?: OmniCharacterContract;
+  wardrobeSource?: OmniWardrobeSource;
+}) {
+  if (normalizeOmniWardrobeSource(input.wardrobeSource) === "avatar_reference") {
+    return [
+      "Use the supplied character identity for face, age, hair, body, identity, and outfit.",
+      "Ignore clothing from the director reference images; the avatar reference and the wardrobe text in each storyboard panel are the only clothing sources.",
+    ].join(" ");
+  }
+  return "Use the supplied character identity for face, age, hair, and body. The storyboard panel wardrobe is the adapted director-reference outfit; keep it unchanged across all shots and segments.";
+}
+
+function renderWardrobeLock(input: {
+  brief?: DirectorBrief | null;
+  characterContract?: OmniCharacterContract;
+  wardrobeSource?: OmniWardrobeSource;
+}): string {
+  if (normalizeOmniWardrobeSource(input.wardrobeSource) === "avatar_reference" && input.characterContract) {
+    return `AVATAR WARDROBE LOCK: ${input.characterContract.clothingLine}. Ignore wardrobe from the director reference; identical outfit in every segment and every frame.`;
+  }
+  const brief = input.brief;
   if (!brief) return "";
   const parts = [
     brief.clothing.style,
