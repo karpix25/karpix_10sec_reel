@@ -96,7 +96,7 @@ try {
   );
   assert.match(
     physicalModel.normalizeVehicleContext("герой driving в машине"),
-    /припаркован и неподвижен/iu
+    /пассажир/iu
   );
 
   const speechChunks = speech.splitStoryboardSpeech(
@@ -238,14 +238,50 @@ try {
     }).valid,
     true
   );
-  assert.doesNotMatch(normalizedConflict.frames[0].visualAction, /кус(?:ает|ать)|машин|обеs+рукиs+уs+лица/iu);
-  assert.doesNotMatch(normalizedConflict.frames[0].productPlacement, /сыр|несколько|дваs+предмета/iu);
+  assert.match(normalizedConflict.frames[0].visualAction, /пассажир.*движущемся автомобиле/iu);
+  assert.doesNotMatch(normalizedConflict.frames[0].visualAction, /кус(?:ает|ать)|обе\s+руки\s+у\s+лица/iu);
+  assert.doesNotMatch(normalizedConflict.frames[0].productPlacement, /сыр|несколько|два\s+предмета/iu);
+
+  const passengerValidation = validator.validatePhysicalScene({
+    storyboard: storyboard([
+      {
+        ...frame(
+          "Говорю в камеру",
+          "герой едет пассажиром и спокойно говорит в камеру",
+          "продукт вне кадра",
+          "ручная камера в движущемся автомобиле"
+        ),
+        environment: "машина едет",
+      },
+    ]),
+    creativePlan: null,
+    productName: "Коллаген",
+  });
+  assert.equal(passengerValidation.valid, true, JSON.stringify(passengerValidation));
+
+  const staleProduct = normalizer.normalizePhysicalStoryboardSegment({
+    productName: "Коллаген",
+    storyboard: storyboard([
+      frame(
+        "Вот этот Коллаген удобно брать с собой",
+        "герой держит Коллаген в одной руке",
+        "Коллаген в одной руке, упаковка повернута к камере"
+      ),
+      frame(
+        "Соблюдайте эти правила хотя бы тридцать дней",
+        "герой держит Коллаген в одной руке",
+        "Коллаген в одной руке, упаковка повернута к камере"
+      ),
+    ]),
+  });
+  assert.match(staleProduct.frames[1].productPlacement, /продукт вне кадра/iu);
+  assert.doesNotMatch(staleProduct.frames[1].visualAction, /держит Коллаген/iu);
 
   const normalizedCheekAction = normalizer.normalizePhysicalStoryboardSegment({
     productName: "Коллаген",
     storyboard: storyboard([
       frame(
-        "Рецепторы помогают коже",
+        "Коллаген помогает коже",
         "Both hands move up to touch jawline and cheeks",
         "Коллаген обязательно физически виден в коротком действии с рукой"
       ),

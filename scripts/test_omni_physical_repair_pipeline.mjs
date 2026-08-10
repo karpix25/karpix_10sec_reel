@@ -90,7 +90,8 @@ try {
   assert.equal(repaired.length, 3);
   for (const segment of repaired) {
     assert.equal(segment.validation.valid, true, JSON.stringify(segment.validation));
-    assert.doesNotMatch(segment.storyboardPlan.frames[0].visualAction, /кус(?:ает|ать)|машин|обе\s+руки\s+у\s+лица/iu);
+    assert.doesNotMatch(segment.storyboardPlan.frames[0].visualAction, /кус(?:ает|ать)|ведет машину|за рулем|обе\s+руки\s+у\s+лица/iu);
+    assert.match(segment.storyboardPlan.frames[0].visualAction, /пассажир.*движущемся автомобиле/iu);
     assert.doesNotMatch(segment.storyboardPlan.frames[0].productPlacement, /сыр|несколько|два\s+предмета/iu);
     assert.match(segment.prompt, /РУКИ|продукт в одной руке/iu);
   }
@@ -101,7 +102,8 @@ try {
     segmentCount: 1,
   });
   assert.equal(missingValidation[0].validation.valid, true, JSON.stringify(missingValidation[0].validation));
-  assert.doesNotMatch(missingValidation[0].storyboardPlan.frames[0].visualAction, /кус(?:ает|ать)|машин|обе\s+руки\s+у\s+лица/iu);
+  assert.doesNotMatch(missingValidation[0].storyboardPlan.frames[0].visualAction, /кус(?:ает|ать)|ведет машину|за рулем|обе\s+руки\s+у\s+лица/iu);
+  assert.match(missingValidation[0].storyboardPlan.frames[0].visualAction, /пассажир.*движущемся автомобиле/iu);
 
   const missingValidValidation = pipeline.normalizeOmniPromptPlanWithPhysicalRules({
     promptPlan: [{ ...repaired[0], validation: undefined }],

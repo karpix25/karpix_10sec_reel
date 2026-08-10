@@ -4,11 +4,11 @@ import {
   hasConsumptionAction,
   hasForeignReferenceProduct,
   hasMultipleHeldObjects,
-  hasDrivingAction,
   normalizeVehicleContext,
   repairPhysicalFrameAction,
   repairReferenceAction,
 } from "./physical-scene-model";
+import { mentionsOmniProduct } from "./omni-intro-product-contract";
 
 const HIDDEN_PRODUCT_PATTERN = /(?:вне кадра|не виден|скрыт|hidden|off\s*camera|только тематические объекты)/iu;
 const SURFACE_PATTERN = /(?:на столе|на поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
@@ -45,8 +45,8 @@ function normalizeFrame(frame: OmniStoryboardFrame, productName: string): OmniSt
   const product = productName.trim() || "продукт";
   const spokenText = frame.spokenText.trim();
   const sourceText = `${frame.visualAction} ${frame.productPlacement} ${frame.sfxNotes} ${frame.effectNotes || ""}`;
-  const drivingScene = hasDrivingAction(`${frame.environment} ${frame.visualAction} ${frame.camera}`);
   const productVisible = !HIDDEN_PRODUCT_PATTERN.test(frame.productPlacement) &&
+    mentionsOmniProduct(spokenText, product) &&
     !hasForeignReferenceProduct(spokenText, product);
   const initialAction = repairReferenceAction({
     action: frame.visualAction,
@@ -94,8 +94,8 @@ function normalizeFrame(frame: OmniStoryboardFrame, productName: string): OmniSt
   return {
     ...frame,
     visualAction: repairedAction,
-    camera: drivingScene ? "средний план в припаркованной неподвижной машине" : normalizeVehicleContext(frame.camera),
-    environment: drivingScene ? "припаркованная неподвижная машина" : normalizeVehicleContext(frame.environment),
+    camera: normalizeVehicleContext(frame.camera),
+    environment: normalizeVehicleContext(frame.environment),
     productPlacement,
     sfxNotes,
     effectNotes: speechDuringConsumption ? null : frame.effectNotes,

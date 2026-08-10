@@ -167,7 +167,6 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   assertOmniCtaContract(scriptText, strategy);
   const prompts: OmniSegmentPrompt[] = [];
   let previousContinuityState: OmniGenerationContinuityState | null = null;
-  let productIntroduced = false;
 
   for (let index = 0; index < voiceSegments.length; index += 1) {
     const segmentIndex = index + 1;
@@ -177,8 +176,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const baseProductRole = getSegmentProductRole(
       strategy.productRole,
       voiceSegments[index].text,
-      input.product.name,
-      productIntroduced
+      input.product.name
     );
     const productRole = baseProductRole;
     const segmentProductVisualPassport = productVisualPassport;
@@ -211,7 +209,6 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       durationSeconds: segmentSeconds,
       directorBrief,
       wardrobeSource: input.wardrobeSource,
-      productAlreadyVisible: productIntroduced,
     });
     const physicalValidation = validatePhysicalScene({
       storyboard: storyboardPlan,
@@ -239,9 +236,6 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       creativePlan: plan,
       validation,
     });
-    productIntroduced = productIntroduced || storyboardPlan.frames.some((frame) =>
-      mentionsOmniProduct(frame.spokenText, input.product.name)
-    );
     previousContinuityState = continuityDirection.nextState;
   }
 
@@ -258,12 +252,11 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
 function getSegmentProductRole(
   role: ProductRole,
   voiceoverText: string,
-  productName = "",
-  productIntroduced = false
+  productName = ""
 ): ProductRole {
   if (role === "hidden") return role;
-  if (productIntroduced || mentionsOmniProduct(voiceoverText, productName)) {
-    return "brief_demo";
+  if (mentionsOmniProduct(voiceoverText, productName)) {
+    return role;
   }
   return "hidden";
 }
@@ -285,6 +278,7 @@ function buildStoredProviderPromptSegments(
     generatedScript: input.generatedScript,
   });
   const productPhysicalHint = renderProductPhysicalHintForStoryboard(productPhysicalContract);
+  const directorBrief = input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,
     firstSpokenLine: providerPromptPlan.segmentPrompts[0]?.voiceover,
@@ -298,13 +292,12 @@ function buildStoredProviderPromptSegments(
   });
   assertOmniCtaContract(scriptText, strategy);
 
-  let productIntroduced = false;
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
     const segmentMentionsProduct = segment.storyboardFrames.some((frame) =>
       mentionsOmniProduct(frame.spokenWords, input.product.name)
     );
-    const productRole: ProductRole = productIntroduced || segmentMentionsProduct ? "brief_demo" : "hidden";
+    const productRole: ProductRole = segmentMentionsProduct ? strategy.productRole : "hidden";
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,
@@ -320,20 +313,20 @@ function buildStoredProviderPromptSegments(
       frames: segment.storyboardFrames,
       productName: input.product.name,
       productPhysicalHint,
-      productAlreadyVisible: productIntroduced,
+      directorBrief,
+      segmentCount: providerPromptPlan.segmentPrompts.length,
     });
     const validation = validatePhysicalScene({
       storyboard: storyboardPlan,
       creativePlan,
       productName: input.product.name,
     });
-    productIntroduced = productIntroduced || segmentMentionsProduct;
     const prompt = repairPhysicalScenePrompt(renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productName: input.product.name,
       productPhysicalContract: productRole !== "hidden" ? productPhysicalContract : null,
       segmentCount: providerPromptPlan.segmentPrompts.length,
-      directorBrief: input.directorBrief,
+      directorBrief,
     }), validation);
     return {
       index: segmentIndex,
