@@ -20,7 +20,7 @@ import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
-import type { OmniGenerationProvider } from "@/lib/omni/provider";
+import { normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
 import type { DirectorBrief } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
@@ -92,6 +92,7 @@ export async function createOmniReel(input: {
 }) {
   await ensureOmniSchema();
   const brief = typeof input.brief === "string" && input.brief.trim() ? input.brief.trim() : null;
+  const generationProvider = normalizeOmniGenerationProvider(input.generationProvider);
   const product = await requireOmniProductInProject(input.projectId, input.productId);
   const project = await getOmniProject(input.projectId);
   if (!project) throw new Error("Omni project not found");
@@ -266,7 +267,8 @@ export async function createOmniReel(input: {
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
       directorBrief,
       promptPlan,
-      generationProvider: input.generationProvider,
+      generationProvider,
+      maxSegments: generationProvider === "kie-ai" ? 1 : undefined,
     })
     : null;
   const storyboardReferenceUrls = generatedScriptStoryboardUrls
@@ -281,14 +283,16 @@ export async function createOmniReel(input: {
       directorBrief,
       avatarReferenceUrl: latestAvatar?.reference_url || null,
       promptPlan,
-      generationProvider: input.generationProvider,
+      generationProvider,
+      maxSegments: generationProvider === "kie-ai" ? 1 : undefined,
     });
   const missingStoryboardSegments = storyboardReferenceUrls
     .map((url, index) => url ? null : index + 1)
-    .filter((index): index is number => index !== null);
-  if (resolvedGeneratedScript && missingStoryboardSegments.length) {
+    .filter((index): index is number => index !== null)
+    .filter((index) => generationProvider !== "kie-ai" || index === 1);
+  if (missingStoryboardSegments.length && (resolvedGeneratedScript || generationProvider === "kie-ai")) {
     throw new Error(
-      `Раскадровка не готова для сегментов: ${missingStoryboardSegments.join(", ")}. Повторите попытку позже.`
+      `Платная раскадровка не создана для сегментов: ${missingStoryboardSegments.join(", ")}. Повторите вручную после проверки reference.`
     );
   }
 
@@ -405,10 +409,14 @@ async function generateStoryboardReferenceUrls(input: {
   avatarReferenceUrl: string | null;
   promptPlan: readonly ReturnType<typeof buildOmniSegmentPrompts>[number][];
   generationProvider?: OmniGenerationProvider;
+  maxSegments?: number;
 }): Promise<(string | null)[]> {
   const urls: (string | null)[] = [];
   let previousStoryboardReferenceUrl: string | null = null;
-  for (let index = 0; index < input.promptPlan.length; index += 1) {
+  const generationLimit = Number.isInteger(input.maxSegments) && (input.maxSegments || 0) > 0
+    ? Math.min(input.promptPlan.length, input.maxSegments || 0)
+    : input.promptPlan.length;
+  for (let index = 0; index < generationLimit; index += 1) {
     const segmentPrompt = input.promptPlan[index];
     const storyboardReferenceUrl: string | null = segmentPrompt.storyboardPlan
       ? await generateStoryboardImage({
@@ -432,5 +440,6 @@ async function generateStoryboardReferenceUrls(input: {
     urls.push(storyboardReferenceUrl);
     if (storyboardReferenceUrl) previousStoryboardReferenceUrl = storyboardReferenceUrl;
   }
+  while (urls.length < input.promptPlan.length) urls.push(null);
   return urls;
 }

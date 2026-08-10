@@ -6,7 +6,7 @@ import {
   getCometReferenceImageTransport,
   shouldSendCometReferenceImage,
 } from "./comet-video-client";
-import { ensureOmniSchema } from "./schema";
+import { getOmniReelBundle } from "./omni-reel-bundle";
 import { getLatestOmniClientAvatar } from "./avatars";
 import {
   selectReferenceImagesForSegment,
@@ -44,30 +44,9 @@ import { syncOmniReelSegments } from "./omni-segment-sync";
 import { assertOmniPhysicalPreflight } from "./omni-physical-preflight";
 import { buildOmniReelFailureMessage } from "./omni-reel-failure";
 import { approveOmniPilotIfReady, getOmniSegmentsForSubmission } from "./omni-pilot-gate";
-
-type ReelBundle = {
-  reel: OmniReel;
-  segments: OmniReelSegment[];
-};
+import { ensureOmniReelStoryboardsForSubmission } from "./omni-reel-storyboard-gate";
 
 const RUNNING_STATUSES = new Set(["queued", "submitted", "processing"]);
-
-async function getReelBundle(reelId: number): Promise<ReelBundle> {
-  await ensureOmniSchema();
-  const reelResult = await pool.query<OmniReel>("SELECT * FROM omni_reels WHERE id = $1 LIMIT 1", [reelId]);
-  const reel = reelResult.rows[0];
-  if (!reel) throw new Error("Omni reel not found");
-
-  const segmentResult = await pool.query<OmniReelSegment>(
-    `SELECT *
-     FROM omni_reel_segments
-     WHERE reel_id = $1
-     ORDER BY segment_index ASC`,
-    [reelId]
-  );
-
-  return { reel, segments: segmentResult.rows };
-}
 
 function hasRunningSegments(segments: OmniReelSegment[]) {
   return segments.some((segment) => RUNNING_STATUSES.has(String(segment.status || "").toLowerCase()));
@@ -117,13 +96,18 @@ function getReelGenerationProvider(segments: OmniReelSegment[]) {
 }
 
 export async function submitOmniReel(reelId: number, providerInput?: unknown) {
-  const { reel, segments } = await getReelBundle(reelId);
+  const bundle = await getOmniReelBundle(reelId);
+  const reel = bundle.reel;
+  let segments = bundle.segments;
   const provider = normalizeOmniGenerationProvider(providerInput);
   const continuityChainEnabled = isOmniContinuityChainEnabled();
   const providerContinuityEnabled = provider !== "kie-ai" && continuityChainEnabled;
   if (!segments.length) throw new Error("Omni reel has no segments");
+  if (provider === "kie-ai" && reel.pilot_status !== "pending") {
+    segments = await ensureOmniReelStoryboardsForSubmission({ reel, segments });
+  }
   if (provider === "kie-ai") {
-    const missingStoryboardSegments = segments
+    const missingStoryboardSegments = getOmniSegmentsForSubmission(reel, segments)
       .filter((segment) => !segment.storyboard_reference_url)
       .map((segment) => segment.segment_index);
     if (missingStoryboardSegments.length) {
@@ -400,7 +384,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     if (providerContinuityEnabled) break;
   }
 
-  const updated = await getReelBundle(reelId);
+  const updated = await getOmniReelBundle(reelId);
   return updated.reel;
 }
 
@@ -448,10 +432,10 @@ function getSkippedReferenceReason(input: {
 }
 
 export async function syncOmniReel(reelId: number) {
-  const { reel, segments } = await getReelBundle(reelId);
+  const { reel, segments } = await getOmniReelBundle(reelId);
   const syncResult = await syncOmniReelSegments({ reel, segments });
 
-  const updated = await getReelBundle(reelId);
+  const updated = await getOmniReelBundle(reelId);
   const hasFailed = updated.segments.some((segment) => segment.status === "failed");
   const allCompleted = updated.segments.length > 0 && updated.segments.every((segment) => segment.status === "completed");
   const hasPendingDraft = updated.segments.some(
@@ -495,5 +479,5 @@ export async function syncOmniReel(reelId: number) {
     await processOmniReelSubtitlesIfNeeded({ reelId });
   }
 
-  return getReelBundle(reelId);
+  return getOmniReelBundle(reelId);
 }
