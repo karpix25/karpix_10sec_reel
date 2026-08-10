@@ -6,8 +6,6 @@
     "dev": "next dev --webpack",
     "dev:turbopack": "next dev",
     "build": "next build",
-    "test:omni-reference": "tsc scripts/omni-reference-contract-smoke.ts src/lib/server/omni/omni-continuity-prompt.ts src/lib/server/omni/storyboard/omni-storyboard-file-reference.ts --target ES2022 --module commonjs --moduleResolution node --outDir /tmp/omni-reference-contract-smoke --skipLibCheck --strict --esModuleInterop && node /tmp/omni-reference-contract-smoke/scripts/omni-reference-contract-smoke.js",
-    "test:storyboard-vision": "tsc scripts/storyboard-vision-contract-smoke.ts src/lib/server/omni/storyboard-vision-contract.ts src/lib/omni/storyboard/omni-storyboard-vision-types.ts --target ES2022 --module commonjs --moduleResolution node --outDir /tmp/storyboard-vision-contract-smoke --skipLibCheck --strict --esModuleInterop && node /tmp/storyboard-vision-contract-smoke/scripts/storyboard-vision-contract-smoke.js",
     "start": "next start",
     "lint": "eslint"
   },

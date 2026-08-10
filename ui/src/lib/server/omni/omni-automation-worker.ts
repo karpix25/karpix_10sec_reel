@@ -10,10 +10,6 @@ import {
 import { submitOmniReel, syncOmniReel } from "./omni-reel-runner";
 import { createOmniReel } from "./reels";
 import { ensureOmniSchema } from "./schema";
-import { shouldRetryOmniAutomationError } from "./omni-automation-error-policy";
-import { assertOmniProductionPreflight } from "./omni-production-preflight";
-
-const STORYBOARD_WAIT_EXTRA_ATTEMPTS = 10;
 
 function envInt(name: string, fallback: number, min = 1) {
   const parsed = Number.parseInt(process.env[name] || "", 10);
@@ -24,21 +20,16 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error || "Unknown Omni automation error");
 }
 
-function getRetryDelaySeconds(job: OmniAutomationJob, errorMessage: string) {
+function getRetryDelaySeconds(job: OmniAutomationJob) {
   const base = envInt("OMNI_AUTOMATION_RETRY_BASE_SECONDS", 60);
   const max = envInt("OMNI_AUTOMATION_RETRY_MAX_SECONDS", 1800);
   const attemptPower = Math.max(0, job.attempt_count - 1);
-  const storyboardCooldown = errorMessage.includes("Раскадровка не готова для сегментов:")
-    ? envInt("OMNI_STORYBOARD_FAILURE_COOLDOWN_SECONDS", 600, 60)
-    : 0;
-  return Math.max(storyboardCooldown, Math.min(max, base * 2 ** attemptPower));
+  return Math.min(max, base * 2 ** attemptPower);
 }
 
 async function handleJobError(job: OmniAutomationJob, error: unknown) {
   const message = getErrorMessage(error);
-  const storyboardPending = message.includes("Раскадровка не готова для сегментов:");
-  const retryLimit = job.max_attempts + (storyboardPending ? STORYBOARD_WAIT_EXTRA_ATTEMPTS : 0);
-  if (!shouldRetryOmniAutomationError(message) || job.attempt_count >= retryLimit) {
+  if (job.attempt_count >= job.max_attempts) {
     return {
       action: "failed",
       job: await failOmniAutomationJob({ jobId: job.id, errorMessage: message }),
@@ -50,7 +41,7 @@ async function handleJobError(job: OmniAutomationJob, error: unknown) {
     action: "requeued",
     job: await requeueOmniAutomationJob({
       jobId: job.id,
-      delaySeconds: getRetryDelaySeconds(job, message),
+      delaySeconds: getRetryDelaySeconds(job),
       errorMessage: message,
     }),
     error: message,
@@ -66,13 +57,6 @@ async function runScriptStage(job: OmniAutomationJob) {
     projectId: job.project_id,
     productId: job.product_id,
     legacyScenarioId: job.source_legacy_scenario_id,
-    generationProvider: job.generation_provider,
-  });
-  await assertOmniProductionPreflight({
-    projectId: job.project_id,
-    productId: job.product_id,
-    generatedScriptId: script.id,
-    provider: job.generation_provider,
   });
   return updateOmniAutomationJobStage({
     jobId: job.id,
@@ -88,12 +72,6 @@ async function runReelStage(job: OmniAutomationJob) {
   if (!job.generated_script_id) {
     throw new Error("Omni automation job has no generated script for reel stage");
   }
-  await assertOmniProductionPreflight({
-    projectId: job.project_id,
-    productId: job.product_id,
-    generatedScriptId: job.generated_script_id,
-    provider: job.generation_provider,
-  });
 
   const reel = await createOmniReel({
     projectId: job.project_id,
@@ -131,10 +109,7 @@ async function runSyncStage(job: OmniAutomationJob) {
     return completeOmniAutomationJob(job.id);
   }
   if (bundle.reel.status === "failed") {
-    return failOmniAutomationJob({
-      jobId: job.id,
-      errorMessage: bundle.reel.error_message || "Omni reel failed",
-    });
+    throw new Error(bundle.reel.error_message || "Omni reel failed");
   }
 
   return requeueOmniAutomationJob({

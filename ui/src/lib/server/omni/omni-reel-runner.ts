@@ -6,7 +6,7 @@ import {
   getCometReferenceImageTransport,
   shouldSendCometReferenceImage,
 } from "./comet-video-client";
-import { getOmniReelBundle } from "./omni-reel-bundle";
+import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
 import {
   selectReferenceImagesForSegment,
@@ -31,22 +31,37 @@ import {
 import { processOmniReelSubtitlesIfNeeded } from "./omni-reel-subtitles";
 import { stitchAndStoreReel } from "./omni-segment-completion";
 import { detectKieOmniVoiceGender, resolveKieOmniAudioIds, type KieOmniVoiceGender } from "./kie-omni-audio";
-import {
-  applyOmniStoryboardFileReference,
-  getOmniImageReferenceTag,
-} from "./storyboard/omni-storyboard-file-reference";
+import { applyOmniStoryboardFileReference } from "./storyboard/omni-storyboard-file-reference";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import {
-  appendOmniSegmentRetryPrompt,
   getOmniSegmentRetryCount,
 } from "./omni-segment-retry";
 import { syncOmniReelSegments } from "./omni-segment-sync";
 import { assertOmniPhysicalPreflight } from "./omni-physical-preflight";
-import { buildOmniReelFailureMessage } from "./omni-reel-failure";
-import { approveOmniPilotIfReady, getOmniSegmentsForSubmission } from "./omni-pilot-gate";
-import { ensureOmniReelStoryboardsForSubmission } from "./omni-reel-storyboard-gate";
+
+type ReelBundle = {
+  reel: OmniReel;
+  segments: OmniReelSegment[];
+};
 
 const RUNNING_STATUSES = new Set(["queued", "submitted", "processing"]);
+
+async function getReelBundle(reelId: number): Promise<ReelBundle> {
+  await ensureOmniSchema();
+  const reelResult = await pool.query<OmniReel>("SELECT * FROM omni_reels WHERE id = $1 LIMIT 1", [reelId]);
+  const reel = reelResult.rows[0];
+  if (!reel) throw new Error("Omni reel not found");
+
+  const segmentResult = await pool.query<OmniReelSegment>(
+    `SELECT *
+     FROM omni_reel_segments
+     WHERE reel_id = $1
+     ORDER BY segment_index ASC`,
+    [reelId]
+  );
+
+  return { reel, segments: segmentResult.rows };
+}
 
 function hasRunningSegments(segments: OmniReelSegment[]) {
   return segments.some((segment) => RUNNING_STATUSES.has(String(segment.status || "").toLowerCase()));
@@ -96,26 +111,11 @@ function getReelGenerationProvider(segments: OmniReelSegment[]) {
 }
 
 export async function submitOmniReel(reelId: number, providerInput?: unknown) {
-  const bundle = await getOmniReelBundle(reelId);
-  const reel = bundle.reel;
-  let segments = bundle.segments;
+  const { reel, segments } = await getReelBundle(reelId);
   const provider = normalizeOmniGenerationProvider(providerInput);
   const continuityChainEnabled = isOmniContinuityChainEnabled();
   const providerContinuityEnabled = provider !== "kie-ai" && continuityChainEnabled;
   if (!segments.length) throw new Error("Omni reel has no segments");
-  if (provider === "kie-ai" && reel.pilot_status !== "pending") {
-    segments = await ensureOmniReelStoryboardsForSubmission({ reel, segments });
-  }
-  if (provider === "kie-ai") {
-    const missingStoryboardSegments = getOmniSegmentsForSubmission(reel, segments)
-      .filter((segment) => !segment.storyboard_reference_url)
-      .map((segment) => segment.segment_index);
-    if (missingStoryboardSegments.length) {
-      const message = `KIE Omni requires a validated storyboard instruction board for segments: ${missingStoryboardSegments.join(", ")}`;
-      await markOmniReelPreflightFailure({ reelId: reel.id, provider, message });
-      throw new Error(message);
-    }
-  }
   const avatarReferenceUrl = getAvatarReferenceUrl(reel);
   const productReferenceUrls = getProductReferenceUrls(reel);
   const productReferenceUrl = productReferenceUrls[0] || null;
@@ -210,7 +210,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     [reel.id, provider]
   );
 
-  for (const segment of getOmniSegmentsForSubmission(reel, segments)) {
+  for (const segment of segments) {
     if (segment.kie_task_id || RUNNING_STATUSES.has(segment.status) || segment.status === "completed") continue;
     if (providerContinuityEnabled && isSegmentBlockedByContinuityChain(segment, segments)) break;
     if (!segment.prompt) throw new Error(`Segment ${segment.segment_index} has no prompt`);
@@ -247,10 +247,9 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       segmentIndex: segment.segment_index,
       productIsVisible,
     });
-    const retryPrompt = appendOmniSegmentRetryPrompt(segment.prompt, segment.request_payload);
     const continuityPrompt = continuity.image
-      ? appendContinuityPromptContract(retryPrompt)
-      : retryPrompt;
+      ? appendContinuityPromptContract(segment.prompt)
+      : segment.prompt;
     const kieStoryboardPrompt = applyOmniStoryboardFileReference(
       continuityPrompt,
       selectedReferenceImages.sent
@@ -285,7 +284,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       reference_images: selectedReferenceImages.sent.map((image, index) => ({
         role: image.role,
         url: image.url,
-        file_reference: provider === "kie-ai" ? getOmniImageReferenceTag(index) : null,
+        file_reference: provider === "kie-ai" ? `@file${index + 1}` : null,
       })),
       reference_images_skipped: selectedReferenceImages.skipped.map((image) => ({
         role: image.role,
@@ -316,9 +315,9 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       prompt_contracts: [
         ...(continuity.image ? ["previous_frame_continuity_v1"] : []),
         ...(provider === "kie-ai" && selectedReferenceImages.sent.length > 0
-          ? ["gemini_image_reference_tags_v2"]
+          ? ["kie_reference_order_v1"]
           : []),
-        ...(provider === "kie-ai" && usesStoryboardReference ? ["storyboard_instruction_board_v2"] : []),
+        ...(provider === "kie-ai" && usesStoryboardReference ? ["kie_storyboard_visual_authority_v1"] : []),
       ],
       creative_plan: segment.creative_plan,
       storyboard_plan: segment.storyboard_plan,
@@ -384,7 +383,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     if (providerContinuityEnabled) break;
   }
 
-  const updated = await getOmniReelBundle(reelId);
+  const updated = await getReelBundle(reelId);
   return updated.reel;
 }
 
@@ -432,37 +431,24 @@ function getSkippedReferenceReason(input: {
 }
 
 export async function syncOmniReel(reelId: number) {
-  const { reel, segments } = await getOmniReelBundle(reelId);
+  const { reel, segments } = await getReelBundle(reelId);
   const syncResult = await syncOmniReelSegments({ reel, segments });
 
-  const updated = await getOmniReelBundle(reelId);
+  const updated = await getReelBundle(reelId);
   const hasFailed = updated.segments.some((segment) => segment.status === "failed");
   const allCompleted = updated.segments.length > 0 && updated.segments.every((segment) => segment.status === "completed");
   const hasPendingDraft = updated.segments.some(
     (segment) => !segment.kie_task_id && segment.status !== "completed" && segment.status !== "failed"
   );
-  const pilotApproved = await approveOmniPilotIfReady(updated.reel, updated.segments);
 
   let stitchedNow = false;
   if (syncResult.retried) {
     await submitOmniReel(reelId, getReelGenerationProvider(updated.segments));
   } else if (hasFailed) {
-    const failureMessage = buildOmniReelFailureMessage(updated.segments);
     await pool.query(
-      `UPDATE omni_reel_segments
-       SET status = 'failed',
-           error_message = COALESCE(error_message, $2),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE reel_id = $1
-         AND status NOT IN ('completed', 'failed')`,
-      [reelId, `Aborted because another segment failed: ${failureMessage}`]
+      "UPDATE omni_reels SET status = 'failed', error_message = 'One or more segments failed', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+      [reelId]
     );
-    await pool.query(
-      "UPDATE omni_reels SET status = 'failed', error_message = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
-      [reelId, failureMessage]
-    );
-  } else if (pilotApproved) {
-    await submitOmniReel(reelId, getReelGenerationProvider(updated.segments));
   } else if (allCompleted && updated.reel.stitch_status !== "completed") {
     await stitchAndStoreReel({ reel: updated.reel, segments: updated.segments });
     stitchedNow = true;
@@ -479,5 +465,5 @@ export async function syncOmniReel(reelId: number) {
     await processOmniReelSubtitlesIfNeeded({ reelId });
   }
 
-  return getOmniReelBundle(reelId);
+  return getReelBundle(reelId);
 }

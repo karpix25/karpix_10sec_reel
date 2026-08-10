@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { Archive, PenLine, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +41,6 @@ export function LegacyRefsScriptScreen({
   const avatars = studio.avatarsQuery.data || [];
   const latestAvatar = avatars.find((avatar) => avatar.is_active && avatar.reference_url) || avatars[0] || null;
   const reelsPayload = studio.reelsQuery.data || { reels: [], segments: [] };
-  const refetchReels = studio.reelsQuery.refetch;
   const { pendingDrafts, pendingVideo, addPendingDraft, removePendingDraft, setPendingVideo } = usePersistentGenerationPending({
     projectId: selectedProjectId,
     productId: selectedProductId,
@@ -49,12 +48,6 @@ export function LegacyRefsScriptScreen({
     reels: reelsPayload.reels,
     videoError: studio.createReelMutation.isError,
   });
-
-  useEffect(() => {
-    if (!pendingVideo) return;
-    const interval = window.setInterval(() => void refetchReels(), 15_000);
-    return () => window.clearInterval(interval);
-  }, [pendingVideo, refetchReels]);
 
   const canGenerate =
     Boolean(selectedProjectId) &&

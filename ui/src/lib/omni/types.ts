@@ -232,8 +232,6 @@ export interface OmniReel {
   source_legacy_scenario_id: number | null;
   target_duration_seconds: number;
   segment_count: number;
-  pilot_segment_index?: number | null;
-  pilot_status?: "pending" | "approved";
   status: OmniReelStatus;
   brief: string | null;
   source_snapshot: Record<string, unknown> | null;

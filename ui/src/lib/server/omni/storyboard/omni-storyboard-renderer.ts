@@ -12,9 +12,6 @@ import type { DirectorBrief } from "../director-analysis-types";
 import { isCollagePictureInPictureReference } from "../director-layout-contract";
 import { renderReferenceTransitionCue } from "./omni-storyboard-effects";
 import { OMNI_PHYSICAL_ACTION_CONTRACT } from "../omni-physical-action-contract";
-import { OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT } from "../omni-scene-safety-contract";
-import type { OmniCharacterContract } from "../omni-character-contract";
-import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
@@ -22,9 +19,6 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   productPhysicalContract?: string | null;
   segmentCount?: number;
   directorBrief?: DirectorBrief | null;
-  characterContract?: OmniCharacterContract;
-  wardrobeSource?: OmniWardrobeSource;
-  storyboardReferenceMode?: "generated_panels" | "canonical_references";
 }) {
   const validation = validateOmniStoryboardSegment(input.storyboard);
   if (!validation.valid) {
@@ -38,74 +32,43 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     .filter((index): index is number => index !== null);
   const productAppearsInThisSegment = productFrameNumbers.length > 0;
   const productRevealFrame = productFrameNumbers[0] || null;
-  const usesCanonicalReferences = input.storyboardReferenceMode === "canonical_references";
 
   return [
-    usesCanonicalReferences
-      ? `Create one live-action vertical video using the canonical reference board ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`
-      : `Create one live-action vertical video from the single storyboard instruction board ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
-    usesCanonicalReferences
-      ? "The board contains the actual avatar reference, the actual product references when the product is visible, and selected frames from the original reference video. It is a source board, not a literal scene or first frame."
-      : `The board contains exactly ${frameCount} ordered SHOT panels. Animate one shot per panel in the timestamped order below.`,
-    usesCanonicalReferences
-      ? "Use original-reference frames only for location, composition, camera, lighting, PIP or collage mechanics, and edit rhythm. Use the avatar reference only for our person's identity and outfit. Use the supplied product references only for our product."
-      : "Preserve the storyboard composition, lighting, environment, decor, PIP or collage mechanics, visible format elements, and edit rhythm. Use the wardrobe authority below for clothing.",
-    "Replace only the original performer with our supplied avatar and the original commercial product with our supplied product.",
-    "Do not render the reference board, any board separators, labels, instruction text, social interface, or subtitles.",
+    `Создай динамичный разговорный ролик по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}, сохрани точно такой же визуал.`,
+    `Структура видео: ровно ${frameCount} живых эпизодов по одному на каждый кадр, в том же порядке.`,
+    `Оживи кадры раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER} как реальные сцены; не показывай саму раскадровку, телефон, экран, интерфейс, соцсети или карточки.`,
     preservePipLayout
-      ? "FORMAT LOCK: keep the full-screen background and the avatar cutout in the lower-left PIP position shown on the storyboard."
+      ? "PIP: full-screen фон; avatar lower-left cutout."
       : "",
-    OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
-    renderWardrobeAuthority(input),
-    "Keep the same hair, parting, accessories, and complete outfit across every shot and segment.",
-    renderWardrobeLock(input),
+    "filming equipment is never visible.",
+    `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
+    "Фиксируй те же волосы, пробор, аксессуары.",
+    "Канонический outfit задается первым кадром первой части: один и тот же полный комплект одежды во всех частях; не меняй цвет, ткань, крой или аксессуары.",
+    "WARDROBE AUTHORITY: первый outfit из раскадровки единственный; не бери одежду из avatar reference и не меняй outfit.",
+    renderWardrobeLock(input.directorBrief),
     renderReferenceTransitionCue(input.directorBrief),
-    renderStoryboardTimeline(input.storyboard, usesCanonicalReferences),
+    renderStoryboardCameraLock(input.storyboard),
     renderVehicleCameraLock(input.directorBrief),
-    "In every presenter shot, the character looks directly into the lens.",
+    "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
-      ? `Use ${OMNI_PRODUCT_FILE_PLACEHOLDER} only for product identity. Reveal it first in SHOT ${shotLabel((productRevealFrame || 1) - 1)} and preserve its packaging, scale, state, hand, and physical position until a visible action moves it.`
-      : "Keep the product outside the frame for this entire segment.",
+      ? `Продукт бери из ${OMNI_PRODUCT_FILE_PLACEHOLDER}; не меняй упаковку; впервые покажи его только в кадре ${productRevealFrame}; дальше сохраняй в той же руке или на том же месте; не допускай исчезновения, телепортации или смены положения без движения руки.`
+      : "В этом сегменте продукт вне кадра; не переноси его из reference-кадра.",
     productAppearsInThisSegment
-      ? "PRODUCT REFERENCE SET LOCK: all supplied product images jointly describe one exact product. Use the primary package image together with every supplied texture or detail image; never replace a foam, cream, powder, liquid, or other physical state with a generic version."
-      : "",
-    productAppearsInThisSegment
-      ? "Keep one physically continuous product instance; never duplicate, teleport, or transform it."
+      ? "Состояние продукта держи одинаковым."
       : "",
     productAppearsInThisSegment ? renderProductPhysicalContractForOmni(input.productPhysicalContract) : "",
     OMNI_PHYSICAL_ACTION_CONTRACT,
-    "EXACT SPOKEN RUSSIAN LINE. Speak the quoted text once and say nothing else:",
+    "Точная реплика персонажа на русском языке (произноси только текст в кавычках, ничего кроме него):",
     `"${voiceoverText}"`,
-    "Deliver it naturally without long pauses. Never read technical instructions aloud. After the line, remain silent. No background music or subtitles.",
-    usesCanonicalReferences
-      ? `Use ${OMNI_STORYBOARD_FILE_PLACEHOLDER} only to anchor identity, product, setup, and reference layout; animate the timestamped shot plan below instead of copying the board collage.`
-      : `Use ${OMNI_STORYBOARD_FILE_PLACEHOLDER} as a visual reference board, not as a literal first frame.`,
+    "Правила аудио: произнеси строго указанную реплику в кавычках один раз, плавно и без пауз. Не зачитывай технические инструкции. После завершения реплики персонаж молчит. Без фоновой музыки и субтитров.",
   ].join("\n");
 }
 
-function renderStoryboardTimeline(storyboard: OmniStoryboardSegment, canonicalReferences = false) {
-  const secondsPerShot = storyboard.durationSeconds / storyboard.frames.length;
-  return storyboard.frames.map((frame, index) => {
-    const start = formatSeconds(index * secondsPerShot);
-    const end = formatSeconds((index + 1) * secondsPerShot);
-    return [
-      `[${start}-${end}s] Animate SHOT ${shotLabel(index)} from the storyboard.`,
-      `Subject motion: ${frame.visualAction.trim()}.`,
-      `Camera behavior: ${frame.camera.trim()}.`,
-      frame.effectNotes ? `Transition behavior: ${frame.effectNotes.trim()}.` : "",
-      canonicalReferences
-        ? "Keep non-wardrobe visible details exactly as shown in that SHOT panel; follow the avatar wardrobe lock above for clothing."
-        : "Keep every other visible detail exactly as shown in that SHOT panel.",
-    ].filter(Boolean).join(" ");
-  }).join("\n");
-}
-
-function shotLabel(index: number) {
-  return String.fromCharCode(65 + index);
-}
-
-function formatSeconds(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+function renderStoryboardCameraLock(storyboard: OmniStoryboardSegment) {
+  const cameraMap = storyboard.frames
+    .map((frame, index) => `${index + 1}=${frame.camera.trim()}`)
+    .join(" | ");
+  return `CAMERA AUTHORITY: follow storyboard camera. MAP: ${cameraMap}. Keep setup until change; no left-right/front-rear, seat, zoom, orbit or background changes.`;
 }
 
 function renderVehicleCameraLock(brief?: DirectorBrief | null) {
@@ -137,28 +100,7 @@ function renderHookMark(text: string) {
   return /^(?:почему|зачем|как|что|когда|если|вы|ты|знаете|знаешь)\b/iu.test(text) ? "?" : "!";
 }
 
-function renderWardrobeAuthority(input: {
-  characterContract?: OmniCharacterContract;
-  wardrobeSource?: OmniWardrobeSource;
-}) {
-  if (normalizeOmniWardrobeSource(input.wardrobeSource) === "avatar_reference") {
-    return [
-      "Use the supplied character identity for face, age, hair, body, identity, and the exact outfit visible in the avatar reference.",
-      "Ignore clothing from the director reference images, storyboard panels, and timeline actions; the avatar reference and AVATAR WARDROBE LOCK are the only clothing sources.",
-    ].join(" ");
-  }
-  return "Use the supplied character identity for face, age, hair, and body. The storyboard panel wardrobe is the adapted director-reference outfit; keep it unchanged across all shots and segments.";
-}
-
-function renderWardrobeLock(input: {
-  brief?: DirectorBrief | null;
-  characterContract?: OmniCharacterContract;
-  wardrobeSource?: OmniWardrobeSource;
-}): string {
-  if (normalizeOmniWardrobeSource(input.wardrobeSource) === "avatar_reference" && input.characterContract) {
-    return `AVATAR WARDROBE LOCK: ${input.characterContract.clothingLine}. This overrides any conflicting clothing text in storyboard panels or shot actions; identical outfit in every segment and every frame.`;
-  }
-  const brief = input.brief;
+function renderWardrobeLock(brief: DirectorBrief | null | undefined): string {
   if (!brief) return "";
   const parts = [
     brief.clothing.style,

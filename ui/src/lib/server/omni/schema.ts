@@ -144,8 +144,6 @@ const statements = [
     source_legacy_scenario_id BIGINT,
     target_duration_seconds INTEGER NOT NULL,
     segment_count INTEGER NOT NULL,
-    pilot_segment_index INTEGER,
-    pilot_status TEXT NOT NULL DEFAULT 'approved',
     status TEXT NOT NULL DEFAULT 'draft',
     brief TEXT,
     source_snapshot JSONB,
@@ -216,10 +214,6 @@ const statements = [
     storyboard_reference_url TEXT,
     reference_signature TEXT,
     generator_version TEXT,
-    generation_status TEXT NOT NULL DEFAULT 'pending',
-    generation_error TEXT,
-    last_attempt_at TIMESTAMP,
-    retry_after TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(generated_script_id, segment_index)
@@ -269,8 +263,6 @@ const statements = [
   "ALTER TABLE omni_products ADD COLUMN IF NOT EXISTS cta_value TEXT",
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS source_snapshot JSONB",
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS source_generated_script_id BIGINT",
-  "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS pilot_segment_index INTEGER",
-  "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS pilot_status TEXT NOT NULL DEFAULT 'approved'",
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS product_snapshot JSONB",
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS avatar_snapshot JSONB",
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS creative_strategy JSONB",
@@ -350,11 +342,6 @@ const statements = [
   "ALTER TABLE omni_reel_segments ADD COLUMN IF NOT EXISTS continuity_applied BOOLEAN NOT NULL DEFAULT FALSE",
   "ALTER TABLE omni_generated_script_storyboards ADD COLUMN IF NOT EXISTS reference_signature TEXT",
   "ALTER TABLE omni_generated_script_storyboards ADD COLUMN IF NOT EXISTS generator_version TEXT",
-  "ALTER TABLE omni_generated_script_storyboards ADD COLUMN IF NOT EXISTS generation_status TEXT NOT NULL DEFAULT 'pending'",
-  "ALTER TABLE omni_generated_script_storyboards ADD COLUMN IF NOT EXISTS generation_error TEXT",
-  "ALTER TABLE omni_generated_script_storyboards ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP",
-  "ALTER TABLE omni_generated_script_storyboards ADD COLUMN IF NOT EXISTS retry_after TIMESTAMP",
-  "UPDATE omni_generated_script_storyboards SET generation_status = 'ready' WHERE storyboard_reference_url IS NOT NULL AND generation_status <> 'ready'",
   `UPDATE omni_projects
    SET legacy_client_id = substring(description from 'legacy-client:([0-9]+)')::bigint
    WHERE legacy_client_id IS NULL

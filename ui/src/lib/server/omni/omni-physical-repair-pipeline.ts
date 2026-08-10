@@ -18,7 +18,6 @@ export function normalizeOmniPromptPlanWithPhysicalRules(input: {
   productPhysicalContract?: string | null;
   segmentCount: number;
   directorBrief?: DirectorBrief | null;
-  storyboardReferenceMode?: "generated_panels" | "canonical_references";
 }) {
   return input.promptPlan.map((segment) => {
     if (!segment.storyboardPlan) return segment;
@@ -43,7 +42,6 @@ export function normalizeOmniPromptPlanWithPhysicalRules(input: {
       productPhysicalContract: input.productPhysicalContract,
       segmentCount: input.segmentCount,
       directorBrief: input.directorBrief,
-      storyboardReferenceMode: input.storyboardReferenceMode,
     });
   });
 }
@@ -54,7 +52,6 @@ export async function repairOmniPromptPlanWithAi(input: {
   productPhysicalContract?: string | null;
   segmentCount: number;
   directorBrief?: DirectorBrief | null;
-  storyboardReferenceMode?: "generated_panels" | "canonical_references";
   model?: string | null;
 }) {
   const repairedPlan = normalizeOmniPromptPlanWithPhysicalRules(input);
@@ -96,7 +93,6 @@ export async function repairOmniPromptPlanWithAi(input: {
         productPhysicalContract: input.productPhysicalContract,
         segmentCount: input.segmentCount,
         directorBrief: input.directorBrief,
-        storyboardReferenceMode: input.storyboardReferenceMode,
       });
       repairedPlan[index] = segment;
     }
@@ -113,7 +109,6 @@ function buildRepairedSegment(input: {
   productPhysicalContract?: string | null;
   segmentCount: number;
   directorBrief?: DirectorBrief | null;
-  storyboardReferenceMode?: "generated_panels" | "canonical_references";
 }): OmniSegmentPrompt {
   return {
     ...input.segment,
@@ -125,9 +120,6 @@ function buildRepairedSegment(input: {
         : null,
       segmentCount: input.segmentCount,
       directorBrief: input.directorBrief,
-      characterContract: input.segment.characterContract,
-      wardrobeSource: input.segment.wardrobeSource,
-      storyboardReferenceMode: input.storyboardReferenceMode,
     }), input.validation),
     storyboardPlan: input.storyboard,
     validation: input.validation,
