@@ -5,7 +5,7 @@ import { normalizeOmniGenerationProvider } from "@/lib/omni/provider";
 import { extractDirectorBriefFromSnapshot } from "./director-analysis-types";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
-import { resolveProductIdentityReferenceImageUrls } from "./omni-product-reference-images";
+import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
 
 export async function ensureOmniReelStoryboardsForSubmission(input: {
@@ -19,7 +19,7 @@ export async function ensureOmniReelStoryboardsForSubmission(input: {
 
   const productName = getSnapshotText(input.reel.product_snapshot, "name") ||
     getSnapshotText(input.reel.product_snapshot, "product_name");
-  const productReferences = resolveProductIdentityReferenceImageUrls(input.reel.product_snapshot || {});
+  const productReferences = resolveProductReferenceImageUrls(input.reel.product_snapshot || {});
   const avatarReferenceUrl = getSnapshotText(input.reel.avatar_snapshot, "reference_url");
   if (!avatarReferenceUrl) throw new Error("Раскадровка требует утвержденный reference avatar");
 

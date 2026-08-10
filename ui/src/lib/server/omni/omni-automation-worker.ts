@@ -66,6 +66,7 @@ async function runScriptStage(job: OmniAutomationJob) {
     projectId: job.project_id,
     productId: job.product_id,
     legacyScenarioId: job.source_legacy_scenario_id,
+    generationProvider: job.generation_provider,
   });
   await assertOmniProductionPreflight({
     projectId: job.project_id,

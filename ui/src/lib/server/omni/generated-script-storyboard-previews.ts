@@ -14,7 +14,7 @@ type StoryboardPromptSegment = {
   referencePolicy?: ReferenceTransferPolicy;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-semantic-transfer-v7";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-canonical-reference-board-v8";
 const DEFAULT_FAILURE_COOLDOWN_SECONDS = 600;
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {

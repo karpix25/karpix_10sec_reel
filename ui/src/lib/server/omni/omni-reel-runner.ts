@@ -12,7 +12,7 @@ import {
   selectReferenceImagesForSegment,
   type ReelReferenceImage,
 } from "./omni-reference-images";
-import { resolveProductIdentityReferenceImageUrls } from "./omni-product-reference-images";
+import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { createOmniCompositeReference } from "./omni-composite-reference";
 import {
   appendContinuityPromptContract,
@@ -59,7 +59,7 @@ function getAvatarReferenceUrl(reel: OmniReel) {
 }
 
 function getProductReferenceUrls(reel: OmniReel) {
-  return resolveProductIdentityReferenceImageUrls(reel.product_snapshot || {});
+  return resolveProductReferenceImageUrls(reel.product_snapshot || {});
 }
 
 function getAvatarCharacterId(reel: OmniReel) {

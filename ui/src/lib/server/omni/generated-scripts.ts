@@ -17,7 +17,7 @@ import { generateScript } from "./script-generator";
 import { resolveReadyGeneratedScriptReference } from "./generated-script-reference-selection";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
-import type { OmniGenerationProvider } from "@/lib/omni/provider";
+import { normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import { resolveGeneratedScriptDirectorContext } from "./generated-script-director-context";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
@@ -88,6 +88,9 @@ export async function buildGeneratedScriptPromptPreview(input: {
   const avatar = await getLatestOmniClientAvatar(input.projectId);
   const project = await getOmniProject(input.projectId);
   if (!project) throw new Error("Omni client project not found");
+  const effectiveWardrobeSource = normalizeOmniGenerationProvider(input.generationProvider) === "kie-ai"
+    ? "avatar_reference"
+    : project.wardrobe_source;
   const durationRange = await resolveOmniDurationRange({ project, product });
   const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script, { durationRange });
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
@@ -109,7 +112,10 @@ export async function buildGeneratedScriptPromptPreview(input: {
     ctaMode: product.cta_mode,
     ctaValue: product.cta_value,
     recentFormatIds,
-    wardrobeSource: project.wardrobe_source,
+    wardrobeSource: effectiveWardrobeSource,
+    storyboardReferenceMode: normalizeOmniGenerationProvider(input.generationProvider) === "kie-ai"
+      ? "canonical_references"
+      : "generated_panels",
     directorBrief,
   });
   // Preview is intentionally text-only. Paid storyboard generation belongs to
@@ -120,6 +126,9 @@ export async function buildGeneratedScriptPromptPreview(input: {
     productPhysicalContract: product.product_physical_contract,
     segmentCount: segmentPlan.segmentCount,
     directorBrief,
+    storyboardReferenceMode: normalizeOmniGenerationProvider(input.generationProvider) === "kie-ai"
+      ? "canonical_references"
+      : "generated_panels",
   });
   assertPhysicalPromptPlan(promptPlan);
   const storyboardUrls = new Map<number, string>();
@@ -144,10 +153,14 @@ export async function createGeneratedScriptFromLegacy(input: {
   projectId: number;
   productId: number;
   legacyScenarioId?: number | null;
+  generationProvider?: OmniGenerationProvider;
 }) {
   await ensureOmniSchema();
   const project = await getOmniProject(input.projectId);
   if (!project) throw new Error("Omni client project not found");
+  const effectiveWardrobeSource = normalizeOmniGenerationProvider(input.generationProvider) === "kie-ai"
+    ? "avatar_reference"
+    : project.wardrobe_source;
 
   const product = await requireOmniProductInProject(input.projectId, input.productId);
   const avatar = await getLatestOmniClientAvatar(input.projectId);
@@ -177,7 +190,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     ctaValue: product.cta_value,
     sourceScenario,
     directorBrief,
-    wardrobeSource: project.wardrobe_source,
+    wardrobeSource: effectiveWardrobeSource,
     durationRange,
     avatarSpeechGender,
   });
@@ -208,7 +221,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     director_analysis: directorBrief,
     director_video_url: directorAnalysis?.stored_video_url || directorAnalysis?.resolved_video_url || null,
     director_reference_image_urls: directorReferenceImageUrls,
-    wardrobe_source: project.wardrobe_source,
+    wardrobe_source: effectiveWardrobeSource,
     avatar_speech_gender: avatarSpeechGender,
     director_analysis_model: directorAnalysis?.analysis_model || null,
     director_analysis_prompt_version: directorAnalysis?.analysis_prompt_version || null,

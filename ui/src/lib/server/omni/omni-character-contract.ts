@@ -3,6 +3,7 @@ import {
   requireAvatarSpeechGender,
   type OmniAvatarSpeechGender,
 } from "../../omni/avatar-speech-gender";
+import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
 
 export type OmniCharacterClothingSource =
@@ -25,20 +26,30 @@ const CLOTHING_PATTERNS = [
   /футболк|рубашк|худи|свитер|свитшот|толстовк|плать|джинс|брюк|штан|костюм|куртк|пиджак|юбк|топ|майк|фартук|форм[аеуы]|униформ|халат|жилет|кроссовк|ботинк|туфл|обув/iu,
 ] as const;
 
-const FALLBACK_CLOTHING =
+const DIRECTOR_REFERENCE_FALLBACK_CLOTHING =
   "один фиксированный бытовой outfit: однотонный светлый верх без логотипов, нейтральные брюки или джинсы, простая обувь; одежда не меняется между частями";
+const AVATAR_REFERENCE_FALLBACK_CLOTHING =
+  "точно тот outfit, который виден на переданном avatar reference image; не менять одежду, цвет, ткань, крой или аксессуары";
 
 export function buildOmniCharacterContract(input: {
   product: Pick<OmniProduct, "avatar_reference_notes">;
   avatar: Pick<OmniClientAvatar, "display_name" | "prompt" | "reference_url" | "kie_character_id" | "speech_gender"> | null;
+  wardrobeSource?: OmniWardrobeSource;
 }): OmniCharacterContract {
   const avatarName = cleanText(input.avatar?.display_name);
   const avatarPrompt = cleanText(input.avatar?.prompt);
   const speechGender = requireAvatarSpeechGender(input.avatar?.speech_gender);
   const productAvatarNotes = cleanText(input.product.avatar_reference_notes);
-  const clothingFromProduct = extractClothingDescription(productAvatarNotes);
+  const wardrobeSource = normalizeOmniWardrobeSource(input.wardrobeSource);
+  const clothingFromProduct = wardrobeSource === "avatar_reference"
+    ? null
+    : extractClothingDescription(productAvatarNotes);
   const clothingFromAvatar = extractClothingDescription(avatarPrompt);
-  const clothing = clothingFromProduct || clothingFromAvatar || FALLBACK_CLOTHING;
+  const clothing = clothingFromProduct || clothingFromAvatar || (
+    wardrobeSource === "avatar_reference"
+      ? AVATAR_REFERENCE_FALLBACK_CLOTHING
+      : DIRECTOR_REFERENCE_FALLBACK_CLOTHING
+  );
 
   return {
     identityLine: buildIdentityLine({ avatarName, avatarPrompt, hasAvatarReference: hasAvatarReference(input.avatar) }),
