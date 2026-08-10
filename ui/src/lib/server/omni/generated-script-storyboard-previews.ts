@@ -30,13 +30,17 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
   directorBrief?: DirectorBrief | null;
   promptPlan: readonly StoryboardPromptSegment[];
   generationProvider?: OmniGenerationProvider;
+  maxSegments?: number;
 }) {
   await ensureOmniSchema();
   const referenceSignature = buildReferenceSignature(input);
   const urls = await getStoredGeneratedScriptStoryboardUrls({ ...input, referenceSignature });
   let previousStoryboardReferenceUrl: string | null = null;
 
-  for (const segment of input.promptPlan) {
+  const segmentsToGenerate = Number.isInteger(input.maxSegments) && (input.maxSegments || 0) > 0
+    ? input.promptPlan.slice(0, input.maxSegments)
+    : input.promptPlan;
+  for (const segment of segmentsToGenerate) {
     const cachedUrl = urls.get(segment.index) || null;
     if (cachedUrl) {
       previousStoryboardReferenceUrl = cachedUrl;

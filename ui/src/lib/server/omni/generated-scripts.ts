@@ -16,22 +16,12 @@ import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { generateScript } from "./script-generator";
 import { resolveReadyGeneratedScriptReference } from "./generated-script-reference-selection";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
-import { ensureGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
-import type { OmniGenerationProvider } from "@/lib/omni/provider";
-import { resolveProductIdentityReferenceImageUrls } from "./omni-product-reference-images";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
-import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
+import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import { resolveGeneratedScriptDirectorContext } from "./generated-script-director-context";
-import { isCollagePictureInPictureReference } from "./director-layout-contract";
-import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
-import {
-  normalizeOmniPromptPlanWithPhysicalRules,
-  repairOmniPromptPlanWithAi,
-} from "./omni-physical-repair-pipeline";
-
-const PROMPT_REPAIR_TIMEOUT_MS = 15_000;
+import { normalizeOmniPromptPlanWithPhysicalRules } from "./omni-physical-repair-pipeline";
 
 function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
   return {
@@ -122,64 +112,16 @@ export async function buildGeneratedScriptPromptPreview(input: {
     wardrobeSource: project.wardrobe_source,
     directorBrief,
   });
-  const promptRepairPromise = repairOmniPromptPlanWithAi({
+  // Preview is intentionally text-only. Paid storyboard generation belongs to
+  // the confirmed reel creation path, after production preflight succeeds.
+  const promptPlan = normalizeOmniPromptPlanWithPhysicalRules({
     promptPlan: basePromptPlan,
     productName: product.name,
     productPhysicalContract: product.product_physical_contract,
     segmentCount: segmentPlan.segmentCount,
     directorBrief,
   });
-  const repairedPromptPlan = await withTimeout(
-    promptRepairPromise,
-    PROMPT_REPAIR_TIMEOUT_MS,
-    () => normalizeOmniPromptPlanWithPhysicalRules({
-      promptPlan: basePromptPlan,
-      productName: product.name,
-      productPhysicalContract: product.product_physical_contract,
-      segmentCount: segmentPlan.segmentCount,
-      directorBrief,
-    })
-  );
-  const promptPlan = normalizeOmniPromptPlanWithPhysicalRules({
-    promptPlan: repairedPromptPlan,
-    productName: product.name,
-    productPhysicalContract: product.product_physical_contract,
-    segmentCount: segmentPlan.segmentCount,
-    directorBrief,
-  });
   assertPhysicalPromptPlan(promptPlan);
-  const storyboardGeneration = prepareSegmentStoryboardDirectorReferenceUrls({
-    sourceSnapshot: directorContext.sourceSnapshot,
-    storageTarget: {
-      kind: "generated_script",
-      projectId: input.projectId,
-      scriptId: input.scriptId,
-    },
-    framesPerSegment: isCollagePictureInPictureReference(directorBrief)
-      ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
-      : undefined,
-    segments: promptPlan.map((segment) => ({
-      index: segment.index,
-      durationSeconds: segment.durationSeconds,
-      wordCount: segmentPlan.segments[segment.index - 1]?.wordCount,
-    })),
-  }).then((directorReferenceImageUrlsBySegment) => ensureGeneratedScriptStoryboardUrls({
-    ...input,
-    productName: product.name,
-    productPhysicalContract: product.product_physical_contract,
-    avatarReferenceUrl: avatar?.reference_url || null,
-    productReferenceUrls: resolveProductIdentityReferenceImageUrls(product),
-    directorReferenceImageUrlsBySegment,
-    directorBrief,
-    promptPlan,
-    generationProvider: input.generationProvider,
-  }));
-  void storyboardGeneration.catch((error) => {
-    console.warn("Generated script storyboard background job failed:", {
-      scriptId: input.scriptId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  });
   const storyboardUrls = new Map<number, string>();
 
   return promptPlan.map((segment) => ({
@@ -340,20 +282,4 @@ export async function createGeneratedScriptFromLegacy(input: {
   );
 
   return normalizeScript(rows[0]);
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: () => T) {
-  return new Promise<T>((resolve) => {
-    const timer = setTimeout(() => resolve(fallback()), timeoutMs);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      () => {
-        clearTimeout(timer);
-        resolve(fallback());
-      },
-    );
-  });
 }
