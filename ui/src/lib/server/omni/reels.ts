@@ -318,7 +318,7 @@ export async function createOmniReel(input: {
          stitch_status,
          updated_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 'pending', 'draft', $8, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, 'not_selected', 'not_ready', CURRENT_TIMESTAMP)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 'pending', 'draft', $8, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, $14, 'not_selected', 'not_ready', CURRENT_TIMESTAMP)
        RETURNING *`,
       [
         reservedReelId,
