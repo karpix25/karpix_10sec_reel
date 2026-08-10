@@ -156,6 +156,7 @@ async function requestScriptOnce(
       model: input.model,
       temperature: retryFeedback ? 0.55 : 0.8,
       response_format: { type: "json_object" },
+      max_tokens: 10000,
       messages: [
         {
           role: "system",
