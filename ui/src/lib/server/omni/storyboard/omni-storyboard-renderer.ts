@@ -60,7 +60,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     "Keep the same hair, parting, accessories, and complete outfit across every shot and segment.",
     renderWardrobeLock(input),
     renderReferenceTransitionCue(input.directorBrief),
-    renderStoryboardTimeline(input.storyboard),
+    renderStoryboardTimeline(input.storyboard, usesCanonicalReferences),
     renderVehicleCameraLock(input.directorBrief),
     "In every presenter shot, the character looks directly into the lens.",
     productAppearsInThisSegment
@@ -83,7 +83,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   ].join("\n");
 }
 
-function renderStoryboardTimeline(storyboard: OmniStoryboardSegment) {
+function renderStoryboardTimeline(storyboard: OmniStoryboardSegment, canonicalReferences = false) {
   const secondsPerShot = storyboard.durationSeconds / storyboard.frames.length;
   return storyboard.frames.map((frame, index) => {
     const start = formatSeconds(index * secondsPerShot);
@@ -93,7 +93,9 @@ function renderStoryboardTimeline(storyboard: OmniStoryboardSegment) {
       `Subject motion: ${frame.visualAction.trim()}.`,
       `Camera behavior: ${frame.camera.trim()}.`,
       frame.effectNotes ? `Transition behavior: ${frame.effectNotes.trim()}.` : "",
-      "Keep every other visible detail exactly as shown in that SHOT panel.",
+      canonicalReferences
+        ? "Keep non-wardrobe visible details exactly as shown in that SHOT panel; follow the avatar wardrobe lock above for clothing."
+        : "Keep every other visible detail exactly as shown in that SHOT panel.",
     ].filter(Boolean).join(" ");
   }).join("\n");
 }
@@ -141,8 +143,8 @@ function renderWardrobeAuthority(input: {
 }) {
   if (normalizeOmniWardrobeSource(input.wardrobeSource) === "avatar_reference") {
     return [
-      "Use the supplied character identity for face, age, hair, body, identity, and outfit.",
-      "Ignore clothing from the director reference images; the avatar reference and the wardrobe text in each storyboard panel are the only clothing sources.",
+      "Use the supplied character identity for face, age, hair, body, identity, and the exact outfit visible in the avatar reference.",
+      "Ignore clothing from the director reference images, storyboard panels, and timeline actions; the avatar reference and AVATAR WARDROBE LOCK are the only clothing sources.",
     ].join(" ");
   }
   return "Use the supplied character identity for face, age, hair, and body. The storyboard panel wardrobe is the adapted director-reference outfit; keep it unchanged across all shots and segments.";
@@ -154,7 +156,7 @@ function renderWardrobeLock(input: {
   wardrobeSource?: OmniWardrobeSource;
 }): string {
   if (normalizeOmniWardrobeSource(input.wardrobeSource) === "avatar_reference" && input.characterContract) {
-    return `AVATAR WARDROBE LOCK: ${input.characterContract.clothingLine}. Ignore wardrobe from the director reference; identical outfit in every segment and every frame.`;
+    return `AVATAR WARDROBE LOCK: ${input.characterContract.clothingLine}. This overrides any conflicting clothing text in storyboard panels or shot actions; identical outfit in every segment and every frame.`;
   }
   const brief = input.brief;
   if (!brief) return "";

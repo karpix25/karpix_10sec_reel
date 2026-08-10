@@ -103,7 +103,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   let scriptText = sanitizeOmniScriptText(input.generatedScript?.script || input.legacyTranscript || input.brief || "");
   assertOmniScriptTextContract(scriptText);
   const providerPromptPlan = extractProviderPromptPlanFromSnapshot(input.generatedScript?.source_snapshot);
-  if (providerPromptPlan) {
+  if (providerPromptPlan && input.storyboardReferenceMode !== "canonical_references") {
     return buildStoredProviderPromptSegments(
       input,
       providerPromptPlan,
@@ -133,7 +133,9 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   const scriptPlanRepair = repairScriptBeatBoundaryRepeats(
     extractGeneratedScriptBeatPlanFromSnapshot(input.generatedScript?.source_snapshot)
   );
-  const scriptPlan = scriptPlanRepair.plan;
+  const scriptPlan = input.storyboardReferenceMode === "canonical_references"
+    ? null
+    : scriptPlanRepair.plan;
 
   const productReference = getPrimaryReference(input.product.product_refs);
   const productVisualProfile = resolveProductVisualProfile({
