@@ -25,6 +25,8 @@ export async function assertOmniProductionPreflight(input: {
     return { provider, scriptId: null, wordCount: null, segmentCount: null };
   }
 
+  assertProductionProductReadiness(product);
+
   const avatar = await getLatestOmniClientAvatar(input.projectId);
   const avatarSpeechGender = requireAvatarSpeechGender(avatar?.speech_gender);
   if (provider === "kie-ai" && !avatar?.kie_character_id) {
@@ -71,6 +73,15 @@ export async function assertOmniProductionPreflight(input: {
     wordCount: segmentPlan.wordCount,
     segmentCount: segmentPlan.segmentCount,
   };
+}
+
+function assertProductionProductReadiness(product: Awaited<ReturnType<typeof requireOmniProductInProject>>) {
+  if (!product.product_visual_profile || product.product_visual_profile_status !== "completed") {
+    throw new Error(`Production preflight blocked: product ${product.id} has no completed visual profile`);
+  }
+  if (!product.product_physical_contract || !["generated", "edited"].includes(product.product_physical_contract_status)) {
+    throw new Error(`Production preflight blocked: product ${product.id} has no approved physical contract`);
+  }
 }
 
 function isCompactionCandidate(message: string) {

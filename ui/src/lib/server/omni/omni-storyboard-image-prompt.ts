@@ -50,8 +50,8 @@ export function buildStoryboardImagePrompt(input: {
       : "Product reference не передан: продукт не показывай.",
     directorReferenceImageUrls.length
       ? input.referencePolicy?.mode === "style_only"
-        ? `@file${directorFileStart}-@file${previousFile - 1} - кадры оригинала текущего сегмента: источник композиции главного presenter-кадра, ракурса, света, фона и цветового настроения. Не копируй действия, предметы, еду, упаковки, униформу или process B-roll; лицо только из @file1.`
-        : `@file${directorFileStart}-@file${previousFile - 1} - кадры оригинала текущего сегмента: главный источник PIP, композиции, ракурса, света, фона, стиля одежды и монтажного ритма; порядок сохраняй, лицо только из @file1. Действия и предметы бери только из описания нужной панели ниже.`
+        ? `@file${directorFileStart}-@file${previousFile - 1} - кадры оригинала текущего сегмента: источник композиции главного presenter-кадра, ракурса, света, фона и цветового настроения. Не копируй одежду, действия, предметы, еду, упаковки, униформу или process B-roll; лицо только из @file1.`
+        : `@file${directorFileStart}-@file${previousFile - 1} - кадры оригинала текущего сегмента: главный источник PIP, композиции, ракурса, света, фона и монтажного ритма; не используй его как источник одежды; порядок сохраняй, лицо только из @file1. Действия, одежду и предметы бери только из описания нужной панели ниже.`
       : "",
     previousStoryboardReferenceUrl
       ? `@file${previousFile} - только continuity героя, одежды, света и продукта; не источник композиции или действий.`
@@ -60,17 +60,7 @@ export function buildStoryboardImagePrompt(input: {
       ? "REFERENCE LAYOUT: оригинал целиком в PIP/collage. В каждой панели полноэкранный динамичный фон и avatar cutout в нижнем левом углу с той же позицией, размером и белой обводкой; не делай centered talking-head."
       : "",
     "Сохрани одного героя, одну одежду, одинаковые волосы, свет и окружение во всех панелях. Лицо натуральное: поры, живая кожа, естественный бытовой свет, без пластикового сглаживания.",
-    input.directorBrief?.clothing
-      ? [
-          "CLOTHING LOCK (all panels):",
-          input.directorBrief.clothing.style,
-          input.directorBrief.clothing.fit_details,
-          input.directorBrief.clothing.color_palette.length
-            ? `colors: ${input.directorBrief.clothing.color_palette.join(", ")}`
-            : "",
-          input.directorBrief.clothing.adaptation_notes || "",
-        ].filter(Boolean).join("; ") + ". Same fabric, cut, and color in every panel — any deviation is a failure."
-      : "",
+    "WARDROBE PANEL LOCK: the wardrobe written in each storyboard panel is the only clothing instruction. Keep that exact outfit, fabric, cut, color, and accessories in every panel; never infer a different outfit from a reference image.",
     "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
     "Реплика и действие панели определяют кадр. Из оригинала бери композицию, ракурс, PIP, свет, фон, позу, переход и атмосферу, но не чужие продукты и случайный реквизит. Не заменяй PIP, numbered reveal или полноэкранную перебивку обычным talking head.",
     OMNI_PHYSICAL_ACTION_CONTRACT,
