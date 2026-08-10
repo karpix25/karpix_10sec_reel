@@ -1,7 +1,6 @@
 import type { OmniStoryboardFrame } from "../../../omni/storyboard/omni-storyboard-types";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
 import {
-  buildProductPresentationAction,
   buildPhysicalFramePlan,
   hasConsumptionAction,
   hasForeignReferenceProduct,
@@ -9,7 +8,6 @@ import {
   repairPhysicalFrameAction,
   repairReferenceAction,
 } from "../physical-scene-model";
-import type { ReferenceTransferPolicy } from "../omni-reference-transfer-policy";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -19,13 +17,10 @@ export function buildStoredStoryboardFrame(input: {
   productName: string;
   productPhysicalHint?: string | null;
   productVisible: boolean;
-  referencePolicy?: ReferenceTransferPolicy;
 }): OmniStoryboardFrame {
   const spokenText = input.frame.spokenWords;
   const productVisible = input.productVisible && !hasForeignReferenceProduct(spokenText, input.productName);
-  const sourceAction = input.referencePolicy?.omitRawDirectorGuidance
-    ? renderStyleOnlyAction(input.frame, input.productName, productVisible)
-    : input.frame.visualDescription || input.frame.action;
+  const sourceAction = input.frame.visualDescription || input.frame.action;
   const repairedAction = repairReferenceAction({
     action: sourceAction,
     spokenText,
@@ -78,18 +73,6 @@ export function buildStoredStoryboardFrame(input: {
     modelMusicNotes: null,
     physicalPlan,
   };
-}
-
-function renderStyleOnlyAction(frame: StoryboardFrame, productName: string, productVisible: boolean) {
-  if (frame.role === "product_cutaway" && productVisible) {
-    return `короткая предметная перебивка: только ${productName} на реальной поверхности по supplied product reference`;
-  }
-  if (frame.role === "environment_cutaway") {
-    return "короткая смысловая перебивка по текущей реплике без чужих продуктов, еды и реквизита";
-  }
-  return productVisible
-    ? buildProductPresentationAction(productName)
-    : "герой спокойно говорит в камеру с нейтральным жестом, без чужих продуктов и реквизита";
 }
 
 function repairProductState(input: {

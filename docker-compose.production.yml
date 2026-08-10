@@ -23,12 +23,12 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DB_HOST: tools_baza
+      DB_HOST: ${DB_HOST:-postgres}
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
       DB_USER: ${DB_USER:-postgres}
       DB_PASS: ${DB_PASS:-postgres}
-      OLD_DB_HOST: n8n_ai_avatars-postgres-1
+      OLD_DB_HOST: ${OLD_DB_HOST:-}
       OLD_DB_PORT: ${OLD_DB_PORT:-5432}
       OLD_DB_NAME: ${OLD_DB_NAME:-}
       OLD_DB_USER: ${OLD_DB_USER:-}
@@ -50,7 +50,6 @@ services:
       SCRAPECREATORS_INSTAGRAM_POST_ENDPOINT: ${SCRAPECREATORS_INSTAGRAM_POST_ENDPOINT:-}
       SCRAPECREATORS_DOWNLOAD_MEDIA: ${SCRAPECREATORS_DOWNLOAD_MEDIA:-false}
       OMNI_DIRECTOR_ANALYSIS_MODEL: ${OMNI_DIRECTOR_ANALYSIS_MODEL:-minimax/minimax-m3}
-      OMNI_STORYBOARD_VISION_MODEL: ${OMNI_STORYBOARD_VISION_MODEL:-google/gemini-2.5-flash}
       OMNI_DIRECTOR_VIDEO_MAX_MB: ${OMNI_DIRECTOR_VIDEO_MAX_MB:-80}
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
       MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
@@ -104,7 +103,6 @@ services:
     networks:
       - default
       - legacy_ai_avatars
-      - easypanel
     expose:
       - "3000"
     healthcheck:
@@ -126,7 +124,7 @@ services:
       - web
     command: ["python3", "services/v1/automation/final_video_worker.py"]
     environment:
-      DB_HOST: tools_baza
+      DB_HOST: ${DB_HOST:-postgres}
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
       DB_USER: ${DB_USER:-postgres}
@@ -164,9 +162,6 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    networks:
-      - default
-      - easypanel
 
   final-video-poller:
     build:
@@ -180,7 +175,7 @@ services:
       - web
     command: ["python3", "services/v1/automation/final_video_poller.py"]
     environment:
-      DB_HOST: tools_baza
+      DB_HOST: ${DB_HOST:-postgres}
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
       DB_USER: ${DB_USER:-postgres}
@@ -210,9 +205,6 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    networks:
-      - default
-      - easypanel
 
   final-video-scheduler:
     build:
@@ -225,7 +217,7 @@ services:
       - postgres
     command: ["python3", "services/v1/automation/final_video_scheduler.py"]
     environment:
-      DB_HOST: tools_baza
+      DB_HOST: ${DB_HOST:-postgres}
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
       DB_USER: ${DB_USER:-postgres}
@@ -240,9 +232,6 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    networks:
-      - default
-      - easypanel
 
   omni-automation-scheduler:
     build:
@@ -297,7 +286,7 @@ services:
       - postgres
     command: ["python3", "services/v1/ingestion/telegram_bot.py"]
     environment:
-      DB_HOST: tools_baza
+      DB_HOST: ${DB_HOST:-postgres}
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
       DB_USER: ${DB_USER:-postgres}
@@ -326,9 +315,6 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
-    networks:
-      - default
-      - easypanel
 
 volumes:
   postgres_data:
@@ -337,6 +323,3 @@ networks:
   legacy_ai_avatars:
     external: true
     name: n8n_ai_avatars_default
-  easypanel:
-    external: true
-    name: easypanel

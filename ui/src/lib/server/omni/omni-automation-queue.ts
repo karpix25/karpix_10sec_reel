@@ -1,7 +1,6 @@
 import pool from "@/lib/db";
 import { normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
 import { ensureOmniSchema } from "./schema";
-import { assertOmniProductionPreflight } from "./omni-production-preflight";
 
 export type OmniAutomationJobStatus = "queued" | "processing" | "completed" | "failed";
 export type OmniAutomationStage = "script" | "reel" | "submit" | "sync";
@@ -46,53 +45,25 @@ export async function enqueueOmniAutomationJob(input: {
   provider?: unknown;
   priority?: number;
   sourceLegacyScenarioId?: number | null;
-  generatedScriptId?: number | null;
-  maxAttempts?: number;
 }) {
   await ensureOmniSchema();
   const provider = normalizeOmniGenerationProvider(input.provider);
-  const preflight = await assertOmniProductionPreflight({
-    projectId: input.projectId,
-    productId: input.productId,
-    generatedScriptId: input.generatedScriptId,
-    provider,
-  });
   const { rows } = await pool.query<OmniAutomationJob>(
-    `WITH existing AS (
-       SELECT *
-       FROM omni_automation_jobs
-       WHERE $6::integer IS NOT NULL
-         AND generated_script_id = $6
-         AND status IN ('queued', 'processing')
-       ORDER BY id DESC
-       LIMIT 1
-     ), inserted AS (
-       INSERT INTO omni_automation_jobs (
-         project_id,
-         product_id,
-         source_legacy_scenario_id,
-         generated_script_id,
-         current_stage,
-         generation_provider,
-         priority,
-         max_attempts
-       )
-       SELECT $1, $2, $3, $6, CASE WHEN $6::integer IS NULL THEN 'script' ELSE 'reel' END, $4, $5, $7
-       WHERE NOT EXISTS (SELECT 1 FROM existing)
-       RETURNING *
+    `INSERT INTO omni_automation_jobs (
+       project_id,
+       product_id,
+       source_legacy_scenario_id,
+       generation_provider,
+       priority
      )
-     SELECT * FROM inserted
-     UNION ALL
-     SELECT * FROM existing
-     LIMIT 1`,
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
     [
       input.projectId,
       input.productId,
       input.sourceLegacyScenarioId || null,
       provider,
       Math.max(0, Math.floor(input.priority || 0)),
-      preflight.scriptId || null,
-      Math.max(1, Math.floor(input.maxAttempts || 3)),
     ]
   );
   return normalizeJob(rows[0]);
@@ -126,10 +97,7 @@ export async function claimNextOmniAutomationJob(input: {
            (job.status = 'queued' AND job.scheduled_for <= CURRENT_TIMESTAMP)
            OR (job.status = 'processing' AND job.lease_until < CURRENT_TIMESTAMP)
          )
-         AND (
-           job.attempt_count < job.max_attempts
-           OR job.last_error LIKE 'Раскадровка не готова для сегментов:%'
-         )
+         AND job.attempt_count < job.max_attempts
          AND (
            SELECT COUNT(*)::int
            FROM omni_automation_jobs active

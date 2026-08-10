@@ -6,7 +6,6 @@ import {
   buildOmniSegmentRetryPayload,
   canRetryOmniSegment,
 } from "./omni-segment-retry";
-import { OmniSegmentOutputValidationError } from "./omni-segment-output-validator";
 
 export async function syncOmniReelSegments(input: {
   reel: OmniReel;
@@ -21,7 +20,7 @@ export async function syncOmniReelSegments(input: {
       const status = task.status.toLowerCase();
       if (status === "completed") {
         await storeCompletedSegment({
-          reel: input.reel,
+          projectId: input.reel.project_id,
           segment,
           task,
         });
@@ -44,25 +43,10 @@ export async function syncOmniReelSegments(input: {
         );
       }
     } catch (error) {
-      if (error instanceof OmniSegmentOutputValidationError) {
-        const response = { output_validation: error.validation };
-        const message = buildValidationMessage(error);
-        if (canRetryOmniSegment(segment.request_payload)) {
-          await resetSegmentForRetry(segment, response, message);
-          retried = true;
-        } else {
-          await markSegmentFailed(segment, response, message);
-        }
-        continue;
-      }
-      const message = getErrorMessage(error);
-      const response = { sync_error: message };
-      if (canRetryOmniSegment(segment.request_payload)) {
-        await resetSegmentForRetry(segment, response, message);
-        retried = true;
-      } else {
-        await markSegmentFailed(segment, response, message);
-      }
+      await pool.query(
+        "UPDATE omni_reel_segments SET error_message = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+        [segment.id, error instanceof Error ? error.message : "Omni segment sync failed"]
+      );
     }
   }
   return { retried };
@@ -98,19 +82,4 @@ async function markSegmentFailed(segment: OmniReelSegment, response: unknown, me
      WHERE id = $1`,
     [segment.id, JSON.stringify(response), message]
   );
-}
-
-function buildValidationMessage(error: OmniSegmentOutputValidationError) {
-  const criticalIssues = error.validation.issues
-    .filter((issue) => issue.severity === "critical")
-    .slice(0, 4)
-    .map((issue) => `${issue.code}: ${issue.message}${issue.evidence ? ` Evidence: ${issue.evidence}` : ""}`);
-  return [error.message, ...criticalIssues].join("; ").slice(0, 2000);
-}
-
-function getErrorMessage(error: unknown) {
-  return (error instanceof Error ? error.message : String(error || "Omni segment sync failed"))
-    .replace(/\s+/gu, " ")
-    .trim()
-    .slice(0, 2000);
 }

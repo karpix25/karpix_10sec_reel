@@ -20,14 +20,12 @@ import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
-import { normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
+import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import type { DirectorBrief } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 import { repairOmniPromptPlanWithAi } from "./omni-physical-repair-pipeline";
-import { ensureGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
-import { resolveGeneratedScriptDirectorContext } from "./generated-script-director-context";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -36,10 +34,6 @@ function normalizeReel(row: OmniReel): OmniReel {
       row.source_generated_script_id === null ? null : Number(row.source_generated_script_id),
     source_legacy_scenario_id:
       row.source_legacy_scenario_id === null ? null : Number(row.source_legacy_scenario_id),
-    pilot_segment_index:
-      row.pilot_segment_index === null || row.pilot_segment_index === undefined
-        ? null
-        : Number(row.pilot_segment_index),
     background_audio_mood: normalizeAudioMood(row.background_audio_mood),
     background_audio_track_id:
       row.background_audio_track_id === null || row.background_audio_track_id === undefined
@@ -92,11 +86,9 @@ export async function createOmniReel(input: {
 }) {
   await ensureOmniSchema();
   const brief = typeof input.brief === "string" && input.brief.trim() ? input.brief.trim() : null;
-  const generationProvider = normalizeOmniGenerationProvider(input.generationProvider);
   const product = await requireOmniProductInProject(input.projectId, input.productId);
   const project = await getOmniProject(input.projectId);
   if (!project) throw new Error("Omni project not found");
-  const effectiveWardrobeSource = generationProvider === "kie-ai" ? "avatar_reference" : project.wardrobe_source;
   const generatedScript = input.sourceGeneratedScriptId
     ? await getGeneratedScript({
         projectId: input.projectId,
@@ -119,16 +111,8 @@ export async function createOmniReel(input: {
     : null;
   const sourceScenarioDirectorBrief =
     sourceScenarioAnalysis?.director_analysis_status === "completed" ? sourceScenarioAnalysis.director_analysis_json : null;
-  const generatedScriptDirectorContext = resolvedGeneratedScript
-    ? await resolveGeneratedScriptDirectorContext({
-        generatedScript: resolvedGeneratedScript,
-      })
-    : null;
-  const directorBrief = resolvedGeneratedScript
-    ? generatedScriptDirectorContext?.brief || null
-    : sourceScenarioDirectorBrief;
   const directorReferenceImageUrls = resolvedGeneratedScript
-    ? generatedScriptDirectorContext?.referenceImageUrls || []
+    ? extractDirectorReferenceImageUrls({ sourceSnapshot: resolvedGeneratedScript.source_snapshot })
     : extractDirectorReferenceImageUrls({ directorAnalysis: sourceScenarioAnalysis });
   const scriptText = resolvedGeneratedScript?.script || sourceScenario?.script || brief || "";
   const backgroundAudioMood = normalizeAudioMood(
@@ -154,8 +138,8 @@ export async function createOmniReel(input: {
         title: resolvedGeneratedScript.title,
         hook: resolvedGeneratedScript.hook,
         script: resolvedGeneratedScript.script,
-        source_snapshot: generatedScriptDirectorContext?.sourceSnapshot,
-        wardrobe_source: effectiveWardrobeSource,
+        source_snapshot: resolvedGeneratedScript.source_snapshot,
+        wardrobe_source: project.wardrobe_source,
       }
     : sourceScenario
       ? {
@@ -175,7 +159,7 @@ export async function createOmniReel(input: {
         director_analysis: sourceScenarioDirectorBrief,
         director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
         director_reference_image_urls: directorReferenceImageUrls,
-        wardrobe_source: effectiveWardrobeSource,
+        wardrobe_source: project.wardrobe_source,
       }
     : null;
   const productSnapshot = {
@@ -208,7 +192,7 @@ export async function createOmniReel(input: {
         kie_character_id: latestAvatar.kie_character_id,
         kie_character_status: latestAvatar.kie_character_status,
         voice_gender: detectKieOmniVoiceGender(latestAvatar),
-        wardrobe_source: effectiveWardrobeSource,
+        wardrobe_source: project.wardrobe_source,
       }
     : null;
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
@@ -223,33 +207,30 @@ export async function createOmniReel(input: {
       voiceSegments: segmentPlan.segments,
       segmentDurationsSeconds: segmentPlan.segmentDurationsSeconds,
       brief,
-      directorBrief,
+      directorBrief: sourceScenarioDirectorBrief,
       targetAudience: project.target_audience,
       ctaMode: product.cta_mode,
       ctaValue: product.cta_value,
       recentFormatIds,
-      wardrobeSource: effectiveWardrobeSource,
-      storyboardReferenceMode: generationProvider === "kie-ai" ? "canonical_references" : "generated_panels",
+      wardrobeSource: project.wardrobe_source,
     }),
     productName: product.name,
     productPhysicalContract: product.product_physical_contract,
     segmentCount,
-    directorBrief,
-    storyboardReferenceMode: generationProvider === "kie-ai" ? "canonical_references" : "generated_panels",
+    directorBrief: sourceScenarioDirectorBrief,
   });
   assertPhysicalPromptPlan(promptPlan);
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
   const reservedReelId = await reserveOmniReelId();
-  const storyboardStorageTarget = resolvedGeneratedScript
-    ? { kind: "generated_script" as const, projectId: input.projectId, scriptId: resolvedGeneratedScript.id }
-    : { kind: "reel" as const, projectId: input.projectId, reelId: reservedReelId };
   const storyboardDirectorReferenceImageUrlsBySegment = await prepareSegmentStoryboardDirectorReferenceUrls({
     directorAnalysis: resolvedGeneratedScript ? null : sourceScenarioAnalysis,
-    sourceSnapshot: resolvedGeneratedScript
-      ? generatedScriptDirectorContext?.sourceSnapshot
-      : sourceSnapshot,
-    storageTarget: storyboardStorageTarget,
-    framesPerSegment: isCollagePictureInPictureReference(directorBrief)
+    sourceSnapshot: resolvedGeneratedScript?.source_snapshot || sourceSnapshot,
+    storageTarget: {
+      kind: "reel",
+      projectId: input.projectId,
+      reelId: reservedReelId,
+    },
+    framesPerSegment: isCollagePictureInPictureReference(sourceScenarioDirectorBrief)
       ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
       : undefined,
     segments: promptPlan.map((segment) => ({
@@ -258,24 +239,13 @@ export async function createOmniReel(input: {
       wordCount: segmentPlan.segments[segment.index - 1]?.wordCount,
     })),
   });
-  const generatedScriptStoryboardUrls = resolvedGeneratedScript
-    ? await ensureGeneratedScriptStoryboardUrls({
+  const storyboardReferenceUrls = resolvedGeneratedScript
+    ? await getGeneratedScriptStoryboardUrls({
       projectId: input.projectId,
       productId: input.productId,
       scriptId: resolvedGeneratedScript.id,
-      productName: product.name,
-      productPhysicalContract: product.product_physical_contract,
-      avatarReferenceUrl: latestAvatar?.reference_url || null,
-      productReferenceUrls: resolveProductReferenceImageUrls(product),
-      directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
-      directorBrief,
-      promptPlan,
-      generationProvider,
-      maxSegments: generationProvider === "kie-ai" ? 1 : undefined,
+      segmentCount,
     })
-    : null;
-  const storyboardReferenceUrls = generatedScriptStoryboardUrls
-    ? Array.from({ length: segmentCount }, (_, index) => generatedScriptStoryboardUrls.get(index + 1) || null)
     : await generateStoryboardReferenceUrls({
       projectId: input.projectId,
       reelId: reservedReelId,
@@ -283,21 +253,11 @@ export async function createOmniReel(input: {
       productPhysicalContract: product.product_physical_contract,
       productReferenceUrls: resolveProductReferenceImageUrls(product),
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
-      directorBrief,
+      directorBrief: sourceScenarioDirectorBrief,
       avatarReferenceUrl: latestAvatar?.reference_url || null,
       promptPlan,
-      generationProvider,
-      maxSegments: generationProvider === "kie-ai" ? 1 : undefined,
+      generationProvider: input.generationProvider,
     });
-  const missingStoryboardSegments = storyboardReferenceUrls
-    .map((url, index) => url ? null : index + 1)
-    .filter((index): index is number => index !== null)
-    .filter((index) => generationProvider !== "kie-ai" || index === 1);
-  if (missingStoryboardSegments.length && (resolvedGeneratedScript || generationProvider === "kie-ai")) {
-    throw new Error(
-      `Платная раскадровка не создана для сегментов: ${missingStoryboardSegments.join(", ")}. Повторите вручную после проверки reference.`
-    );
-  }
 
   const client = await pool.connect();
   try {
@@ -309,11 +269,9 @@ export async function createOmniReel(input: {
        product_id,
        source_generated_script_id,
        source_legacy_scenario_id,
-       target_duration_seconds,
-       segment_count,
-       pilot_segment_index,
-       pilot_status,
-       status,
+         target_duration_seconds,
+         segment_count,
+         status,
          brief,
          source_snapshot,
          product_snapshot,
@@ -325,7 +283,7 @@ export async function createOmniReel(input: {
          stitch_status,
          updated_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 'pending', 'draft', $8, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13, $14, 'not_selected', 'not_ready', CURRENT_TIMESTAMP)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, 'not_selected', 'not_ready', CURRENT_TIMESTAMP)
        RETURNING *`,
       [
         reservedReelId,
@@ -412,14 +370,10 @@ async function generateStoryboardReferenceUrls(input: {
   avatarReferenceUrl: string | null;
   promptPlan: readonly ReturnType<typeof buildOmniSegmentPrompts>[number][];
   generationProvider?: OmniGenerationProvider;
-  maxSegments?: number;
 }): Promise<(string | null)[]> {
   const urls: (string | null)[] = [];
   let previousStoryboardReferenceUrl: string | null = null;
-  const generationLimit = Number.isInteger(input.maxSegments) && (input.maxSegments || 0) > 0
-    ? Math.min(input.promptPlan.length, input.maxSegments || 0)
-    : input.promptPlan.length;
-  for (let index = 0; index < generationLimit; index += 1) {
+  for (let index = 0; index < input.promptPlan.length; index += 1) {
     const segmentPrompt = input.promptPlan[index];
     const storyboardReferenceUrl: string | null = segmentPrompt.storyboardPlan
       ? await generateStoryboardImage({
@@ -436,13 +390,33 @@ async function generateStoryboardReferenceUrls(input: {
         avatarReferenceUrl: input.avatarReferenceUrl,
         previousStoryboardReferenceUrl,
         directorBrief: input.directorBrief,
-        referencePolicy: segmentPrompt.referencePolicy,
         generationProvider: input.generationProvider,
       })
       : null;
     urls.push(storyboardReferenceUrl);
     if (storyboardReferenceUrl) previousStoryboardReferenceUrl = storyboardReferenceUrl;
   }
-  while (urls.length < input.promptPlan.length) urls.push(null);
+  return urls;
+}
+
+async function getGeneratedScriptStoryboardUrls(input: {
+  projectId: number;
+  productId: number;
+  scriptId: number;
+  segmentCount: number;
+}) {
+  const { rows } = await pool.query<{ segment_index: number; storyboard_reference_url: string | null }>(
+    `SELECT segment_index, storyboard_reference_url
+     FROM omni_generated_script_storyboards
+     WHERE project_id = $1 AND product_id = $2 AND generated_script_id = $3
+       AND storyboard_reference_url IS NOT NULL
+     ORDER BY segment_index ASC, updated_at DESC`,
+    [input.projectId, input.productId, input.scriptId]
+  );
+  const urls: (string | null)[] = Array.from({ length: input.segmentCount }, () => null);
+  for (const row of rows) {
+    const index = Number(row.segment_index) - 1;
+    if (index >= 0 && index < urls.length && !urls[index]) urls[index] = row.storyboard_reference_url;
+  }
   return urls;
 }
