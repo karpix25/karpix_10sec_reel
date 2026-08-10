@@ -126,7 +126,10 @@ export async function claimNextOmniAutomationJob(input: {
            (job.status = 'queued' AND job.scheduled_for <= CURRENT_TIMESTAMP)
            OR (job.status = 'processing' AND job.lease_until < CURRENT_TIMESTAMP)
          )
-         AND job.attempt_count < job.max_attempts
+         AND (
+           job.attempt_count < job.max_attempts
+           OR job.last_error LIKE 'Раскадровка не готова для сегментов:%'
+         )
          AND (
            SELECT COUNT(*)::int
            FROM omni_automation_jobs active
