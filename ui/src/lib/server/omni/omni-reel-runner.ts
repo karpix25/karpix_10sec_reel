@@ -116,6 +116,15 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
   const continuityChainEnabled = isOmniContinuityChainEnabled();
   const providerContinuityEnabled = provider !== "kie-ai" && continuityChainEnabled;
   if (!segments.length) throw new Error("Omni reel has no segments");
+  const missingStoryboardSegments = segments
+    .filter((segment) => segment.status !== "completed" && !segment.storyboard_reference_url?.trim())
+    .map((segment) => segment.segment_index);
+  if (missingStoryboardSegments.length) {
+    const message =
+      `Storyboard images are required before video creation. Missing segments: ${missingStoryboardSegments.join(", ")}`;
+    await markOmniReelPreflightFailure({ reelId: reel.id, provider, message });
+    throw new Error(message);
+  }
   const avatarReferenceUrl = getAvatarReferenceUrl(reel);
   const productReferenceUrls = getProductReferenceUrls(reel);
   const productReferenceUrl = productReferenceUrls[0] || null;
