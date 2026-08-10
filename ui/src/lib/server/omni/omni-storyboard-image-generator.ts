@@ -15,6 +15,7 @@ import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import type { StoryboardVisionValidation } from "@/lib/omni/storyboard/omni-storyboard-vision-types";
 import { validateStoryboardImage } from "./storyboard-vision-validator";
 import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
+import { createOmniDeterministicStoryboardBoard } from "./omni-deterministic-storyboard-board";
 
 const DEFAULT_COMETAPI_BASE_URL = "https://api.cometapi.com";
 const STORYBOARD_IMAGE_MODEL = "gpt-image-2";
@@ -71,6 +72,17 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     previousStoryboardReferenceUrl,
     directorBrief: input.directorBrief,
   };
+  if (input.generationProvider === "kie-ai" && process.env.OMNI_KIE_DETERMINISTIC_STORYBOARD !== "false") {
+    return createOmniDeterministicStoryboardBoard({
+      projectId: input.projectId,
+      reelId: input.reelId,
+      scriptId: input.scriptId,
+      segmentIndex: input.segmentIndex,
+      avatarReferenceUrl,
+      productReferenceUrls,
+      directorReferenceImageUrls,
+    });
+  }
   let repairInstructions: string[] = [];
   let lastValidation: StoryboardVisionValidation | null = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {

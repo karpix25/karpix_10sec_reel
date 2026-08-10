@@ -14,7 +14,7 @@ import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-plan
 import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
-import { resolveProductIdentityReferenceImageUrls } from "./omni-product-reference-images";
+import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { detectKieOmniVoiceGender } from "./kie-omni-audio";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
@@ -96,6 +96,7 @@ export async function createOmniReel(input: {
   const product = await requireOmniProductInProject(input.projectId, input.productId);
   const project = await getOmniProject(input.projectId);
   if (!project) throw new Error("Omni project not found");
+  const effectiveWardrobeSource = generationProvider === "kie-ai" ? "avatar_reference" : project.wardrobe_source;
   const generatedScript = input.sourceGeneratedScriptId
     ? await getGeneratedScript({
         projectId: input.projectId,
@@ -154,7 +155,7 @@ export async function createOmniReel(input: {
         hook: resolvedGeneratedScript.hook,
         script: resolvedGeneratedScript.script,
         source_snapshot: generatedScriptDirectorContext?.sourceSnapshot,
-        wardrobe_source: project.wardrobe_source,
+        wardrobe_source: effectiveWardrobeSource,
       }
     : sourceScenario
       ? {
@@ -174,7 +175,7 @@ export async function createOmniReel(input: {
         director_analysis: sourceScenarioDirectorBrief,
         director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
         director_reference_image_urls: directorReferenceImageUrls,
-        wardrobe_source: project.wardrobe_source,
+        wardrobe_source: effectiveWardrobeSource,
       }
     : null;
   const productSnapshot = {
@@ -207,7 +208,7 @@ export async function createOmniReel(input: {
         kie_character_id: latestAvatar.kie_character_id,
         kie_character_status: latestAvatar.kie_character_status,
         voice_gender: detectKieOmniVoiceGender(latestAvatar),
-        wardrobe_source: project.wardrobe_source,
+        wardrobe_source: effectiveWardrobeSource,
       }
     : null;
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
@@ -227,12 +228,14 @@ export async function createOmniReel(input: {
       ctaMode: product.cta_mode,
       ctaValue: product.cta_value,
       recentFormatIds,
-      wardrobeSource: project.wardrobe_source,
+      wardrobeSource: effectiveWardrobeSource,
+      storyboardReferenceMode: generationProvider === "kie-ai" ? "canonical_references" : "generated_panels",
     }),
     productName: product.name,
     productPhysicalContract: product.product_physical_contract,
     segmentCount,
     directorBrief,
+    storyboardReferenceMode: generationProvider === "kie-ai" ? "canonical_references" : "generated_panels",
   });
   assertPhysicalPromptPlan(promptPlan);
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
@@ -263,7 +266,7 @@ export async function createOmniReel(input: {
       productName: product.name,
       productPhysicalContract: product.product_physical_contract,
       avatarReferenceUrl: latestAvatar?.reference_url || null,
-      productReferenceUrls: resolveProductIdentityReferenceImageUrls(product),
+      productReferenceUrls: resolveProductReferenceImageUrls(product),
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
       directorBrief,
       promptPlan,
@@ -278,7 +281,7 @@ export async function createOmniReel(input: {
       reelId: reservedReelId,
       productName: product.name,
       productPhysicalContract: product.product_physical_contract,
-      productReferenceUrls: resolveProductIdentityReferenceImageUrls(product),
+      productReferenceUrls: resolveProductReferenceImageUrls(product),
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
       directorBrief,
       avatarReferenceUrl: latestAvatar?.reference_url || null,

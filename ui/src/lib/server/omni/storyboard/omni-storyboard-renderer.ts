@@ -24,6 +24,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   directorBrief?: DirectorBrief | null;
   characterContract?: OmniCharacterContract;
   wardrobeSource?: OmniWardrobeSource;
+  storyboardReferenceMode?: "generated_panels" | "canonical_references";
 }) {
   const validation = validateOmniStoryboardSegment(input.storyboard);
   if (!validation.valid) {
@@ -37,13 +38,20 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     .filter((index): index is number => index !== null);
   const productAppearsInThisSegment = productFrameNumbers.length > 0;
   const productRevealFrame = productFrameNumbers[0] || null;
+  const usesCanonicalReferences = input.storyboardReferenceMode === "canonical_references";
 
   return [
-    `Create one live-action vertical video from the single storyboard instruction board ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
-    `The board contains exactly ${frameCount} ordered SHOT panels. Animate one shot per panel in the timestamped order below.`,
-    "Preserve the storyboard composition, lighting, environment, decor, PIP or collage mechanics, visible format elements, and edit rhythm. Use the wardrobe authority below for clothing.",
-    "Replace only the original performer with the supplied character identity and the original commercial product with the supplied product reference.",
-    "Do not render the storyboard grid, separators, SHOT labels, instruction text, social interface, or subtitles.",
+    usesCanonicalReferences
+      ? `Create one live-action vertical video using the canonical reference board ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`
+      : `Create one live-action vertical video from the single storyboard instruction board ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
+    usesCanonicalReferences
+      ? "The board contains the actual avatar reference, the actual product references when the product is visible, and selected frames from the original reference video. It is a source board, not a literal scene or first frame."
+      : `The board contains exactly ${frameCount} ordered SHOT panels. Animate one shot per panel in the timestamped order below.`,
+    usesCanonicalReferences
+      ? "Use original-reference frames only for location, composition, camera, lighting, PIP or collage mechanics, and edit rhythm. Use the avatar reference only for our person's identity and outfit. Use the supplied product references only for our product."
+      : "Preserve the storyboard composition, lighting, environment, decor, PIP or collage mechanics, visible format elements, and edit rhythm. Use the wardrobe authority below for clothing.",
+    "Replace only the original performer with our supplied avatar and the original commercial product with our supplied product.",
+    "Do not render the reference board, any board separators, labels, instruction text, social interface, or subtitles.",
     preservePipLayout
       ? "FORMAT LOCK: keep the full-screen background and the avatar cutout in the lower-left PIP position shown on the storyboard."
       : "",
@@ -59,6 +67,9 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       ? `Use ${OMNI_PRODUCT_FILE_PLACEHOLDER} only for product identity. Reveal it first in SHOT ${shotLabel((productRevealFrame || 1) - 1)} and preserve its packaging, scale, state, hand, and physical position until a visible action moves it.`
       : "Keep the product outside the frame for this entire segment.",
     productAppearsInThisSegment
+      ? "PRODUCT REFERENCE SET LOCK: all supplied product images jointly describe one exact product. Use the primary package image together with every supplied texture or detail image; never replace a foam, cream, powder, liquid, or other physical state with a generic version."
+      : "",
+    productAppearsInThisSegment
       ? "Keep one physically continuous product instance; never duplicate, teleport, or transform it."
       : "",
     productAppearsInThisSegment ? renderProductPhysicalContractForOmni(input.productPhysicalContract) : "",
@@ -66,7 +77,9 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     "EXACT SPOKEN RUSSIAN LINE. Speak the quoted text once and say nothing else:",
     `"${voiceoverText}"`,
     "Deliver it naturally without long pauses. Never read technical instructions aloud. After the line, remain silent. No background music or subtitles.",
-    `Use ${OMNI_STORYBOARD_FILE_PLACEHOLDER} as a visual reference board, not as a literal first frame.`,
+    usesCanonicalReferences
+      ? `Use ${OMNI_STORYBOARD_FILE_PLACEHOLDER} only to anchor identity, product, setup, and reference layout; animate the timestamped shot plan below instead of copying the board collage.`
+      : `Use ${OMNI_STORYBOARD_FILE_PLACEHOLDER} as a visual reference board, not as a literal first frame.`,
   ].join("\n");
 }
 

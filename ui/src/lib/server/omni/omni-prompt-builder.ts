@@ -96,6 +96,7 @@ type BuildOmniPromptsInput = {
   ctaMode?: CtaMode;
   ctaValue?: string | null;
   recentFormatIds?: readonly LifeFormatId[];
+  storyboardReferenceMode?: "generated_panels" | "canonical_references";
 };
 
 export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegmentPrompt[] {
@@ -149,6 +150,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   const characterContract = buildOmniCharacterContract({
     product: input.product,
     avatar: input.avatar,
+    wardrobeSource: input.wardrobeSource,
   });
   const directorBrief = Object.prototype.hasOwnProperty.call(input, "directorBrief")
     ? input.directorBrief || null
@@ -236,6 +238,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       directorBrief,
       characterContract,
       wardrobeSource: input.wardrobeSource,
+      storyboardReferenceMode: input.storyboardReferenceMode,
     }), validation);
     prompts.push({
       index: segmentIndex,
@@ -312,6 +315,7 @@ function buildStoredProviderPromptSegments(
   const characterContract = buildOmniCharacterContract({
     product: input.product,
     avatar: input.avatar,
+    wardrobeSource: input.wardrobeSource,
   });
   const wardrobeSource = input.wardrobeSource || "director_reference";
   const strategy = selectOmniCreativeStrategy({
@@ -366,6 +370,7 @@ function buildStoredProviderPromptSegments(
       directorBrief: input.directorBrief,
       characterContract,
       wardrobeSource,
+      storyboardReferenceMode: input.storyboardReferenceMode,
     }), validation);
     return {
       index: segmentIndex,
