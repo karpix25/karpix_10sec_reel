@@ -13,6 +13,8 @@ import { ensureOmniSchema } from "./schema";
 import { shouldRetryOmniAutomationError } from "./omni-automation-error-policy";
 import { assertOmniProductionPreflight } from "./omni-production-preflight";
 
+const STORYBOARD_WAIT_EXTRA_ATTEMPTS = 10;
+
 function envInt(name: string, fallback: number, min = 1) {
   const parsed = Number.parseInt(process.env[name] || "", 10);
   return Number.isFinite(parsed) ? Math.max(min, parsed) : fallback;
@@ -34,7 +36,9 @@ function getRetryDelaySeconds(job: OmniAutomationJob, errorMessage: string) {
 
 async function handleJobError(job: OmniAutomationJob, error: unknown) {
   const message = getErrorMessage(error);
-  if (!shouldRetryOmniAutomationError(message) || job.attempt_count >= job.max_attempts) {
+  const storyboardPending = message.includes("Раскадровка не готова для сегментов:");
+  const retryLimit = job.max_attempts + (storyboardPending ? STORYBOARD_WAIT_EXTRA_ATTEMPTS : 0);
+  if (!shouldRetryOmniAutomationError(message) || job.attempt_count >= retryLimit) {
     return {
       action: "failed",
       job: await failOmniAutomationJob({ jobId: job.id, errorMessage: message }),
