@@ -1,7 +1,7 @@
 import type { DirectorBrief } from "./director-analysis-types";
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v3";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v4";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
@@ -17,7 +17,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
   return [
     "Analyze the attached video and transcript.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "visual_hook, atmosphere, clothing, location_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction.",
+    "visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -30,6 +30,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
     "Important constraints:",
     "- Values must be descriptive but compact.",
     "- location_timeline must describe any location/environment changes by seconds. If the location never changes, return one item for the whole video.",
+    "- camera_timeline must cover the whole source video with 2-8 chronological intervals. For each interval record exact seconds, shot type, angle, movement, stabilization, setting, environment, lighting, visible action, and gesture. Preserve raw smartphone texture, handheld shake, focus/exposure changes, and vehicle sway when visible. A moving car is allowed; the presenter is a passenger, never the driver.",
     "- clothing.source names whose outfit style is being described, usually the main presenter.",
     "- clothing.adaptation_notes MUST contain a specific concrete outfit equivalent for the opposite gender body — not a generic instruction like 'adapt gendered garments'. Write what the adapted person would actually wear: name the exact garment (shirt, trousers, dress, etc.), its color matching the original palette, cut (loose, fitted, tailored, etc.), and mood. Example: if source wears a white loose blouse → write 'white loose linen shirt, untucked, same relaxed silhouette and light color'.",
     "- montage_rhythm must describe only visible cuts and transitions. Inspect every boundary between source shots and name the exact treatment: hard cut, jump cut, film burn/light leak, exposure flash, lens flare, blur, wipe, fade, or another visible effect. If the reference stays on one setup, say that it uses a continuous stable shot.",
@@ -108,6 +109,19 @@ function buildDirectorBriefSkeleton() {
       adaptation_notes: "adapt gendered garments to the avatar gender/body while keeping color, formality, layer, and mood",
     },
     location_timeline: [{ start_sec: 0, end_sec: 0, setting: "", environment: "", lighting: "" }],
+    camera_timeline: [{
+      start_sec: 0,
+      end_sec: 0,
+      shot_types: [""],
+      angles: [""],
+      movements: [""],
+      stabilization: "",
+      setting: "",
+      environment: "",
+      lighting: "",
+      action_description: "",
+      actor_gesture: "",
+    }],
     camera: { shot_types: [""], angles: [""], movements: [""], stabilization: "" },
     montage_rhythm: { cut_pace: "", beat_sync: "", transition_style: [""] },
     action_beats: [{ timestamp_sec: 0, action_description: "", actor_gesture: "" }],

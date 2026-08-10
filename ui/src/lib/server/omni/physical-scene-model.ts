@@ -16,11 +16,13 @@ const BOTH_CHEEKS_PATTERN = /(?:обеих?\s+щек|обе\s+щеки|both\s+ch
 const ONE_CHEEK_PATTERN = /(?:одной\s+щек|одну\s+щеку|one\s+cheek)/iu;
 const HANDS_TO_FACE_PATTERN = /(?:обе\s+руки\s+(?:у|к)\s+лица|both\s+hands[^.;]{0,80}(?:face|jawline|cheek|щек|лиц))/iu;
 const CONSUMPTION_PATTERN = /(?:eat\w*|bite\w*|chew\w*|drink\w*|swallow\w*|sip\w*|tast\w*|consum\w*|кус\w*|жев\w*|пив\w*|пь\w*|отпив\w*|отхлеб\w*|выпив\w*|глот\w*|откус\w*|съед\w*|пробу\w*|дегуст\w*|смаку\w*|употребл\w*|(?<!\p{L})ест(?:ь)?(?=\s|$|[,.!?])|принима(?:ет|ть)(?=\s|$|[,.!?])|прием(?=\s|$|[,.!?])|приём(?=\s|$|[,.!?]))/iu;
-const DRIVING_PATTERN = /(?:driv|steer|moving car|за рулем|за рулём|ведет машину|ведёт машину|машина едет|автомобиль движется|движущ(?:аяся|емся|ейся)\s+машин)/iu;
+const DRIVING_PATTERN = /(?:\bdriv(?:e|es|ing)?\b|\bsteer(?:s|ing)?\b|за рулем|за рулём|ведет машину|ведёт машину)/iu;
 const PICK_UP_PATTERN = /(?:берет|берёт|поднимает|pick\s*up|picks\s*up)/iu;
 const PUT_DOWN_PATTERN = /(?:кладет|кладёт|ставит|полож|убирает|откладывает|put\s*down|places?)/iu;
 const HANDOFF_PATTERN = /(?:передает|передаёт|handoff|hands?\s+(?:it|the object)\s+to)/iu;
 const FOREIGN_PRODUCT_REFERENCE_PATTERN = /(?:product|brand|package|packaging|label|jar|bottle|box|tube|sachet|snack|food|drink|cream|serum|supplement|vitamin|apple|banana|fruit|vegetable|коллаген|сыр|морков|перекус|яблок|банан|фрукт|овощ|продукт|товар|бренд|упаков|этикет|баноч|бутыл|короб|тюбик|пакет|еда|напит|крем|сыворот|добавк|витамин)/iu;
+const FOREIGN_PACKAGED_PRODUCT_PATTERN = /(?:product|brand|package|packaging|label|jar|bottle|box|tube|sachet|cream|serum|supplement|vitamin|коллаген|продукт|товар|бренд|упаков|этикет|баноч|бутыл|короб|тюбик|пакет|крем|сыворот|добавк|витамин)/iu;
+const NEGATED_PRODUCT_REFERENCE_PATTERN = /без\s+(?:чужих?\s+)?(?:product|package|packaging|продукт|товар|упаков)/iu;
 
 export function hasConsumptionAction(value: string) {
   return CONSUMPTION_PATTERN.test(value);
@@ -35,11 +37,15 @@ export function hasMultipleHeldObjects(value: string) {
 }
 
 export function hasForeignReferenceProduct(value: string, productName: string) {
-  return FOREIGN_PRODUCT_REFERENCE_PATTERN.test(value) && !mentionsProduct(value, productName);
+  return FOREIGN_PRODUCT_REFERENCE_PATTERN.test(value) &&
+    !NEGATED_PRODUCT_REFERENCE_PATTERN.test(value) &&
+    !mentionsProduct(value, productName);
 }
 
 export function normalizeVehicleContext(value: string) {
-  return value.replace(DRIVING_PATTERN, "автомобиль припаркован и неподвижен");
+  return value
+    .replace(/за рулем|за рулём|ведет машину|ведёт машину/giu, "едет пассажиром в движущемся автомобиле")
+    .replace(/\bdriv(?:e|es|ing)?\b|\bsteer(?:s|ing)?\b/giu, "пассажир в движущемся автомобиле");
 }
 
 export function repairReferenceAction(input: {
@@ -57,16 +63,18 @@ export function repairReferenceAction(input: {
   const interactsWithObject = OBJECT_INTERACTION_PATTERN.test(action);
   const product = input.productName.trim() || "продукт";
 
-  if (hasForeignReferenceProduct(action, product)) {
+  if (hasDriving) {
+    return input.productVisible
+      ? `герой едет пассажиром в движущемся автомобиле, держит ${product} в одной руке и второй рукой делает спокойный жест`
+      : "герой едет пассажиром в движущемся автомобиле и спокойно говорит в камеру с нейтральным жестом";
+  }
+  if (hasForeignPackagedProduct(action, product)) {
     return input.productVisible
       ? buildProductPresentationAction(product)
       : "герой спокойно говорит в камеру с нейтральным жестом, без чужих продуктов и упаковок";
   }
-
-  if (hasDriving || (input.productVisible && interactsWithObject && !mentionsProduct(action, product))) {
-    return input.productVisible
-      ? buildProductPresentationAction(product)
-      : "герой находится в припаркованной машине, автомобиль неподвижен; герой спокойно говорит в камеру";
+  if (input.productVisible && interactsWithObject && !mentionsProduct(action, product)) {
+    return buildProductPresentationAction(product);
   }
   if (hasConsumption && hasSpeech && !CUTAWAY_PATTERN.test(action)) {
     return "герой спокойно говорит в камеру с нейтральным жестом, без еды во рту";
@@ -78,6 +86,12 @@ export function repairReferenceAction(input: {
     return "герой показывает только один предмет из текущей реплики одной рукой; остальные предметы вне кадра";
   }
   return action;
+}
+
+function hasForeignPackagedProduct(value: string, productName: string) {
+  return FOREIGN_PACKAGED_PRODUCT_PATTERN.test(value) &&
+    !NEGATED_PRODUCT_REFERENCE_PATTERN.test(value) &&
+    !mentionsProduct(value, productName);
 }
 
 export function buildPhysicalFramePlan(input: {

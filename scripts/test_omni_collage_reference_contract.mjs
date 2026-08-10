@@ -65,7 +65,7 @@ try {
   assert.ok(joinedStoryboard.includes("collage/PIP opening frame"), "shot plan must not degrade into a generic talking-head opening");
   assert.ok(firstPrompt.includes("@product_file"), "opening segment must receive the product file when the hook names it");
   assert.ok(!/use the original reference only for transferable direction/u.test(joinedPrompt), "same-domain collage reference must not be downgraded to style-only");
-  assert.ok(joinedPrompt.includes("filming equipment is never visible"), "collage prompts must ban visible filming gear");
+  assert.ok(joinedPrompt.includes("filming gear is never seen"), "collage prompts must ban visible filming gear");
   assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(joinedPrompt), "collage prompts must sanitize raw tripod wording");
   assert.ok(
     !/спокойный фон|маленький столик|new product reference in a clean static cutaway|show the new product reference clearly on a clean surface/u.test(joinedPrompt),

@@ -66,6 +66,22 @@ try {
   });
   assert.deepEqual(secondKie.sent.map((image) => image.role), ["storyboard", "product", "product_secondary"]);
 
+  const hiddenProductKie = selectReferenceImagesForSegment({
+    provider: "kie-ai",
+    continuityImages: [],
+    cometReferenceImages: references,
+    kieReferenceImages: [
+      references[0],
+      { url: "https://example.com/first-storyboard.jpg", fieldName: "input_reference", role: "storyboard_canonical" },
+      ...references.slice(1),
+    ],
+    referenceImageTransport: "url",
+    segmentIndex: 3,
+    productIsVisible: false,
+  });
+  assert.deepEqual(hiddenProductKie.sent.map((image) => image.role), ["storyboard"]);
+  assert.deepEqual(hiddenProductKie.skipped.map((image) => image.role), ["storyboard_canonical", "product", "product_secondary"]);
+
   const firstComet = selectReferenceImagesForSegment({
     provider: "cometapi",
     continuityImages: [],

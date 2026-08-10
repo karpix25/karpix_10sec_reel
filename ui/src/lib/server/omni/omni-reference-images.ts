@@ -35,8 +35,8 @@ export function selectReferenceImagesForSegment(input: {
 }): ReferenceImageSelection {
   const productReferencesAllowed = input.productIsVisible;
   if (input.provider === "kie-ai") {
-    const sent = input.kieReferenceImages.filter((image) => productReferencesAllowed || !isProductReference(image));
-    const skippedProductReferences = input.kieReferenceImages.filter((image) => !productReferencesAllowed && isProductReference(image));
+    const sent = input.kieReferenceImages.filter((image) => productReferencesAllowed || !isProductBearingReference(image));
+    const skippedProductReferences = input.kieReferenceImages.filter((image) => !productReferencesAllowed && isProductBearingReference(image));
     return {
       sent: uniqueReferenceImages(sent),
       skipped: [...input.continuityImages, ...skippedProductReferences],
@@ -63,6 +63,10 @@ export function selectReferenceImagesForSegment(input: {
 
 function isProductReference(image: ReelReferenceImage) {
   return image.role === "product" || image.role === "product_secondary";
+}
+
+function isProductBearingReference(image: ReelReferenceImage) {
+  return isProductReference(image) || image.role === "storyboard_canonical";
 }
 
 function selectUrlReferenceImage(images: ReelReferenceImage[], segmentIndex?: number) {

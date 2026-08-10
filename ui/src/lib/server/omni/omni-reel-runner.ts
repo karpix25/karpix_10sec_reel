@@ -429,7 +429,7 @@ function getSkippedReferenceReason(input: {
 }) {
   if (
     !input.productIsVisible &&
-    (input.role === "product" || input.role === "product_secondary" || input.role === "avatar_product_composite")
+    (input.role === "product" || input.role === "product_secondary" || input.role === "avatar_product_composite" || input.role === "storyboard_canonical")
   ) {
     return "product_hidden_by_creative_strategy";
   }

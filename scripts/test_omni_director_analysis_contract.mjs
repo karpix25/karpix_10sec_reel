@@ -55,9 +55,9 @@ try {
   const aliasCost = join(output, "node_modules", "@", "lib", "omni", "openrouter-cost.js");
   copyFileSync(costOutput, aliasCost);
 
-  const { normalizeDirectorBrief } = require(findFile(compiled, "director-analysis-types.js"));
+  const { normalizeDirectorBrief, selectDirectorSegmentProfile } = require(findFile(compiled, "director-analysis-types.js"));
   const { shouldAnalyzeDirectorReference } = require(findFile(compiled, "director-analysis-policy.js"));
-  const { renderDirectorBriefForOmniPrompt } = require(findFile(compiled, "director-analysis-prompt.js"));
+  const { buildDirectorAnalysisUserPrompt, renderDirectorBriefForOmniPrompt } = require(findFile(compiled, "director-analysis-prompt.js"));
   const { buildReferenceTransferPolicy } = require(findFile(compiled, "omni-reference-transfer-policy.js"));
   const { renderSimpleFullBodyUgcPrompt } = require(findFile(compiled, "omni-simple-ugc-prompt.js"));
   const { extractScrapeCreatorsInstagramVideo } = require(findFile(compiled, "scrapecreators-client.js"));
@@ -99,6 +99,34 @@ try {
         { start_sec: 0, end_sec: 8, setting: "small kitchen", environment: "warm home counter", lighting: "bright domestic daylight" },
         { start_sec: 8, end_sec: 16, setting: "near kitchen table", environment: "same home, closer product surface", lighting: "bright domestic daylight" },
       ],
+      camera_timeline: [
+        {
+          start_sec: 0,
+          end_sec: 8,
+          shot_types: ["medium-wide"],
+          angles: ["eye-level"],
+          movements: ["tiny handheld push-in"],
+          stabilization: "handheld but readable",
+          setting: "small kitchen",
+          environment: "warm home counter",
+          lighting: "bright domestic daylight",
+          action_description: "steps into frame",
+          actor_gesture: "open palm gesture",
+        },
+        {
+          start_sec: 8,
+          end_sec: 16,
+          shot_types: ["detail insert"],
+          angles: ["high three-quarter angle"],
+          movements: ["handheld close approach"],
+          stabilization: "natural phone micro-shake",
+          setting: "near kitchen table",
+          environment: "same home, closer product surface",
+          lighting: "bright domestic daylight",
+          action_description: "leans toward the counter",
+          actor_gesture: "points at the surface",
+        },
+      ],
       camera: { shot_types: ["medium-wide", "detail insert"], angles: ["eye-level"], movements: ["tiny handheld push-in"], stabilization: "handheld but readable" },
       montage_rhythm: { cut_pace: "4 quick cuts in 10 seconds", beat_sync: "cuts follow spoken beats", transition_style: ["jump cut"] },
       action_beats: [{ timestamp_sec: 0, action_description: "steps into frame", actor_gesture: "raises product to chest level" }],
@@ -117,6 +145,19 @@ try {
   assert.equal(brief.prop_sources[0], "product starts on the counter before the presenter touches it");
   assert.equal(brief.hand_object_interactions[0], "right hand picks up the product and rotates it once");
   assert.equal(brief.motion_continuity[0], "object movement follows visible hand contact and returns to the counter");
+  const laterProfile = selectDirectorSegmentProfile({
+    brief,
+    segmentIndex: 2,
+    segmentCount: 2,
+    frameIndex: 1,
+    frameCount: 4,
+  });
+  assert.equal(laterProfile.camera.shot_types[0], "detail insert");
+  assert.equal(laterProfile.setting, "near kitchen table");
+  assert.equal(laterProfile.actor_gesture, "points at the surface");
+  const analysisPrompt = buildDirectorAnalysisUserPrompt({ transcript: "Тест" });
+  assert.ok(analysisPrompt.includes("camera_timeline"));
+  assert.ok(analysisPrompt.includes("raw smartphone texture"));
   const rendered = renderDirectorBriefForOmniPrompt(brief);
   assert.ok(rendered.includes("full-body presenter"));
   assert.ok(!rendered.includes("4 quick cuts"), "reference montage rhythm must not reach provider prompt");

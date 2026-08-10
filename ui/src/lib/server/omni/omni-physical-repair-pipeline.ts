@@ -10,7 +10,7 @@ import { repairPhysicalScenePrompt, validatePhysicalScene } from "./physical-sce
 import { normalizePhysicalStoryboardSegment } from "./physical-storyboard-normalizer";
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
 
-const MAX_AI_REPAIR_ATTEMPTS_PER_SEGMENT = 2;
+const MAX_AI_REPAIR_ATTEMPTS_PER_SEGMENT = 1;
 
 export function normalizeOmniPromptPlanWithPhysicalRules(input: {
   promptPlan: readonly OmniSegmentPrompt[];

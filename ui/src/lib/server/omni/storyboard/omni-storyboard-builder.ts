@@ -10,10 +10,13 @@ import {
 import { validateOmniStoryboardSegment } from "../../../omni/storyboard/omni-storyboard-contract";
 import type { OmniCharacterContract } from "../omni-character-contract";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
-import type { DirectorBrief } from "../director-analysis-types";
+import {
+  selectDirectorSegmentProfile,
+  type DirectorBrief,
+  type DirectorSegmentProfile,
+} from "../director-analysis-types";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
 import {
-  getOmniProductRevealFrame,
   mentionsOmniProduct,
 } from "../omni-intro-product-contract";
 import { renderFrameTransitionNote } from "./omni-storyboard-effects";
@@ -42,7 +45,6 @@ export function buildStoryboardFromCreativePlan(input: {
   durationSeconds: number;
   directorBrief?: DirectorBrief | null;
   wardrobeSource?: OmniWardrobeSource;
-  productAlreadyVisible?: boolean;
 }): OmniStoryboardSegment {
   const frameCount = getOmniStoryboardFrameCount(input.durationSeconds);
   if (!frameCount) throw new Error(`Storyboard segment ${input.segmentIndex} has unsupported duration ${input.durationSeconds}`);
@@ -54,8 +56,6 @@ export function buildStoryboardFromCreativePlan(input: {
   }
 
   const chunks = splitStoryboardSpeech(input.plan.voiceoverText, frameCount);
-  const revealFrame = getOmniProductRevealFrame(chunks, input.productName);
-  const productVisibleFrom = input.productAlreadyVisible ? 0 : revealFrame;
   return {
     segmentIndex: input.segmentIndex,
     durationSeconds: input.durationSeconds,
@@ -74,7 +74,6 @@ export function buildStoryboardFromCreativePlan(input: {
         spokenText,
         frameIndex: index + 1,
         frameCount,
-        productAlreadyVisible: productVisibleFrom !== null && index >= productVisibleFrom,
       })
     ),
   };
@@ -87,26 +86,30 @@ export function buildStoryboardFromPromptChainFrames(input: {
   productName: string;
   frames: readonly StoryboardFrame[];
   productPhysicalHint?: string | null;
-  productAlreadyVisible?: boolean;
+  directorBrief?: DirectorBrief | null;
+  segmentCount?: number;
 }): OmniStoryboardSegment {
   if (!input.frames.length) throw new Error(`Storyboard segment ${input.segmentIndex} has no frames`);
-  const revealFrame = getOmniProductRevealFrame(
-    input.frames.map((frame) => frame.spokenWords),
-    input.productName
-  );
-  const productVisibleFrom = input.productAlreadyVisible ? 0 : revealFrame;
   return {
     segmentIndex: input.segmentIndex,
     durationSeconds: input.durationSeconds,
     voiceoverText: input.voiceoverText,
     frames: input.frames.map((frame, index) => {
       const isFrameHidden = /(?:продукт|товар)\s+(?:вне\s+кадра|не\s+виден|скрыт)|hidden|off\s*camera/iu.test(frame.productState || "");
-      const productVisible = !isFrameHidden && (productVisibleFrom !== null && index >= productVisibleFrom);
+      const productVisible = !isFrameHidden && mentionsOmniProduct(frame.spokenWords, input.productName);
+      const referenceProfile = selectDirectorSegmentProfile({
+        brief: input.directorBrief,
+        segmentIndex: input.segmentIndex,
+        segmentCount: input.segmentCount || 1,
+        frameIndex: index + 1,
+        frameCount: input.frames.length,
+      });
       return buildStoredStoryboardFrame({
         frame,
         productName: input.productName,
         productPhysicalHint: input.productPhysicalHint,
         productVisible,
+        referenceProfile,
       });
     }),
   };
@@ -140,7 +143,6 @@ function buildFrame(input: {
   spokenText: string;
   frameIndex: number;
   frameCount: number;
-  productAlreadyVisible?: boolean;
 }): OmniStoryboardFrame {
   const startSeconds = (input.frameIndex - 1) * 2;
   const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
@@ -148,42 +150,49 @@ function buildFrame(input: {
   const layoutLocked = /REFERENCE LAYOUT|collage\/PIP/iu.test(beat?.action || "");
   const productVisible = input.plan.productRole !== "hidden" &&
     !isArticleCtaOnly(input.spokenText) &&
-    (input.productAlreadyVisible || mentionsOmniProduct(input.spokenText, input.productName));
+    mentionsOmniProduct(input.spokenText, input.productName);
+  const referenceProfile = selectDirectorSegmentProfile({
+    brief: input.directorBrief,
+    segmentIndex: input.segmentIndex,
+    segmentCount: input.segmentCount || 1,
+    frameIndex: input.frameIndex,
+    frameCount: input.frameCount,
+  });
   const referenceAction = layoutLocked
     ? ""
-    : selectReferenceAction({
-        brief: input.directorBrief,
-        segmentIndex: input.segmentIndex,
-        segmentCount: input.segmentCount || 1,
-        frameIndex: input.frameIndex,
-        frameCount: input.frameCount,
+    : renderProfileAction(referenceProfile);
+  const visualActionSource = layoutLocked
+    ? beat?.action || ""
+    : repairReferenceAction({
+        action: referenceAction || normalizeDefaultFrameAction(beat?.action),
+        spokenText: input.spokenText,
+        productName: input.productName,
+        productVisible,
       });
-  const visualActionSource = repairReferenceAction({
-    action: layoutLocked ? beat?.action || "" : referenceAction || normalizeDefaultFrameAction(beat?.action),
-    spokenText: input.spokenText,
-    productName: input.productName,
-    productVisible,
-  });
   const isCutawayFrame = Boolean(referenceAction && isReferenceCutawayAction(referenceAction));
   const presentationAction = productVisible && isProductPresentationCue(input.spokenText)
     ? buildProductPresentationAction(input.productName)
     : null;
-  const visualAction = input.segmentIndex === 1 && input.plan.productRole === "hidden"
-    ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName)
-    : productVisible
-      ? renderProductFrameAction(presentationAction || visualActionSource, isCutawayFrame, input.productName)
-      : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName);
-  const finalVisualAction = repairReferenceAction({
-    action: visualAction,
-    spokenText: input.spokenText,
-    productName: input.productName,
-    productVisible,
-  });
+  const visualAction = layoutLocked
+    ? visualActionSource
+    : input.segmentIndex === 1 && input.plan.productRole === "hidden"
+      ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName)
+      : productVisible
+        ? renderProductFrameAction(presentationAction || visualActionSource, isCutawayFrame, input.productName)
+        : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName);
+  const finalVisualAction = layoutLocked
+    ? visualAction
+    : repairReferenceAction({
+        action: visualAction,
+        spokenText: input.spokenText,
+        productName: input.productName,
+        productVisible,
+      });
   const initialPhysicalPlan = buildPhysicalFramePlan({
     productName: input.productName,
     spokenText: input.spokenText,
     visualAction: finalVisualAction,
-    camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible), productVisible, input.plan.productRole),
+    camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, input.plan.productRole),
     productPlacement: renderProductPlacement(input.plan, input.productName, input.productVisualPassport, input.productPhysicalHint, input.segmentIndex, productVisible),
   });
   const repairedVisualAction = repairPhysicalFrameAction({
@@ -197,7 +206,7 @@ function buildFrame(input: {
         productName: input.productName,
         spokenText: input.spokenText,
         visualAction: repairedVisualAction,
-        camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible), productVisible, input.plan.productRole),
+        camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, input.plan.productRole),
         productPlacement: renderProductPlacement(input.plan, input.productName, input.productVisualPassport, input.productPhysicalHint, input.segmentIndex, productVisible),
       });
 
@@ -206,11 +215,11 @@ function buildFrame(input: {
     visualAction: repairedVisualAction,
     camera: renderFrameCamera(
       isCutawayFrame,
-      renderDirectorCamera(input.directorBrief, productVisible),
+      renderDirectorCamera(input.directorBrief, productVisible, referenceProfile),
       productVisible,
       input.plan.productRole
     ),
-    environment: renderDirectorEnvironment(input.directorBrief),
+    environment: renderDirectorEnvironment(input.directorBrief, referenceProfile),
     wardrobe: renderStoryboardWardrobe(input.characterContract, input.directorBrief, input.wardrobeSource),
     productPlacement: renderProductPlacement(
       input.plan,
@@ -250,12 +259,12 @@ function renderFrameCamera(
   return base;
 }
 
-function renderDirectorEnvironment(brief?: DirectorBrief | null) {
+function renderDirectorEnvironment(brief?: DirectorBrief | null, profile?: DirectorSegmentProfile | null) {
   const timeline = brief?.location_timeline?.[0];
   const parts = [
-    timeline?.setting || brief?.atmosphere.setting,
-    timeline?.environment,
-    timeline?.lighting || brief?.atmosphere.lighting,
+    profile?.setting || timeline?.setting || brief?.atmosphere.setting,
+    profile?.environment || timeline?.environment,
+    profile?.lighting || timeline?.lighting || brief?.atmosphere.lighting,
     brief?.atmosphere.color_grading,
     brief?.atmosphere.mood,
   ].filter(Boolean);
@@ -289,27 +298,23 @@ function renderStoryboardWardrobe(
   ].filter(Boolean).join("; ");
 }
 
-function renderDirectorCamera(brief: DirectorBrief | null | undefined, productVisible: boolean) {
+function renderDirectorCamera(
+  brief: DirectorBrief | null | undefined,
+  productVisible: boolean,
+  profile?: DirectorSegmentProfile | null
+) {
   if (!brief) return "";
+  const camera = profile?.camera || brief.camera;
   const shotTypes = productVisible
-    ? brief.camera.shot_types
-    : brief.camera.shot_types.filter((shotType) => !/product|packag|продукт|упаков/iu.test(shotType));
+    ? camera.shot_types
+    : camera.shot_types.filter((shotType) => !/product|packag|продукт|упаков/iu.test(shotType));
   return normalizeVehicleContext(compactText([
     "reference camera lock:",
     shotTypes.join(", "),
-    brief.camera.angles.length ? `angles ${brief.camera.angles.join(", ")}` : "",
-    brief.camera.movements.length ? `movement ${brief.camera.movements.join(", ")}` : "",
-    brief.camera.stabilization,
+    camera.angles.length ? `angles ${camera.angles.join(", ")}` : "",
+    camera.movements.length ? `movement ${camera.movements.join(", ")}` : "",
+    camera.stabilization,
   ].filter(Boolean).join("; "), 220));
-}
-
-function renderPromptChainProductPlacement(productState: string | null | undefined, productPhysicalHint?: string | null) {
-  const state = productState?.trim() || "продукт следует физическому состоянию storyboard";
-  if (/(?:продукт|товар)\s+(?:вне\s+кадра|не\s+виден|скрыт)|hidden|off\s*camera/iu.test(state)) return state;
-  return appendProductPhysicalHint(
-    `${state}; продукт физически виден как реальный предмет с деталями из product reference`,
-    productPhysicalHint
-  );
 }
 
 function renderProductPlacement(
@@ -327,7 +332,7 @@ function renderProductPlacement(
   }
   if (plan.productRole === "background_prop") {
     return appendProductPhysicalHint(
-      `${productName} может быть виден только как небольшой вспомогательный предмет в блогерской сцене, без крупного рекламного плана и без демонстрации этикетки${productDetails}`,
+      `${productName} может быть виден только как небольшой вспомогательный предмет: стоит на поверхности в блогерской сцене, без крупного рекламного плана и без демонстрации этикетки${productDetails}`,
       productPhysicalHint
     );
   }
@@ -388,7 +393,8 @@ function renderProductFrameAction(action: string | undefined, isCutawayFrame: bo
 
 function renderNonProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string) {
   const normalized = compactText(action || "", 220);
-  if (!mentionsOmniProduct(normalized, productName)) return renderFrameAction(action, isCutawayFrame);
+  const hasProductCue = mentionsOmniProduct(normalized, productName) || /(?:\bproduct\b|продукт|товар|упаков)/iu.test(normalized);
+  if (!hasProductCue) return renderFrameAction(action, isCutawayFrame);
   return isCutawayFrame
     ? "смысловая перебивка по текущей реплике без товара"
     : "персонаж говорит в камеру, спокойный жест руками, без товара в кадре";
@@ -407,28 +413,10 @@ function renderIntroFrameAction(action: string | undefined, isCutawayFrame: bool
     : "персонаж с пустыми руками естественно говорит в камеру";
 }
 
-function selectReferenceAction(input: {
-  brief?: DirectorBrief | null;
-  segmentIndex: number;
-  segmentCount: number;
-  frameIndex: number;
-  frameCount: number;
-}) {
-  const beats = input.brief?.action_beats
-    ?.filter((beat) => beat.action_description || beat.actor_gesture)
-    .slice()
-    .sort((left, right) => left.timestamp_sec - right.timestamp_sec) || [];
-  if (!beats.length) return "";
-  const firstTimestamp = beats[0].timestamp_sec;
-  const lastTimestamp = beats[beats.length - 1].timestamp_sec;
-  const reelPosition = ((input.segmentIndex - 1) + (input.frameIndex - 0.5) / input.frameCount) /
-    Math.max(1, input.segmentCount);
-  const targetTimestamp = firstTimestamp + (lastTimestamp - firstTimestamp) * Math.min(1, Math.max(0, reelPosition));
-  const nearest = beats.reduce((best, beat) =>
-    Math.abs(beat.timestamp_sec - targetTimestamp) < Math.abs(best.timestamp_sec - targetTimestamp) ? beat : best
-  );
+function renderProfileAction(profile?: DirectorSegmentProfile | null) {
+  if (!profile) return "";
   return compactText(
-    [sanitizeReferenceActionDescription(nearest.action_description), nearest.actor_gesture].filter(Boolean).join("; "),
+    [sanitizeReferenceActionDescription(profile.action_description), profile.actor_gesture].filter(Boolean).join("; "),
     220
   );
 }

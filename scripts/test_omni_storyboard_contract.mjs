@@ -57,21 +57,21 @@ try {
   );
 
   const prompt = renderer.renderCompactRussianOmniStoryboardPrompt({ storyboard: buildValidStoryboard() });
-  assert.ok(prompt.includes("Создай видео по раскадровке"));
+  assert.ok(prompt.includes("Динамичный разговорный ролик по раскадровке"));
   assert.ok(prompt.includes("@storyboard_file"));
   assert.ok(prompt.includes("@product_file"));
-  assert.ok(prompt.includes("Продукт бери из"));
+  assert.ok(prompt.includes("Продукт из"));
   assert.ok(prompt.includes("не показывай саму раскадровку"));
   assert.ok(prompt.includes("телефон, экран, интерфейс, соцсети"));
-  assert.ok(prompt.includes("Оживи кадры раскадровки"));
-  assert.ok(prompt.includes("сохрани точно такой же визуал"));
+  assert.ok(prompt.includes("Оживи панели"));
+  assert.ok(prompt.includes("сохрани визуал"));
   assert.ok(prompt.includes("Лицо и личность персонажа бери из avatar/character reference"));
   assert.ok(prompt.includes("одежду, свет, фон, ракурс и действия бери из раскадровки"));
   assert.ok(prompt.includes("те же волосы, пробор, аксессуары"));
   assert.ok(prompt.includes("один и тот же полный комплект одежды"));
   assert.ok(prompt.includes("смотрит прямо в объектив"));
   assert.ok(prompt.includes("CAMERA AUTHORITY"));
-  assert.ok(prompt.includes("MAP: 1=средний план на уровне глаз"));
+  assert.ok(prompt.includes("follow each panel camera"));
   assert.ok(prompt.includes("no left-right/front-rear, seat"));
   const vehiclePrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
     storyboard: buildValidStoryboard(),
@@ -81,26 +81,37 @@ try {
     },
   });
   assert.ok(vehiclePrompt.includes("VEHICLE CAMERA LOCK"));
-  assert.ok(vehiclePrompt.includes("same seat"));
+  assert.ok(vehiclePrompt.includes("same side of the cabin"));
+  assert.ok(vehiclePrompt.includes("exact front or rear seat"));
+  const movingVehiclePrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
+    storyboard: buildValidStoryboard(),
+    directorBrief: {
+      ...buildDirectorBrief(),
+      atmosphere: { ...buildDirectorBrief().atmosphere, setting: "inside a moving car" },
+      camera: { ...buildDirectorBrief().camera, movements: ["handheld vehicle sway"] },
+    },
+  });
+  assert.ok(movingVehiclePrompt.includes("handheld micro-vibration"));
+  assert.ok(movingVehiclePrompt.includes("presenter is a passenger"));
   assert.ok(prompt.includes("Состояние продукта держи одинаковым"));
-  assert.ok(prompt.includes("Структура видео: ровно 5 живых эпизодов"));
+  assert.ok(prompt.includes("Ровно 5 живых эпизодов"));
   assert.ok(prompt.includes("Артикул есть в описании!"));
   assert.ok(!prompt.includes("DELIVERY DIRECTION"));
-  assert.ok(prompt.includes("Персонаж в кадре сам произносит эти слова"));
+  assert.ok(prompt.includes("Точная реплика персонажа"));
   assert.ok(prompt.includes("на русском языке"));
-  assert.ok(prompt.includes("произносится ровно один раз"));
-  assert.ok(prompt.includes("следующего еще не произнесенного слова"));
+  assert.ok(prompt.includes("произнеси строго указанную реплику"));
+  assert.ok(prompt.includes("реплику в кавычках один раз"));
   assert.ok(!prompt.includes("Служебные блоки раскадровки"));
   assert.ok(!prompt.includes("Озвучка:"));
   assert.ok(!prompt.includes("Реплика персонажа:"));
   assert.equal(normalizedCount(prompt, buildValidStoryboard().voiceoverText), 1);
   assert.equal(normalizedCount(prompt, buildValidStoryboard().frames[0].spokenText), 1);
-  assert.ok(prompt.includes("Не добавляй музыку"));
+  assert.ok(prompt.includes("Без фоновой музыки"));
   assert.ok(prompt.includes("обе руки у лица"));
   assert.ok(!prompt.includes("субтитры примени как с референса"));
   assert.ok(!prompt.includes("действие: герой берет"));
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));
-  assert.ok(prompt.length < 2400, "storyboard provider prompt must stay short");
+  assert.ok(prompt.length < 2800, "storyboard provider prompt must stay short");
 
   const finalPrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
     storyboard: { ...buildValidStoryboard(), segmentIndex: 3 },
@@ -108,8 +119,8 @@ try {
   });
   assert.ok(finalPrompt.includes("Артикул есть в описании!"));
   assert.ok(finalPrompt.includes("@product_file"));
-  assert.ok(finalPrompt.includes("Продукт бери из"));
-  assert.ok(finalPrompt.includes("не меняй упаковку"));
+  assert.ok(finalPrompt.includes("Продукт из"));
+  assert.ok(finalPrompt.includes("неизменная упаковка"));
   assert.ok(finalPrompt.includes("Состояние продукта держи одинаковым"));
 
   const physicalContract = "The product remains a cohesive soft translucent jelly dessert with a glossy surface and gentle elastic wobble. It keeps the same reference shape as one intact semi-solid mass.";
@@ -134,8 +145,8 @@ try {
     storyboard: mixedProductStoryboard,
     productName: "Пенка",
   });
-  assert.ok(mixedProductPrompt.includes("впервые покажи его только в кадре 2"));
-  assert.ok(mixedProductPrompt.includes("не допускай исчезновения"));
+  assert.ok(mixedProductPrompt.includes("только кадры 2"));
+  assert.ok(mixedProductPrompt.includes("в остальных кадрах вне кадра"));
 
   const visualCueProductPlan = builder.buildStoryboardFromCreativePlan({
     plan: {
@@ -280,7 +291,7 @@ try {
   assert.ok(!mixedTopicStoryboard.frames[0].camera.includes("крупный кадр продукта"));
   assert.ok(!mixedTopicStoryboard.frames[1].camera.includes("крупный кадр продукта"));
   assert.ok(mixedTopicStoryboard.frames[2].visualAction.includes("вечерняя спальня"));
-  assert.ok(mixedTopicStoryboard.frames[2].productPlacement.includes("вспомогательный предмет"));
+  assert.ok(mixedTopicStoryboard.frames[2].productPlacement.includes("тематические объекты"));
 
   const articleCtaStoryboard = builder.buildStoryboardFromCreativePlan({
     plan: {

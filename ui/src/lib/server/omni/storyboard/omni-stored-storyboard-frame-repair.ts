@@ -1,5 +1,6 @@
 import type { OmniStoryboardFrame } from "../../../omni/storyboard/omni-storyboard-types";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
+import type { DirectorSegmentProfile } from "../director-analysis-types";
 import {
   buildPhysicalFramePlan,
   hasConsumptionAction,
@@ -8,6 +9,7 @@ import {
   repairPhysicalFrameAction,
   repairReferenceAction,
 } from "../physical-scene-model";
+import { mentionsOmniProduct } from "../omni-intro-product-contract";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -17,9 +19,12 @@ export function buildStoredStoryboardFrame(input: {
   productName: string;
   productPhysicalHint?: string | null;
   productVisible: boolean;
+  referenceProfile?: DirectorSegmentProfile | null;
 }): OmniStoryboardFrame {
   const spokenText = input.frame.spokenWords;
-  const productVisible = input.productVisible && !hasForeignReferenceProduct(spokenText, input.productName);
+  const productVisible = input.productVisible &&
+    mentionsOmniProduct(spokenText, input.productName) &&
+    !hasForeignReferenceProduct(spokenText, input.productName);
   const sourceAction = input.frame.visualDescription || input.frame.action;
   const repairedAction = repairReferenceAction({
     action: sourceAction,
@@ -38,12 +43,14 @@ export function buildStoredStoryboardFrame(input: {
   const productPlacement = productVisible
     ? renderProductPlacement(productState, input.productPhysicalHint)
     : "в кадре только тематические объекты и окружение текущей реплики";
+  const camera = renderReferenceCamera(input.frame.camera, input.referenceProfile);
+  const environment = renderReferenceEnvironment(input.referenceProfile);
   const sfxNotes = sanitizeSpeechSfx(input.frame.sfx, spokenText);
   const initialPhysicalPlan = buildPhysicalFramePlan({
     productName: input.productName,
     spokenText,
     visualAction,
-    camera: input.frame.camera,
+    camera,
     productPlacement,
   });
   const repairedVisualAction = repairPhysicalFrameAction({
@@ -57,15 +64,15 @@ export function buildStoredStoryboardFrame(input: {
         productName: input.productName,
         spokenText,
         visualAction: repairedVisualAction,
-        camera: input.frame.camera,
+        camera,
         productPlacement,
       });
 
   return {
     spokenText,
     visualAction: repairedVisualAction,
-    camera: input.frame.camera,
-    environment: "окружение и свет из режиссерского плана и storyboard image",
+    camera,
+    environment,
     wardrobe: `одежда из avatar или reference contract, без смены между кадрами; ${EXACT_FABRIC_LOCK}`,
     productPlacement,
     sfxNotes,
@@ -73,6 +80,25 @@ export function buildStoredStoryboardFrame(input: {
     modelMusicNotes: null,
     physicalPlan,
   };
+}
+
+function renderReferenceCamera(camera: string, profile?: DirectorSegmentProfile | null) {
+  if (!profile) return camera;
+  return [
+    "reference camera lock",
+    profile.camera.shot_types.join(", "),
+    profile.camera.angles.length ? `angles ${profile.camera.angles.join(", ")}` : "",
+    profile.camera.movements.length ? `movement ${profile.camera.movements.join(", ")}` : "",
+    profile.camera.stabilization,
+    camera,
+  ].filter(Boolean).join("; ");
+}
+
+function renderReferenceEnvironment(profile?: DirectorSegmentProfile | null) {
+  if (!profile) return "окружение и свет из режиссерского плана и storyboard image";
+  return [profile.setting, profile.environment, profile.lighting]
+    .filter(Boolean)
+    .join("; ") || "окружение и свет из режиссерского плана и storyboard image";
 }
 
 function repairProductState(input: {
@@ -94,7 +120,7 @@ function renderProductPlacement(productState: string, productPhysicalHint?: stri
 }
 
 function renderNonProductAction(action: string, productName: string) {
-  if (!action.toLocaleLowerCase().includes(productName.toLocaleLowerCase())) return action;
+  if (!action.toLocaleLowerCase().includes(productName.toLocaleLowerCase()) && !/(?:\bproduct\b|продукт|товар|упаков)/iu.test(action)) return action;
   return "герой спокойно говорит в камеру с нейтральным жестом, без товара в кадре";
 }
 

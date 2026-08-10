@@ -4,12 +4,11 @@ import type {
   OmniStoryboardSegment,
 } from "../../omni/storyboard/omni-storyboard-types";
 import type { OmniStoryboardPlanSource } from "../../omni/types";
-import { buildPhysicalFramePlan, hasConsumptionAction } from "./physical-scene-model";
+import { buildPhysicalFramePlan, hasConsumptionAction, hasDrivingAction } from "./physical-scene-model";
 
 type PhysicalFrameState = "hidden" | "surface" | "held" | "visible" | "unknown";
 
 const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр/iu;
-const DRIVING_PATTERN = /(?:driv|steer|moving car|за рулем|за рулём|ведет машину|ведёт машину|машина едет|автомобиль движется)/iu;
 const HOLDING_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|одной рукой|в одной руке|двумя руками|в двух руках)/iu;
 const MULTI_OBJECT_PATTERN = /(?:несколько предметов|два предмета|multiple objects|two objects|(?:держит|holding|holds|в руках)[^.;]{0,90}(?: и | and ))/iu;
 const TRANSITION_PATTERN = /(?:полож|ставит|кладет|кладёт|убирает|откладывает|берет|берёт|поднимает|замен|переклад|cut|transition|смен)/iu;
@@ -27,7 +26,7 @@ const OBJECT_CUES: readonly [string, RegExp][] = [
 ];
 
 const PHYSICAL_REPAIR_CONTRACT =
-  "PHYSICAL CONTINUITY REPAIR: each visible object keeps one identity and one physical state; put an object down before picking up another; never show eating, drinking, chewing, or biting during on-camera speech; use voiceover-only during consumption; every handoff or replacement must be visible and physically motivated; a vehicle scene is parked unless the scene explicitly requires driving action.";
+  "PHYSICAL CONTINUITY REPAIR: each visible object keeps one identity and one physical state; put an object down before picking up another; never show eating, drinking, chewing, or biting during on-camera speech; use voiceover-only during consumption; every handoff or replacement must be visible and physically motivated; in a moving vehicle the presenter is a passenger and never drives.";
 
 export function validatePhysicalScene(input: {
   storyboard: OmniStoryboardSegment | null;
@@ -73,7 +72,7 @@ export function validatePhysicalScene(input: {
     if (onCamera && hasConsumptionAction(actionText)) {
       errors.push(`frame_${frameNumber}_speech_during_consumption`);
     }
-    if (DRIVING_PATTERN.test(`${frame.environment} ${frame.visualAction} ${frame.camera}`)) {
+    if (hasDrivingAction(frame.visualAction)) {
       errors.push(`frame_${frameNumber}_driving_action_in_scene`);
     }
     if (HOLDING_PATTERN.test(text) && MULTI_OBJECT_PATTERN.test(text)) {
