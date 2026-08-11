@@ -31,7 +31,8 @@ import {
 } from "./script-generation-retry";
 import { isLlmPromptChainEnabled, runLlmPromptChain } from "./llm-prompt-chain-runner";
 import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
-import { planOmniReelSegments } from "./omni-duration-planner";
+import { getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
+import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -195,7 +196,11 @@ async function requestScriptOnce(
   const rawScript = sanitizeOmniScriptText(formatScenarioScript(rawScriptSource));
   if (!rawScript) throw new Error("Script model returned empty script");
   let script = ensureOmniScriptCta(rawScript, input.ctaMode, input.ctaValue);
-  let persistedScriptPlan = appendCtaToLastBeat(scriptPlan, rawScript, script);
+  const scriptBudget = Math.min(input.durationRange?.maxWords || getOmniMaxScriptWords(), getOmniMaxScriptWords() - 4);
+  const compactedScript = compactOmniScriptToWordBudget(script, scriptBudget);
+  const wasCompacted = compactedScript !== script;
+  script = compactedScript;
+  let persistedScriptPlan = wasCompacted ? null : appendCtaToLastBeat(scriptPlan, rawScript, script);
   const boundaryRepair = repairScriptBeatBoundaryRepeats(persistedScriptPlan);
   if (boundaryRepair.repair.changed && boundaryRepair.plan && boundaryRepair.scriptText) {
     persistedScriptPlan = boundaryRepair.plan;
