@@ -7,6 +7,7 @@ export interface StoryboardPreviewFrame {
   action: string;
   camera: string | null;
   product: string | null;
+  productVisible: boolean;
   sfx: string | null;
 }
 
@@ -37,7 +38,7 @@ export function StoryboardSegmentPreview({
             <div key={`${frame.time}-${index}`} className="min-w-0 rounded-md border border-border/70 bg-muted/25 p-2">
               <div className="mb-1 flex items-center justify-between gap-1">
                 <span className="rounded bg-background px-1.5 py-0.5 font-semibold text-primary">{frame.time}</span>
-                <span className="text-[11px] font-semibold text-muted-foreground">#{index + 1}</span>
+                <span className="text-[11px] font-semibold text-muted-foreground">#{index + 1}{frame.productVisible ? " · продукт" : ""}</span>
               </div>
               <p className="line-clamp-2 min-h-8 break-words font-semibold leading-4 text-foreground">
                 {frame.spokenWords}
@@ -146,6 +147,7 @@ function normalizeFrame(
     action: action || "Визуальное действие не указано",
     camera: readString(frame, "cameraAngle") || readString(frame, "camera_angle") || readString(frame, "camera"),
     product: readString(frame, "productPlacement") || readString(frame, "product_placement") || readString(frame, "product"),
+    productVisible: isVisibleProductPlacement(frame),
     sfx:
       readString(frame, "sfxNotes") ||
       readString(frame, "sfx_notes") ||
@@ -154,6 +156,11 @@ function normalizeFrame(
       readString(frame, "effectNotes") ||
       readString(frame, "effect_notes"),
   };
+}
+
+function isVisibleProductPlacement(frame: Record<string, unknown>) {
+  const placement = readString(frame, "productPlacement") || readString(frame, "product_placement") || readString(frame, "product") || "";
+  return Boolean(placement) && !/(?:вне\s+кадра|не\s+виден|скрыт|hidden|off\s*camera|только тематические объекты)/iu.test(placement);
 }
 
 function formatTime(frame: Record<string, unknown>, index: number, frameCount: number, durationSeconds: number) {

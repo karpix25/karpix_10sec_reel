@@ -9,7 +9,7 @@ import {
   repairPhysicalFrameAction,
   repairReferenceAction,
 } from "../physical-scene-model";
-import { mentionsOmniProduct } from "../omni-intro-product-contract";
+import { isOmniProductVisualBeat } from "../omni-intro-product-contract";
 import {
   buildReferenceTransferFramePlan,
   resolveReferenceTransferAction,
@@ -30,7 +30,7 @@ export function buildStoredStoryboardFrame(input: {
 }): OmniStoryboardFrame {
   const spokenText = input.frame.spokenWords;
   const productVisible = input.productVisible &&
-    mentionsOmniProduct(spokenText, input.productName) &&
+    isOmniProductVisualBeat(spokenText, input.productName) &&
     !hasForeignReferenceProduct(spokenText, input.productName);
   const sourceAction = input.frame.visualDescription || input.frame.action;
   const referenceAction = [
@@ -42,6 +42,7 @@ export function buildStoredStoryboardFrame(input: {
     spokenText,
     visualCue: sourceAction,
     productName: input.productName,
+    productVisible,
   });
   const repairedAction = repairReferenceAction({
     action: resolveReferenceTransferAction({

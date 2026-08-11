@@ -1,4 +1,5 @@
 import { mentionsOmniProduct } from "./omni-intro-product-contract";
+import type { OmniStoryboardReferenceTransfer } from "../../omni/storyboard/omni-storyboard-types";
 
 export type ReferenceTransferMode = "full_reference" | "style_only";
 
@@ -31,6 +32,7 @@ export type ReferenceTransferPolicy = {
 
 export type ReferenceTransferFramePlan = {
   version: "reference-transfer-v2";
+  productMentioned: boolean;
   productMeaningfulBeat: boolean;
   visualCue: string | null;
   decisions: ReferenceTransferDecisions;
@@ -85,12 +87,15 @@ export function buildReferenceTransferFramePlan(input: {
   spokenText: string;
   visualCue?: string | null;
   productName: string;
+  productVisible?: boolean;
 }): ReferenceTransferFramePlan {
-  const productMeaningfulBeat = mentionsProduct(input.spokenText, input.productName);
+  const productMentioned = mentionsProduct(input.spokenText, input.productName);
+  const productMeaningfulBeat = input.productVisible ?? productMentioned;
   const visualCue = compactText(input.visualCue || "") || null;
 
   return {
     version: input.policy.version,
+    productMentioned,
     productMeaningfulBeat,
     visualCue,
     decisions: {
@@ -102,6 +107,23 @@ export function buildReferenceTransferFramePlan(input: {
       // The reference action is adapted to the new line. Props can remain as
       // natural context, but may not become the subject of a different claim.
       presenterAction: "adapt_action",
+    },
+  };
+}
+
+/** Keeps the product replacement decision aligned after deterministic storyboard repair. */
+export function synchronizeReferenceTransferProductVisibility(
+  framePlan: OmniStoryboardReferenceTransfer | null | undefined,
+  productVisible: boolean
+): OmniStoryboardReferenceTransfer | null {
+  if (!framePlan) return null;
+  return {
+    ...framePlan,
+    productMentioned: framePlan.productMentioned ?? framePlan.productMeaningfulBeat,
+    productMeaningfulBeat: productVisible,
+    decisions: {
+      ...framePlan.decisions,
+      sourceProduct: productVisible ? framePlan.decisions.sourceProduct : "remove",
     },
   };
 }

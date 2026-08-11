@@ -2,6 +2,8 @@ const PRODUCT_FORM_PATTERN =
   /аэрогрил|бад\b|витамин|добавк|желе|капсул|коллаген|крем|пенк|порошок|продукт|сыворотк|саше|флакон|тюбик|упаковк|баноч|коробк|пакет/iu;
 const EXPLICIT_PRODUCT_CUE =
   /(?:^|[\s,.;:!?])(?:вот|этот|эта|это|мой|моя|наша|наш|именно|использую|держу|показываю|оставил|оставила|артикул|код|описани)(?=$|[\s,.;:!?])|(?:^|[\s,.;:!?])(?:я|мы)\s+(?:пью|принимаю|использую)(?=$|[\s,.;:!?])/iu;
+const CTA_ONLY_PATTERN =
+  /^\s*(?:(?:артикул|код|ссылк|подробност|ищите|закаж|заказать|смотрите|можно\s+найти)|(?:(?:если|когда|кому|нужен|нужна|нужно|хотите|ищете)(?:\s|$)[\s\S]*(?:артикул|код|ссылк|описани|комментар|профил)))[\s\S]*/iu;
 
 export function mentionsOmniProduct(text: string, productName: string) {
   const normalizedText = normalize(text);
@@ -18,6 +20,11 @@ export function mentionsExplicitOmniProduct(text: string, productName: string) {
   const normalizedText = normalize(text);
   if (!normalizedText || !mentionsOmniProduct(normalizedText, productName)) return false;
   return EXPLICIT_PRODUCT_CUE.test(normalizedText);
+}
+
+/** A named product is visual only when the line is not an isolated CTA. */
+export function isOmniProductVisualBeat(text: string, productName: string) {
+  return mentionsOmniProduct(text, productName) && !CTA_ONLY_PATTERN.test(text.trim());
 }
 
 export function getOmniProductRevealFrame(spokenTexts: readonly string[], productName: string) {
