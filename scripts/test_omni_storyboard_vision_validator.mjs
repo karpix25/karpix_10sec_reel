@@ -62,6 +62,17 @@ try {
   });
   assert.equal(lowConfidence.status, "block");
 
+  const evidenceFreeRepair = validator.normalizeStoryboardVisionValidation({
+    status: "block",
+    confidence: 0.8,
+    panels: [
+      { panel_index: 1, status: "repair", violations: [] },
+      { panel_index: 2, status: "repair", violations: [] },
+    ],
+    repair_instructions: [],
+  });
+  assert.equal(evidenceFreeRepair.status, "pass");
+
   console.log("Omni storyboard vision validator checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
