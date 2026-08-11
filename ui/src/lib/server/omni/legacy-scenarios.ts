@@ -1,5 +1,5 @@
 import { OmniLegacyScenario } from "@/lib/omni/types";
-import { getLegacyPool } from "./legacy-db";
+import { oldPool } from "@/lib/db";
 
 type LegacyScenarioRow = {
   id: number;
@@ -25,7 +25,7 @@ export async function listLegacyScenarios(options: {
   limit: number;
   offset: number;
 }) {
-  const legacyPool = getLegacyPool();
+  const legacyPool = oldPool;
   const whereClauses = [
     "COALESCE(TRIM(pc.transcript), '') <> ''",
     "pc.transcript NOT ILIKE 'Error %'",
@@ -80,7 +80,7 @@ export async function listLegacyScenarios(options: {
 }
 
 export async function getLegacyScenario(legacyScenarioId: number) {
-  const legacyPool = getLegacyPool();
+  const legacyPool = oldPool;
   const rowsResult = await legacyPool.query<LegacyScenarioRow>(
     `SELECT
        pc.id,
@@ -122,7 +122,7 @@ export async function getRandomLegacyScenarioFromClients(
     excludeClause = `AND NOT (pc.id = ANY($${values.length}::bigint[]))`;
   }
 
-  const legacyPool = getLegacyPool();
+  const legacyPool = oldPool;
   const rowsResult = await legacyPool.query<LegacyScenarioRow>(
     `SELECT
        pc.id,
