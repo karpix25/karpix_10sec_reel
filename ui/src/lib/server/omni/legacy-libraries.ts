@@ -1,12 +1,12 @@
+import { oldPool } from "@/lib/db";
 import { OmniLegacyLibrary } from "@/lib/omni/types";
-import { getLegacyPool } from "./legacy-db";
 
 type LegacyLibraryRow = Omit<OmniLegacyLibrary, "scenario_count"> & {
   scenario_count: string;
 };
 
 export async function listLegacyLibraries(options: { query?: string | null; limit: number; includeClientIds?: number[] }) {
-  const legacyPool = getLegacyPool();
+  const legacyPool = oldPool;
   const values: unknown[] = [];
   const includeClientIds = Array.from(
     new Set((options.includeClientIds || []).filter((id) => Number.isFinite(id) && id > 0))
