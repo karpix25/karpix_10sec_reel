@@ -10,6 +10,7 @@ import {
   describeOmniDensityGap,
   getOmniSegmentDurationForWordCount,
   getOmniSegmentDurationsForWordCount,
+  getOmniMaxScriptWords,
   getOmniSegmentWordBudget,
   getPreferredOmniSegmentCount,
   isOmniSegmentCountViable,
@@ -21,6 +22,7 @@ export {
   OMNI_MAX_SEGMENT_COUNT,
   OMNI_MIN_SEGMENT_COUNT,
   OMNI_SEGMENT_SECONDS,
+  getOmniMaxScriptWords,
   getOmniSegmentWordBudget,
 };
 
