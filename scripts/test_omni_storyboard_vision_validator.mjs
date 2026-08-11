@@ -61,6 +61,28 @@ try {
     panels: [{ panel_index: 1, status: "pass", violations: [] }],
   });
   assert.equal(lowConfidence.status, "block");
+  assert.equal(validator.isStoryboardVisionValidationInconclusive(lowConfidence), true);
+
+  const actionableBlock = validator.normalizeStoryboardVisionValidation({
+    status: "block",
+    confidence: 0.9,
+    panels: [{
+      panel_index: 1,
+      status: "block",
+      violations: [{ code: "AVATAR_IDENTITY_MISMATCH", severity: "error", evidence: "different hair and face" }],
+    }],
+  });
+  assert.equal(validator.isStoryboardVisionValidationInconclusive(actionableBlock), false);
+  assert.deepEqual(validator.getStoryboardVisionRepairInstructions(actionableBlock), [
+    "Panel 1: AVATAR_IDENTITY_MISMATCH — different hair and face",
+  ]);
+
+  const numericStringConfidence = validator.normalizeStoryboardVisionValidation({
+    status: "pass",
+    confidence: "0.96",
+    panels: [{ panel_index: 1, status: "pass", violations: [] }],
+  });
+  assert.equal(numericStringConfidence.status, "pass");
 
   const evidenceFreeRepair = validator.normalizeStoryboardVisionValidation({
     status: "block",

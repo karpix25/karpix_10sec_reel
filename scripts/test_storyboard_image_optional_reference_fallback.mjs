@@ -52,15 +52,23 @@ try {
     if (href.startsWith("https://openrouter.ai/")) {
       visionRequests += 1;
       visionPayloads.push(JSON.parse(String(options.body || "{}")));
-      const shouldRepair = visionMode === "always_repair" || visionRequests === 1;
+      const isInconclusive = visionMode === "always_inconclusive" || visionMode === "inconclusive_then_pass" && visionRequests === 1;
+      const isActionableBlock = visionMode === "block_then_pass" && visionRequests === 1;
+      const shouldRepair = visionMode === "always_repair" || visionMode === "repair_then_pass" && visionRequests === 1;
       return Response.json({
         model: "test-model",
         choices: [{
           message: {
             content: JSON.stringify({
-              status: shouldRepair ? "repair" : "pass",
-              confidence: 0.95,
-              panels: [{ panel_index: 1, status: shouldRepair ? "repair" : "pass", violations: [] }],
+              status: isInconclusive || isActionableBlock ? "block" : shouldRepair ? "repair" : "pass",
+              confidence: isInconclusive ? 0 : 0.95,
+              panels: [{
+                panel_index: 1,
+                status: isInconclusive || isActionableBlock ? "block" : shouldRepair ? "repair" : "pass",
+                violations: isActionableBlock
+                  ? [{ code: "AVATAR_IDENTITY_MISMATCH", severity: "error", evidence: "different face" }]
+                  : [],
+              }],
               repair_instructions: shouldRepair ? ["restore the canonical black sleeveless top"] : [],
             }),
           },
@@ -106,6 +114,55 @@ try {
     assert.match(visionPayloads[0].messages[1].content[0].text, /same person as the avatar/u, "vision prompt must reject a non-avatar identity");
     assert.ok(!cometPrompts[0].includes(expiredDirectorUrl));
     assert.ok(!cometPrompts[0].includes("Director reference image URLs:"));
+
+    visionMode = "inconclusive_then_pass";
+    visionRequests = 0;
+    cometPrompts.length = 0;
+    await generateStoryboardImage({
+      projectId: 6,
+      reelId: 10,
+      segmentIndex: 1,
+      storyboard: storyboard(),
+      productName: "Коллаген",
+      avatarReferenceUrl: "https://cdn.example.com/avatar.jpg",
+      canonicalStoryboardReferenceUrl: "https://cdn.example.com/first-storyboard.jpg",
+    });
+    assert.equal(visionRequests, 2, "an inconclusive QA response retries the check without a new image");
+    assert.equal(cometPrompts.length, 1, "an inconclusive QA response does not spend on another storyboard image");
+
+    visionMode = "always_inconclusive";
+    visionRequests = 0;
+    cometPrompts.length = 0;
+    await assert.rejects(
+      () => generateStoryboardImage({
+        projectId: 6,
+        reelId: 10,
+        segmentIndex: 1,
+        storyboard: storyboard(),
+        productName: "Коллаген",
+        avatarReferenceUrl: "https://cdn.example.com/avatar.jpg",
+        canonicalStoryboardReferenceUrl: "https://cdn.example.com/first-storyboard.jpg",
+      }),
+      /Storyboard vision validation remained inconclusive after automatic retries/u
+    );
+    assert.equal(visionRequests, 4, "an inconclusive result gets two QA checks for each automatic image attempt");
+    assert.equal(cometPrompts.length, 2, "an inconclusive result gets one automatic replacement image");
+
+    visionMode = "block_then_pass";
+    visionRequests = 0;
+    cometPrompts.length = 0;
+    await generateStoryboardImage({
+      projectId: 6,
+      reelId: 10,
+      segmentIndex: 1,
+      storyboard: storyboard(),
+      productName: "Коллаген",
+      avatarReferenceUrl: "https://cdn.example.com/avatar.jpg",
+      canonicalStoryboardReferenceUrl: "https://cdn.example.com/first-storyboard.jpg",
+    });
+    assert.equal(visionRequests, 2, "an evidenced block rechecks the replacement image");
+    assert.equal(cometPrompts.length, 2, "an evidenced block automatically regenerates the storyboard image");
+    assert.match(cometPrompts[1], /AVATAR_IDENTITY_MISMATCH/u);
 
     visionMode = "always_repair";
     visionRequests = 0;
