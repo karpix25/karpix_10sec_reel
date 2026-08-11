@@ -112,6 +112,7 @@ async function tryGenerateStoryboardPreview(input: {
 }) {
   const url = await generateStoryboardImage({
     projectId: input.projectId,
+    productId: input.productId,
     scriptId: input.scriptId,
     segmentIndex: input.segmentIndex,
     storyboard: input.storyboardPlan,

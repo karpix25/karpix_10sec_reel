@@ -3,6 +3,7 @@ import { normalizeAudioMood } from "@/lib/audio-library/moods";
 import { extractOpenRouterCostSummaryFromSnapshot, summarizeOpenRouterUsage } from "@/lib/omni/openrouter-cost";
 import type { OmniGeneratedScript, OmniPromptPreviewSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
+import { getGeneratedScriptCostSummaries } from "./omni-generation-costs";
 import { getLatestOmniClientAvatar } from "./avatars";
 import { shouldAnalyzeDirectorReference } from "./director-analysis-policy";
 import { ensureDirectorAnalysis } from "./director-analyses";
@@ -65,7 +66,12 @@ export async function listGeneratedScripts(projectId: number, productId?: number
      LIMIT 50`,
     values
   );
-  return rows.map(normalizeScript);
+  const scripts = rows.map(normalizeScript);
+  const costSummaries = await getGeneratedScriptCostSummaries(scripts);
+  return scripts.map((script) => ({
+    ...script,
+    generation_cost_summary: costSummaries.get(script.id) || null,
+  }));
 }
 
 export async function getGeneratedScript(input: { projectId: number; productId: number; scriptId: number }) {

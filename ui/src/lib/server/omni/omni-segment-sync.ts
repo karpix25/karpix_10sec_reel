@@ -6,6 +6,7 @@ import {
   buildOmniSegmentRetryPayload,
   canRetryOmniSegment,
 } from "./omni-segment-retry";
+import { recordKieGenerationCost } from "./omni-generation-costs";
 
 export async function syncOmniReelSegments(input: {
   reel: OmniReel;
@@ -18,6 +19,20 @@ export async function syncOmniReelSegments(input: {
     try {
       const task = await retrieveProviderVideoTask(segment.generation_provider, segment.kie_task_id);
       const status = task.status.toLowerCase();
+      if (segment.generation_provider === "kie-ai") {
+        await recordKieGenerationCost({
+          projectId: input.reel.project_id,
+          productId: input.reel.product_id,
+          generatedScriptId: input.reel.source_generated_script_id,
+          reelId: input.reel.id,
+          reelSegmentId: segment.id,
+          operation: "video",
+          taskId: task.id,
+          status,
+          model: "gemini-omni-video",
+          raw: task.raw,
+        }).catch((error) => console.error("KIE video cost sync failed:", error));
+      }
       if (status === "completed") {
         await storeCompletedSegment({
           projectId: input.reel.project_id,

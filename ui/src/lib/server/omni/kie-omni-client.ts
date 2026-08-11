@@ -35,6 +35,12 @@ export type KieStoryboardImageInput = {
   aspectRatio?: "auto" | "1:1" | "9:16" | "16:9";
 };
 
+export type KieStoryboardImageResult = {
+  imageUrl: string;
+  task: KieOmniTask;
+  model: string;
+};
+
 function getApiKey() {
   const key = process.env.KIE_API_KEY || process.env.KIE_AI_API_KEY || "";
   if (!key.trim()) throw new Error("KIE_API_KEY is not configured");
@@ -174,7 +180,7 @@ export async function createKieStoryboardImage(input: KieStoryboardImageInput) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const payload = await retrieveKieTaskDetails(task.id);
     const imageUrl = extractGeneratedImageUrl(payload);
-    if (imageUrl) return imageUrl;
+    if (imageUrl) return { imageUrl, task: normalizeTask(payload), model: getStoryboardImageModel() };
 
     const status = extractTaskStatus(payload);
     if (TERMINAL_STATUSES.has(status)) {

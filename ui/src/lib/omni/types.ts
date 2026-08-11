@@ -6,6 +6,7 @@ import type { OmniAvatarSpeechGender } from "./avatar-speech-gender";
 import type { OmniSubtitleSettings, OmniSubtitleStatus } from "./subtitle-settings";
 import type { OmniStoryboardSegment, OmniStoryboardValidationResult } from "./storyboard/omni-storyboard-types";
 import type { PhysicalFramePlan } from "./physical-scene-types";
+import type { OmniGenerationCostSummary } from "./generation-cost";
 
 export type OmniProjectStatus = "active" | "archived";
 export type OmniReelStatus = "draft" | "queued" | "generating" | "stitching" | "completed" | "failed";
@@ -139,6 +140,7 @@ export interface OmniGeneratedScript {
   source_snapshot: Record<string, unknown> | null;
   product_snapshot: Record<string, unknown> | null;
   model: string | null;
+  generation_cost_summary?: OmniGenerationCostSummary | null;
   created_at: string;
   updated_at: string;
 }

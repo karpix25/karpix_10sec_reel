@@ -27,6 +27,7 @@ import {
   type PendingVideoDraft,
 } from "./GenerationPendingCards";
 import { OpenRouterCostBadge } from "./OpenRouterCostBadge";
+import { GenerationCostBadge } from "./GenerationCostBadge";
 import { OriginalReferenceLink } from "./OriginalReferenceLink";
 import { SegmentDots, StatusBadge } from "./OmniStudio/ui";
 import { ReelSubtitlesPanel } from "./ReelSubtitlesPanel";
@@ -258,6 +259,10 @@ function GeneratedScriptCard({
   const isPendingVideo = pendingVideo?.scriptId === script.id;
   const videoStage = latestReel ? getVideoStageLabel(latestReel, latestSegments) : "Видео ещё не создавалось";
   const costSummary = extractOpenRouterCostSummaryFromSnapshot(script.source_snapshot);
+  const generationCostSummary = script.generation_cost_summary;
+  const hasGenerationCost = Boolean(
+    generationCostSummary && (generationCostSummary.totalUsd !== null || generationCostSummary.pendingKieTasks)
+  );
 
   return (
     <article className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-background">
@@ -277,7 +282,9 @@ function GeneratedScriptCard({
           </div>
         </button>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          {costSummary ? <OpenRouterCostBadge summary={costSummary} /> : null}
+          {generationCostSummary && hasGenerationCost ? (
+            <GenerationCostBadge summary={generationCostSummary} />
+          ) : costSummary ? <OpenRouterCostBadge summary={costSummary} /> : null}
           <OriginalReferenceLink script={script} />
           <div className="min-w-36 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
             <span className="block truncate font-semibold text-foreground">{videoStage}</span>

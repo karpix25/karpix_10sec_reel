@@ -4,6 +4,7 @@ import {
 } from "./omni-video-storage";
 import { buildStoryboardImagePrompt } from "./omni-storyboard-image-prompt";
 import { createKieStoryboardImage } from "./kie-omni-client";
+import { recordKieGenerationCost } from "./omni-generation-costs";
 import {
   STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT,
   STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT,
@@ -33,6 +34,7 @@ type StoryboardReferenceFile = {
 
 type StoryboardImageInput = {
   projectId: number;
+  productId: number;
   reelId?: number;
   scriptId?: number;
   segmentIndex: number;
@@ -112,6 +114,7 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
 
 async function generateKieStoryboardImageBytes(input: {
   projectId: number;
+  productId: number;
   reelId?: number;
   scriptId?: number;
   segmentIndex: number;
@@ -131,12 +134,23 @@ async function generateKieStoryboardImageBytes(input: {
     ...input.productReferenceUrls,
     ...input.directorReferenceImageUrls,
   ].slice(0, 16);
-  const generatedUrl = await createKieStoryboardImage({
+  const generated = await createKieStoryboardImage({
     prompt: buildStoryboardImagePrompt(input),
     inputUrls,
     aspectRatio: "auto",
   });
-  const response = await fetch(generatedUrl, { cache: "no-store" });
+  await recordKieGenerationCost({
+    projectId: input.projectId,
+    productId: input.productId,
+    generatedScriptId: input.scriptId,
+    reelId: input.reelId,
+    operation: "storyboard",
+    taskId: generated.task.id,
+    status: generated.task.status,
+    model: generated.model,
+    raw: generated.task.raw,
+  }).catch((error) => console.error("KIE storyboard cost record failed:", error));
+  const response = await fetch(generated.imageUrl, { cache: "no-store" });
   if (!response.ok) throw new Error(`KIE storyboard image download failed: ${response.status}`);
   const body = Buffer.from(await response.arrayBuffer());
   const contentType = normalizeImageContentType(response.headers.get("content-type")) || "image/jpeg";
@@ -145,6 +159,7 @@ async function generateKieStoryboardImageBytes(input: {
 
 async function generateCometStoryboardImageBytes(input: {
   projectId: number;
+  productId: number;
   reelId?: number;
   scriptId?: number;
   segmentIndex: number;
@@ -173,6 +188,7 @@ async function generateCometStoryboardImageBytes(input: {
 
 async function createStoryboardImage(input: {
   projectId: number;
+  productId: number;
   reelId?: number;
   scriptId?: number;
   segmentIndex: number;

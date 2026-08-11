@@ -38,6 +38,7 @@ import {
 } from "./omni-segment-retry";
 import { syncOmniReelSegments } from "./omni-segment-sync";
 import { assertOmniPhysicalPreflight } from "./omni-physical-preflight";
+import { recordKieGenerationCost } from "./omni-generation-costs";
 
 type ReelBundle = {
   reel: OmniReel;
@@ -363,6 +364,21 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
         [reel.id, message]
       );
       throw error;
+    }
+
+    if (provider === "kie-ai") {
+      await recordKieGenerationCost({
+        projectId: reel.project_id,
+        productId: reel.product_id,
+        generatedScriptId: reel.source_generated_script_id,
+        reelId: reel.id,
+        reelSegmentId: segment.id,
+        operation: "video",
+        taskId: task.id,
+        status: task.status,
+        model: requestPayload.model,
+        raw: task.raw,
+      }).catch((error) => console.error("KIE video cost record failed:", error));
     }
 
     await pool.query(
