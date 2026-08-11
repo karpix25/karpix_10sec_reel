@@ -20,6 +20,7 @@ import {
 const DEFAULT_MAX_REFERENCE_FRAMES = STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT;
 const DEFAULT_MAX_VIDEO_MB = 120;
 const REFERENCE_VIDEO_DOWNLOAD_ATTEMPTS = 3;
+const REFERENCE_VIDEO_REQUEST_TIMEOUT_MS = 60_000;
 const SEEK_SECONDS = [0.4, 2.2, 4.5, 6.5, 8.5] as const;
 
 type StorageTarget =
@@ -227,7 +228,10 @@ async function downloadVideoBuffer(videoUrl: string) {
 }
 
 async function tryDownloadVideoBuffer(videoUrl: string) {
-  const response = await fetch(videoUrl, { cache: "no-store" });
+  const response = await fetch(videoUrl, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(REFERENCE_VIDEO_REQUEST_TIMEOUT_MS),
+  });
   if (!response.ok) throw new Error(`reference video download failed for ${videoUrl}: ${response.status}`);
   const contentType = response.headers.get("content-type") || "";
   if (contentType && !isReferenceVideoContentType(contentType)) {
