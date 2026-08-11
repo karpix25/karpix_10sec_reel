@@ -398,19 +398,28 @@ export function useOmniStudio(
       autoRun?: boolean;
       provider?: OmniGenerationProvider;
     }) => (await axios.post(`${API_BASE}/reels`, payload)).data as OmniReel,
-    onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-scripts", variables.projectId, variables.productId] });
+    },
   });
 
   const runReelMutation = useMutation({
     mutationFn: async (payload: { projectId: number; reelId: number; provider: OmniGenerationProvider }) =>
       (await axios.post(`${API_BASE}/reels/${payload.reelId}/run`, { provider: payload.provider })).data as OmniReel,
-    onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-scripts", variables.projectId] });
+    },
   });
 
   const syncReelMutation = useMutation({
     mutationFn: async (payload: { projectId: number; reelId: number }) =>
       (await axios.post(`${API_BASE}/reels/${payload.reelId}/sync`)).data as ReelsPayload,
-    onSuccess: (_, variables) => queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["omni-reels", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-scripts", variables.projectId] });
+    },
   });
 
   const createGeneratedScriptMutation = useMutation({

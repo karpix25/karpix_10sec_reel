@@ -295,6 +295,7 @@ export async function createOmniReel(input: {
   } else {
     storyboardReferenceUrls = await generateStoryboardReferenceUrls({
       projectId: input.projectId,
+      productId: input.productId,
       reelId: reservedReelId,
       productName: product.name,
       productPhysicalContract: product.product_physical_contract,
@@ -418,6 +419,7 @@ async function reserveOmniReelId() {
 
 async function generateStoryboardReferenceUrls(input: {
   projectId: number;
+  productId: number;
   reelId: number;
   productName: string;
   productPhysicalContract?: string | null;
@@ -438,6 +440,7 @@ async function generateStoryboardReferenceUrls(input: {
     const storyboardReferenceUrl: string | null = segmentPrompt.storyboardPlan
       ? await generateStoryboardImage({
         projectId: input.projectId,
+        productId: input.productId,
         reelId: input.reelId,
         segmentIndex: index + 1,
         storyboard: segmentPrompt.storyboardPlan,
