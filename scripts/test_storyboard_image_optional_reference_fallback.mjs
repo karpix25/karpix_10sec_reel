@@ -99,7 +99,11 @@ try {
     assert.equal(visionRequests, 2, "a repairable storyboard gets one retry");
     assert.ok(cometPrompts[0].includes("эталон одежды из первого утверждённого storyboard"));
     assert.ok(cometPrompts[1].includes("PHYSICAL REPAIR FROM PRIOR CHECK"));
-    assert.equal(visionPayloads[0].messages[1].content.filter((item) => item.type === "image_url").length, 2, "vision compares the candidate with the canonical outfit storyboard");
+    const visionImages = visionPayloads[0].messages[1].content.filter((item) => item.type === "image_url");
+    assert.equal(visionImages.length, 3, "vision compares the candidate with both the active avatar and canonical outfit storyboard");
+    assert.equal(visionImages[1].image_url.url, "https://cdn.example.com/avatar.jpg", "vision must validate the candidate against the active avatar identity");
+    assert.equal(visionImages[2].image_url.url, "https://cdn.example.com/first-storyboard.jpg", "vision must validate later boards against the canonical outfit");
+    assert.match(visionPayloads[0].messages[1].content[0].text, /same person as the avatar/u, "vision prompt must reject a non-avatar identity");
     assert.ok(!cometPrompts[0].includes(expiredDirectorUrl));
     assert.ok(!cometPrompts[0].includes("Director reference image URLs:"));
 

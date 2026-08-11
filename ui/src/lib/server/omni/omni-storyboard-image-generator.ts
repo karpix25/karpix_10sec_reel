@@ -77,6 +77,7 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
       : await generateCometStoryboardImageBytes({ ...preparedInput, repairInstructions });
     const validation = await validateStoryboardImage({
       imageUrl: toDataUrl(generated.body, generated.contentType),
+      avatarReferenceUrl,
       storyboard: input.storyboard,
       productName: input.productName,
       canonicalStoryboardReferenceUrl,

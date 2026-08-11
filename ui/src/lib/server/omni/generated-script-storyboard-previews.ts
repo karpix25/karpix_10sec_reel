@@ -12,7 +12,7 @@ type StoryboardPromptSegment = {
   storyboardPlan: OmniStoryboardSegment | null;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-canonical-outfit-v8";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-avatar-identity-v9";
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
