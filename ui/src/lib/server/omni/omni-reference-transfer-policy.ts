@@ -1,130 +1,139 @@
-import type { DirectorBrief } from "./director-analysis-types";
-import {
-  isCollagePictureInPictureReference,
-  referenceUsesProductOrScienceBackground,
-} from "./director-layout-contract";
+import { mentionsOmniProduct } from "./omni-intro-product-contract";
 
 export type ReferenceTransferMode = "full_reference" | "style_only";
 
+export type ReferenceTransferDecision =
+  | "preserve"
+  | "replace_with_product"
+  | "preserve_as_support"
+  | "adapt_action"
+  | "remove";
+
+export type ReferenceTransferDecisions = {
+  layout: ReferenceTransferDecision;
+  camera: ReferenceTransferDecision;
+  lighting: ReferenceTransferDecision;
+  editLanguage: ReferenceTransferDecision;
+  wardrobe: ReferenceTransferDecision;
+  environment: ReferenceTransferDecision;
+  presenterAction: ReferenceTransferDecision;
+  sourceProduct: ReferenceTransferDecision;
+  sourceProps: ReferenceTransferDecision;
+  overlays: ReferenceTransferDecision;
+};
+
 export type ReferenceTransferPolicy = {
+  version: "reference-transfer-v2";
   mode: ReferenceTransferMode;
   omitRawDirectorGuidance: boolean;
+  decisions: ReferenceTransferDecisions;
 };
 
-type DomainId =
-  | "beauty_supplement"
-  | "meal_prep"
-  | "medical_wellness"
-  | "fitness"
-  | "office"
-  | "fashion"
-  | "cleaning"
-  | "car";
-
-type DomainRule = {
-  id: DomainId;
-  pattern: RegExp;
+export type ReferenceTransferFramePlan = {
+  version: "reference-transfer-v2";
+  productMeaningfulBeat: boolean;
+  visualCue: string | null;
+  decisions: ReferenceTransferDecisions;
 };
 
-const DOMAIN_RULES: readonly DomainRule[] = [
-  {
-    id: "beauty_supplement",
-    pattern: /коллаген|бад|добавк|витамин|кож|волос|ногт|сустав|beauty|collagen|supplement|vitamin|skin|hair|joint/iu,
+export const DEFAULT_REFERENCE_TRANSFER_POLICY: ReferenceTransferPolicy = {
+  version: "reference-transfer-v2",
+  mode: "full_reference",
+  omitRawDirectorGuidance: false,
+  decisions: {
+    layout: "preserve",
+    camera: "preserve",
+    lighting: "preserve",
+    editLanguage: "preserve",
+    wardrobe: "preserve",
+    environment: "preserve",
+    presenterAction: "adapt_action",
+    sourceProduct: "replace_with_product",
+    sourceProps: "preserve_as_support",
+    overlays: "remove",
   },
-  {
-    id: "meal_prep",
-    pattern: /аэрогрил|грил|рацион|калори|еда|питани|кухн|контейнер|весы|мяс|куриц|салат|доставк|air\s*fryer|grill|meal|food|kitchen|container|scale|meat|chicken|greens|delivery|portion/iu,
-  },
-  {
-    id: "medical_wellness",
-    pattern: /clinical|wellness office|medical|doctor|clinic|hospital|stethoscope|scrubs|treatment room|exam room|vertical blinds|клиник|медицин|стетоскоп|врач|кабинет|жалюзи/iu,
-  },
-  {
-    id: "fitness",
-    pattern: /трениров|спорт|зал|мышц|бег|гантел|fitness|gym|workout|muscle|running|dumbbell/iu,
-  },
-  {
-    id: "office",
-    pattern: /офис|работ|ноутбук|документ|стол|созвон|office|laptop|desk|document|meeting|work call/iu,
-  },
-  {
-    id: "fashion",
-    pattern: /одежд|сумк|обув|аксессуар|гардероб|fashion|outfit|bag|shoe|wardrobe|accessory/iu,
-  },
-  {
-    id: "cleaning",
-    pattern: /уборк|пятн|пыль|ванн|раковин|cleaning|stain|dust|bathroom|sink/iu,
-  },
-  {
-    id: "car",
-    pattern: /машин|авто|руль|парков|дорог|car|auto|driving|parking|road/iu,
-  },
-];
+};
 
-const STRONG_FOREIGN_PROCESS =
-  /gloved hands|staff|workers|assembly|packing|scale|container|commercial|prep table|digital scale|перчат|работник|сборк|упаков|весы|контейнер|цех|производств/iu;
-
-const STRONG_FOREIGN_WORLD =
-  /clinical|wellness office|medical|doctor|clinic|hospital|stethoscope|scrubs|treatment room|exam room|vertical blinds|клиник|медицин|стетоскоп|врач|кабинет|жалюзи/iu;
-
+/**
+ * Keeps the reusable world of a reference (camera, clothes, place, rhythm),
+ * while making product and prop decisions only after the new spoken beat is known.
+ */
 export function buildReferenceTransferPolicy(input: {
-  directorBrief: DirectorBrief | null;
-  productName: string;
-  productDescription?: string | null;
-  productReferenceNotes?: string | null;
   hasProductReference: boolean;
 }): ReferenceTransferPolicy {
-  if (!input.directorBrief || !input.hasProductReference) {
-    return { mode: "full_reference", omitRawDirectorGuidance: false };
-  }
+  const productDecision: ReferenceTransferDecision = input.hasProductReference
+    ? "replace_with_product"
+    : "remove";
 
-  const productDomains = detectDomains([
-    input.productName,
-    input.productDescription,
-    input.productReferenceNotes,
-  ].filter(Boolean).join(" "));
-  const referenceText = getDirectorReferenceText(input.directorBrief);
-  const referenceDomains = detectDomains(referenceText);
-  const hasDomainOverlap = [...referenceDomains].some((domain) => productDomains.has(domain));
-  const hasForeignProcess = STRONG_FOREIGN_PROCESS.test(referenceText);
-  const hasForeignWorld = STRONG_FOREIGN_WORLD.test(referenceText);
-  const isProductCollageReference =
-    isCollagePictureInPictureReference(input.directorBrief) &&
-    referenceUsesProductOrScienceBackground(input.directorBrief);
-
-  if (isProductCollageReference && hasDomainOverlap) {
-    return { mode: "full_reference", omitRawDirectorGuidance: false };
-  }
-
-  if (productDomains.size && referenceDomains.size && !hasDomainOverlap) {
-    return { mode: "style_only", omitRawDirectorGuidance: true };
-  }
-  if (hasForeignWorld && productDomains.size && !hasDomainOverlap) {
-    return { mode: "style_only", omitRawDirectorGuidance: true };
-  }
-  if (hasForeignProcess && productDomains.has("beauty_supplement") && referenceDomains.has("meal_prep")) {
-    return { mode: "style_only", omitRawDirectorGuidance: true };
-  }
-
-  return { mode: "full_reference", omitRawDirectorGuidance: false };
+  return {
+    ...DEFAULT_REFERENCE_TRANSFER_POLICY,
+    // Retained for existing callers. Product category alone must not erase a
+    // working reference situation such as a car, clothing, food, or a studio.
+    mode: "full_reference",
+    omitRawDirectorGuidance: false,
+    decisions: { ...DEFAULT_REFERENCE_TRANSFER_POLICY.decisions, sourceProduct: productDecision },
+  };
 }
 
-function detectDomains(text: string) {
-  const normalized = text.toLowerCase().replace(/ё/g, "е");
-  return new Set(DOMAIN_RULES.filter((rule) => rule.pattern.test(normalized)).map((rule) => rule.id));
+export function resolveReferenceTransferPolicy(policy: ReferenceTransferPolicy | null | undefined) {
+  if (policy) return policy;
+  return DEFAULT_REFERENCE_TRANSFER_POLICY;
 }
 
-function getDirectorReferenceText(brief: DirectorBrief) {
-  return [
-    brief.visual_hook.action,
-    brief.visual_hook.retention_trigger,
-    brief.atmosphere.mood,
-    brief.atmosphere.setting,
-    ...brief.prop_sources,
-    ...brief.hand_object_interactions,
-    ...brief.motion_continuity,
-    ...brief.action_beats.flatMap((beat) => [beat.action_description, beat.actor_gesture]),
-    ...brief.reusable_mechanics.visual_mechanics,
-    brief.reusable_mechanics.looping_pattern,
-  ].filter(Boolean).join(" ");
+export function buildReferenceTransferFramePlan(input: {
+  policy: ReferenceTransferPolicy;
+  spokenText: string;
+  visualCue?: string | null;
+  productName: string;
+}): ReferenceTransferFramePlan {
+  const productMeaningfulBeat = mentionsProduct(input.spokenText, input.productName);
+  const visualCue = compactText(input.visualCue || "") || null;
+
+  return {
+    version: input.policy.version,
+    productMeaningfulBeat,
+    visualCue,
+    decisions: {
+      ...input.policy.decisions,
+      // A source product is never allowed to leak into a non-product line.
+      sourceProduct: productMeaningfulBeat
+        ? input.policy.decisions.sourceProduct
+        : "remove",
+      // The reference action is adapted to the new line. Props can remain as
+      // natural context, but may not become the subject of a different claim.
+      presenterAction: "adapt_action",
+    },
+  };
+}
+
+export function resolveReferenceTransferAction(input: {
+  framePlan: ReferenceTransferFramePlan;
+  referenceAction: string;
+  fallbackAction: string;
+}) {
+  const fallbackAction = compactText(input.fallbackAction);
+  const referenceAction = compactText(input.referenceAction);
+  const primaryAction = input.framePlan.visualCue || referenceAction || fallbackAction;
+  const contextLine = referenceAction
+    ? "сохраняет позу, ритм жеста и бытовой контекст reference, но действие подчинено текущей реплике"
+    : "действие подчинено текущей реплике и сохраняет общий ритм reference";
+
+  if (input.framePlan.productMeaningfulBeat) {
+    return `${primaryAction}; ${contextLine}; исходный рекламный предмет заменен нашим продуктом`;
+  }
+  if (input.framePlan.visualCue) {
+    return `${primaryAction}; ${contextLine}; исходный рекламный предмет вне кадра`;
+  }
+  return primaryAction || "персонаж естественно говорит в камеру в контексте reference";
+}
+
+function mentionsProduct(text: string, productName: string) {
+  return Boolean(productName.trim()) && mentionsOmniProduct(text, productName);
+}
+
+function compactText(value: string) {
+  const text = value.replace(/\s+/gu, " ").trim();
+  if (text.length <= 220) return text;
+  const clipped = text.slice(0, 220).replace(/\s+\S*$/u, "").trim();
+  return clipped || text.slice(0, 220).trim();
 }

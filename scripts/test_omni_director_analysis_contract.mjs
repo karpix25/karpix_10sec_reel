@@ -58,7 +58,11 @@ try {
   const { normalizeDirectorBrief, selectDirectorSegmentProfile } = require(findFile(compiled, "director-analysis-types.js"));
   const { shouldAnalyzeDirectorReference } = require(findFile(compiled, "director-analysis-policy.js"));
   const { buildDirectorAnalysisUserPrompt, renderDirectorBriefForOmniPrompt } = require(findFile(compiled, "director-analysis-prompt.js"));
-  const { buildReferenceTransferPolicy } = require(findFile(compiled, "omni-reference-transfer-policy.js"));
+  const {
+    buildReferenceTransferPolicy,
+    buildReferenceTransferFramePlan,
+    resolveReferenceTransferAction,
+  } = require(findFile(compiled, "omni-reference-transfer-policy.js"));
   const { renderSimpleFullBodyUgcPrompt } = require(findFile(compiled, "omni-simple-ugc-prompt.js"));
   const { extractScrapeCreatorsInstagramVideo } = require(findFile(compiled, "scrapecreators-client.js"));
   const { analyzeDirectorVideo } = require(findFile(compiled, "openrouter-director-analysis-client.js"));
@@ -249,8 +253,44 @@ try {
     productReferenceNotes: null,
     hasProductReference: true,
   });
-  assert.equal(irrelevantPolicy.mode, "style_only", "meal-prep reference must become style-only for collagen product");
-  const styleOnlyPrompt = renderSimpleFullBodyUgcPrompt({
+  assert.equal(irrelevantPolicy.mode, "full_reference", "a different product category must retain the useful source setup");
+  assert.equal(irrelevantPolicy.decisions.environment, "preserve");
+  assert.equal(irrelevantPolicy.decisions.sourceProduct, "replace_with_product");
+  assert.equal(irrelevantPolicy.decisions.sourceProps, "preserve_as_support");
+  const foodBeat = buildReferenceTransferFramePlan({
+    policy: irrelevantPolicy,
+    productName: "Апельсиновый коллаген",
+    spokenText: "Для быстрого перекуса я беру овощи и воду в дорогу.",
+    visualCue: "показывает контейнер с овощами на пассажирском сиденье",
+  });
+  assert.equal(foodBeat.productMeaningfulBeat, false);
+  assert.equal(foodBeat.decisions.sourceProduct, "remove");
+  assert.equal(foodBeat.decisions.sourceProps, "preserve_as_support");
+  assert.match(
+    resolveReferenceTransferAction({
+      framePlan: foodBeat,
+      referenceAction: "показывает исходную банку в машине",
+      fallbackAction: "показывает контейнер с овощами на пассажирском сиденье",
+    }),
+    /контейнер с овощами/iu
+  );
+  const collagenBeat = buildReferenceTransferFramePlan({
+    policy: irrelevantPolicy,
+    productName: "Апельсиновый коллаген",
+    spokenText: "Коллаген удобно пить утром перед выходом.",
+    visualCue: "держит наш коллаген у камеры",
+  });
+  assert.equal(collagenBeat.productMeaningfulBeat, true);
+  assert.equal(collagenBeat.decisions.sourceProduct, "replace_with_product");
+  assert.match(
+    resolveReferenceTransferAction({
+      framePlan: collagenBeat,
+      referenceAction: "показывает исходную банку в машине",
+      fallbackAction: "держит наш коллаген у камеры",
+    }),
+    /исходный рекламный предмет заменен нашим продуктом/iu
+  );
+  const referencePrompt = renderSimpleFullBodyUgcPrompt({
     plan: {
       segmentIndex: 1,
       lifeFormatId: "talking_head_cutaways",
@@ -278,9 +318,7 @@ try {
     directorBrief: brief,
     referencePolicy: irrelevantPolicy,
   });
-  assert.ok(styleOnlyPrompt.includes("physical product moments"));
-  assert.ok(styleOnlyPrompt.includes("small kitchen"), "safe presenter background can still transfer in style-only mode");
-  assert.ok(!/food assembly|sliced meat|plastic container|digital scale|bottom captions area/u.test(styleOnlyPrompt));
+  assert.ok(referencePrompt.includes("small kitchen"), "reference environment must remain available to the prompt");
 
   process.env.OPENROUTER_API_KEY = "test-key";
   process.env.OMNI_DIRECTOR_ANALYSIS_MODEL = "minimax/minimax-m3";

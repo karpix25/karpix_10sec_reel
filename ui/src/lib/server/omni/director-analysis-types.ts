@@ -102,6 +102,7 @@ export type OmniDirectorAnalysis = {
   scrapecreators_payload: Record<string, unknown> | null;
   director_analysis_status: DirectorAnalysisStatus;
   director_analysis_json: DirectorBrief | null;
+  analysis_verification: Record<string, unknown> | null;
   analysis_model: string | null;
   analysis_prompt_version: string;
   analysis_error: string | null;

@@ -4,7 +4,10 @@ import type {
 } from "@/lib/omni/creative-contract";
 import type { OmniCharacterContract } from "./omni-character-contract";
 import type { DirectorBrief } from "./director-analysis-types";
-import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
+import {
+  resolveReferenceTransferPolicy,
+  type ReferenceTransferPolicy,
+} from "./omni-reference-transfer-policy";
 import type { OmniGenerationContinuityDirection } from "./omni-generation-continuity";
 import type { OmniWardrobeSource } from "../../omni/wardrobe-source";
 import { renderCompactSegmentPrompt } from "./omni-compact-segment-prompt";
@@ -26,7 +29,7 @@ export function renderSimpleFullBodyUgcPrompt(input: {
   segmentStartSeconds?: number;
   segmentEndSeconds?: number;
 }) {
-  const referencePolicy = input.referencePolicy || { mode: "full_reference" as const, omitRawDirectorGuidance: false };
+  const referencePolicy = resolveReferenceTransferPolicy(input.referencePolicy);
   const duration = input.plan.beats[input.plan.beats.length - 1]?.endSeconds || 10;
   const segmentStartSeconds = input.segmentStartSeconds ?? (input.segmentIndex - 1) * duration;
   return renderCompactSegmentPrompt({

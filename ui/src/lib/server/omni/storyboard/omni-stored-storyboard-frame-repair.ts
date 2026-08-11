@@ -10,6 +10,12 @@ import {
   repairReferenceAction,
 } from "../physical-scene-model";
 import { mentionsOmniProduct } from "../omni-intro-product-contract";
+import {
+  buildReferenceTransferFramePlan,
+  resolveReferenceTransferAction,
+  resolveReferenceTransferPolicy,
+  type ReferenceTransferPolicy,
+} from "../omni-reference-transfer-policy";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -20,14 +26,29 @@ export function buildStoredStoryboardFrame(input: {
   productPhysicalHint?: string | null;
   productVisible: boolean;
   referenceProfile?: DirectorSegmentProfile | null;
+  referenceTransferPolicy?: ReferenceTransferPolicy;
 }): OmniStoryboardFrame {
   const spokenText = input.frame.spokenWords;
   const productVisible = input.productVisible &&
     mentionsOmniProduct(spokenText, input.productName) &&
     !hasForeignReferenceProduct(spokenText, input.productName);
   const sourceAction = input.frame.visualDescription || input.frame.action;
+  const referenceAction = [
+    input.referenceProfile?.action_description,
+    input.referenceProfile?.actor_gesture,
+  ].filter(Boolean).join("; ");
+  const referenceTransfer = buildReferenceTransferFramePlan({
+    policy: resolveReferenceTransferPolicy(input.referenceTransferPolicy),
+    spokenText,
+    visualCue: sourceAction,
+    productName: input.productName,
+  });
   const repairedAction = repairReferenceAction({
-    action: sourceAction,
+    action: resolveReferenceTransferAction({
+      framePlan: referenceTransfer,
+      referenceAction,
+      fallbackAction: sourceAction,
+    }),
     spokenText,
     productName: input.productName,
     productVisible,
@@ -79,6 +100,7 @@ export function buildStoredStoryboardFrame(input: {
     effectNotes: null,
     modelMusicNotes: null,
     physicalPlan,
+    referenceTransfer,
   };
 }
 

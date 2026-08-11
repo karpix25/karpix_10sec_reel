@@ -40,6 +40,7 @@ try {
   const renderer = require(findFile(compiled, "omni-storyboard-renderer.js"));
   const builder = require(findFile(compiled, "omni-storyboard-builder.js"));
   const fileReference = require(findFile(compiled, "omni-storyboard-file-reference.js"));
+  const storyboardContracts = require(findFile(compiled, "storyboard-contract-validator.js"));
 
   assert.deepEqual([...types.OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS], [4, 6, 8, 10]);
   assert.equal(types.getOmniStoryboardFrameCount(4), 2);
@@ -197,6 +198,35 @@ try {
   assert.ok(directorStoryboard.frames[2].productPlacement.includes("продукт вне кадра"));
   assert.doesNotMatch(directorStoryboardText, /коллаген|product|товар|упаковк/iu);
   assert.equal(new Set(directorStoryboard.frames.map((frame) => frame.wardrobe)).size, 1);
+  assert.equal(
+    storyboardContracts.validateStoryboardSegmentContract({
+      storyboard: directorStoryboard,
+      contract: {
+        productName: "Коллаген",
+        productVisibility: "hidden",
+        fixedWardrobe: directorStoryboard.frames[0].wardrobe,
+      },
+    }).valid,
+    true,
+    "a non-product frame may preserve the reference world without copying its product"
+  );
+  const leakedReferenceProduct = {
+    ...directorStoryboard,
+    frames: directorStoryboard.frames.map((frame, index) => index === 0
+      ? { ...frame, referenceTransfer: { ...frame.referenceTransfer, decisions: { ...frame.referenceTransfer.decisions, sourceProduct: "replace_with_product" } } }
+      : frame),
+  };
+  assert.ok(
+    storyboardContracts.validateStoryboardSegmentContract({
+      storyboard: leakedReferenceProduct,
+      contract: {
+        productName: "Коллаген",
+        productVisibility: "hidden",
+        fixedWardrobe: directorStoryboard.frames[0].wardrobe,
+      },
+    }).errors.includes("frame_1_reference_transfer_product_replacement_missing"),
+    "preflight must block a reference-product replacement on a non-product line"
+  );
 
   const maleAdaptedWardrobeBrief = buildDirectorBrief();
   maleAdaptedWardrobeBrief.clothing.adaptation_notes = "adapt the original women's shirt styling to the male avatar";

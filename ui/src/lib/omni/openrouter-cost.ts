@@ -1,5 +1,6 @@
 export type OpenRouterUsageLayer =
   | "director_analysis"
+  | "director_analysis_verification"
   | "product_analysis"
   | "script_writer"
   | "creative_copywriter"
@@ -139,6 +140,7 @@ export function formatOpenRouterTokens(value: number) {
 
 export function getOpenRouterLayerLabel(layer: OpenRouterUsageLayer) {
   if (layer === "director_analysis") return "Режиссёрский анализ";
+  if (layer === "director_analysis_verification") return "Проверка режиссёрского анализа";
   if (layer === "product_analysis") return "Анализ продукта";
   if (layer === "creative_copywriter") return "Креативный сценарист";
   if (layer === "director_segmenter") return "Режиссёр сегментов";
@@ -175,6 +177,7 @@ function normalizeStoredUsageRecord(value: unknown): OpenRouterUsageRecord | nul
 function normalizeStoredUsageLayer(value: unknown): OpenRouterUsageLayer {
   if (
     value === "director_analysis" ||
+    value === "director_analysis_verification" ||
     value === "product_analysis" ||
     value === "script_writer" ||
     value === "creative_copywriter" ||

@@ -3,7 +3,8 @@ import { detectAudioMoodFromText, normalizeAudioMood } from "@/lib/audio-library
 import { OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
-import { getDirectorAnalysisForLegacy } from "./director-analyses";
+import { ensureDirectorAnalysis, getDirectorAnalysisForLegacy } from "./director-analyses";
+import { shouldAnalyzeDirectorReference } from "./director-analysis-policy";
 import { getGeneratedScript } from "./generated-scripts";
 import { getLegacyScenario } from "./legacy-scenarios";
 import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
@@ -22,12 +23,17 @@ import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-dire
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
-import { extractDirectorBriefFromSnapshot, type DirectorBrief } from "./director-analysis-types";
+import {
+  extractDirectorBriefFromSnapshot,
+  normalizeDirectorBrief,
+  type DirectorBrief,
+} from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 import { repairOmniPromptPlanWithAi } from "./omni-physical-repair-pipeline";
 import { assertStoryboardPromptContracts } from "./storyboard/storyboard-contract-validator";
+import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -107,17 +113,29 @@ export async function createOmniReel(input: {
         script: ensureOmniScriptCta(generatedScript.script, product.cta_mode, product.cta_value),
       }
     : null;
-  const sourceScenario = input.sourceLegacyScenarioId ? await getLegacyScenario(input.sourceLegacyScenarioId) : null;
+  const sourceLegacyScenarioId = input.sourceLegacyScenarioId || generatedScript?.source_legacy_scenario_id || null;
+  const sourceScenario = sourceLegacyScenarioId ? await getLegacyScenario(sourceLegacyScenarioId) : null;
   const sourceScenarioAnalysis = sourceScenario
-    ? await getDirectorAnalysisForLegacy({ legacyScenarioId: sourceScenario.id })
+    ? shouldAnalyzeDirectorReference(sourceScenario)
+      ? await ensureDirectorAnalysis({
+          projectId: input.projectId,
+          productId: input.productId,
+          sourceScenario,
+        })
+      : await getDirectorAnalysisForLegacy({ legacyScenarioId: sourceScenario.id })
     : null;
   const sourceScenarioDirectorBrief =
-    sourceScenarioAnalysis?.director_analysis_status === "completed" ? sourceScenarioAnalysis.director_analysis_json : null;
+    sourceScenarioAnalysis?.director_analysis_status === "completed"
+      ? normalizeDirectorBrief(sourceScenarioAnalysis.director_analysis_json)
+      : null;
   const directorBrief = sourceScenarioDirectorBrief ||
     extractDirectorBriefFromSnapshot(resolvedGeneratedScript?.source_snapshot);
-  const directorReferenceImageUrls = resolvedGeneratedScript
-    ? extractDirectorReferenceImageUrls({ sourceSnapshot: resolvedGeneratedScript.source_snapshot })
-    : extractDirectorReferenceImageUrls({ directorAnalysis: sourceScenarioAnalysis });
+  const referenceTransferPlan = buildReferenceTransferPolicy({
+    hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),
+  });
+  const directorReferenceImageUrls = sourceScenarioAnalysis
+    ? extractDirectorReferenceImageUrls({ directorAnalysis: sourceScenarioAnalysis })
+    : extractDirectorReferenceImageUrls({ sourceSnapshot: resolvedGeneratedScript?.source_snapshot });
   const scriptText = resolvedGeneratedScript?.script || sourceScenario?.script || brief || "";
   const backgroundAudioMood = normalizeAudioMood(
     resolvedGeneratedScript?.background_audio_mood,
@@ -143,6 +161,12 @@ export async function createOmniReel(input: {
         hook: resolvedGeneratedScript.hook,
         script: resolvedGeneratedScript.script,
         source_snapshot: resolvedGeneratedScript.source_snapshot,
+        director_analysis_id: sourceScenarioAnalysis?.id || null,
+        director_analysis_status: sourceScenarioAnalysis?.director_analysis_status || "not_requested",
+        director_analysis: sourceScenarioDirectorBrief,
+        director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
+        director_reference_image_urls: directorReferenceImageUrls,
+        reference_transfer_plan: referenceTransferPlan,
         wardrobe_source: project.wardrobe_source,
       }
     : sourceScenario
@@ -161,6 +185,7 @@ export async function createOmniReel(input: {
         director_analysis_id: sourceScenarioAnalysis?.id || null,
         director_analysis_status: sourceScenarioAnalysis?.director_analysis_status || "not_requested",
         director_analysis: sourceScenarioDirectorBrief,
+        reference_transfer_plan: referenceTransferPlan,
         director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
         director_reference_image_urls: directorReferenceImageUrls,
         wardrobe_source: project.wardrobe_source,
@@ -228,7 +253,7 @@ export async function createOmniReel(input: {
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
   const reservedReelId = await reserveOmniReelId();
   const storyboardDirectorReferenceImageUrlsBySegment = await prepareSegmentStoryboardDirectorReferenceUrls({
-    directorAnalysis: resolvedGeneratedScript ? null : sourceScenarioAnalysis,
+    directorAnalysis: sourceScenarioAnalysis,
     sourceSnapshot: resolvedGeneratedScript?.source_snapshot || sourceSnapshot,
     storageTarget: {
       kind: "reel",

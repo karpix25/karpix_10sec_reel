@@ -14,6 +14,24 @@ import type { PhysicalFramePlan } from "../physical-scene-types";
 export const FIVE_FRAMES_PER_TEN_SECONDS = 5;
 export const OMNI_STORYBOARD_SEGMENT_SECONDS = 10;
 
+export type OmniStoryboardReferenceTransfer = {
+  version: "reference-transfer-v2";
+  productMeaningfulBeat: boolean;
+  visualCue: string | null;
+  decisions: {
+    layout: string;
+    camera: string;
+    lighting: string;
+    editLanguage: string;
+    wardrobe: string;
+    environment: string;
+    presenterAction: string;
+    sourceProduct: string;
+    sourceProps: string;
+    overlays: string;
+  };
+};
+
 export type OmniStoryboardFrame = {
   spokenText: string;
   visualAction: string;
@@ -25,6 +43,7 @@ export type OmniStoryboardFrame = {
   effectNotes?: string | null;
   modelMusicNotes?: string | null;
   physicalPlan?: PhysicalFramePlan | null;
+  referenceTransfer?: OmniStoryboardReferenceTransfer | null;
 };
 
 export type OmniStoryboardSegment = {

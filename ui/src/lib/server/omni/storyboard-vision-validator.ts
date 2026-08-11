@@ -69,12 +69,13 @@ function buildStoryboardVisionPrompt(storyboard: OmniStoryboardSegment, productN
         action: frame.visualAction,
         product_placement: frame.productPlacement,
         physical_plan: frame.physicalPlan || null,
+        reference_transfer: frame.referenceTransfer || null,
         wardrobe: frame.wardrobe,
         camera: frame.camera,
         environment: frame.environment,
       })),
     }),
-    "For every panel, verify that the visible image obeys the expected action and physical_plan. A product must be held or rest on a visible surface; it must never float.",
+    "For every panel, verify that the visible image obeys the expected action, physical_plan, and reference_transfer. A product must be held or rest on a visible surface; it must never float. If reference_transfer says the source product is removed or replaced, reject any copied source product or unrelated source prop becoming the visual subject.",
   ].join("\n");
 }
 

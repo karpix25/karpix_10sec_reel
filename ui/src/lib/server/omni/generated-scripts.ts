@@ -23,10 +23,11 @@ import { resolveProductReferenceImageUrls } from "./omni-product-reference-image
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
-import { extractDirectorBriefFromSnapshot } from "./director-analysis-types";
+import { extractDirectorBriefFromSnapshot, normalizeDirectorBrief } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
+import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import {
   normalizeOmniPromptPlanWithPhysicalRules,
   repairOmniPromptPlanWithAi,
@@ -218,8 +219,13 @@ export async function createGeneratedScriptFromLegacy(input: {
     warn: (message) => console.warn(message),
   });
   const directorBrief =
-    directorAnalysis?.director_analysis_status === "completed" ? directorAnalysis.director_analysis_json : null;
+    directorAnalysis?.director_analysis_status === "completed"
+      ? normalizeDirectorBrief(directorAnalysis.director_analysis_json)
+      : null;
   const directorReferenceImageUrls = extractDirectorReferenceImageUrls({ directorAnalysis });
+  const referenceTransferPlan = buildReferenceTransferPolicy({
+    hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),
+  });
 
   const model = process.env.SCENARIO_MODEL || "google/gemini-2.5-flash";
   const generated = await generateScript({
@@ -263,6 +269,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     background_audio_mood: normalizeAudioMood(generated.payload.background_audio_mood),
     director_analysis_status: directorAnalysis?.director_analysis_status || "not_requested",
     director_analysis: directorBrief,
+    reference_transfer_plan: referenceTransferPlan,
     director_video_url: directorAnalysis?.stored_video_url || directorAnalysis?.resolved_video_url || null,
     director_reference_image_urls: directorReferenceImageUrls,
     wardrobe_source: project.wardrobe_source,

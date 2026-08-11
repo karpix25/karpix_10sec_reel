@@ -155,6 +155,14 @@ async function extractFramesFromVideoUrl(videoUrl: string, maxFrames: number, se
   return extractFramesFromVideoBuffer(videoBuffer, maxFrames, seekSeconds);
 }
 
+export async function extractDirectorReferenceFrameBuffers(input: {
+  videoUrl: string;
+  maxFrames: number;
+  seekSeconds?: readonly number[];
+}) {
+  return extractFramesFromVideoUrl(input.videoUrl, input.maxFrames, input.seekSeconds);
+}
+
 async function extractFramesFromVideoBuffer(videoBuffer: Buffer, maxFrames: number, seekSeconds: readonly number[] = SEEK_SECONDS) {
   if (maxFrames <= 0) return [];
   const workdir = await mkdtemp(path.join(tmpdir(), "omni-director-ref-"));

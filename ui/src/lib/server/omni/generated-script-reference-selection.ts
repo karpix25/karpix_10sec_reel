@@ -1,5 +1,5 @@
 import type { OmniLegacyScenario } from "@/lib/omni/types";
-import type { OmniDirectorAnalysis } from "./director-analysis-types";
+import { normalizeDirectorBrief, type OmniDirectorAnalysis } from "./director-analysis-types";
 import type { GeneratedScriptSourceMode } from "./generated-script-source";
 
 export const MAX_DIRECTOR_REFERENCE_ATTEMPTS = 8;
@@ -96,7 +96,9 @@ async function resolveSourceOrThrow(input: {
 
 function isDirectorReferenceReady(directorAnalysis: OmniDirectorAnalysis | null) {
   return !directorAnalysis ||
-    (directorAnalysis.director_analysis_status === "completed" && hasDurableDirectorReference(directorAnalysis));
+    (directorAnalysis.director_analysis_status === "completed" &&
+      hasDurableDirectorReference(directorAnalysis) &&
+      Boolean(normalizeDirectorBrief(directorAnalysis.director_analysis_json)));
 }
 
 function hasDurableDirectorReference(directorAnalysis: OmniDirectorAnalysis) {
@@ -114,6 +116,9 @@ function formatSkippedDirectorReference(
 
 function getDirectorFailureReason(directorAnalysis: OmniDirectorAnalysis | null) {
   if (!directorAnalysis) return "not_requested";
+  if (directorAnalysis.director_analysis_status === "completed" && !normalizeDirectorBrief(directorAnalysis.director_analysis_json)) {
+    return "director analysis is invalid";
+  }
   if (directorAnalysis.director_analysis_status === "completed" && !hasDurableDirectorReference(directorAnalysis)) {
     return directorAnalysis.video_storage_error || "reference video was analyzed but not stored durably";
   }

@@ -65,6 +65,27 @@ try {
   assert.match(warnings[0], /source #2930/);
   assert.match(warnings[0], /empty content/);
 
+  const invalidCompleted = legacyScenario(2934);
+  const invalidWarnings = [];
+  const resolvedAfterInvalidCompleted = await resolveReadyGeneratedScriptReference({
+    projectId: 7,
+    productId: 9,
+    legacyScenarioId: invalidCompleted.id,
+    maxAttempts: 3,
+    resolveSource: async (input) =>
+      input.legacyScenarioId
+        ? { sourceScenario: invalidCompleted, sourceMode: "selected_legacy_reference" }
+        : { sourceScenario: fallback, sourceMode: "random_active_legacy_reference" },
+    shouldAnalyze: () => true,
+    ensureAnalysis: async ({ sourceScenario }) =>
+      sourceScenario.id === invalidCompleted.id
+        ? directorAnalysis(sourceScenario.id, "completed", null, { invalidBrief: true })
+        : directorAnalysis(sourceScenario.id, "completed", null),
+    warn: (message) => invalidWarnings.push(message),
+  });
+  assert.equal(resolvedAfterInvalidCompleted.sourceScenario.id, fallback.id);
+  assert.match(invalidWarnings[0], /director analysis is invalid/);
+
   const storageWarnings = [];
   const storageFailed = legacyScenario(2932);
   const visualReady = legacyScenario(2933);
@@ -142,13 +163,29 @@ function directorAnalysis(legacyScenarioId, status, error, options = {}) {
     source_snapshot: null,
     scrapecreators_payload: null,
     director_analysis_status: status,
-    director_analysis_json: status === "completed" ? {} : null,
+    director_analysis_json: status === "completed"
+      ? options.invalidBrief
+        ? {}
+        : validDirectorBrief()
+      : null,
+    analysis_verification: null,
     analysis_model: null,
     analysis_prompt_version: "director-brief-v3",
     analysis_error: error,
     created_at: "2026-07-22T00:00:00.000Z",
     updated_at: "2026-07-22T00:00:00.000Z",
     completed_at: status === "completed" ? "2026-07-22T00:00:00.000Z" : null,
+  };
+}
+
+function validDirectorBrief() {
+  return {
+    visual_hook: { action: "presenter starts in a car", retention_trigger: "direct eye contact" },
+    atmosphere: { mood: "casual", lighting: "daylight", color_grading: "natural", setting: "passenger seat" },
+    clothing: { style: "dark knit top", color_palette: ["black"], fit_details: "fitted", source: "presenter", adaptation_notes: "adapt to avatar" },
+    camera: { shot_types: ["medium close-up"], angles: ["eye level"], movements: ["handheld"], stabilization: "phone shake" },
+    montage_rhythm: { cut_pace: "slow", beat_sync: "none", transition_style: ["hard cut"] },
+    reusable_mechanics: { visual_mechanics: ["direct address"], safe_zones_for_elements: "center", looping_pattern: "return to face" },
   };
 }
 
