@@ -53,7 +53,7 @@ export async function validateStoryboardImage(input: {
 const STORYBOARD_VISION_SYSTEM_PROMPT = [
   "You are a strict physical continuity auditor for storyboard contact sheets.",
   "Inspect the generated contact sheet, panel by panel, and compare it with the expected storyboard plan.",
-  "Only judge physical feasibility and continuity: hand capacity, object support, object identity, action completion, impossible transitions, extra hands, floating objects, and repeated frames.",
+  "Judge hard visual contracts too: product visibility, the one locked outfit, avatar identity, camera angle, lighting, environment, and whether the image action matches the spoken line.",
   "Return only valid JSON with status pass, repair, or block; confidence from 0 to 1; panels; and repair_instructions.",
   "If the image is ambiguous or you cannot verify a physical constraint, return block with low confidence.",
 ].join(" ");
@@ -69,6 +69,9 @@ function buildStoryboardVisionPrompt(storyboard: OmniStoryboardSegment, productN
         action: frame.visualAction,
         product_placement: frame.productPlacement,
         physical_plan: frame.physicalPlan || null,
+        wardrobe: frame.wardrobe,
+        camera: frame.camera,
+        environment: frame.environment,
       })),
     }),
     "For every panel, verify that the visible image obeys the expected action and physical_plan. A product must be held or rest on a visible surface; it must never float.",

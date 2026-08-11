@@ -51,9 +51,7 @@ import {
   renderProductPhysicalHintForStoryboard,
   resolveProductPhysicalContract,
 } from "./product-physical-contract";
-import {
-  mentionsOmniProduct,
-} from "./omni-intro-product-contract";
+import { deriveOmniSegmentIntents } from "./omni-segment-intent";
 import {
   repairPhysicalScenePrompt,
   validatePhysicalScene,
@@ -122,6 +120,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   const segmentDurationsSeconds = voiceSegments.map((_, index) =>
     input.segmentDurationsSeconds?.[index] || input.segmentSeconds
   );
+  const segmentIntents = deriveOmniSegmentIntents(voiceSegments, input.product.name);
   const scriptPlanRepair = repairScriptBeatBoundaryRepeats(
     extractGeneratedScriptBeatPlanFromSnapshot(input.generatedScript?.source_snapshot)
   );
@@ -169,20 +168,20 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   let previousContinuityState: OmniGenerationContinuityState | null = null;
 
   for (let index = 0; index < voiceSegments.length; index += 1) {
+    const segmentIntent = segmentIntents[index];
     const segmentIndex = index + 1;
     const segmentSeconds = segmentDurationsSeconds[index] || input.segmentSeconds;
     const segmentRole = getSegmentRole(segmentIndex, input.segmentCount);
     const segmentScriptBeats = selectScriptBeatsForSegment(scriptPlan, segmentIndex, input.segmentCount);
     const baseProductRole = getSegmentProductRole(
       strategy.productRole,
-      voiceSegments[index].text,
-      input.product.name
+      segmentIntent.productVisible
     );
     const productRole = baseProductRole;
     const segmentProductVisualPassport = productVisualPassport;
     const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
       segmentIndex,
-      voiceoverText: voiceSegments[index].text,
+      voiceoverText: segmentIntent.spokenText,
       strategy,
       productRole,
       segmentCount: input.segmentCount,
@@ -251,14 +250,9 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
 
 function getSegmentProductRole(
   role: ProductRole,
-  voiceoverText: string,
-  productName = ""
+  productVisible: boolean
 ): ProductRole {
-  if (role === "hidden") return role;
-  if (mentionsOmniProduct(voiceoverText, productName)) {
-    return role;
-  }
-  return "hidden";
+  return role === "hidden" || !productVisible ? "hidden" : role;
 }
 
 function buildStoredProviderPromptSegments(
@@ -291,17 +285,19 @@ function buildStoredProviderPromptSegments(
     recentFormatIds: input.recentFormatIds,
   });
   assertOmniCtaContract(scriptText, strategy);
+  const segmentIntents = deriveOmniSegmentIntents(
+    providerPromptPlan.segmentPrompts.map((segment) => ({ index: segment.index, spokenText: segment.voiceover })),
+    input.product.name
+  );
 
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
-    const segmentMentionsProduct = segment.storyboardFrames.some((frame) =>
-      mentionsOmniProduct(frame.spokenWords, input.product.name)
-    );
-    const productRole: ProductRole = segmentMentionsProduct ? strategy.productRole : "hidden";
+    const segmentIntent = segmentIntents[index];
+    const productRole = getSegmentProductRole(strategy.productRole, Boolean(segmentIntent?.productVisible));
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,
-      voiceoverText: segment.voiceover,
+      voiceoverText: segmentIntent?.spokenText || segment.voiceover,
       productRole,
       segmentSeconds: segment.durationSeconds,
       strategy,
@@ -309,12 +305,13 @@ function buildStoredProviderPromptSegments(
     const storyboardPlan = buildStoryboardFromPromptChainFrames({
       segmentIndex,
       durationSeconds: segment.durationSeconds,
-      voiceoverText: segment.voiceover,
+      voiceoverText: segmentIntent?.spokenText || segment.voiceover,
       frames: segment.storyboardFrames,
       productName: input.product.name,
       productPhysicalHint,
       directorBrief,
       segmentCount: providerPromptPlan.segmentPrompts.length,
+      productVisible: Boolean(segmentIntent?.productVisible),
     });
     const validation = validatePhysicalScene({
       storyboard: storyboardPlan,

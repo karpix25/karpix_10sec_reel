@@ -12,7 +12,7 @@ type StoryboardPromptSegment = {
   storyboardPlan: OmniStoryboardSegment | null;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-pip-reference-authority-v6";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-pip-reference-authority-v7";
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;

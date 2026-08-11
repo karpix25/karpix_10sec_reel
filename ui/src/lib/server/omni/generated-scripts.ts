@@ -13,6 +13,7 @@ import { getOmniProject } from "./projects";
 import { listRecentLifeFormatIds } from "./omni-creative-history";
 import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
 import { ensureOmniScriptCta } from "./omni-cta-contract";
+import { assertStoryboardPromptContracts } from "./storyboard/storyboard-contract-validator";
 import { generateScript } from "./script-generator";
 import { resolveReadyGeneratedScriptReference } from "./generated-script-reference-selection";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
@@ -145,6 +146,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     directorBrief,
   });
   assertPhysicalPromptPlan(promptPlan);
+  assertStoryboardPromptContracts(promptPlan, product.name);
   const storyboardGeneration = prepareSegmentStoryboardDirectorReferenceUrls({
     sourceSnapshot: resolvedGeneratedScript.source_snapshot,
     storageTarget: {
