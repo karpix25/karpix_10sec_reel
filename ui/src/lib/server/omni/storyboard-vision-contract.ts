@@ -5,7 +5,7 @@ import type {
   StoryboardVisionViolation,
 } from "../../omni/storyboard/omni-storyboard-vision-types";
 
-export const STORYBOARD_VISION_MIN_CONFIDENCE = 0.85;
+export const STORYBOARD_VISION_MIN_CONFIDENCE = 0.65;
 
 export function normalizeStoryboardVisionValidation(value: unknown, model?: string): StoryboardVisionValidation {
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
@@ -16,14 +16,14 @@ export function normalizeStoryboardVisionValidation(value: unknown, model?: stri
       .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
       .map((item) => item.trim())
     : [];
-  const requestedStatus = normalizeStatus(source.status);
   const hasBlockingPanel = panels.some((panel) => panel.status === "block");
-  const hasRepairPanel = panels.some((panel) => panel.status === "repair");
+  const hasRepairPanel = panels.some((panel) => panel.status === "repair" && panel.violations.length > 0);
+  const hasRepair = hasRepairPanel || repairInstructions.length > 0;
   const status: StoryboardVisionStatus = confidence < STORYBOARD_VISION_MIN_CONFIDENCE || hasBlockingPanel
     ? "block"
-    : requestedStatus === "repair" || hasRepairPanel
+    : hasRepair
       ? "repair"
-      : requestedStatus === "pass" && panels.length > 0 ? "pass" : "block";
+      : panels.length > 0 ? "pass" : "block";
   return { schemaVersion: "storyboard_vision_v1", status, confidence, panels, repairInstructions, model };
 }
 
