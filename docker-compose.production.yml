@@ -102,8 +102,11 @@ services:
       - 1.1.1.1
       - 8.8.8.8
     networks:
-      - default
-      - legacy_ai_avatars
+      default: {}
+      legacy_ai_avatars: {}
+      easypanel:
+        aliases:
+          - n8n_omnireels_web
     expose:
       - "3000"
     healthcheck:
