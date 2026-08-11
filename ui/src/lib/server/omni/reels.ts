@@ -22,11 +22,12 @@ import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-dire
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
-import type { DirectorBrief } from "./director-analysis-types";
+import { extractDirectorBriefFromSnapshot, type DirectorBrief } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 import { repairOmniPromptPlanWithAi } from "./omni-physical-repair-pipeline";
+import { assertStoryboardPromptContracts } from "./storyboard/storyboard-contract-validator";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -112,6 +113,8 @@ export async function createOmniReel(input: {
     : null;
   const sourceScenarioDirectorBrief =
     sourceScenarioAnalysis?.director_analysis_status === "completed" ? sourceScenarioAnalysis.director_analysis_json : null;
+  const directorBrief = sourceScenarioDirectorBrief ||
+    extractDirectorBriefFromSnapshot(resolvedGeneratedScript?.source_snapshot);
   const directorReferenceImageUrls = resolvedGeneratedScript
     ? extractDirectorReferenceImageUrls({ sourceSnapshot: resolvedGeneratedScript.source_snapshot })
     : extractDirectorReferenceImageUrls({ directorAnalysis: sourceScenarioAnalysis });
@@ -208,7 +211,7 @@ export async function createOmniReel(input: {
       voiceSegments: segmentPlan.segments,
       segmentDurationsSeconds: segmentPlan.segmentDurationsSeconds,
       brief,
-      directorBrief: sourceScenarioDirectorBrief,
+      directorBrief,
       targetAudience: project.target_audience,
       ctaMode: product.cta_mode,
       ctaValue: product.cta_value,
@@ -218,9 +221,10 @@ export async function createOmniReel(input: {
     productName: product.name,
     productPhysicalContract: product.product_physical_contract,
     segmentCount,
-    directorBrief: sourceScenarioDirectorBrief,
+    directorBrief,
   });
   assertPhysicalPromptPlan(promptPlan);
+  assertStoryboardPromptContracts(promptPlan, product.name);
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
   const reservedReelId = await reserveOmniReelId();
   const storyboardDirectorReferenceImageUrlsBySegment = await prepareSegmentStoryboardDirectorReferenceUrls({
@@ -231,7 +235,7 @@ export async function createOmniReel(input: {
       projectId: input.projectId,
       reelId: reservedReelId,
     },
-    framesPerSegment: isCollagePictureInPictureReference(sourceScenarioDirectorBrief)
+    framesPerSegment: isCollagePictureInPictureReference(directorBrief)
       ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
       : undefined,
     segments: promptPlan.map((segment) => ({
@@ -252,7 +256,7 @@ export async function createOmniReel(input: {
       productReferenceUrls: resolveProductReferenceImageUrls(product),
       directorReferenceImageUrls,
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
-      directorBrief: sourceScenarioDirectorBrief,
+      directorBrief,
       promptPlan: promptPlan.map((segment) => ({
         index: segment.index,
         storyboardPlan: segment.storyboardPlan,
@@ -271,7 +275,7 @@ export async function createOmniReel(input: {
       productPhysicalContract: product.product_physical_contract,
       productReferenceUrls: resolveProductReferenceImageUrls(product),
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
-      directorBrief: sourceScenarioDirectorBrief,
+      directorBrief,
       avatarReferenceUrl: latestAvatar?.reference_url || null,
       promptPlan,
       generationProvider: input.generationProvider,

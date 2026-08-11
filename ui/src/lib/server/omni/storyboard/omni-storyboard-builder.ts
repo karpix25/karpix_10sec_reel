@@ -88,6 +88,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
   productPhysicalHint?: string | null;
   directorBrief?: DirectorBrief | null;
   segmentCount?: number;
+  productVisible?: boolean;
 }): OmniStoryboardSegment {
   if (!input.frames.length) throw new Error(`Storyboard segment ${input.segmentIndex} has no frames`);
   return {
@@ -96,7 +97,9 @@ export function buildStoryboardFromPromptChainFrames(input: {
     voiceoverText: input.voiceoverText,
     frames: input.frames.map((frame, index) => {
       const isFrameHidden = /(?:продукт|товар)\s+(?:вне\s+кадра|не\s+виден|скрыт)|hidden|off\s*camera/iu.test(frame.productState || "");
-      const productVisible = !isFrameHidden && mentionsOmniProduct(frame.spokenWords, input.productName);
+      const productVisible = Boolean(input.productVisible) &&
+        !isFrameHidden &&
+        mentionsOmniProduct(frame.spokenWords, input.productName);
       const referenceProfile = selectDirectorSegmentProfile({
         brief: input.directorBrief,
         segmentIndex: input.segmentIndex,
