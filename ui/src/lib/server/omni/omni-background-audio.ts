@@ -6,6 +6,8 @@ import type { AudioTrack } from "@/lib/audio-library/types";
 import { chooseAudioTrackForMood } from "@/lib/server/audio-library/tracks";
 import { runOmniFfmpeg, runOmniFfprobeDuration } from "./omni-ffmpeg";
 
+const BACKGROUND_AUDIO_DOWNLOAD_TIMEOUT_MS = 45_000;
+
 export type OmniBackgroundAudioResult =
   | {
       status: "completed";
@@ -78,7 +80,10 @@ export async function mixBackgroundAudioForReel(input: {
 }
 
 async function downloadAudioTrack(fileUrl: string, outputPath: string) {
-  const response = await fetch(fileUrl, { cache: "no-store" });
+  const response = await fetch(fileUrl, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(BACKGROUND_AUDIO_DOWNLOAD_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(`Failed to download background audio: ${response.status}`);
   }
