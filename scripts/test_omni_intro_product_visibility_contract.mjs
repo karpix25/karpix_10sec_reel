@@ -79,8 +79,8 @@ try {
     segmentIndex: 3,
     productIsVisible: false,
   });
-  assert.deepEqual(hiddenProductKie.sent.map((image) => image.role), ["storyboard"]);
-  assert.deepEqual(hiddenProductKie.skipped.map((image) => image.role), ["storyboard_canonical", "product", "product_secondary"]);
+  assert.deepEqual(hiddenProductKie.sent.map((image) => image.role), ["storyboard", "storyboard_canonical"]);
+  assert.deepEqual(hiddenProductKie.skipped.map((image) => image.role), ["product", "product_secondary"]);
 
   const firstComet = selectReferenceImagesForSegment({
     provider: "cometapi",

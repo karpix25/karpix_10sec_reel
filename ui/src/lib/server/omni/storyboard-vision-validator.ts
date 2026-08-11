@@ -12,6 +12,7 @@ export async function validateStoryboardImage(input: {
   imageUrl: string;
   storyboard: OmniStoryboardSegment;
   productName: string;
+  canonicalStoryboardReferenceUrl?: string | null;
   model?: string | null;
 }): Promise<StoryboardVisionValidation> {
   const apiKey = process.env.OPENROUTER_API_KEY || "";
@@ -34,8 +35,18 @@ export async function validateStoryboardImage(input: {
         {
           role: "user",
           content: [
-            { type: "text", text: buildStoryboardVisionPrompt(input.storyboard, input.productName) },
+            {
+              type: "text",
+              text: buildStoryboardVisionPrompt({
+                storyboard: input.storyboard,
+                productName: input.productName,
+                hasCanonicalStoryboardReference: Boolean(input.canonicalStoryboardReferenceUrl?.trim()),
+              }),
+            },
             { type: "image_url", image_url: { url: input.imageUrl } },
+            ...(input.canonicalStoryboardReferenceUrl?.trim()
+              ? [{ type: "image_url" as const, image_url: { url: input.canonicalStoryboardReferenceUrl.trim() } }]
+              : []),
           ],
         },
       ],
@@ -53,17 +64,25 @@ export async function validateStoryboardImage(input: {
 const STORYBOARD_VISION_SYSTEM_PROMPT = [
   "You are a strict physical continuity auditor for storyboard contact sheets.",
   "Inspect the generated contact sheet, panel by panel, and compare it with the expected storyboard plan.",
+  "When a canonical storyboard image is supplied, compare the candidate contact sheet against it for the hero outfit.",
   "Judge hard visual contracts too: product visibility, the one locked outfit, avatar identity, camera angle, lighting, environment, and whether the image action matches the spoken line.",
   "Return only valid JSON with status pass, repair, or block; confidence from 0 to 1; panels; and repair_instructions.",
   "If the image is ambiguous or you cannot verify a physical constraint, return block with low confidence.",
 ].join(" ");
 
-function buildStoryboardVisionPrompt(storyboard: OmniStoryboardSegment, productName: string) {
+function buildStoryboardVisionPrompt(input: {
+  storyboard: OmniStoryboardSegment;
+  productName: string;
+  hasCanonicalStoryboardReference: boolean;
+}) {
   return [
+    input.hasCanonicalStoryboardReference
+      ? "The first image is the candidate storyboard. The second image is the approved canonical storyboard outfit reference. The candidate must preserve every visible outfit detail from the canonical reference: garment type, sleeves, neckline, fabric, color, glasses, jewelry, and hair. Ignore a detail only when it is not visible in the candidate panel. Any visible mismatch requires repair."
+      : "The first image is the candidate storyboard.",
     "Expected storyboard plan:",
     JSON.stringify({
-      product: productName,
-      panels: storyboard.frames.map((frame, index) => ({
+      product: input.productName,
+      panels: input.storyboard.frames.map((frame, index) => ({
         panel_index: index + 1,
         speech: frame.spokenText,
         action: frame.visualAction,

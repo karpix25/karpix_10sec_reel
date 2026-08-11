@@ -13,17 +13,17 @@ export function buildStoryboardImagePrompt(input: {
   avatarReferenceUrl: string | null;
   productReferenceUrls?: readonly string[];
   directorReferenceImageUrls?: readonly string[];
-  previousStoryboardReferenceUrl?: string | null;
+  canonicalStoryboardReferenceUrl?: string | null;
   directorBrief?: DirectorBrief | null;
   repairInstructions?: readonly string[];
 }) {
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
   const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || []);
-  const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
+  const canonicalStoryboardReferenceUrl = cleanUrl(input.canonicalStoryboardReferenceUrl);
   const isPipLayout = isCollagePictureInPictureReference(input.directorBrief || null);
-  const productFileStart = 2;
+  const canonicalFile = canonicalStoryboardReferenceUrl ? 2 : null;
+  const productFileStart = 2 + (canonicalFile ? 1 : 0);
   const directorFileStart = productFileStart + productReferenceUrls.length;
-  const previousFile = directorFileStart + directorReferenceImageUrls.length;
   const productPhysicalHint = productReferenceUrls.length
     ? renderProductPhysicalStoryboardHint(input.productPhysicalContract)
     : "";
@@ -37,20 +37,24 @@ export function buildStoryboardImagePrompt(input: {
     "В каждой панели: живой вертикальный кадр, точная реплика на русском, короткие подписи РАКУРС и ДЕЙСТВИЕ.",
     "Без рекламного дизайна, UI, соцсетей, водяных знаков, captions, стикеров и декора.",
     "@file1 - avatar/character reference: только лицо, возраст, волосы, телосложение и личность героя. Лицо оригинального автора не копируй.",
+    canonicalFile
+      ? `@file${canonicalFile} - эталон одежды из первого утверждённого storyboard. В точности повтори видимые верх, рукава, вырез, ткань, цвет, очки, украшения и волосы. Этот эталон важнее кадров оригинала для внешнего вида героя.`
+      : "Первый storyboard задаёт эталон одежды для всех следующих частей ролика.",
     productReferenceUrls.length
       ? `@file${productFileStart}${productReferenceUrls.length > 1 ? `-@file${productFileStart + productReferenceUrls.length - 1}` : ""} - product reference images: точный продукт ${input.productName}, форма, цвет, упаковка, материал и размер.`
       : "Product reference не передан: продукт не показывай.",
     directorReferenceImageUrls.length
-      ? `@file${directorFileStart}-@file${previousFile - 1} - кадры оригинала: источник только локации, ракурса, света, одежды, движения камеры, PIP и монтажа. Лицо только из @file1; не копируй исходный товар, текст, логотипы или предметы вне действия панели.`
-      : "",
-    previousStoryboardReferenceUrl
-      ? `@file${previousFile} - continuity героя, одежды, света и продукта; не источник композиции или действий.`
+      ? canonicalFile
+        ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только локации, ракурса, света, движения камеры, PIP и монтажа. Лицо только из @file1; одежду не копируй, она задана эталоном @file${canonicalFile}; не копируй исходный товар, текст, логотипы или предметы вне действия панели.`
+        : `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только локации, ракурса, света, одежды, движения камеры, PIP и монтажа. Лицо только из @file1; не копируй исходный товар, текст, логотипы или предметы вне действия панели.`
       : "",
     isPipLayout
       ? "REFERENCE LAYOUT: оригинал целиком в PIP/collage. В каждой панели полноэкранный динамичный фон и avatar cutout в нижнем левом углу с той же позицией, размером и белой обводкой; не делай centered talking-head."
       : "",
-    "Сохрани одного героя, одну одежду, одинаковые волосы, свет и окружение. Натуральная живая кожа и бытовой свет, без пластика.",
-    input.directorBrief?.clothing
+    canonicalFile
+      ? "OUTFIT LOCK: во всех панелях одежда должна совпадать с эталоном. Любое изменение типа верха, рукавов, выреза, ткани, цвета, очков, украшений или волос — ошибка."
+      : "Сохрани одного героя, одну одежду, одинаковые волосы, свет и окружение. Натуральная живая кожа и бытовой свет, без пластика.",
+    !canonicalFile && input.directorBrief?.clothing
       ? [
           "CLOTHING LOCK (all panels):",
           input.directorBrief.clothing.style,
@@ -64,7 +68,7 @@ export function buildStoryboardImagePrompt(input: {
     "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
     "Смысл реплики определяет главный предмет и действие кадра. Сохраняй мир съемки: ракурс, свет, одежду, тряску, PIP и монтаж; жест адаптируй. Исходный рекламный товар всегда заменяй нашим или убирай; нейтральный реквизит только поддерживает реплику.",
     OMNI_PHYSICAL_ACTION_CONTRACT,
-    "Канонический outfit задается первым кадром первой части: не меняй одежду, цвет, ткань, крой, аксессуары или волосы.",
+    "Не меняй одежду, цвет, ткань, крой, аксессуары или волосы между панелями.",
     productReferenceUrls.length
       ? `Продукт впервые появляется только в панели ${productRevealFrame || "по смыслу реплики"}; точно по product reference, без смены формы, упаковки и положения.`
       : "",

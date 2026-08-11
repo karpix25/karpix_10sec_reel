@@ -45,10 +45,10 @@ export function selectReferenceImagesForSegment(input: {
 
   const visibleCometReferences = productReferencesAllowed
     ? input.cometReferenceImages
-    : input.cometReferenceImages.filter((image) => image.role === "avatar");
+    : input.cometReferenceImages.filter((image) => image.role === "avatar" || isStoryboardReference(image));
   const hiddenCometReferences = productReferencesAllowed
     ? []
-    : input.cometReferenceImages.filter((image) => image.role !== "avatar");
+    : input.cometReferenceImages.filter((image) => image.role !== "avatar" && !isStoryboardReference(image));
   const cometSelection = selectReferenceImagesForComet(
     [...input.continuityImages, ...visibleCometReferences],
     input.referenceImageTransport,
@@ -66,7 +66,11 @@ function isProductReference(image: ReelReferenceImage) {
 }
 
 function isProductBearingReference(image: ReelReferenceImage) {
-  return isProductReference(image) || image.role === "storyboard_canonical";
+  return isProductReference(image);
+}
+
+function isStoryboardReference(image: ReelReferenceImage) {
+  return image.role === "storyboard" || image.role === "storyboard_canonical";
 }
 
 function selectUrlReferenceImage(images: ReelReferenceImage[], segmentIndex?: number) {

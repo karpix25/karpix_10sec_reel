@@ -18,13 +18,16 @@ export function appendKieReferenceOrderPrompt(
   const labels = images.map((image, index) => `Image ${index + 1}: ${describeReferenceRole(image.role)}`);
   const hasPreviousFrame = images.some((image) => image.role === "previous_last_frame");
   const hasProduct = images.some((image) => image.role === "product" || image.role === "product_secondary");
+  const hasCanonicalStoryboard = images.some((image) => image.role === "storyboard_canonical");
   return [
     prompt.trim(),
     "",
     `KIE reference image order: ${labels.join("; ")}.`,
     hasPreviousFrame ? "Follow the previous frame image for the starting pose and layout." : "",
-    images.some((image) => image.role === "storyboard")
-      ? "WARDROBE AUTHORITY: copy the exact outfit, color, fabric, fit, sleeves, and accessories shown in the first storyboard reference across every segment. The storyboard outfit overrides avatar or model guesses; never change to denim, a lab coat, a shirt, or another garment unless that exact garment is visible in the canonical storyboard."
+    hasCanonicalStoryboard
+      ? "WARDROBE AUTHORITY: copy the exact outfit, color, fabric, fit, sleeves, glasses, and accessories from the canonical storyboard reference. It overrides the current storyboard, avatar, and model guesses for character appearance."
+      : images.some((image) => image.role === "storyboard")
+        ? "WARDROBE AUTHORITY: copy the exact outfit, color, fabric, fit, sleeves, and accessories shown in the storyboard reference. The storyboard outfit overrides avatar or model guesses."
       : "",
     hasProduct
       ? "Use the product image as the exact standalone source of truth for product appearance: package shape, label layout, cap or lid color, color palette, size, material, and printed details. The product reference must not define the character outfit, face, room, camera gear, or unrelated props. Keep the product in its own clear place in the scene, such as on a table, counter, shelf, or in the character's hands only when the segment action calls for it."
