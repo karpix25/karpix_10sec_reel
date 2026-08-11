@@ -30,6 +30,12 @@ import {
 } from "../physical-scene-model";
 import { splitStoryboardSpeech } from "./omni-storyboard-speech";
 import { buildStoredStoryboardFrame } from "./omni-stored-storyboard-frame-repair";
+import {
+  buildReferenceTransferFramePlan,
+  resolveReferenceTransferPolicy,
+  resolveReferenceTransferAction,
+  type ReferenceTransferPolicy,
+} from "../omni-reference-transfer-policy";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -45,6 +51,7 @@ export function buildStoryboardFromCreativePlan(input: {
   durationSeconds: number;
   directorBrief?: DirectorBrief | null;
   wardrobeSource?: OmniWardrobeSource;
+  referenceTransferPolicy?: ReferenceTransferPolicy;
 }): OmniStoryboardSegment {
   const frameCount = getOmniStoryboardFrameCount(input.durationSeconds);
   if (!frameCount) throw new Error(`Storyboard segment ${input.segmentIndex} has unsupported duration ${input.durationSeconds}`);
@@ -69,6 +76,7 @@ export function buildStoryboardFromCreativePlan(input: {
         characterContract: input.characterContract,
         directorBrief: input.directorBrief,
         wardrobeSource: input.wardrobeSource,
+        referenceTransferPolicy: input.referenceTransferPolicy,
         segmentIndex: input.segmentIndex,
         segmentCount: input.segmentCount || 1,
         spokenText,
@@ -89,6 +97,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
   directorBrief?: DirectorBrief | null;
   segmentCount?: number;
   productVisible?: boolean;
+  referenceTransferPolicy?: ReferenceTransferPolicy;
 }): OmniStoryboardSegment {
   if (!input.frames.length) throw new Error(`Storyboard segment ${input.segmentIndex} has no frames`);
   return {
@@ -113,6 +122,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
         productPhysicalHint: input.productPhysicalHint,
         productVisible,
         referenceProfile,
+        referenceTransferPolicy: input.referenceTransferPolicy,
       });
     }),
   };
@@ -141,6 +151,7 @@ function buildFrame(input: {
   characterContract: OmniCharacterContract;
   directorBrief?: DirectorBrief | null;
   wardrobeSource?: OmniWardrobeSource;
+  referenceTransferPolicy?: ReferenceTransferPolicy;
   segmentIndex: number;
   segmentCount?: number;
   spokenText: string;
@@ -164,10 +175,21 @@ function buildFrame(input: {
   const referenceAction = layoutLocked
     ? ""
     : renderProfileAction(referenceProfile);
+  const fallbackAction = normalizeDefaultFrameAction(beat?.action);
+  const referenceTransfer = buildReferenceTransferFramePlan({
+    policy: resolveReferenceTransferPolicy(input.referenceTransferPolicy),
+    spokenText: input.spokenText,
+    visualCue: extractVisualCue(fallbackAction),
+    productName: input.productName,
+  });
   const visualActionSource = layoutLocked
     ? beat?.action || ""
     : repairReferenceAction({
-        action: referenceAction || normalizeDefaultFrameAction(beat?.action),
+        action: resolveReferenceTransferAction({
+          framePlan: referenceTransfer,
+          referenceAction,
+          fallbackAction,
+        }),
         spokenText: input.spokenText,
         productName: input.productName,
         productVisible,
@@ -240,6 +262,7 @@ function buildFrame(input: {
     effectNotes: renderFrameTransitionNote(input.directorBrief, input.frameIndex),
     modelMusicNotes: null,
     physicalPlan,
+    referenceTransfer,
   };
 }
 

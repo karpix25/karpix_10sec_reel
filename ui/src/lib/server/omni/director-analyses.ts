@@ -6,7 +6,8 @@ import { DIRECTOR_ANALYSIS_PROMPT_VERSION } from "./director-analysis-prompt";
 import { storeDirectorReferenceVideo } from "./director-video-storage";
 import { analyzeDirectorVideo } from "./openrouter-director-analysis-client";
 import { resolveInstagramVideoWithScrapeCreators } from "./scrapecreators-client";
-import type { OmniDirectorAnalysis } from "./director-analysis-types";
+import { normalizeDirectorBrief, type OmniDirectorAnalysis } from "./director-analysis-types";
+import { verifyDirectorBriefAgainstReferenceFrames } from "./director-analysis-frame-verifier";
 
 const LEGACY_SOURCE = "old_db";
 
@@ -42,7 +43,9 @@ export async function ensureDirectorAnalysis(input: {
 }) {
   await ensureOmniSchema();
   const existing = await getDirectorAnalysisForLegacy({ legacyScenarioId: input.sourceScenario.id });
-  if (existing?.director_analysis_status === "completed") return existing;
+  if (existing?.director_analysis_status === "completed" && normalizeDirectorBrief(existing.director_analysis_json)) {
+    return existing;
+  }
 
   const row = await upsertPendingAnalysis(input);
   return runDirectorAnalysis(row.id, input.sourceScenario);
@@ -142,7 +145,15 @@ async function runDirectorAnalysis(analysisId: number, sourceScenario: OmniLegac
       videoUrl: videoUrlForAnalysis,
       transcript: sourceScenario.script,
     });
-    const openRouterUsage = analyzed.openRouterUsage ? [analyzed.openRouterUsage] : [];
+    const verified = await verifyDirectorBriefAgainstReferenceFrames({
+      videoUrl: videoUrlForAnalysis,
+      brief: analyzed.brief,
+      model: analyzed.model,
+    });
+    const openRouterUsage = [
+      verified.openRouterUsage,
+      ...(analyzed.openRouterUsage ? [analyzed.openRouterUsage] : []),
+    ];
     const openRouterCost = summarizeOpenRouterUsage(openRouterUsage);
 
     const { rows } = await pool.query<DirectorAnalysisRow>(
@@ -154,11 +165,12 @@ async function runDirectorAnalysis(analysisId: number, sourceScenario: OmniLegac
            scrapecreators_payload = $6::jsonb,
            director_analysis_status = 'completed',
            director_analysis_json = $7::jsonb,
-           analysis_model = $8,
+           analysis_verification = $8::jsonb,
+           analysis_model = $9,
            source_snapshot = jsonb_set(
-             jsonb_set(COALESCE(source_snapshot, '{}'::jsonb), '{openrouter_usage}', $9::jsonb, true),
+             jsonb_set(COALESCE(source_snapshot, '{}'::jsonb), '{openrouter_usage}', $10::jsonb, true),
              '{openrouter_cost}',
-             $10::jsonb,
+             $11::jsonb,
              true
            ),
            analysis_error = NULL,
@@ -173,7 +185,8 @@ async function runDirectorAnalysis(analysisId: number, sourceScenario: OmniLegac
         storageStatus,
         storageError,
         JSON.stringify(resolved.metadata),
-        JSON.stringify(analyzed.brief),
+        JSON.stringify(verified.brief),
+        JSON.stringify(verified.verification),
         analyzed.model,
         JSON.stringify(openRouterUsage),
         JSON.stringify(openRouterCost),

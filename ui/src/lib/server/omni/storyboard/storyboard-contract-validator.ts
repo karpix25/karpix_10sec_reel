@@ -42,12 +42,24 @@ export function validateStoryboardSegmentContract(input: {
     const frameNumber = index + 1;
     const productVisible = isProductVisibleInStoryboardFrame(frame, input.contract.productName);
     const productAction = hasProductAction(frame.visualAction, input.contract.productName);
+    const transfer = frame.referenceTransfer;
 
     if (input.contract.productVisibility === "hidden" && productVisible) {
       errors.push(`frame_${frameNumber}_product_visible_when_contract_hidden`);
     }
     if (fixedWardrobe && normalize(frame.wardrobe) !== fixedWardrobe) {
       errors.push(`frame_${frameNumber}_wardrobe_contract_mismatch`);
+    }
+    if (transfer) {
+      if (transfer.productMeaningfulBeat !== productVisible) {
+        errors.push(`frame_${frameNumber}_reference_transfer_product_meaning_mismatch`);
+      }
+      if (transfer.decisions.sourceProduct === "replace_with_product" && !productVisible) {
+        errors.push(`frame_${frameNumber}_reference_transfer_product_replacement_missing`);
+      }
+      if (transfer.decisions.sourceProduct === "remove" && productAction) {
+        errors.push(`frame_${frameNumber}_reference_transfer_product_leak`);
+      }
     }
     if (!productAction) return;
     if (input.contract.productVisibility === "hidden") {

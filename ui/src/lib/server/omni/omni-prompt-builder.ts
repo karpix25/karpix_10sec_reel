@@ -145,10 +145,6 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   const directorBrief =
     input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
   const referencePolicy = buildReferenceTransferPolicy({
-    directorBrief,
-    productName: input.product.name,
-    productDescription: input.product.description,
-    productReferenceNotes: input.product.product_reference_notes,
     hasProductReference: Boolean(productReference),
   });
   const layoutContract = buildDirectorLayoutContract(directorBrief, referencePolicy);
@@ -208,6 +204,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       durationSeconds: segmentSeconds,
       directorBrief,
       wardrobeSource: input.wardrobeSource,
+      referenceTransferPolicy: referencePolicy,
     });
     const physicalValidation = validatePhysicalScene({
       storyboard: storyboardPlan,
@@ -273,6 +270,9 @@ function buildStoredProviderPromptSegments(
   });
   const productPhysicalHint = renderProductPhysicalHintForStoryboard(productPhysicalContract);
   const directorBrief = input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
+  const referencePolicy = buildReferenceTransferPolicy({
+    hasProductReference: Boolean(productReference),
+  });
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,
     firstSpokenLine: providerPromptPlan.segmentPrompts[0]?.voiceover,
@@ -312,6 +312,7 @@ function buildStoredProviderPromptSegments(
       directorBrief,
       segmentCount: providerPromptPlan.segmentPrompts.length,
       productVisible: Boolean(segmentIntent?.productVisible),
+      referenceTransferPolicy: referencePolicy,
     });
     const validation = validatePhysicalScene({
       storyboard: storyboardPlan,

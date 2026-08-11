@@ -1,6 +1,9 @@
 import type { DirectorBrief, DirectorLocationTimelineItem } from "./director-analysis-types";
 import { buildDirectorLayoutContract } from "./director-layout-contract";
-import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
+import {
+  DEFAULT_REFERENCE_TRANSFER_POLICY,
+  type ReferenceTransferPolicy,
+} from "./omni-reference-transfer-policy";
 import {
   OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
   sanitizeCameraStabilizationForPrompt,
@@ -34,7 +37,7 @@ type DirectorLocationRange = DirectorLocationTimelineItem;
 
 export function buildDirectorSceneContract(
   brief: DirectorBrief | null,
-  policy: ReferenceTransferPolicy = { mode: "full_reference", omitRawDirectorGuidance: false },
+  policy: ReferenceTransferPolicy = DEFAULT_REFERENCE_TRANSFER_POLICY,
   options: DirectorSceneContractOptions = {}
 ): DirectorSceneContract | null {
   if (!brief) return null;

@@ -2,7 +2,6 @@ import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboar
 import { isProductVisibleInStoryboardFrame } from "./omni-intro-product-contract";
 import { renderProductPhysicalStoryboardHint } from "./product-physical-contract";
 import { OMNI_PHYSICAL_ACTION_CONTRACT } from "./omni-physical-action-contract";
-import { OMNI_REFERENCE_PRODUCT_EXCLUSION_PROMPT } from "./omni-scene-safety-contract";
 import type { DirectorBrief } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 
@@ -34,23 +33,23 @@ export function buildStoryboardImagePrompt(input: {
     .filter((index): index is number => index !== null);
   const productRevealFrame = productFrameNumbers[0] || null;
   return [
-    `Создай одну широкую UGC-storyboard картинку: черный фон, ровно ${frameCount} вертикальных панелей в один ряд, белые разделители и номер панели в белом круге.`,
-    "В каждой панели: сверху живой вертикальный кадр, внутри крупно точная реплика этого кадра на русском; снизу короткие серые подсказки РАКУРС и ДЕЙСТВИЕ.",
-    "Не добавляй рекламный дизайн, UI, соцсети, водяные знаки, лишние captions, стикеры или декоративные эффекты.",
+    `UGC-storyboard: черный фон, ровно ${frameCount} вертикальных панелей в ряд, белые разделители и номер панели.`,
+    "В каждой панели: живой вертикальный кадр, точная реплика на русском, короткие подписи РАКУРС и ДЕЙСТВИЕ.",
+    "Без рекламного дизайна, UI, соцсетей, водяных знаков, captions, стикеров и декора.",
     "@file1 - avatar/character reference: только лицо, возраст, волосы, телосложение и личность героя. Лицо оригинального автора не копируй.",
     productReferenceUrls.length
       ? `@file${productFileStart}${productReferenceUrls.length > 1 ? `-@file${productFileStart + productReferenceUrls.length - 1}` : ""} - product reference images: точный продукт ${input.productName}, форма, цвет, упаковка, материал и размер.`
       : "Product reference не передан: продукт не показывай.",
     directorReferenceImageUrls.length
-      ? `@file${directorFileStart}-@file${previousFile - 1} - кадры оригинала текущего сегмента: главный источник PIP, ракурса, света, фона, одежды, действий и монтажа; порядок сохраняй, лицо только из @file1.`
+      ? `@file${directorFileStart}-@file${previousFile - 1} - кадры оригинала: источник только локации, ракурса, света, одежды, движения камеры, PIP и монтажа. Лицо только из @file1; не копируй исходный товар, текст, логотипы или предметы вне действия панели.`
       : "",
     previousStoryboardReferenceUrl
-      ? `@file${previousFile} - только continuity героя, одежды, света и продукта; не источник композиции или действий.`
+      ? `@file${previousFile} - continuity героя, одежды, света и продукта; не источник композиции или действий.`
       : "",
     isPipLayout
       ? "REFERENCE LAYOUT: оригинал целиком в PIP/collage. В каждой панели полноэкранный динамичный фон и avatar cutout в нижнем левом углу с той же позицией, размером и белой обводкой; не делай centered talking-head."
       : "",
-    "Сохрани одного героя, одну одежду, одинаковые волосы, свет и окружение во всех панелях. Лицо натуральное: поры, живая кожа, естественный бытовой свет, без пластикового сглаживания.",
+    "Сохрани одного героя, одну одежду, одинаковые волосы, свет и окружение. Натуральная живая кожа и бытовой свет, без пластика.",
     input.directorBrief?.clothing
       ? [
           "CLOTHING LOCK (all panels):",
@@ -63,15 +62,14 @@ export function buildStoryboardImagePrompt(input: {
         ].filter(Boolean).join("; ") + ". Same fabric, cut, and color in every panel — any deviation is a failure."
       : "",
     "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
-    "Смысл реплики определяет кадр. Переноси из кадров оригинала ракурс, PIP, действие, жест, предмет, переход и атмосферу; не придумывай сцены и не заменяй PIP обычной съемкой.",
+    "Смысл реплики определяет главный предмет и действие кадра. Сохраняй мир съемки: ракурс, свет, одежду, тряску, PIP и монтаж; жест адаптируй. Исходный рекламный товар всегда заменяй нашим или убирай; нейтральный реквизит только поддерживает реплику.",
     OMNI_PHYSICAL_ACTION_CONTRACT,
-    OMNI_REFERENCE_PRODUCT_EXCLUSION_PROMPT,
-    "Канонический outfit задается первым кадром первой части: не меняй одежду, цвет, ткань, крой, аксессуары, волосы или прическу между панелями и частями.",
+    "Канонический outfit задается первым кадром первой части: не меняй одежду, цвет, ткань, крой, аксессуары или волосы.",
     productReferenceUrls.length
-      ? `Продукт впервые появляется только в панели ${productRevealFrame || "по смыслу реплики"}; прорисуй его точно по product reference и сохраняй форму, упаковку и положение физически непрерывными.`
+      ? `Продукт впервые появляется только в панели ${productRevealFrame || "по смыслу реплики"}; точно по product reference, без смены формы, упаковки и положения.`
       : "",
     productReferenceUrls.length
-      ? "Показывай продукт естественно, без рекламного close-up; не дублируй и не телепортируй его."
+      ? "Показывай продукт естественно, без рекламного close-up, дублей и телепортации."
       : "",
     productPhysicalHint ? compactText(productPhysicalHint, 180) : "",
     input.repairInstructions?.length
@@ -84,6 +82,9 @@ export function buildStoryboardImagePrompt(input: {
         `РЕПЛИКА "${frame.spokenText}".`,
         `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)}; окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};`,
         frame.effectNotes ? `переход: ${compactText(frame.effectNotes)};` : "",
+        frame.referenceTransfer
+          ? `перенос: исходный товар ${frame.referenceTransfer.decisions.sourceProduct}; нейтральный реквизит ${frame.referenceTransfer.decisions.sourceProps};`
+          : "",
         productReferenceUrls.length
           ? isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName)
             ? `продукт: ${compactText(frame.productPlacement, 150)};`

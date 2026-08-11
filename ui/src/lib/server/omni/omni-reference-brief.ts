@@ -2,7 +2,10 @@ import type { OmniCreativeStrategy } from "@/lib/omni/creative-contract";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type { DirectorBrief, DirectorLocationTimelineItem } from "./director-analysis-types";
 import type { OmniCharacterContract } from "./omni-character-contract";
-import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
+import {
+  resolveReferenceTransferPolicy,
+  type ReferenceTransferPolicy,
+} from "./omni-reference-transfer-policy";
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 import { sanitizeReferenceActionDna, sanitizeReferenceWorldText } from "./omni-scene-world-sanitizer";
 import { shouldUseAvatarWardrobe } from "./omni-wardrobe-contract";
@@ -25,7 +28,7 @@ type DirectorLocationRange = DirectorLocationTimelineItem;
 export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
   if (!input.brief) return fallbackReferenceBrief(input);
   const wardrobeSource = normalizeOmniWardrobeSource(input.wardrobeSource);
-  const policy = input.referencePolicy || { mode: "full_reference" as const, omitRawDirectorGuidance: false };
+  const policy = resolveReferenceTransferPolicy(input.referencePolicy);
   const location = selectDirectorLocationForSegment(input);
   return {
     referenceLine: [

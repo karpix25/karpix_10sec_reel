@@ -120,19 +120,19 @@ try {
     assert.ok(imagePrompt.includes(`РЕПЛИКА "${item.storyboardPlan.frames[0].spokenText}"`), "storyboard image prompt must draw frame speech");
     assert.ok(imagePrompt.includes(`ровно ${item.storyboardPlan.frames.length} вертикальных панелей`), "storyboard image prompt must lock the storyboard panel count");
     assert.ok(imagePrompt.includes("@file1 - avatar/character reference"), "storyboard image prompt must bind the avatar file");
-    assert.ok(imagePrompt.includes("кадры оригинала текущего сегмента"), "storyboard image prompt must preserve the source visual contract");
-    assert.ok(imagePrompt.includes("порядок сохраняй"), "storyboard image prompt must preserve source sequence");
+    assert.ok(imagePrompt.includes("кадры оригинала: источник только локации"), "storyboard image prompt must preserve the source visual contract");
+    assert.ok(imagePrompt.includes("источник только локации"), "storyboard image prompt must limit source frames to visual setup");
     assert.ok(imagePrompt.includes("Сохрани одного героя, одну одежду"), "storyboard image prompt must lock outfit continuity");
-    assert.ok(imagePrompt.includes("обе руки у лица"), "storyboard image prompt must keep hand and product actions physically consistent");
     assert.ok(imagePrompt.includes("одинаковые волосы"), "storyboard image prompt must lock hair details");
     assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");
     assert.ok(imagePrompt.includes("Канонический outfit задается первым кадром первой части"), "storyboard image prompt must make the first outfit canonical");
     assert.ok(imagePrompt.includes("только лицо, возраст, волосы, телосложение и личность героя"), "storyboard image prompt must limit avatar reference to identity");
-    assert.ok(imagePrompt.includes("Смысл реплики определяет кадр"), "storyboard image prompt must request semantic reference-driven shots");
+    assert.ok(imagePrompt.includes("Смысл реплики определяет главный предмет и действие кадра"), "storyboard image prompt must request semantic reference-driven shots");
     if (productVisible) {
       assert.ok(imagePrompt.includes("Продукт впервые появляется"), "storyboard image prompt must require a clear natural product reveal");
     }
-    assert.ok(imagePrompt.includes("Переноси из кадров оригинала"), "storyboard image prompt must preserve matching source camera setups");
+    assert.ok(imagePrompt.includes("Исходный рекламный товар всегда заменяй нашим или убирай"), "storyboard image prompt must replace source products");
+    assert.ok(imagePrompt.includes("нейтральный реквизит"), "storyboard image prompt must keep neutral reference props secondary");
     assert.ok(imagePrompt.includes("Не добавляй selfie-ракурсы"), "storyboard image prompt must not invent camera transitions");
     assert.ok(imagePrompt.length < 3500, `storyboard image prompt must stay under KIE text limit: ${imagePrompt.length}`);
     if (!productVisible) {
