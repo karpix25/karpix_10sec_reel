@@ -8,7 +8,8 @@ import {
   repairPhysicalFrameAction,
   repairReferenceAction,
 } from "./physical-scene-model";
-import { mentionsOmniProduct } from "./omni-intro-product-contract";
+import { isOmniProductVisualBeat } from "./omni-intro-product-contract";
+import { synchronizeReferenceTransferProductVisibility } from "./omni-reference-transfer-policy";
 
 const HIDDEN_PRODUCT_PATTERN = /(?:вне кадра|не виден|скрыт|hidden|off\s*camera|только тематические объекты)/iu;
 const SURFACE_PATTERN = /(?:на столе|на поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
@@ -46,7 +47,7 @@ function normalizeFrame(frame: OmniStoryboardFrame, productName: string): OmniSt
   const spokenText = frame.spokenText.trim();
   const sourceText = `${frame.visualAction} ${frame.productPlacement} ${frame.sfxNotes} ${frame.effectNotes || ""}`;
   const productVisible = !HIDDEN_PRODUCT_PATTERN.test(frame.productPlacement) &&
-    mentionsOmniProduct(spokenText, product) &&
+    isOmniProductVisualBeat(spokenText, product) &&
     !hasForeignReferenceProduct(spokenText, product);
   const initialAction = repairReferenceAction({
     action: frame.visualAction,
@@ -100,6 +101,7 @@ function normalizeFrame(frame: OmniStoryboardFrame, productName: string): OmniSt
     sfxNotes,
     effectNotes: speechDuringConsumption ? null : frame.effectNotes,
     physicalPlan,
+    referenceTransfer: synchronizeReferenceTransferProductVisibility(frame.referenceTransfer, productVisible),
   };
 }
 

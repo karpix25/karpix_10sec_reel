@@ -277,6 +277,39 @@ try {
   assert.match(staleProduct.frames[1].productPlacement, /продукт вне кадра/iu);
   assert.doesNotMatch(staleProduct.frames[1].visualAction, /держит Коллаген/iu);
 
+  const hiddenCtaTransfer = normalizer.normalizePhysicalStoryboardSegment({
+    productName: "Geodemika Enzyme Cleansing Foam",
+    storyboard: storyboard([
+      {
+        ...frame(
+          "Артикул Geodemika Enzyme Cleansing Foam в описании",
+          "герой держит Geodemika Enzyme Cleansing Foam в одной руке",
+          "Geodemika Enzyme Cleansing Foam в одной руке"
+        ),
+        referenceTransfer: {
+          version: "reference-transfer-v2",
+          productMeaningfulBeat: true,
+          visualCue: "показывает продукт",
+          decisions: {
+            layout: "preserve",
+            camera: "preserve",
+            lighting: "preserve",
+            editLanguage: "preserve",
+            wardrobe: "preserve",
+            environment: "preserve",
+            presenterAction: "adapt_action",
+            sourceProduct: "replace_with_product",
+            sourceProps: "preserve_as_support",
+            overlays: "remove",
+          },
+        },
+      },
+    ]),
+  });
+  assert.equal(hiddenCtaTransfer.frames[0].referenceTransfer.productMentioned, true);
+  assert.equal(hiddenCtaTransfer.frames[0].referenceTransfer.productMeaningfulBeat, false);
+  assert.equal(hiddenCtaTransfer.frames[0].referenceTransfer.decisions.sourceProduct, "remove");
+
   const normalizedCheekAction = normalizer.normalizePhysicalStoryboardSegment({
     productName: "Коллаген",
     storyboard: storyboard([

@@ -1,4 +1,4 @@
-import { mentionsOmniProduct } from "./omni-intro-product-contract";
+import { isOmniProductVisualBeat, mentionsOmniProduct } from "./omni-intro-product-contract";
 
 export type OmniSegmentSourceSpan = {
   startSeconds: number;
@@ -16,6 +16,7 @@ export type OmniSegmentIntentInput = {
 export type OmniSegmentIntent = {
   index: number;
   spokenText: string;
+  productMentioned: boolean;
   productVisible: boolean;
   sourceIndex?: number;
   sourceSpan?: OmniSegmentSourceSpan;
@@ -33,11 +34,13 @@ export function deriveOmniSegmentIntents(
     const spokenText = cleanText(segment.spokenText ?? segment.text);
     const sourceSpan = normalizeSourceSpan(segment.sourceSpan);
     const sourceIndex = positiveInteger(segment.sourceIndex);
+    const productMentioned = Boolean(productName.trim()) && mentionsOmniProduct(spokenText, productName);
 
     return {
       index: positiveInteger(segment.index) || offset + 1,
       spokenText,
-      productVisible: Boolean(productName.trim()) && mentionsOmniProduct(spokenText, productName),
+      productMentioned,
+      productVisible: productMentioned && isOmniProductVisualBeat(spokenText, productName),
       ...(sourceIndex ? { sourceIndex } : {}),
       ...(sourceSpan ? { sourceSpan } : {}),
     };

@@ -89,7 +89,7 @@ function CreativePlanSummary({
           <span className="rounded bg-primary/10 px-2 py-1 font-semibold text-primary">{strategy.visualStyle.label}</span>
         ) : null}
         <span className="rounded bg-muted px-2 py-1 text-muted-foreground">Речь с {plan.speechStartsAtSeconds.toFixed(1)} сек</span>
-        <span className="rounded bg-muted px-2 py-1 text-muted-foreground">Продукт: {plan.productRole}</span>
+        <span className="rounded bg-muted px-2 py-1 text-muted-foreground">Продукт: {productRoleLabel(plan.productRole)}</span>
         {strategy ? (
           <span className="rounded bg-muted px-2 py-1 text-muted-foreground">
             CTA: {ctaLabel(strategy.ctaMode)}{strategy.ctaValue ? ` · ${strategy.ctaValue}` : ""}
@@ -124,6 +124,13 @@ function CreativePlanSummary({
       </div>
     </div>
   );
+}
+
+function productRoleLabel(role: OmniSegmentCreativePlan["productRole"]) {
+  if (role === "hidden") return "вне кадра";
+  if (role === "background_prop") return "в окружении";
+  if (role === "natural_use") return "естественное использование";
+  return "короткая демонстрация";
 }
 
 function readCreativePlanStoryboard(plan?: OmniSegmentCreativePlan | null) {

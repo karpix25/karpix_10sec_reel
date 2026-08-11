@@ -39,6 +39,7 @@ try {
   const contract = require(findFile(compiled, "omni-storyboard-contract.js"));
   const renderer = require(findFile(compiled, "omni-storyboard-renderer.js"));
   const builder = require(findFile(compiled, "omni-storyboard-builder.js"));
+  const productIntent = require(findFile(compiled, "omni-intro-product-contract.js"));
   const fileReference = require(findFile(compiled, "omni-storyboard-file-reference.js"));
   const storyboardContracts = require(findFile(compiled, "storyboard-contract-validator.js"));
 
@@ -345,6 +346,30 @@ try {
     durationSeconds: 10,
   });
   assert.ok(!articleCtaStoryboard.frames.some((frame) => frame.camera.includes("крупный кадр продукта")));
+  assert.equal(
+    productIntent.isOmniProductVisualBeat(
+      "При обезвоживании вам поможет Geodemika Enzyme Cleansing Foam. Артикул средства в описании.",
+      "Geodemika Enzyme Cleansing Foam"
+    ),
+    true,
+    "a product solution stays visual when a CTA follows in the same spoken beat"
+  );
+  assert.equal(
+    productIntent.isOmniProductVisualBeat(
+      "Артикул Geodemika Enzyme Cleansing Foam в описании.",
+      "Geodemika Enzyme Cleansing Foam"
+    ),
+    false,
+    "an isolated article CTA does not force a product shot"
+  );
+  assert.equal(
+    productIntent.isOmniProductVisualBeat(
+      "Если нужен Geodemika Enzyme Cleansing Foam, артикул в описании.",
+      "Geodemika Enzyme Cleansing Foam"
+    ),
+    false,
+    "a conditional article CTA does not force a product shot"
+  );
 
   const maleSafeStoryboard = builder.buildStoryboardFromCreativePlan({
     plan: { ...buildCreativePlan(), productRole: "natural_use" },

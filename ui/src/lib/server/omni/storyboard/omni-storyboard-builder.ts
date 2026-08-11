@@ -17,6 +17,7 @@ import {
 } from "../director-analysis-types";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
 import {
+  isOmniProductVisualBeat,
   mentionsOmniProduct,
 } from "../omni-intro-product-contract";
 import { renderFrameTransitionNote } from "./omni-storyboard-effects";
@@ -108,7 +109,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
       const isFrameHidden = /(?:продукт|товар)\s+(?:вне\s+кадра|не\s+виден|скрыт)|hidden|off\s*camera/iu.test(frame.productState || "");
       const productVisible = Boolean(input.productVisible) &&
         !isFrameHidden &&
-        mentionsOmniProduct(frame.spokenWords, input.productName);
+        isOmniProductVisualBeat(frame.spokenWords, input.productName);
       const referenceProfile = selectDirectorSegmentProfile({
         brief: input.directorBrief,
         segmentIndex: input.segmentIndex,
@@ -163,8 +164,7 @@ function buildFrame(input: {
     input.plan.beats[0];
   const layoutLocked = /REFERENCE LAYOUT|collage\/PIP/iu.test(beat?.action || "");
   const productVisible = input.plan.productRole !== "hidden" &&
-    !isArticleCtaOnly(input.spokenText) &&
-    mentionsOmniProduct(input.spokenText, input.productName);
+    isOmniProductVisualBeat(input.spokenText, input.productName);
   const referenceProfile = selectDirectorSegmentProfile({
     brief: input.directorBrief,
     segmentIndex: input.segmentIndex,
@@ -181,6 +181,7 @@ function buildFrame(input: {
     spokenText: input.spokenText,
     visualCue: extractVisualCue(fallbackAction),
     productName: input.productName,
+    productVisible,
   });
   const visualActionSource = layoutLocked
     ? beat?.action || ""
@@ -378,11 +379,6 @@ function renderProductPlacement(
     `${productName} обязательно физически виден как реальный предмет в окружении${productDetails}`,
     productPhysicalHint
   );
-}
-
-function isArticleCtaOnly(text: string) {
-  return /артикул|описани|под\s+видео|ниже/iu.test(text) &&
-    !/использ|нанос|готов|полож|выбр|покаж|держ|бер|пью|принима|умыва|запека|жар|режим/iu.test(text);
 }
 
 function appendProductPhysicalHint(base: string, productPhysicalHint?: string | null) {
