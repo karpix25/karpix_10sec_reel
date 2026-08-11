@@ -14,6 +14,10 @@ import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboar
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import type { StoryboardVisionValidation } from "@/lib/omni/storyboard/omni-storyboard-vision-types";
 import { validateStoryboardImage } from "./storyboard-vision-validator";
+import {
+  getStoryboardVisionRepairInstructions,
+  isStoryboardVisionValidationInconclusive,
+} from "./storyboard-vision-contract";
 
 const DEFAULT_COMETAPI_BASE_URL = "https://api.cometapi.com";
 const STORYBOARD_IMAGE_MODEL = "gpt-image-2";
@@ -75,20 +79,31 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     const generated = input.generationProvider === "kie-ai"
       ? await generateKieStoryboardImageBytes({ ...preparedInput, repairInstructions })
       : await generateCometStoryboardImageBytes({ ...preparedInput, repairInstructions });
-    const validation = await validateStoryboardImage({
+    const validationInput = {
       imageUrl: toDataUrl(generated.body, generated.contentType),
       avatarReferenceUrl,
       storyboard: input.storyboard,
       productName: input.productName,
       canonicalStoryboardReferenceUrl,
-    });
+    };
+    let validation = await validateStoryboardImage(validationInput);
+    if (isStoryboardVisionValidationInconclusive(validation)) {
+      validation = await validateStoryboardImage(validationInput);
+    }
     lastValidation = validation;
     if (validation.status === "pass") {
       return uploadStoryboardImage({ ...input, body: generated.body, contentType: generated.contentType });
     }
-    if (attempt === 0 && validation.status === "repair" && validation.repairInstructions.length) {
-      repairInstructions = [...validation.repairInstructions];
+    const retryInstructions = getStoryboardVisionRepairInstructions(validation);
+    const automaticRetryInstructions = isStoryboardVisionValidationInconclusive(validation)
+      ? ["Re-render the same storyboard plan with every panel clear, readable, and the avatar fully visible for continuity QA."]
+      : retryInstructions;
+    if (attempt === 0 && automaticRetryInstructions.length) {
+      repairInstructions = automaticRetryInstructions;
       continue;
+    }
+    if (isStoryboardVisionValidationInconclusive(validation)) {
+      throw new Error("Storyboard vision validation remained inconclusive after automatic retries");
     }
     break;
   }

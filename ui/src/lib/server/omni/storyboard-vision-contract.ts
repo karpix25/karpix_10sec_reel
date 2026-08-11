@@ -27,6 +27,24 @@ export function normalizeStoryboardVisionValidation(value: unknown, model?: stri
   return { schemaVersion: "storyboard_vision_v1", status, confidence, panels, repairInstructions, model };
 }
 
+export function isStoryboardVisionValidationInconclusive(validation: StoryboardVisionValidation) {
+  return validation.status === "block"
+    && !validation.repairInstructions.length
+    && !validation.panels.some((panel) => panel.violations.some(isActionableViolation));
+}
+
+export function getStoryboardVisionRepairInstructions(validation: StoryboardVisionValidation) {
+  const instructions = [
+    ...validation.repairInstructions,
+    ...validation.panels.flatMap((panel) =>
+      panel.violations
+        .filter(isActionableViolation)
+        .map((violation) => `Panel ${panel.panelIndex}: ${violation.code} — ${violation.evidence}`)
+    ),
+  ];
+  return [...new Set(instructions.map((instruction) => instruction.trim()).filter(Boolean))];
+}
+
 function normalizePanel(value: unknown): StoryboardVisionPanel | null {
   if (!value || typeof value !== "object") return null;
   const source = value as Record<string, unknown>;
@@ -53,6 +71,13 @@ function normalizeStatus(value: unknown): StoryboardVisionStatus | null {
 }
 
 function clampNumber(value: unknown, fallback: number) {
-  const number = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  const number = typeof value === "number"
+    ? value
+    : typeof value === "string" && value.trim() ? Number(value) : fallback;
+  if (!Number.isFinite(number)) return fallback;
   return Math.min(1, Math.max(0, number));
+}
+
+function isActionableViolation(violation: StoryboardVisionViolation) {
+  return violation.code !== "UNKNOWN_PHYSICAL_VIOLATION" && violation.evidence !== "No evidence provided";
 }
