@@ -163,6 +163,9 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
+    networks:
+      - default
+      - easypanel
 
   final-video-poller:
     build:
@@ -206,6 +209,9 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
+    networks:
+      - default
+      - easypanel
 
   final-video-scheduler:
     build:
@@ -233,6 +239,9 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
+    networks:
+      - default
+      - easypanel
 
   omni-automation-scheduler:
     build:
@@ -316,11 +325,16 @@ services:
     dns:
       - 1.1.1.1
       - 8.8.8.8
+    networks:
+      - default
+      - easypanel
 
 volumes:
   postgres_data:
 
 networks:
+  easypanel:
+    external: true
   legacy_ai_avatars:
     external: true
     name: n8n_ai_avatars_default
