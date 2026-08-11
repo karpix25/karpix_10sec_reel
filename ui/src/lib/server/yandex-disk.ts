@@ -5,6 +5,8 @@ const ROOT_VIDEO_FOLDER = "ВИДЕО";
 const ROOT_AUTOMATION_FOLDER = "АВТОМАТ";
 const ROOT_AVATAR_AUDIO_FOLDER = "Аудио для аватаров";
 const PROTECTED_AUTOMATION_ROOT_PATH = `disk:/${ROOT_VIDEO_FOLDER}/${ROOT_AUTOMATION_FOLDER}`;
+const YANDEX_API_REQUEST_TIMEOUT_MS = 30_000;
+const YANDEX_UPLOAD_TIMEOUT_MS = 90_000;
 
 type UploadHrefPayload = {
   href?: string;
@@ -125,6 +127,7 @@ async function yandexRequest(pathname: string, init: RequestInit = {}) {
 
   const response = await fetch(`${YANDEX_DISK_API_BASE}${pathname}`, {
     ...init,
+    signal: init.signal ?? AbortSignal.timeout(YANDEX_API_REQUEST_TIMEOUT_MS),
     headers: {
       Authorization: `OAuth ${token}`,
       ...(init.headers || {}),
@@ -377,6 +380,7 @@ export async function uploadFinalVideoToYandexDisk(params: {
   const uploadResponse = await fetch(uploadHref, {
     method: "PUT",
     body: fileBuffer,
+    signal: AbortSignal.timeout(YANDEX_UPLOAD_TIMEOUT_MS),
     headers: {
       "Content-Type": "video/mp4",
     },
@@ -421,6 +425,7 @@ export async function uploadVideoFileToYandexFolder(params: {
   const uploadResponse = await fetch(uploadHref, {
     method: "PUT",
     body: fileBuffer,
+    signal: AbortSignal.timeout(YANDEX_UPLOAD_TIMEOUT_MS),
     headers: {
       "Content-Type": "video/mp4",
     },
