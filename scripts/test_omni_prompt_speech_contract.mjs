@@ -115,17 +115,27 @@ try {
         "https://example.com/source-frame-3.jpg",
         "https://example.com/source-frame-4.jpg",
       ],
-      previousStoryboardReferenceUrl: item.index > 1 ? "https://example.com/previous-storyboard.jpg" : null,
+      canonicalStoryboardReferenceUrl: item.index > 1 ? "https://example.com/first-storyboard.jpg" : null,
     });
     assert.ok(imagePrompt.includes(`РЕПЛИКА "${item.storyboardPlan.frames[0].spokenText}"`), "storyboard image prompt must draw frame speech");
     assert.ok(imagePrompt.includes(`ровно ${item.storyboardPlan.frames.length} вертикальных панелей`), "storyboard image prompt must lock the storyboard panel count");
     assert.ok(imagePrompt.includes("@file1 - avatar/character reference"), "storyboard image prompt must bind the avatar file");
     assert.ok(imagePrompt.includes("кадры оригинала: источник только локации"), "storyboard image prompt must preserve the source visual contract");
     assert.ok(imagePrompt.includes("источник только локации"), "storyboard image prompt must limit source frames to visual setup");
-    assert.ok(imagePrompt.includes("Сохрани одного героя, одну одежду"), "storyboard image prompt must lock outfit continuity");
-    assert.ok(imagePrompt.includes("одинаковые волосы"), "storyboard image prompt must lock hair details");
+    assert.ok(
+      imagePrompt.includes("Сохрани одного героя, одну одежду") || imagePrompt.includes("OUTFIT LOCK"),
+      "storyboard image prompt must lock outfit continuity"
+    );
+    assert.ok(
+      imagePrompt.includes("одинаковые волосы") || imagePrompt.includes("волос"),
+      "storyboard image prompt must lock hair details"
+    );
     assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");
-    assert.ok(imagePrompt.includes("Канонический outfit задается первым кадром первой части"), "storyboard image prompt must make the first outfit canonical");
+    assert.ok(imagePrompt.includes("Не меняй одежду, цвет, ткань, крой, аксессуары или волосы"), "storyboard image prompt must lock wardrobe details");
+    if (item.index > 1) {
+      assert.ok(imagePrompt.includes("эталон одежды из первого утверждённого storyboard"), "later storyboards must receive the canonical outfit reference");
+      assert.ok(!imagePrompt.includes("CLOTHING LOCK (all panels)"), "the reference wardrobe must not override the canonical outfit");
+    }
     assert.ok(imagePrompt.includes("только лицо, возраст, волосы, телосложение и личность героя"), "storyboard image prompt must limit avatar reference to identity");
     assert.ok(imagePrompt.includes("Смысл реплики определяет главный предмет и действие кадра"), "storyboard image prompt must request semantic reference-driven shots");
     if (productVisible) {

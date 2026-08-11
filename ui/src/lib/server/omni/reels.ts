@@ -429,9 +429,12 @@ async function generateStoryboardReferenceUrls(input: {
   generationProvider?: OmniGenerationProvider;
 }): Promise<(string | null)[]> {
   const urls: (string | null)[] = [];
-  let previousStoryboardReferenceUrl: string | null = null;
+  let canonicalStoryboardReferenceUrl: string | null = null;
   for (let index = 0; index < input.promptPlan.length; index += 1) {
     const segmentPrompt = input.promptPlan[index];
+    if (index > 0 && !canonicalStoryboardReferenceUrl) {
+      throw new Error("Storyboard 1 must be approved before generating later storyboard segments");
+    }
     const storyboardReferenceUrl: string | null = segmentPrompt.storyboardPlan
       ? await generateStoryboardImage({
         projectId: input.projectId,
@@ -445,13 +448,13 @@ async function generateStoryboardReferenceUrls(input: {
           : [],
         directorReferenceImageUrls: Array.from(input.directorReferenceImageUrlsBySegment?.get(segmentPrompt.index) || []),
         avatarReferenceUrl: input.avatarReferenceUrl,
-        previousStoryboardReferenceUrl,
+        canonicalStoryboardReferenceUrl,
         directorBrief: input.directorBrief,
         generationProvider: input.generationProvider,
       })
       : null;
     urls.push(storyboardReferenceUrl);
-    if (storyboardReferenceUrl) previousStoryboardReferenceUrl = storyboardReferenceUrl;
+    if (index === 0 && storyboardReferenceUrl) canonicalStoryboardReferenceUrl = storyboardReferenceUrl;
   }
   return urls;
 }

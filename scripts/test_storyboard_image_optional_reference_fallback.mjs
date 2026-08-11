@@ -40,13 +40,35 @@ try {
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
 
   process.env.COMETAPI_KEY = "test-key";
+  process.env.OPENROUTER_API_KEY = "test-key";
   const expiredDirectorUrl = "https://cdn.example.com/expired-director.jpg";
-  let cometPrompt = "";
+  const cometPrompts = [];
+  const visionPayloads = [];
+  let visionMode = "repair_then_pass";
+  let visionRequests = 0;
   global.fetch = async (url, options = {}) => {
     const href = String(url);
     if (href === expiredDirectorUrl) return new Response("", { status: 403 });
+    if (href.startsWith("https://openrouter.ai/")) {
+      visionRequests += 1;
+      visionPayloads.push(JSON.parse(String(options.body || "{}")));
+      const shouldRepair = visionMode === "always_repair" || visionRequests === 1;
+      return Response.json({
+        model: "test-model",
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              status: shouldRepair ? "repair" : "pass",
+              confidence: 0.95,
+              panels: [{ panel_index: 1, status: shouldRepair ? "repair" : "pass", violations: [] }],
+              repair_instructions: shouldRepair ? ["restore the canonical black sleeveless top"] : [],
+            }),
+          },
+        }],
+      });
+    }
     if (href.startsWith("https://api.cometapi.com/")) {
-      cometPrompt = String(options.body?.get("prompt") || "");
+      cometPrompts.push(String(options.body?.get("prompt") || ""));
       return Response.json({ data: [{ b64_json: Buffer.from("storyboard").toString("base64") }] });
     }
     return new Response(new Blob([Buffer.from([255, 216, 255, 217])], { type: "image/jpeg" }), {
@@ -67,14 +89,35 @@ try {
       storyboard: storyboard(),
       productName: "Коллаген",
       avatarReferenceUrl: "https://cdn.example.com/avatar.jpg",
+      canonicalStoryboardReferenceUrl: "https://cdn.example.com/first-storyboard.jpg",
       productReferenceUrls: ["https://cdn.example.com/product.jpg"],
       directorReferenceImageUrls: [expiredDirectorUrl],
     });
 
     assert.equal(result, "https://s3.example.com/storyboard.jpg");
     assert.match(warnings[0].message, /Optional storyboard reference image skipped/u);
-    assert.ok(!cometPrompt.includes(expiredDirectorUrl));
-    assert.ok(!cometPrompt.includes("Director reference image URLs:"));
+    assert.equal(visionRequests, 2, "a repairable storyboard gets one retry");
+    assert.ok(cometPrompts[0].includes("эталон одежды из первого утверждённого storyboard"));
+    assert.ok(cometPrompts[1].includes("PHYSICAL REPAIR FROM PRIOR CHECK"));
+    assert.equal(visionPayloads[0].messages[1].content.filter((item) => item.type === "image_url").length, 2, "vision compares the candidate with the canonical outfit storyboard");
+    assert.ok(!cometPrompts[0].includes(expiredDirectorUrl));
+    assert.ok(!cometPrompts[0].includes("Director reference image URLs:"));
+
+    visionMode = "always_repair";
+    visionRequests = 0;
+    await assert.rejects(
+      () => generateStoryboardImage({
+        projectId: 6,
+        reelId: 10,
+        segmentIndex: 2,
+        storyboard: storyboard(),
+        productName: "Коллаген",
+        avatarReferenceUrl: "https://cdn.example.com/avatar.jpg",
+        canonicalStoryboardReferenceUrl: "https://cdn.example.com/first-storyboard.jpg",
+      }),
+      /Storyboard image blocked by vision validation/u
+    );
+    assert.equal(visionRequests, 2, "video-ready storyboard flow stops after the single retry is exhausted");
   } finally {
     console.warn = originalWarn;
   }

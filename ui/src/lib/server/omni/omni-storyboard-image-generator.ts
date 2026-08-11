@@ -24,7 +24,7 @@ const DEFAULT_OUTPUT_FORMAT = "jpeg";
 type StoryboardReferenceFile = {
   url: string;
   required: boolean;
-  kind: "avatar" | "product" | "director" | "previous";
+  kind: "avatar" | "canonical" | "product" | "director";
 };
 
 type StoryboardImageInput = {
@@ -38,7 +38,7 @@ type StoryboardImageInput = {
   avatarReferenceUrl: string | null;
   productReferenceUrls?: readonly string[];
   directorReferenceImageUrls?: readonly string[];
-  previousStoryboardReferenceUrl?: string | null;
+  canonicalStoryboardReferenceUrl?: string | null;
   directorBrief?: DirectorBrief | null;
   generationProvider?: OmniGenerationProvider;
 };
@@ -59,14 +59,14 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     .slice(0, isCollagePictureInPictureReference(input.directorBrief || null)
       ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
       : STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT);
-  const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
+  const canonicalStoryboardReferenceUrl = cleanUrl(input.canonicalStoryboardReferenceUrl);
 
   const preparedInput = {
     ...input,
     avatarReferenceUrl,
     productReferenceUrls,
     directorReferenceImageUrls,
-    previousStoryboardReferenceUrl,
+    canonicalStoryboardReferenceUrl,
     directorBrief: input.directorBrief,
   };
   let repairInstructions: string[] = [];
@@ -79,6 +79,7 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
       imageUrl: toDataUrl(generated.body, generated.contentType),
       storyboard: input.storyboard,
       productName: input.productName,
+      canonicalStoryboardReferenceUrl,
     });
     lastValidation = validation;
     if (validation.status === "pass") {
@@ -104,15 +105,15 @@ async function generateKieStoryboardImageBytes(input: {
   avatarReferenceUrl: string;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
-  previousStoryboardReferenceUrl: string | null;
+  canonicalStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
   repairInstructions: readonly string[];
 }): Promise<GeneratedStoryboardImage> {
   const inputUrls = [
     input.avatarReferenceUrl,
+    ...(input.canonicalStoryboardReferenceUrl ? [input.canonicalStoryboardReferenceUrl] : []),
     ...input.productReferenceUrls,
     ...input.directorReferenceImageUrls,
-    ...(input.previousStoryboardReferenceUrl ? [input.previousStoryboardReferenceUrl] : []),
   ].slice(0, 16);
   const generatedUrl = await createKieStoryboardImage({
     prompt: buildStoryboardImagePrompt(input),
@@ -137,7 +138,7 @@ async function generateCometStoryboardImageBytes(input: {
   avatarReferenceUrl: string;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
-  previousStoryboardReferenceUrl: string | null;
+  canonicalStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
   repairInstructions: readonly string[];
 }): Promise<GeneratedStoryboardImage> {
@@ -165,7 +166,7 @@ async function createStoryboardImage(input: {
   avatarReferenceUrl: string;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
-  previousStoryboardReferenceUrl: string | null;
+  canonicalStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
   repairInstructions: readonly string[];
 }) {
@@ -177,7 +178,7 @@ async function createStoryboardImage(input: {
       directorReferenceImageUrls: downloaded
         .filter((item) => item.kind === "director")
         .map((item) => item.url),
-      previousStoryboardReferenceUrl: downloaded.find((item) => item.kind === "previous")?.url || null,
+      canonicalStoryboardReferenceUrl: downloaded.find((item) => item.kind === "canonical")?.url || null,
     };
     const form = new FormData();
     form.set("model", STORYBOARD_IMAGE_MODEL);
@@ -255,15 +256,15 @@ function buildReferenceFiles(input: {
   avatarReferenceUrl: string;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
-  previousStoryboardReferenceUrl: string | null;
+  canonicalStoryboardReferenceUrl: string | null;
 }): StoryboardReferenceFile[] {
   return [
     { url: input.avatarReferenceUrl, required: true, kind: "avatar" },
+    input.canonicalStoryboardReferenceUrl
+      ? { url: input.canonicalStoryboardReferenceUrl, required: true, kind: "canonical" as const }
+      : null,
     ...input.productReferenceUrls.map((url) => ({ url, required: true, kind: "product" as const })),
     ...input.directorReferenceImageUrls.map((url) => ({ url, required: false, kind: "director" as const })),
-    input.previousStoryboardReferenceUrl
-      ? { url: input.previousStoryboardReferenceUrl, required: false, kind: "previous" as const }
-      : null,
   ].filter((item): item is StoryboardReferenceFile => Boolean(item));
 }
 

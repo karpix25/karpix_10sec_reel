@@ -12,7 +12,7 @@ type StoryboardPromptSegment = {
   storyboardPlan: OmniStoryboardSegment | null;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-pip-reference-authority-v7";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-canonical-outfit-v8";
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
@@ -31,28 +31,33 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
   await ensureOmniSchema();
   const referenceSignature = buildReferenceSignature(input);
   const urls = await getStoredGeneratedScriptStoryboardUrls({ ...input, referenceSignature });
-  let previousStoryboardReferenceUrl: string | null = null;
+  let canonicalStoryboardReferenceUrl: string | null = null;
 
   for (const segment of input.promptPlan) {
     const cachedUrl = urls.get(segment.index) || null;
     if (cachedUrl) {
-      previousStoryboardReferenceUrl = cachedUrl;
+      if (segment.index === 1) canonicalStoryboardReferenceUrl = cachedUrl;
       continue;
     }
 
     if (!segment.storyboardPlan) continue;
+    if (segment.index > 1 && !canonicalStoryboardReferenceUrl) {
+      throw new Error("Storyboard 1 must be approved before generating later storyboard segments");
+    }
     const generatedUrl = await tryGenerateStoryboardPreview({
       ...input,
       referenceSignature,
       segmentIndex: segment.index,
       storyboardPlan: segment.storyboardPlan,
-      previousStoryboardReferenceUrl,
+      canonicalStoryboardReferenceUrl,
       generationProvider: input.generationProvider,
     });
     if (generatedUrl) {
       urls.set(segment.index, generatedUrl);
-      previousStoryboardReferenceUrl = generatedUrl;
+      if (segment.index === 1) canonicalStoryboardReferenceUrl = generatedUrl;
+      continue;
     }
+    throw new Error(`Storyboard ${segment.index} did not pass outfit validation`);
   }
 
   return urls;
@@ -102,37 +107,28 @@ async function tryGenerateStoryboardPreview(input: {
   referenceSignature: string;
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment;
-  previousStoryboardReferenceUrl: string | null;
+  canonicalStoryboardReferenceUrl: string | null;
   generationProvider?: OmniGenerationProvider;
 }) {
-  try {
-    const url = await generateStoryboardImage({
-      projectId: input.projectId,
-      scriptId: input.scriptId,
-      segmentIndex: input.segmentIndex,
-      storyboard: input.storyboardPlan,
-      productName: input.productName,
-      productPhysicalContract: input.productPhysicalContract,
-      avatarReferenceUrl: input.avatarReferenceUrl,
-      productReferenceUrls: hasProductVisibleStoryboardFrame(input.storyboardPlan, input.productName)
-        ? input.productReferenceUrls
-        : [],
-      directorReferenceImageUrls: getSegmentDirectorReferenceUrls(input, input.segmentIndex),
-      previousStoryboardReferenceUrl: input.previousStoryboardReferenceUrl,
-      directorBrief: input.directorBrief,
-      generationProvider: input.generationProvider,
-    });
-    if (!url) return null;
-    await upsertGeneratedScriptStoryboardUrl({ ...input, url });
-    return url;
-  } catch (error) {
-    console.warn("Generated script storyboard preview image failed:", {
-      scriptId: input.scriptId,
-      segmentIndex: input.segmentIndex,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
-  }
+  const url = await generateStoryboardImage({
+    projectId: input.projectId,
+    scriptId: input.scriptId,
+    segmentIndex: input.segmentIndex,
+    storyboard: input.storyboardPlan,
+    productName: input.productName,
+    productPhysicalContract: input.productPhysicalContract,
+    avatarReferenceUrl: input.avatarReferenceUrl,
+    productReferenceUrls: hasProductVisibleStoryboardFrame(input.storyboardPlan, input.productName)
+      ? input.productReferenceUrls
+      : [],
+    directorReferenceImageUrls: getSegmentDirectorReferenceUrls(input, input.segmentIndex),
+    canonicalStoryboardReferenceUrl: input.canonicalStoryboardReferenceUrl,
+    directorBrief: input.directorBrief,
+    generationProvider: input.generationProvider,
+  });
+  if (!url) return null;
+  await upsertGeneratedScriptStoryboardUrl({ ...input, url });
+  return url;
 }
 
 async function upsertGeneratedScriptStoryboardUrl(input: {
