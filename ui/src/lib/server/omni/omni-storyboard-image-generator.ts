@@ -47,6 +47,7 @@ type StoryboardImageInput = {
   canonicalStoryboardReferenceUrl?: string | null;
   directorBrief?: DirectorBrief | null;
   generationProvider?: OmniGenerationProvider;
+  referenceSafetyInstructions?: readonly string[];
 };
 
 type GeneratedStoryboardImage = {
@@ -75,7 +76,8 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     canonicalStoryboardReferenceUrl,
     directorBrief: input.directorBrief,
   };
-  let repairInstructions: string[] = [];
+  const referenceSafetyInstructions = [...(input.referenceSafetyInstructions || [])];
+  let repairInstructions = referenceSafetyInstructions;
   let lastValidation: StoryboardVisionValidation | null = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const generated = input.generationProvider === "kie-ai"
@@ -101,7 +103,7 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
       ? ["Re-render the same storyboard plan with every panel clear, readable, and the avatar fully visible for continuity QA."]
       : retryInstructions;
     if (attempt === 0 && automaticRetryInstructions.length) {
-      repairInstructions = automaticRetryInstructions;
+      repairInstructions = [...referenceSafetyInstructions, ...automaticRetryInstructions];
       continue;
     }
     if (isStoryboardVisionValidationInconclusive(validation)) {
