@@ -2,6 +2,7 @@ import pool from "@/lib/db";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
+import { isStoryboardVisionJsonFormatError } from "./storyboard-vision-validator";
 import { ensureOmniSchema } from "./schema";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import type { DirectorBrief } from "./director-analysis-types";
@@ -13,6 +14,8 @@ type StoryboardPromptSegment = {
 };
 
 const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-avatar-identity-v9";
+const MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES = 2;
+const MAX_STORYBOARD_DIAGNOSTIC_CHARS = 12_000;
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
@@ -132,26 +135,37 @@ async function tryGenerateStoryboardPreview(input: {
   canonicalStoryboardReferenceUrl: string | null;
   generationProvider?: OmniGenerationProvider;
 }) {
-  const url = await generateStoryboardImage({
-    projectId: input.projectId,
-    productId: input.productId,
-    scriptId: input.scriptId,
-    segmentIndex: input.segmentIndex,
-    storyboard: input.storyboardPlan,
-    productName: input.productName,
-    productPhysicalContract: input.productPhysicalContract,
-    avatarReferenceUrl: input.avatarReferenceUrl,
-    productReferenceUrls: hasProductVisibleStoryboardFrame(input.storyboardPlan, input.productName)
-      ? input.productReferenceUrls
-      : [],
-    directorReferenceImageUrls: getSegmentDirectorReferenceUrls(input, input.segmentIndex),
-    canonicalStoryboardReferenceUrl: input.canonicalStoryboardReferenceUrl,
-    directorBrief: input.directorBrief,
-    generationProvider: input.generationProvider,
-  });
-  if (!url) return null;
-  await upsertGeneratedScriptStoryboardUrl({ ...input, url });
-  return url;
+  try {
+    const url = await generateStoryboardImage({
+      projectId: input.projectId,
+      productId: input.productId,
+      scriptId: input.scriptId,
+      segmentIndex: input.segmentIndex,
+      storyboard: input.storyboardPlan,
+      productName: input.productName,
+      productPhysicalContract: input.productPhysicalContract,
+      avatarReferenceUrl: input.avatarReferenceUrl,
+      productReferenceUrls: hasProductVisibleStoryboardFrame(input.storyboardPlan, input.productName)
+        ? input.productReferenceUrls
+        : [],
+      directorReferenceImageUrls: getSegmentDirectorReferenceUrls(input, input.segmentIndex),
+      canonicalStoryboardReferenceUrl: input.canonicalStoryboardReferenceUrl,
+      directorBrief: input.directorBrief,
+      generationProvider: input.generationProvider,
+    });
+    if (!url) return null;
+    await upsertGeneratedScriptStoryboardUrl({ ...input, url });
+    return url;
+  } catch (error) {
+    const failure = await recordGeneratedScriptStoryboardFailure(input, error).catch((recordError) => {
+      console.error("Could not save storyboard generation diagnostic:", recordError);
+      return null;
+    });
+    if (isStoryboardVisionJsonFormatError(error) && failure && failure.generationAttemptCount <= MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES) {
+      error.retryWithoutJobAttempt = true;
+    }
+    throw error;
+  }
 }
 
 async function upsertGeneratedScriptStoryboardUrl(input: {
@@ -173,15 +187,25 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
        storyboard_reference_url,
        reference_signature,
        generator_version,
+       generation_status,
+       generation_attempt_count,
+       generation_error,
+       last_attempt_at,
+       retry_after,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, 'ready', 0, NULL, CURRENT_TIMESTAMP, NULL, CURRENT_TIMESTAMP)
      ON CONFLICT (generated_script_id, segment_index)
      DO UPDATE SET
        storyboard_plan = EXCLUDED.storyboard_plan,
        storyboard_reference_url = EXCLUDED.storyboard_reference_url,
        reference_signature = EXCLUDED.reference_signature,
        generator_version = EXCLUDED.generator_version,
+       generation_status = 'ready',
+       generation_attempt_count = 0,
+       generation_error = NULL,
+       last_attempt_at = CURRENT_TIMESTAMP,
+       retry_after = NULL,
        updated_at = CURRENT_TIMESTAMP`,
     [
       input.projectId,
@@ -194,6 +218,84 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
       STORYBOARD_PREVIEW_GENERATOR_VERSION,
     ]
   );
+}
+
+async function recordGeneratedScriptStoryboardFailure(input: {
+  projectId: number;
+  productId: number;
+  scriptId: number;
+  segmentIndex: number;
+  storyboardPlan: OmniStoryboardSegment | null;
+  referenceSignature: string;
+}, error: unknown) {
+  const reason = error instanceof Error ? error.message : String(error);
+  const jsonFormatError = isStoryboardVisionJsonFormatError(error);
+  const rawResponse = jsonFormatError ? error.rawResponse : null;
+  const diagnostic = {
+    at: new Date().toISOString(),
+    reason: truncateStoryboardDiagnostic(reason),
+    raw_response: rawResponse ? truncateStoryboardDiagnostic(rawResponse) : null,
+  };
+  const { rows } = await pool.query<{ generation_attempt_count: number }>(
+    `INSERT INTO omni_generated_script_storyboards (
+       project_id,
+       product_id,
+       generated_script_id,
+       segment_index,
+       storyboard_plan,
+       reference_signature,
+       generator_version,
+       generation_status,
+       generation_attempt_count,
+       generation_error,
+       generation_error_history,
+       last_attempt_at,
+       retry_after,
+       updated_at
+     )
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, 1, $9, $10::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '5 seconds', CURRENT_TIMESTAMP)
+     ON CONFLICT (generated_script_id, segment_index)
+     DO UPDATE SET
+       storyboard_plan = EXCLUDED.storyboard_plan,
+       reference_signature = EXCLUDED.reference_signature,
+       generator_version = EXCLUDED.generator_version,
+       generation_status = EXCLUDED.generation_status,
+       generation_attempt_count = omni_generated_script_storyboards.generation_attempt_count + 1,
+       generation_error = EXCLUDED.generation_error,
+       generation_error_history = (
+         SELECT COALESCE(jsonb_agg(entry ORDER BY position), '[]'::jsonb)
+         FROM (
+           SELECT entry, position
+           FROM jsonb_array_elements(omni_generated_script_storyboards.generation_error_history || EXCLUDED.generation_error_history)
+                WITH ORDINALITY AS history(entry, position)
+           ORDER BY position DESC
+           LIMIT 3
+         ) AS recent
+       ),
+       last_attempt_at = CURRENT_TIMESTAMP,
+       retry_after = CURRENT_TIMESTAMP + INTERVAL '5 seconds',
+       updated_at = CURRENT_TIMESTAMP
+     RETURNING generation_attempt_count`,
+    [
+      input.projectId,
+      input.productId,
+      input.scriptId,
+      input.segmentIndex,
+      input.storyboardPlan ? JSON.stringify(input.storyboardPlan) : null,
+      input.referenceSignature,
+      STORYBOARD_PREVIEW_GENERATOR_VERSION,
+      jsonFormatError ? "repairing_json" : "failed",
+      truncateStoryboardDiagnostic(reason),
+      JSON.stringify([diagnostic]),
+    ]
+  );
+  return { generationAttemptCount: Number(rows[0]?.generation_attempt_count || 1) };
+}
+
+function truncateStoryboardDiagnostic(value: string) {
+  return value.length <= MAX_STORYBOARD_DIAGNOSTIC_CHARS
+    ? value
+    : `${value.slice(0, MAX_STORYBOARD_DIAGNOSTIC_CHARS)}\n[truncated]`;
 }
 
 function buildReferenceSignature(input: {

@@ -2,11 +2,28 @@ import type { OmniStoryboardSegment } from "../../omni/storyboard/omni-storyboar
 import type {
   StoryboardVisionValidation,
 } from "../../omni/storyboard/omni-storyboard-vision-types";
-import { parseAndRepairJson } from "./script-json-repair";
+import { JsonOutputParseError, parseAndRepairJson } from "./script-json-repair";
 import { normalizeStoryboardVisionValidation } from "./storyboard-vision-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "minimax/minimax-m3";
+const MAX_JSON_FORMAT_REPAIR_ATTEMPTS = 2;
+const MAX_JSON_FORMAT_REPAIR_SOURCE_CHARS = 12_000;
+
+export class StoryboardVisionJsonFormatError extends Error {
+  readonly rawResponse: string;
+  retryWithoutJobAttempt = false;
+
+  constructor(rawResponse: string, cause: JsonOutputParseError) {
+    super(`Storyboard vision validator returned invalid JSON after automatic repair: ${cause.message}`);
+    this.name = "StoryboardVisionJsonFormatError";
+    this.rawResponse = rawResponse;
+  }
+}
+
+export function isStoryboardVisionJsonFormatError(error: unknown): error is StoryboardVisionJsonFormatError {
+  return error instanceof StoryboardVisionJsonFormatError;
+}
 
 export async function validateStoryboardImage(input: {
   imageUrl: string;
@@ -19,48 +36,102 @@ export async function validateStoryboardImage(input: {
   const apiKey = process.env.OPENROUTER_API_KEY || "";
   if (!apiKey.trim()) throw new Error("OPENROUTER_API_KEY is not configured for storyboard vision validation");
   const model = input.model || process.env.OMNI_STORYBOARD_VISION_MODEL || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL || DEFAULT_MODEL;
+  const data = await requestStoryboardVisionResponse({
+    apiKey,
+    model,
+    messages: [
+      { role: "system", content: STORYBOARD_VISION_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: buildStoryboardVisionPrompt({
+              storyboard: input.storyboard,
+              productName: input.productName,
+              hasCanonicalStoryboardReference: Boolean(input.canonicalStoryboardReferenceUrl?.trim()),
+            }),
+          },
+          { type: "image_url", image_url: { url: input.imageUrl } },
+          { type: "image_url", image_url: { url: input.avatarReferenceUrl } },
+          ...(input.canonicalStoryboardReferenceUrl?.trim()
+            ? [{ type: "image_url" as const, image_url: { url: input.canonicalStoryboardReferenceUrl.trim() } }]
+            : []),
+        ],
+      },
+    ],
+  });
+  const responseModel = String(data.model || model);
+  const content = readAssistantContent(data);
+  return parseStoryboardVisionValidation({ apiKey, model: responseModel, content });
+}
+
+async function requestStoryboardVisionResponse(input: {
+  apiKey: string;
+  model: string;
+  messages: unknown[];
+}) {
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey.trim()}`,
+      Authorization: `Bearer ${input.apiKey.trim()}`,
       "Content-Type": "application/json",
       "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://n8n-omnireels.ap2dy7.easypanel.host",
       "X-Title": "Omni Reels Storyboard Physical Validation",
     },
     body: JSON.stringify({
-      model,
+      model: input.model,
       temperature: 0,
       response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: STORYBOARD_VISION_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: buildStoryboardVisionPrompt({
-                storyboard: input.storyboard,
-                productName: input.productName,
-                hasCanonicalStoryboardReference: Boolean(input.canonicalStoryboardReferenceUrl?.trim()),
-              }),
-            },
-            { type: "image_url", image_url: { url: input.imageUrl } },
-            { type: "image_url", image_url: { url: input.avatarReferenceUrl } },
-            ...(input.canonicalStoryboardReferenceUrl?.trim()
-              ? [{ type: "image_url" as const, image_url: { url: input.canonicalStoryboardReferenceUrl.trim() } }]
-              : []),
-          ],
-        },
-      ],
+      messages: input.messages,
     }),
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(`Storyboard vision validation failed: ${response.status} ${text.slice(0, 240)}`);
   }
-  const data = (await response.json()) as Record<string, unknown>;
-  const content = readAssistantContent(data);
-  return normalizeStoryboardVisionValidation(parseAndRepairJson(content), String(data.model || model));
+  return (await response.json()) as Record<string, unknown>;
+}
+
+async function parseStoryboardVisionValidation(input: {
+  apiKey: string;
+  model: string;
+  content: string;
+}) {
+  let candidate = input.content;
+  let lastError: JsonOutputParseError | null = null;
+
+  for (let attempt = 0; attempt <= MAX_JSON_FORMAT_REPAIR_ATTEMPTS; attempt += 1) {
+    try {
+      return normalizeStoryboardVisionValidation(parseAndRepairJson(candidate), input.model);
+    } catch (error) {
+      if (!(error instanceof JsonOutputParseError)) throw error;
+      lastError = error;
+      if (attempt === MAX_JSON_FORMAT_REPAIR_ATTEMPTS) break;
+      const repaired = await requestStoryboardVisionResponse({
+        apiKey: input.apiKey,
+        model: input.model,
+        messages: [
+          {
+            role: "system",
+            content: "You repair malformed JSON. Return only one valid JSON object. Preserve the original storyboard evaluation exactly. Do not add commentary.",
+          },
+          {
+            role: "user",
+            content: [
+              "Convert this malformed storyboard evaluation into valid JSON.",
+              "Required shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }.",
+              "Malformed response:",
+              truncateJsonRepairSource(error.rawJson),
+            ].join("\n"),
+          },
+        ],
+      });
+      candidate = readAssistantContent(repaired);
+    }
+  }
+
+  throw new StoryboardVisionJsonFormatError(input.content, lastError || new JsonOutputParseError("Unknown JSON error", input.content));
 }
 
 const STORYBOARD_VISION_SYSTEM_PROMPT = [
@@ -68,7 +139,7 @@ const STORYBOARD_VISION_SYSTEM_PROMPT = [
   "Inspect the generated contact sheet, panel by panel, and compare it with the expected storyboard plan.",
   "Compare the candidate contact sheet against the supplied avatar identity reference. When a canonical storyboard image is supplied, compare the candidate contact sheet against it for the hero outfit.",
   "Judge hard visual contracts too: product visibility, the one locked outfit, avatar identity, camera angle, lighting, environment, and whether the image action matches the spoken line.",
-  "Return only valid JSON with status pass, repair, or block; confidence from 0 to 1; panels; and repair_instructions.",
+  "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If the image is ambiguous or you cannot verify a physical constraint, return block with low confidence.",
 ].join(" ");
 
@@ -111,4 +182,10 @@ function readAssistantContent(data: Record<string, unknown>) {
     : null;
   if (typeof content === "string" && content.trim()) return content;
   throw new Error("Storyboard vision model returned empty content");
+}
+
+function truncateJsonRepairSource(value: string) {
+  return value.length <= MAX_JSON_FORMAT_REPAIR_SOURCE_CHARS
+    ? value
+    : `${value.slice(0, MAX_JSON_FORMAT_REPAIR_SOURCE_CHARS)}\n[truncated]`;
 }

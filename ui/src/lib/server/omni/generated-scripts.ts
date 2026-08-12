@@ -1,7 +1,7 @@
 import pool from "@/lib/db";
 import { normalizeAudioMood } from "@/lib/audio-library/moods";
 import { extractOpenRouterCostSummaryFromSnapshot, summarizeOpenRouterUsage } from "@/lib/omni/openrouter-cost";
-import type { OmniGeneratedScript, OmniPromptPreviewSegment } from "@/lib/omni/types";
+import type { OmniAutomationJobSummary, OmniGeneratedScript, OmniPromptPreviewSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
 import { getGeneratedScriptCostSummaries } from "./omni-generation-costs";
 import { getLatestOmniClientAvatar } from "./avatars";
@@ -68,10 +68,31 @@ export async function listGeneratedScripts(projectId: number, productId?: number
   );
   const scripts = rows.map(normalizeScript);
   const costSummaries = await getGeneratedScriptCostSummaries(scripts);
+  const automationJobs = await getLatestAutomationJobsByScriptId(scripts.map((script) => script.id));
   return scripts.map((script) => ({
     ...script,
     generation_cost_summary: costSummaries.get(script.id) || null,
+    automation_job: automationJobs.get(script.id) || null,
   }));
+}
+
+async function getLatestAutomationJobsByScriptId(scriptIds: readonly number[]) {
+  if (!scriptIds.length) return new Map<number, OmniAutomationJobSummary>();
+  const { rows } = await pool.query<OmniAutomationJobSummary & { generated_script_id: number }>(
+    `SELECT DISTINCT ON (generated_script_id)
+       generated_script_id,
+       status,
+       current_stage,
+       attempt_count,
+       max_attempts,
+       last_error,
+       updated_at
+     FROM omni_automation_jobs
+     WHERE generated_script_id = ANY($1::int[])
+     ORDER BY generated_script_id, updated_at DESC, id DESC`,
+    [scriptIds]
+  );
+  return new Map(rows.map((job) => [Number(job.generated_script_id), job]));
 }
 
 export async function getGeneratedScript(input: { projectId: number; productId: number; scriptId: number }) {

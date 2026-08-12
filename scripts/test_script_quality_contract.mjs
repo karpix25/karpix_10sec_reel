@@ -130,6 +130,17 @@ And this is line 2."
     script: "Another test"
   });
 
+  // 7. Missing commas between adjacent array objects
+  const missingCommaJson = `{
+    "panels": [
+      {"panel_index": 1}
+      {"panel_index": 2}
+    ]
+  }`;
+  assert.deepEqual(parseAndRepairJson(missingCommaJson), {
+    panels: [{ panel_index: 1 }, { panel_index: 2 }],
+  });
+
   console.log("JSON Repair checks passed!");
 
   // --- Test Script Quality Contract ---

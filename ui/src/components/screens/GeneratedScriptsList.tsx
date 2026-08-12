@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { extractOpenRouterCostSummaryFromSnapshot } from "@/lib/omni/openrouter-cost";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
-import type { OmniGeneratedScript, OmniReel, OmniReelSegment } from "@/lib/omni/types";
+import type { OmniAutomationJobSummary, OmniGeneratedScript, OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { GeneratedScriptPromptTabs } from "./GeneratedScriptPromptTabs";
 import {
   PendingGeneratedScriptCard,
@@ -32,8 +32,16 @@ import { OriginalReferenceLink } from "./OriginalReferenceLink";
 import { SegmentDots, StatusBadge } from "./OmniStudio/ui";
 import { ReelSubtitlesPanel } from "./ReelSubtitlesPanel";
 import { getVideoStageLabel, VideoProgressSteps } from "./VideoProgressStatus";
+import {
+  EmptyVideoPanel,
+  getAutomationVideoStageLabel,
+  getPendingVideoStage,
+  isStoryboardJsonRecovery,
+  matchesVideoFilter,
+  VideoPreparationError,
+  type VideoFilter,
+} from "./GeneratedScriptVideoPreparationStatus";
 
-type VideoFilter = "all" | "none" | "active" | "completed" | "failed";
 type ViewMode = "compact" | "detail";
 type CardTab = "script" | "video" | "prompts";
 
@@ -138,7 +146,7 @@ export function GeneratedScriptsList({
       }),
     [reels, scripts, segments]
   );
-  const visibleItems = items.filter((item) => matchesVideoFilter(item.latestReel, filter));
+  const visibleItems = items.filter((item) => matchesVideoFilter(item.latestReel, item.script.automation_job || null, filter));
 
   return (
     <div className="min-w-0 rounded-lg border border-border bg-card p-5">
@@ -257,7 +265,8 @@ function GeneratedScriptCard({
 }) {
   const { script, latestReel, latestSegments } = item;
   const isPendingVideo = pendingVideo?.scriptId === script.id;
-  const videoStage = latestReel ? getVideoStageLabel(latestReel, latestSegments) : "Видео ещё не создавалось";
+  const automationJob = script.automation_job || null;
+  const videoStage = latestReel ? getVideoStageLabel(latestReel, latestSegments) : getAutomationVideoStageLabel(automationJob);
   const costSummary = extractOpenRouterCostSummaryFromSnapshot(script.source_snapshot);
   const generationCostSummary = script.generation_cost_summary;
   const hasGenerationCost = Boolean(
@@ -359,7 +368,8 @@ function GeneratedScriptCard({
             <VideoPanel
               reel={latestReel}
               segments={latestSegments}
-              pendingVideo={pendingVideo?.scriptId === script.id}
+              pendingVideo={isPendingVideo}
+              automationJob={automationJob}
               omniGenerationProvider={omniGenerationProvider}
             />
           </TabsContent>
@@ -385,11 +395,13 @@ function VideoPanel({
   reel,
   segments,
   pendingVideo,
+  automationJob,
   omniGenerationProvider,
 }: {
   reel: OmniReel | null;
   segments: OmniReelSegment[];
   pendingVideo: boolean;
+  automationJob: OmniAutomationJobSummary | null;
   omniGenerationProvider: OmniGenerationProvider;
 }) {
   const [currentReel, setCurrentReel] = useState(reel);
@@ -398,7 +410,17 @@ function VideoPanel({
     setCurrentReel(reel);
   }, [reel]);
 
-  if (!currentReel) return pendingVideo ? <PendingVideoCard provider={omniGenerationProvider} /> : <EmptyVideoPanel />;
+  if (!currentReel) {
+    if (automationJob?.status === "failed") return <VideoPreparationError />;
+    const stage = getPendingVideoStage(automationJob);
+    return pendingVideo || automationJob ? (
+      <PendingVideoCard
+        provider={omniGenerationProvider}
+        stage={stage}
+        recovering={isStoryboardJsonRecovery(automationJob)}
+      />
+    ) : <EmptyVideoPanel />;
+  }
 
   const displayVideoUrl = currentReel.subtitled_video_url || currentReel.final_video_url;
   const isShowingSubtitled = Boolean(currentReel.subtitled_video_url);
@@ -461,14 +483,6 @@ function VideoPanel({
   );
 }
 
-function EmptyVideoPanel() {
-  return (
-    <div className="rounded-lg border border-dashed border-border bg-card p-5 text-sm text-muted-foreground">
-      Видео ещё не создавалось. Нажмите иконку с плёнкой в карточке.
-    </div>
-  );
-}
-
 function ExternalIconLink({ href, label, children }: { href: string; label: string; children: React.ReactNode }) {
   return (
     <a
@@ -482,13 +496,4 @@ function ExternalIconLink({ href, label, children }: { href: string; label: stri
       {children}
     </a>
   );
-}
-
-function matchesVideoFilter(reel: OmniReel | null, filter: VideoFilter) {
-  if (filter === "all") return true;
-  if (filter === "none") return !reel;
-  if (!reel) return false;
-  if (filter === "completed") return reel.status === "completed";
-  if (filter === "failed") return reel.status === "failed";
-  return ["queued", "generating", "stitching"].includes(reel.status);
 }

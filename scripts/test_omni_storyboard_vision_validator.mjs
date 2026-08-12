@@ -11,6 +11,8 @@ const output = mkdtempSync(join(tmpdir(), "omni-storyboard-vision-"));
 const compiled = join(output, "compiled");
 const config = join(output, "tsconfig.json");
 const require = createRequire(import.meta.url);
+const originalFetch = global.fetch;
+const originalKey = process.env.OPENROUTER_API_KEY;
 
 try {
   writeFileSync(config, JSON.stringify({
@@ -25,15 +27,19 @@ try {
       strict: true,
       esModuleInterop: true,
       skipLibCheck: true,
+      types: ["node"],
+      typeRoots: [join(ui, "node_modules/@types")],
     },
     include: [
       join(ui, "src/lib/omni/**/*.ts"),
       join(ui, "src/lib/server/omni/storyboard-vision-contract.ts"),
       join(ui, "src/lib/server/omni/script-json-repair.ts"),
+      join(ui, "src/lib/server/omni/storyboard-vision-validator.ts"),
     ],
   }));
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", config], { cwd: ui, stdio: "inherit" });
   const validator = require(findFile(compiled, "storyboard-vision-contract.js"));
+  const visionValidator = require(findFile(compiled, "storyboard-vision-validator.js"));
 
   const pass = validator.normalizeStoryboardVisionValidation({
     status: "pass",
@@ -95,8 +101,44 @@ try {
   });
   assert.equal(evidenceFreeRepair.status, "pass");
 
+  process.env.OPENROUTER_API_KEY = "test-key";
+  const requests = [];
+  global.fetch = async (_url, init) => {
+    requests.push(JSON.parse(String(init.body)));
+    const content = requests.length === 1
+      ? '{"status":"repair","confidence":0.9,"panels":[{"panel_index":1,"status":"repair","violations":[]},"repair_instructions":[]}'
+      : JSON.stringify({
+        status: "repair",
+        confidence: 0.9,
+        panels: [{
+          panel_index: 1,
+          status: "repair",
+          violations: [{ code: "ACTION_MISMATCH", severity: "error", evidence: "hand position differs" }],
+        }],
+        repair_instructions: [],
+      });
+    return {
+      ok: true,
+      json: async () => ({ model: "test/vision", choices: [{ message: { content } }] }),
+    };
+  };
+  const recovered = await visionValidator.validateStoryboardImage({
+    imageUrl: "https://example.com/storyboard.jpg",
+    avatarReferenceUrl: "https://example.com/avatar.jpg",
+    productName: "Тестовый продукт",
+    storyboard: { segmentIndex: 1, durationSeconds: 4, voiceoverText: "Тест", frames: [] },
+  });
+  assert.equal(recovered.status, "repair");
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].messages[1].content[1].type, "image_url");
+  assert.match(requests[1].messages[1].content, /Malformed response/);
+  assert.equal(requests[1].response_format.type, "json_object");
+
   console.log("Omni storyboard vision validator checks passed");
 } finally {
+  global.fetch = originalFetch;
+  if (originalKey === undefined) delete process.env.OPENROUTER_API_KEY;
+  else process.env.OPENROUTER_API_KEY = originalKey;
   rmSync(output, { recursive: true, force: true });
 }
 

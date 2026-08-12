@@ -168,6 +168,7 @@ export async function requeueOmniAutomationJob(input: {
   stage?: OmniAutomationStage;
   delaySeconds: number;
   errorMessage?: string | null;
+  refundAttempt?: boolean;
 }) {
   const { rows } = await pool.query<OmniAutomationJob>(
     `UPDATE omni_automation_jobs
@@ -176,11 +177,18 @@ export async function requeueOmniAutomationJob(input: {
          scheduled_for = CURRENT_TIMESTAMP + ($3 * INTERVAL '1 second'),
          lease_until = NULL,
          worker_id = NULL,
+         attempt_count = CASE WHEN $5 THEN GREATEST(0, attempt_count - 1) ELSE attempt_count END,
          last_error = $4,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1
      RETURNING *`,
-    [input.jobId, input.stage || null, Math.max(0, Math.floor(input.delaySeconds || 0)), input.errorMessage || null]
+    [
+      input.jobId,
+      input.stage || null,
+      Math.max(0, Math.floor(input.delaySeconds || 0)),
+      input.errorMessage || null,
+      Boolean(input.refundAttempt),
+    ]
   );
   return normalizeJob(rows[0]);
 }

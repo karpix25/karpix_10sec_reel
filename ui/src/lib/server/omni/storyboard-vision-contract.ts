@@ -11,11 +11,12 @@ export function normalizeStoryboardVisionValidation(value: unknown, model?: stri
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const confidence = clampNumber(source.confidence, 0);
   const panels = Array.isArray(source.panels) ? source.panels.map(normalizePanel).filter(Boolean) as StoryboardVisionPanel[] : [];
-  const repairInstructions = Array.isArray(source.repair_instructions)
+  const repairInstructionSource = Array.isArray(source.repair_instructions)
     ? source.repair_instructions
-      .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
-      .map((item) => item.trim())
-    : [];
+    : typeof source.repair_instructions === "string" ? [source.repair_instructions] : [];
+  const repairInstructions = repairInstructionSource
+    .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+    .map((item) => item.trim());
   const hasBlockingPanel = panels.some((panel) => panel.status === "block");
   const hasRepairPanel = panels.some((panel) => panel.status === "repair" && panel.violations.length > 0);
   const hasRepair = hasRepairPanel || repairInstructions.length > 0;
