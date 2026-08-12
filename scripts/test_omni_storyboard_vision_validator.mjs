@@ -35,11 +35,15 @@ try {
       join(ui, "src/lib/server/omni/storyboard-vision-contract.ts"),
       join(ui, "src/lib/server/omni/script-json-repair.ts"),
       join(ui, "src/lib/server/omni/storyboard-vision-validator.ts"),
+      join(ui, "src/lib/server/omni/storyboard-set-vision-validator.ts"),
+      join(ui, "src/lib/server/omni/omni-segment-continuity-validator.ts"),
     ],
   }));
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", config], { cwd: ui, stdio: "inherit" });
   const validator = require(findFile(compiled, "storyboard-vision-contract.js"));
   const visionValidator = require(findFile(compiled, "storyboard-vision-validator.js"));
+  const setVisionValidator = require(findFile(compiled, "storyboard-set-vision-validator.js"));
+  const segmentContinuityValidator = require(findFile(compiled, "omni-segment-continuity-validator.js"));
 
   const pass = validator.normalizeStoryboardVisionValidation({
     status: "pass",
@@ -133,6 +137,73 @@ try {
   assert.equal(requests[0].messages[1].content[1].type, "image_url");
   assert.match(requests[1].messages[1].content, /Malformed response/);
   assert.equal(requests[1].response_format.type, "json_object");
+
+  const setRequests = [];
+  global.fetch = async (_url, init) => {
+    setRequests.push(JSON.parse(String(init.body)));
+    return {
+      ok: true,
+      json: async () => ({
+        model: "test/cross-storyboard-vision",
+        choices: [{ message: { content: JSON.stringify({
+          status: "block",
+          confidence: 0.95,
+          canonical_identity: "black sleeveless top and hair in a bun",
+          violations: [
+            { segment_index: 2, panels: [1, 2, 3, 4, 5], code: "wardrobe_change", severity: "error", evidence: "white long-sleeved top" },
+            { segment_index: 3, panels: [1, 2, 3, 4, 5], code: "hair_change", severity: "error", evidence: "hair is down" },
+          ],
+          repair_instructions: ["restore the canonical outfit and hair"],
+        }) } }],
+      }),
+    };
+  };
+  const setValidation = await setVisionValidator.validateStoryboardSet({
+    storyboards: [1, 2, 3].map((segmentIndex) => ({
+      segmentIndex,
+      imageUrl: `https://example.com/storyboard-${segmentIndex}.jpg`,
+      storyboard: {
+        segmentIndex,
+        durationSeconds: 4,
+        voiceoverText: "Тест",
+        frames: [{ wardrobe: "black sleeveless top" }],
+      },
+    })),
+  });
+  assert.equal(setValidation.status, "block");
+  assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments(setValidation), [2, 3]);
+  const setImages = setRequests[0].messages[0].content.filter((item) => item.type === "image_url");
+  assert.equal(setImages.length, 3, "cross-storyboard QA must see all contact sheets in one request");
+
+  const continuityRequests = [];
+  global.fetch = async (_url, init) => {
+    continuityRequests.push(JSON.parse(String(init.body)));
+    return {
+      ok: true,
+      json: async () => ({
+        model: "test/segment-continuity",
+        choices: [{ message: { content: JSON.stringify({
+          status: "repair",
+          confidence: 0.94,
+          violations: [{ code: "wardrobe_change", severity: "error", evidence: "white long sleeves replace the canonical black top" }],
+          repair_instructions: ["restore the canonical black sleeveless top"],
+        }) } }],
+      }),
+    };
+  };
+  const continuity = await segmentContinuityValidator.validateSegmentContinuityFrame({
+    segmentIndex: 2,
+    frameUrl: "https://example.com/segment-02-last-frame.jpg",
+    storyboardUrl: "https://example.com/storyboard-02.jpg",
+    canonicalStoryboardUrl: "https://example.com/storyboard-01.jpg",
+  });
+  assert.equal(continuity.status, "repair");
+  assert.deepEqual(segmentContinuityValidator.getSegmentContinuityRepairInstructions(continuity), [
+    "restore the canonical black sleeveless top",
+    "wardrobe_change: white long sleeves replace the canonical black top",
+  ]);
+  const continuityImages = continuityRequests[0].messages[0].content.filter((item) => item.type === "image_url");
+  assert.equal(continuityImages.length, 3, "final-frame QA must compare generated frame, current storyboard, and canonical storyboard");
 
   console.log("Omni storyboard vision validator checks passed");
 } finally {

@@ -10,6 +10,10 @@ import { createContinuityFrameAsset } from "./omni-frame-continuity";
 import { downloadProviderVideo, type ProviderTask } from "./omni-provider-tasks";
 import { startOmniReelSubtitlesIfEnabled } from "./omni-reel-subtitles";
 import { mixBackgroundAudioForReel } from "./omni-background-audio";
+import {
+  SegmentContinuityValidationError,
+  validateSegmentContinuityFrame,
+} from "./omni-segment-continuity-validator";
 
 export async function storeCompletedSegment(input: {
   projectId: number;
@@ -34,9 +38,22 @@ export async function storeCompletedSegment(input: {
     segment: input.segment,
     videoBuffer,
   });
+  if (!continuity.frameUrl) {
+    throw new Error(`Segment ${input.segment.segment_index} has no usable final frame for continuity QA`);
+  }
+  const continuityValidation = await validateSegmentContinuityFrame({
+    segmentIndex: input.segment.segment_index,
+    frameUrl: continuity.frameUrl,
+    storyboardUrl: input.segment.storyboard_reference_url || continuity.frameUrl,
+    canonicalStoryboardUrl: getCanonicalStoryboardUrl(input.segment),
+  });
+  if (continuityValidation.status !== "pass") {
+    throw new SegmentContinuityValidationError(continuityValidation);
+  }
   const responsePayload = {
     ...input.task.raw,
     continuity_frame: continuity.payload,
+    continuity_qa: continuityValidation,
   };
 
   await pool.query(
@@ -58,6 +75,16 @@ export async function storeCompletedSegment(input: {
       continuity.kieFrameUrl,
     ]
   );
+}
+
+function getCanonicalStoryboardUrl(segment: OmniReelSegment) {
+  const references = Array.isArray(segment.request_payload?.reference_images)
+    ? segment.request_payload.reference_images
+    : [];
+  const canonical = references.find((reference) =>
+    reference && typeof reference === "object" && (reference as { role?: unknown }).role === "storyboard_canonical"
+  ) as { url?: unknown } | undefined;
+  return typeof canonical?.url === "string" && canonical.url ? canonical.url : segment.storyboard_reference_url || null;
 }
 
 export async function stitchAndStoreReel(input: {

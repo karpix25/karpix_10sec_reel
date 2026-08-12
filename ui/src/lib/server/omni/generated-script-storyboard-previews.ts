@@ -7,6 +7,13 @@ import { ensureOmniSchema } from "./schema";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import type { DirectorBrief } from "./director-analysis-types";
 import { buildStoryboardPlanSignature } from "./storyboard-cache-signature";
+import {
+  getGeneratedScriptStoryboardSetQuality,
+  isCurrentStoryboardSetApproval,
+  StoryboardSetQualityError,
+  validateAndSaveGeneratedScriptStoryboardSet,
+} from "./generated-script-storyboard-set-qa";
+import { getStoryboardSetRepairSegments } from "./storyboard-set-vision-validator";
 
 type StoryboardPromptSegment = {
   index: number;
@@ -16,6 +23,7 @@ type StoryboardPromptSegment = {
 const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-avatar-identity-v9";
 const MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES = 2;
 const MAX_STORYBOARD_DIAGNOSTIC_CHARS = 12_000;
+const MAX_STORYBOARD_SET_REPAIR_ATTEMPTS = 2;
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
   projectId: number;
@@ -63,6 +71,7 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
     throw new Error(`Storyboard ${segment.index} did not pass outfit validation`);
   }
 
+  await ensureStoryboardSetApproval(input, urls, referenceSignature);
   return urls;
 }
 
@@ -134,6 +143,7 @@ async function tryGenerateStoryboardPreview(input: {
   storyboardPlan: OmniStoryboardSegment;
   canonicalStoryboardReferenceUrl: string | null;
   generationProvider?: OmniGenerationProvider;
+  referenceSafetyInstructions?: readonly string[];
 }) {
   try {
     const url = await generateStoryboardImage({
@@ -152,6 +162,7 @@ async function tryGenerateStoryboardPreview(input: {
       canonicalStoryboardReferenceUrl: input.canonicalStoryboardReferenceUrl,
       directorBrief: input.directorBrief,
       generationProvider: input.generationProvider,
+      referenceSafetyInstructions: input.referenceSafetyInstructions,
     });
     if (!url) return null;
     await upsertGeneratedScriptStoryboardUrl({ ...input, url });
@@ -166,6 +177,85 @@ async function tryGenerateStoryboardPreview(input: {
     }
     throw error;
   }
+}
+
+async function ensureStoryboardSetApproval(input: {
+  projectId: number;
+  productId: number;
+  scriptId: number;
+  productName: string;
+  productPhysicalContract?: string | null;
+  avatarReferenceUrl: string | null;
+  productReferenceUrls: readonly string[];
+  directorReferenceImageUrls?: readonly string[];
+  directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
+  directorBrief?: DirectorBrief | null;
+  promptPlan: readonly StoryboardPromptSegment[];
+  generationProvider?: OmniGenerationProvider;
+}, urls: Map<number, string>, referenceSignature: string) {
+  const storyboards = getStoryboardSetEntries(input.promptPlan, urls);
+  const plannedStoryboardCount = input.promptPlan.filter((segment) => Boolean(segment.storyboardPlan)).length;
+  if (storyboards.length !== plannedStoryboardCount) {
+    throw new Error("All storyboard images must exist before cross-storyboard QA");
+  }
+  const storedQuality = await getGeneratedScriptStoryboardSetQuality(input.scriptId);
+  if (isCurrentStoryboardSetApproval(storedQuality, storyboards)) return;
+
+  for (let attempt = 0; attempt <= MAX_STORYBOARD_SET_REPAIR_ATTEMPTS; attempt += 1) {
+    const validation = await validateAndSaveGeneratedScriptStoryboardSet({
+      scriptId: input.scriptId,
+      storyboards,
+      attemptCount: attempt + 1,
+    });
+    if (validation.status === "pass") return;
+    if (attempt === MAX_STORYBOARD_SET_REPAIR_ATTEMPTS) throw new StoryboardSetQualityError(validation);
+
+    const repairSegments = getStoryboardSetRepairSegments(validation);
+    const targets = repairSegments.length
+      ? repairSegments
+      : storyboards.map((storyboard) => storyboard.segmentIndex).filter((segmentIndex) => segmentIndex > 1);
+    for (const segmentIndex of targets) {
+      const storyboardPlan = input.promptPlan.find((segment) => segment.index === segmentIndex)?.storyboardPlan;
+      if (!storyboardPlan) continue;
+      const canonicalStoryboardReferenceUrl = urls.get(1) || null;
+      if (!canonicalStoryboardReferenceUrl) throw new Error("Storyboard 1 must remain available for cross-storyboard repair");
+      const regeneratedUrl = await tryGenerateStoryboardPreview({
+        ...input,
+        referenceSignature,
+        segmentIndex,
+        storyboardPlan,
+        canonicalStoryboardReferenceUrl,
+        referenceSafetyInstructions: buildSetRepairInstructions(validation.repairInstructions, validation.violations, segmentIndex),
+      });
+      if (!regeneratedUrl) throw new Error(`Storyboard ${segmentIndex} could not be regenerated for cross-storyboard QA`);
+      urls.set(segmentIndex, regeneratedUrl);
+    }
+    storyboards.splice(0, storyboards.length, ...getStoryboardSetEntries(input.promptPlan, urls));
+  }
+}
+
+function getStoryboardSetEntries(promptPlan: readonly StoryboardPromptSegment[], urls: ReadonlyMap<number, string>) {
+  return promptPlan.flatMap((segment) => {
+    const imageUrl = urls.get(segment.index);
+    return segment.storyboardPlan && imageUrl
+      ? [{ segmentIndex: segment.index, imageUrl, storyboard: segment.storyboardPlan }]
+      : [];
+  });
+}
+
+function buildSetRepairInstructions(
+  instructions: readonly string[],
+  violations: readonly { segmentIndex: number; code: string; evidence: string }[],
+  segmentIndex: number
+) {
+  const targeted = violations
+    .filter((violation) => violation.segmentIndex === segmentIndex)
+    .map((violation) => `${violation.code}: ${violation.evidence}`);
+  return [
+    "Copy the canonical outfit and hair from the first approved storyboard exactly; do not change sleeves, neckline, fabric, color, accessories, or hairstyle.",
+    ...instructions,
+    ...targeted,
+  ];
 }
 
 async function upsertGeneratedScriptStoryboardUrl(input: {

@@ -1,28 +1,14 @@
 import pool from "@/lib/db";
 import type { OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
-import {
-  getCometReferenceImageFieldName,
-  getCometReferenceImageTransport,
-  shouldSendCometReferenceImage,
-} from "./comet-video-client";
+import { getCometReferenceImageFieldName, getCometReferenceImageTransport, shouldSendCometReferenceImage } from "./comet-video-client";
 import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
-import {
-  selectReferenceImagesForSegment,
-  type ReelReferenceImage,
-} from "./omni-reference-images";
+import { selectReferenceImagesForSegment, type ReelReferenceImage } from "./omni-reference-images";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { createOmniCompositeReference } from "./omni-composite-reference";
-import {
-  appendContinuityPromptContract,
-  appendKieReferenceOrderPrompt,
-} from "./omni-continuity-prompt";
-import {
-  isOmniContinuityChainEnabled,
-  isSegmentBlockedByContinuityChain,
-  resolveContinuityReference,
-} from "./omni-continuity-reference";
+import { appendContinuityPromptContract, appendKieReferenceOrderPrompt } from "./omni-continuity-prompt";
+import { isOmniContinuityChainEnabled, isSegmentBlockedByContinuityChain, resolveContinuityReference } from "./omni-continuity-reference";
 import {
   createProviderVideoTask,
   getProviderDuration,
@@ -35,11 +21,11 @@ import { applyOmniStoryboardFileReference } from "./storyboard/omni-storyboard-f
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import {
   getOmniSegmentRetryCount,
+  getOmniSegmentContinuityRepairInstructions,
 } from "./omni-segment-retry";
 import { syncOmniReelSegments } from "./omni-segment-sync";
 import { assertOmniPhysicalPreflight } from "./omni-physical-preflight";
 import { recordKieGenerationCost } from "./omni-generation-costs";
-
 type ReelBundle = {
   reel: OmniReel;
   segments: OmniReelSegment[];
@@ -115,7 +101,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
   const { reel, segments } = await getReelBundle(reelId);
   const provider = normalizeOmniGenerationProvider(providerInput);
   const continuityChainEnabled = isOmniContinuityChainEnabled();
-  const providerContinuityEnabled = provider !== "kie-ai" && continuityChainEnabled;
+  const providerContinuityEnabled = continuityChainEnabled;
   if (!segments.length) throw new Error("Omni reel has no segments");
   const missingStoryboardSegments = segments
     .filter((segment) => segment.status !== "completed" && !segment.storyboard_reference_url?.trim())
@@ -242,6 +228,9 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
               : "continuity_chain_disabled",
           },
         };
+    if (providerContinuityEnabled && segment.segment_index > 1 && !continuity.image) {
+      throw new Error(`Segment ${segment.segment_index} cannot start without the previous final-frame continuity reference`);
+    }
     const productIsVisible = hasProductVisibleStoryboardFrame(segment.storyboard_plan, productName);
     const continuityImages = continuity.image ? [continuity.image] : [];
     const storyboardImages = segment.storyboard_reference_url
@@ -268,6 +257,10 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       provider === "kie-ai"
         ? appendKieReferenceOrderPrompt(kieStoryboardPrompt, selectedReferenceImages.sent)
         : continuityPrompt;
+    const continuityRepairInstructions = getOmniSegmentContinuityRepairInstructions(segment.request_payload);
+    const finalProviderPrompt = continuityRepairInstructions.length
+      ? `${providerPrompt}\n\nFINAL-FRAME QA REPAIR: ${continuityRepairInstructions.join("; ")}.`
+      : providerPrompt;
     const usesStoryboardReference = selectedReferenceImages.sent.some((image) => image.role === "storyboard");
     const videoCharacterId = provider === "kie-ai" ? avatarCharacterId : null;
     const continuitySourceSegmentId =
@@ -282,7 +275,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       seconds: getProviderDuration(provider, segment.duration_seconds || 10),
       aspect_ratio: "9:16",
       resolution: provider === "kie-ai" ? "1080p" : "720p",
-      provider_prompt: providerPrompt,
+      provider_prompt: finalProviderPrompt,
       image_urls: selectedReferenceImages.sent.map((image) => image.url),
       character_ids: provider === "kie-ai" && videoCharacterId ? [videoCharacterId] : [],
       audio_ids: provider === "kie-ai" ? kieAudioIds : [],
@@ -334,6 +327,9 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       storyboard_validation: segment.storyboard_validation,
       prompt_validation: segment.prompt_validation,
       omni_retry_count: getOmniSegmentRetryCount(segment.request_payload),
+      ...(continuityRepairInstructions.length
+        ? { omni_continuity_repair_instructions: continuityRepairInstructions }
+        : {}),
       ...(segment.request_payload?.omni_kie_safety_storyboard_repaired === true
         ? { omni_kie_safety_storyboard_repaired: true }
         : {}),
@@ -343,7 +339,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
     try {
       task = await createProviderVideoTask({
         provider,
-        prompt: providerPrompt,
+        prompt: finalProviderPrompt,
         seconds: segment.duration_seconds || 10,
         resolution: requestPayload.resolution,
         referenceImages: selectedReferenceImages.sent,

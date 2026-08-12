@@ -133,8 +133,8 @@ try {
       segmentIndex: 1,
       productIsVisible: false,
     });
-    assert.deepEqual(result.sent, [], "KIE must not send product refs when product role is hidden");
-    assert.deepEqual(result.skipped, [imgPreviousFrame, imgProduct, imgProductSide], "KIE must skip continuity and product refs when product is hidden");
+    assert.deepEqual(result.sent, [imgPreviousFrame], "KIE must retain the previous final frame even when the product is hidden");
+    assert.deepEqual(result.skipped, [imgProduct, imgProductSide], "KIE must skip only product refs when product is hidden");
   }
 
   {
@@ -165,6 +165,7 @@ try {
     ]);
     assert.match(prompt, /Image 1: previous segment final frame/);
     assert.match(prompt, /Image 2: product reference/);
+    assert.match(prompt, /CONTINUITY AUTHORITY/);
     assert.match(prompt, /exact standalone source of truth for product appearance/);
     assert.match(prompt, /table, counter, shelf/);
   }
