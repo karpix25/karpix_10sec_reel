@@ -5,8 +5,6 @@ const DEFAULT_VIDEO_MODEL = "gemini-omni-video";
 const DEFAULT_STORYBOARD_IMAGE_MODEL = "gpt-image-2-image-to-image";
 const CHARACTER_POLL_INTERVAL_MS = 5_000;
 const CHARACTER_CREATE_ATTEMPTS = 8;
-const IMAGE_POLL_INTERVAL_MS = 3_000;
-const IMAGE_POLL_ATTEMPTS = 120;
 const KIE_TASK_REQUEST_TIMEOUT_MS = 30_000;
 const TERMINAL_STATUSES = new Set(["completed", "success", "done", "failed", "error", "fail"]);
 
@@ -33,6 +31,7 @@ export type KieStoryboardImageInput = {
   prompt: string;
   inputUrls: string[];
   aspectRatio?: "auto" | "1:1" | "9:16" | "16:9";
+  taskId?: string | null;
 };
 
 export type KieStoryboardImageResult = {
@@ -40,6 +39,23 @@ export type KieStoryboardImageResult = {
   task: KieOmniTask;
   model: string;
 };
+
+export class KieStoryboardImagePendingError extends Error {
+  readonly task: KieOmniTask;
+  readonly model: string;
+  retryWithoutJobAttempt = true;
+
+  constructor(task: KieOmniTask, model: string) {
+    super(`KIE storyboard image task ${task.id} is still ${task.status}`);
+    this.name = "KieStoryboardImagePendingError";
+    this.task = task;
+    this.model = model;
+  }
+}
+
+export function isKieStoryboardImagePendingError(error: unknown): error is KieStoryboardImagePendingError {
+  return error instanceof KieStoryboardImagePendingError;
+}
 
 function getApiKey() {
   const key = process.env.KIE_API_KEY || process.env.KIE_AI_API_KEY || "";
@@ -57,11 +73,6 @@ function getVideoModel() {
 
 function getStoryboardImageModel() {
   return (process.env.KIE_STORYBOARD_IMAGE_MODEL || DEFAULT_STORYBOARD_IMAGE_MODEL).trim() || DEFAULT_STORYBOARD_IMAGE_MODEL;
-}
-
-function getImagePollAttempts() {
-  const parsed = Number.parseInt(process.env.KIE_STORYBOARD_IMAGE_POLL_ATTEMPTS || "", 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : IMAGE_POLL_ATTEMPTS;
 }
 
 function getCharacterCreateAttempts() {
@@ -163,10 +174,26 @@ export async function createKieOmniVideoTask(input: KieOmniVideoInput) {
 }
 
 export async function createKieStoryboardImage(input: KieStoryboardImageInput) {
+  const model = getStoryboardImageModel();
+  const payload = input.taskId
+    ? await retrieveKieTaskDetails(input.taskId)
+    : (await createStoryboardImageTask(input, model)).raw;
+  const task = normalizeTask(payload);
+  const imageUrl = extractGeneratedImageUrl(payload);
+  if (imageUrl) return { imageUrl, task, model };
+
+  const status = extractTaskStatus(payload);
+  if (TERMINAL_STATUSES.has(status)) {
+    throw new Error(`KIE storyboard image task ${task.id} finished without an image: ${extractTaskError(payload)}`);
+  }
+  throw new KieStoryboardImagePendingError(task, model);
+}
+
+async function createStoryboardImageTask(input: KieStoryboardImageInput, model: string) {
   const inputUrls = await uploadStoryboardInputUrls(input.inputUrls);
-  const task = await postCreateTask(
+  return postCreateTask(
     {
-      model: getStoryboardImageModel(),
+      model,
       input: omitEmptyFields({
         prompt: input.prompt,
         input_urls: inputUrls,
@@ -175,21 +202,6 @@ export async function createKieStoryboardImage(input: KieStoryboardImageInput) {
     },
     "storyboard image create"
   );
-  const attempts = getImagePollAttempts();
-
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const payload = await retrieveKieTaskDetails(task.id);
-    const imageUrl = extractGeneratedImageUrl(payload);
-    if (imageUrl) return { imageUrl, task: normalizeTask(payload), model: getStoryboardImageModel() };
-
-    const status = extractTaskStatus(payload);
-    if (TERMINAL_STATUSES.has(status)) {
-      throw new Error(`KIE storyboard image task ${task.id} failed: ${extractTaskError(payload)}`);
-    }
-    await sleep(IMAGE_POLL_INTERVAL_MS);
-  }
-
-  throw new Error(`KIE storyboard image task ${task.id} timed out after ${attempts} checks`);
 }
 
 async function uploadStoryboardInputUrls(inputUrls: readonly string[]) {

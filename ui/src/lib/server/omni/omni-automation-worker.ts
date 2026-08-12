@@ -12,6 +12,7 @@ import { submitOmniReel, syncOmniReel } from "./omni-reel-runner";
 import { createOmniReel } from "./reels";
 import { ensureOmniSchema } from "./schema";
 import { isStoryboardVisionJsonFormatError } from "./storyboard-vision-validator";
+import { isKieStoryboardImagePendingError } from "./kie-omni-client";
 import {
   isStoryboardSetQualityError,
 } from "./generated-script-storyboard-set-qa";
@@ -37,6 +38,18 @@ function getRetryDelaySeconds(job: OmniAutomationJob) {
 
 async function handleJobError(job: OmniAutomationJob, error: unknown) {
   const message = getErrorMessage(error);
+  if (isKieStoryboardImagePendingError(error)) {
+    return {
+      action: "waiting",
+      job: await requeueOmniAutomationJob({
+        jobId: job.id,
+        stage: "reel",
+        delaySeconds: envInt("OMNI_STORYBOARD_KIE_POLL_SECONDS", 30),
+        errorMessage: null,
+        refundAttempt: true,
+      }),
+    };
+  }
   if (isStoryboardSetQualityError(error)) {
     return {
       action: "failed",

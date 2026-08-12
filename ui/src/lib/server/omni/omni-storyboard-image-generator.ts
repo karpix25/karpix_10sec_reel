@@ -47,6 +47,7 @@ type StoryboardImageInput = {
   canonicalStoryboardReferenceUrl?: string | null;
   directorBrief?: DirectorBrief | null;
   generationProvider?: OmniGenerationProvider;
+  pendingKieStoryboardTaskId?: string | null;
   referenceSafetyInstructions?: readonly string[];
 };
 
@@ -81,7 +82,11 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
   let lastValidation: StoryboardVisionValidation | null = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const generated = input.generationProvider === "kie-ai"
-      ? await generateKieStoryboardImageBytes({ ...preparedInput, repairInstructions })
+      ? await generateKieStoryboardImageBytes({
+        ...preparedInput,
+        pendingKieStoryboardTaskId: attempt === 0 ? input.pendingKieStoryboardTaskId : null,
+        repairInstructions,
+      })
       : await generateCometStoryboardImageBytes({ ...preparedInput, repairInstructions });
     const validationInput = {
       imageUrl: toDataUrl(generated.body, generated.contentType),
@@ -128,6 +133,7 @@ async function generateKieStoryboardImageBytes(input: {
   directorReferenceImageUrls: readonly string[];
   canonicalStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
+  pendingKieStoryboardTaskId?: string | null;
   repairInstructions: readonly string[];
 }): Promise<GeneratedStoryboardImage> {
   const inputUrls = [
@@ -140,6 +146,7 @@ async function generateKieStoryboardImageBytes(input: {
     prompt: buildStoryboardImagePrompt(input),
     inputUrls,
     aspectRatio: "auto",
+    taskId: input.pendingKieStoryboardTaskId,
   });
   await recordKieGenerationCost({
     projectId: input.projectId,
