@@ -26,7 +26,9 @@ import { repairScriptBeatBoundaryRepeats } from "./omni-speech-boundary";
 import {
   buildScriptGenerationFailure,
   buildScriptRetryFeedback,
+  isReferenceMeaningScriptGenerationError,
   isRetryableScriptGenerationError,
+  MAX_REFERENCE_MEANING_REPAIR_ATTEMPTS,
   MAX_SCRIPT_GENERATION_ATTEMPTS,
 } from "./script-generation-retry";
 import { isLlmPromptChainEnabled, runLlmPromptChain } from "./llm-prompt-chain-runner";
@@ -73,10 +75,11 @@ export async function generateScript(input: {
   if (isLlmPromptChainEnabled()) return requestPromptChainScript(input);
 
   let retryFeedback: string | null = null;
+  let referenceMeaningRepair: string | null = null;
   let lastError: unknown = null;
   const openRouterUsage: OpenRouterUsageRecord[] = [];
 
-  for (let attempt = 1; attempt <= MAX_SCRIPT_GENERATION_ATTEMPTS; attempt++) {
+  for (let attempt = 1; attempt <= MAX_SCRIPT_GENERATION_ATTEMPTS + MAX_REFERENCE_MEANING_REPAIR_ATTEMPTS; attempt++) {
     try {
       const result = await requestScriptOnce(input, retryFeedback, attempt, (usage) => {
         openRouterUsage.push(usage);
@@ -84,19 +87,30 @@ export async function generateScript(input: {
       return { ...result, openRouterUsage };
     } catch (error) {
       lastError = error;
-      if (attempt >= MAX_SCRIPT_GENERATION_ATTEMPTS || !isRetryableScriptGenerationError(error)) {
+      const retryable = isRetryableScriptGenerationError(error);
+      const referenceMeaningFailed = isReferenceMeaningScriptGenerationError(error);
+      const feedback = buildScriptRetryFeedback(error, { referenceScript: input.sourceScenario.script });
+      if (referenceMeaningFailed) referenceMeaningRepair = feedback;
+      const maxAttempts = MAX_SCRIPT_GENERATION_ATTEMPTS +
+        (referenceMeaningRepair ? MAX_REFERENCE_MEANING_REPAIR_ATTEMPTS : 0);
+      if (attempt >= maxAttempts || !retryable) {
         throw buildScriptGenerationFailure(error, attempt);
       }
-      retryFeedback = buildScriptRetryFeedback(error);
+      retryFeedback = referenceMeaningRepair && feedback !== referenceMeaningRepair
+        ? `${feedback}\n\n${referenceMeaningRepair}`
+        : feedback;
       console.warn("Omni script generation retry:", {
         attempt,
-        maxAttempts: MAX_SCRIPT_GENERATION_ATTEMPTS,
+        maxAttempts,
         reason: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
-  throw buildScriptGenerationFailure(lastError || new Error("Script generation failed"), MAX_SCRIPT_GENERATION_ATTEMPTS);
+  throw buildScriptGenerationFailure(
+    lastError || new Error("Script generation failed"),
+    MAX_SCRIPT_GENERATION_ATTEMPTS + (referenceMeaningRepair ? MAX_REFERENCE_MEANING_REPAIR_ATTEMPTS : 0)
+  );
 }
 
 async function requestPromptChainScript(input: Parameters<typeof generateScript>[0]) {
@@ -197,7 +211,9 @@ async function requestScriptOnce(
   if (!rawScript) throw new Error("Script model returned empty script");
   let script = ensureOmniScriptCta(rawScript, input.ctaMode, input.ctaValue);
   const scriptBudget = Math.min(input.durationRange?.maxWords || getOmniMaxScriptWords(), getOmniMaxScriptWords() - 4);
-  const compactedScript = compactOmniScriptToWordBudget(script, scriptBudget);
+  const compactedScript = compactOmniScriptToWordBudget(script, scriptBudget, {
+    referenceScript: input.sourceScenario.script,
+  });
   const wasCompacted = compactedScript !== script;
   script = compactedScript;
   let persistedScriptPlan = wasCompacted ? null : appendCtaToLastBeat(scriptPlan, rawScript, script);

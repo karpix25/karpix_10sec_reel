@@ -47,6 +47,7 @@ try {
 
   const repairJsPath = findFile(output, "script-json-repair.js");
   const qualityJsPath = findFile(output, "script-quality-contract.js");
+  const referenceMeaningJsPath = findFile(output, "reference-meaning-contract.js");
   const retryJsPath = findFile(output, "script-generation-retry.js");
 
   const { parseAndRepairJson } = require(repairJsPath);
@@ -57,8 +58,11 @@ try {
   const {
     buildScriptRetryFeedback,
     isRetryableScriptGenerationError,
+    isReferenceMeaningScriptGenerationError,
+    MAX_REFERENCE_MEANING_REPAIR_ATTEMPTS,
     MAX_SCRIPT_GENERATION_ATTEMPTS,
   } = require(retryJsPath);
+  const { buildReferenceMeaningRepairGuidance } = require(referenceMeaningJsPath);
 
   // --- Test JSON Repair ---
   console.log("Running JSON Repair checks...");
@@ -356,6 +360,15 @@ And this is line 2."
   assert.match(
     buildScriptRetryFeedback(new Error("Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.")),
     /запятую или точку/u
+  );
+  const meaningReference = "Коллаген распадается до аминокислот, но усваивается не только как еда. Пептиды дают клеткам сигнал.";
+  const meaningError = new Error("Сценарий отклонен: потерян смысл reference-видео. Верни по смыслу эти опоры: усваива.");
+  assert.equal(isReferenceMeaningScriptGenerationError(meaningError), true);
+  assert.equal(MAX_REFERENCE_MEANING_REPAIR_ATTEMPTS, 2);
+  assert.match(buildReferenceMeaningRepairGuidance(meaningReference), /усваива/u);
+  assert.match(
+    buildScriptRetryFeedback(meaningError, { referenceScript: meaningReference }),
+    /Это требование сохраняется/u
   );
 
   // F. Minor slop / clickbaits and warnings (checks score reductions)

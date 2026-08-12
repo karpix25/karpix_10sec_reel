@@ -76,6 +76,21 @@ export function buildReferenceMeaningGuidance(referenceScript: string) {
   return lines.join("\n");
 }
 
+export function buildReferenceMeaningRepairGuidance(referenceScript: string) {
+  const contract = buildReferenceMeaningContract(referenceScript);
+  return [
+    "КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: предыдущий сценарий потерял причинно следственную логику reference.",
+    "Верни механизм или доказательство естественной фразой внутри сценария, а не списком терминов и не общей рекламой.",
+    contract.anchors.length
+      ? `Опоры исходной мысли: ${contract.anchors.join(" / ")}.`
+      : "Сохрани главный тезис, объяснение и вывод original reference.",
+    contract.criticalSignals.length
+      ? `Обязательные смысловые маркеры: ${contract.criticalSignals.join(", ")}.`
+      : "Сохрани конкретный механизм или доказательство original reference.",
+    "Это требование сохраняется даже при исправлении длины, CTA, хука или грамматики. Не добавляй новый CTA и не выдумывай новых обещаний.",
+  ].join(" ");
+}
+
 export function buildReferenceMeaningContract(referenceScript: string): ReferenceMeaningContract {
   const normalized = normalizeText(referenceScript);
   const criticalSignals = CRITICAL_MEANING_SIGNALS.filter((signal) => normalized.includes(signal));
