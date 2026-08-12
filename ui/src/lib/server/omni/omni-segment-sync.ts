@@ -5,8 +5,13 @@ import { storeCompletedSegment } from "./omni-segment-completion";
 import {
   buildOmniSegmentRetryPayload,
   canRetryOmniSegment,
+  hasKieSafetyStoryboardRepair,
 } from "./omni-segment-retry";
 import { recordKieGenerationCost } from "./omni-generation-costs";
+import {
+  isKiePublicFigureSafetyBlock,
+  regenerateKieSafetyBlockedStoryboard,
+} from "./omni-kie-safety-storyboard-repair";
 
 export async function syncOmniReelSegments(input: {
   reel: OmniReel;
@@ -41,8 +46,14 @@ export async function syncOmniReelSegments(input: {
         });
       } else if (status === "failed" || status === "error") {
         const message = String(task.error || "Omni segment failed");
-        if (canRetryOmniSegment(segment.request_payload)) {
-          await resetSegmentForRetry(segment, task.raw, message);
+        const safetyStoryboardRepair = segment.generation_provider === "kie-ai" &&
+          isKiePublicFigureSafetyBlock(message) &&
+          !hasKieSafetyStoryboardRepair(segment.request_payload);
+        if (canRetryOmniSegment(segment.request_payload) || safetyStoryboardRepair) {
+          if (safetyStoryboardRepair) {
+            await regenerateKieSafetyBlockedStoryboard({ reel: input.reel, segment });
+          }
+          await resetSegmentForRetry(segment, task.raw, message, safetyStoryboardRepair);
           retried = true;
         } else {
           await markSegmentFailed(segment, task.raw, message);
@@ -67,7 +78,12 @@ export async function syncOmniReelSegments(input: {
   return { retried };
 }
 
-async function resetSegmentForRetry(segment: OmniReelSegment, response: unknown, message: string) {
+async function resetSegmentForRetry(
+  segment: OmniReelSegment,
+  response: unknown,
+  message: string,
+  safetyStoryboardRepaired = false
+) {
   await pool.query(
     `UPDATE omni_reel_segments
      SET status = 'draft',
@@ -81,7 +97,7 @@ async function resetSegmentForRetry(segment: OmniReelSegment, response: unknown,
     [
       segment.id,
       JSON.stringify(response),
-      JSON.stringify(buildOmniSegmentRetryPayload(segment.request_payload, message)),
+      JSON.stringify(buildOmniSegmentRetryPayload(segment.request_payload, message, { safetyStoryboardRepaired })),
       message,
     ]
   );
