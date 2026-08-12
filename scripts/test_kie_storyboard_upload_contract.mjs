@@ -32,7 +32,10 @@ try {
   }));
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
 
-  const { createKieStoryboardImage } = require(findFile(compiled, "kie-omni-client.js"));
+  const {
+    createKieStoryboardImage,
+    isKieStoryboardImagePendingError,
+  } = require(findFile(compiled, "kie-omni-client.js"));
   process.env.KIE_API_KEY = "test-key";
   const uploadedSources = [];
   let storyboardPayload = null;
@@ -49,17 +52,16 @@ try {
       storyboardPayload = JSON.parse(String(init.body));
       return response({ data: { taskId: "storyboard-task", status: "queued" } });
     }
-    if (requestUrl.includes("/api/v1/jobs/recordInfo")) {
-      return response({ data: { state: "success", imageUrl: "https://kie.example/storyboard.jpg" } });
-    }
     throw new Error(`Unexpected KIE request: ${requestUrl}`);
   };
 
-  const result = await createKieStoryboardImage({
-    prompt: "storyboard",
-    inputUrls: ["https://source.example/avatar.jpg", "https://source.example/product.jpg"],
-  });
-  assert.equal(result, "https://kie.example/storyboard.jpg");
+  await assert.rejects(
+    () => createKieStoryboardImage({
+      prompt: "storyboard",
+      inputUrls: ["https://source.example/avatar.jpg", "https://source.example/product.jpg"],
+    }),
+    (error) => isKieStoryboardImagePendingError(error) && error.task.id === "storyboard-task"
+  );
   assert.deepEqual(uploadedSources, [
     "https://source.example/avatar.jpg",
     "https://source.example/product.jpg",
@@ -68,6 +70,38 @@ try {
     "https://kie.example/1.jpg",
     "https://kie.example/2.jpg",
   ]);
+
+  global.fetch = async (url) => {
+    const requestUrl = String(url);
+    if (requestUrl.includes("/api/v1/jobs/recordInfo")) {
+      return response({ data: { taskId: "storyboard-task", state: "success", imageUrl: "https://kie.example/storyboard.jpg" } });
+    }
+    throw new Error(`Unexpected KIE request: ${requestUrl}`);
+  };
+  const result = await createKieStoryboardImage({
+    prompt: "unused while resuming",
+    inputUrls: [],
+    taskId: "storyboard-task",
+  });
+  assert.equal(result.imageUrl, "https://kie.example/storyboard.jpg");
+
+  global.fetch = async (url, init = {}) => {
+    const requestUrl = String(url);
+    if (requestUrl.endsWith("/api/file-url-upload")) {
+      return response({ data: { downloadUrl: "https://kie.example/pending-input.jpg" } });
+    }
+    if (requestUrl.endsWith("/api/v1/jobs/createTask")) {
+      return response({ data: { taskId: "pending-storyboard-task", status: "queued" } });
+    }
+    if (requestUrl.includes("/api/v1/jobs/recordInfo")) {
+      return response({ data: { taskId: "pending-storyboard-task", state: "generating" } });
+    }
+    throw new Error(`Unexpected KIE request: ${requestUrl}`);
+  };
+  await assert.rejects(
+    () => createKieStoryboardImage({ prompt: "storyboard", inputUrls: ["https://source.example/avatar.jpg"] }),
+    (error) => isKieStoryboardImagePendingError(error) && error.task.id === "pending-storyboard-task"
+  );
   console.log("KIE storyboard upload contract checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });

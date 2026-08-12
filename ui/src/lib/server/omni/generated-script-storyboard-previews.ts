@@ -2,6 +2,8 @@ import pool from "@/lib/db";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
+import { isKieStoryboardImagePendingError } from "./kie-omni-client";
+import { recordKieGenerationCost } from "./omni-generation-costs";
 import { isStoryboardVisionJsonFormatError } from "./storyboard-vision-validator";
 import { ensureOmniSchema } from "./schema";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
@@ -14,6 +16,10 @@ import {
   validateAndSaveGeneratedScriptStoryboardSet,
 } from "./generated-script-storyboard-set-qa";
 import { getStoryboardSetRepairSegments } from "./storyboard-set-vision-validator";
+import {
+  getPendingGeneratedScriptStoryboardKieTaskId,
+  saveGeneratedScriptStoryboardKieTask,
+} from "./generated-script-storyboard-kie-tasks";
 
 type StoryboardPromptSegment = {
   index: number;
@@ -55,12 +61,21 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
     if (segment.index > 1 && !canonicalStoryboardReferenceUrl) {
       throw new Error("Storyboard 1 must be approved before generating later storyboard segments");
     }
+    const pendingKieStoryboardTaskId = input.generationProvider === "kie-ai"
+      ? await getPendingGeneratedScriptStoryboardKieTaskId({
+        scriptId: input.scriptId,
+        segmentIndex: segment.index,
+        referenceSignature,
+        generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
+      })
+      : null;
     const generatedUrl = await tryGenerateStoryboardPreview({
       ...input,
       referenceSignature,
       segmentIndex: segment.index,
       storyboardPlan: segment.storyboardPlan,
       canonicalStoryboardReferenceUrl,
+      pendingKieStoryboardTaskId,
       generationProvider: input.generationProvider,
     });
     if (generatedUrl) {
@@ -142,6 +157,7 @@ async function tryGenerateStoryboardPreview(input: {
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment;
   canonicalStoryboardReferenceUrl: string | null;
+  pendingKieStoryboardTaskId?: string | null;
   generationProvider?: OmniGenerationProvider;
   referenceSafetyInstructions?: readonly string[];
 }) {
@@ -162,12 +178,31 @@ async function tryGenerateStoryboardPreview(input: {
       canonicalStoryboardReferenceUrl: input.canonicalStoryboardReferenceUrl,
       directorBrief: input.directorBrief,
       generationProvider: input.generationProvider,
+      pendingKieStoryboardTaskId: input.pendingKieStoryboardTaskId,
       referenceSafetyInstructions: input.referenceSafetyInstructions,
     });
     if (!url) return null;
     await upsertGeneratedScriptStoryboardUrl({ ...input, url });
     return url;
   } catch (error) {
+    if (isKieStoryboardImagePendingError(error)) {
+      await saveGeneratedScriptStoryboardKieTask({
+        ...input,
+        generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
+        taskId: error.task.id,
+      });
+      await recordKieGenerationCost({
+        projectId: input.projectId,
+        productId: input.productId,
+        generatedScriptId: input.scriptId,
+        operation: "storyboard",
+        taskId: error.task.id,
+        status: error.task.status,
+        model: error.model,
+        raw: error.task.raw,
+      }).catch((recordError) => console.error("Could not record pending KIE storyboard cost:", recordError));
+      throw error;
+    }
     const failure = await recordGeneratedScriptStoryboardFailure(input, error).catch((recordError) => {
       console.error("Could not save storyboard generation diagnostic:", recordError);
       return null;
@@ -277,6 +312,7 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
        storyboard_reference_url,
        reference_signature,
        generator_version,
+       kie_task_id,
        generation_status,
        generation_attempt_count,
        generation_error,
@@ -284,13 +320,14 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
        retry_after,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, 'ready', 0, NULL, CURRENT_TIMESTAMP, NULL, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, NULL, 'ready', 0, NULL, CURRENT_TIMESTAMP, NULL, CURRENT_TIMESTAMP)
      ON CONFLICT (generated_script_id, segment_index)
      DO UPDATE SET
        storyboard_plan = EXCLUDED.storyboard_plan,
        storyboard_reference_url = EXCLUDED.storyboard_reference_url,
        reference_signature = EXCLUDED.reference_signature,
        generator_version = EXCLUDED.generator_version,
+       kie_task_id = NULL,
        generation_status = 'ready',
        generation_attempt_count = 0,
        generation_error = NULL,
@@ -335,6 +372,7 @@ async function recordGeneratedScriptStoryboardFailure(input: {
        storyboard_plan,
        reference_signature,
        generator_version,
+       kie_task_id,
        generation_status,
        generation_attempt_count,
        generation_error,
@@ -343,12 +381,13 @@ async function recordGeneratedScriptStoryboardFailure(input: {
        retry_after,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, 1, $9, $10::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '5 seconds', CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, NULL, $8, 1, $9, $10::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '5 seconds', CURRENT_TIMESTAMP)
      ON CONFLICT (generated_script_id, segment_index)
      DO UPDATE SET
        storyboard_plan = EXCLUDED.storyboard_plan,
        reference_signature = EXCLUDED.reference_signature,
        generator_version = EXCLUDED.generator_version,
+       kie_task_id = NULL,
        generation_status = EXCLUDED.generation_status,
        generation_attempt_count = omni_generated_script_storyboards.generation_attempt_count + 1,
        generation_error = EXCLUDED.generation_error,
