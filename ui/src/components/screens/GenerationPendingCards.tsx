@@ -17,6 +17,8 @@ export type PendingVideoDraft = {
   startedAt: number;
 };
 
+export type PendingVideoStage = "storyboard" | "submit" | "sync";
+
 export function PendingGeneratedScriptCard({ draft }: { draft: PendingScriptDraft }) {
   return (
     <article className="min-w-0 max-w-full overflow-hidden rounded-lg border border-primary/30 bg-primary/5 p-4">
@@ -43,24 +45,37 @@ export function PendingGeneratedScriptCard({ draft }: { draft: PendingScriptDraf
   );
 }
 
-export function PendingVideoCard({ provider }: { provider: OmniGenerationProvider }) {
+export function PendingVideoCard({
+  provider,
+  stage = "storyboard",
+  recovering = false,
+}: {
+  provider: OmniGenerationProvider;
+  stage?: PendingVideoStage;
+  recovering?: boolean;
+}) {
   const providerLabel = getOmniGenerationProviderLabel(provider);
+  const steps = [
+    { label: recovering ? "Исправляю ответ проверки раскадровки" : "Собираю план сегментов", active: stage === "storyboard" },
+    { label: `Отправляю сегменты в ${providerLabel}`, active: stage === "submit" },
+    { label: "Сохраняю результат в S3 и Яндекс", active: stage === "sync" },
+  ];
 
   return (
     <div className="mt-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Видео создается</p>
-          <p className="mt-1 text-xs text-muted-foreground">Готовлю {providerLabel} job для этого сценария</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+            {recovering ? "Исправляю раскадровку" : "Видео создается"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {recovering ? "Проверяю и при необходимости пересобираю раскадровку, без отправки видео в провайдер" : `Готовлю ${providerLabel} job для этого сценария`}
+          </p>
         </div>
         <PendingIcon />
       </div>
       <PendingSteps
-        steps={[
-          { label: "Собираю план сегментов", active: true },
-          { label: `Отправлю сегменты в ${providerLabel}` },
-          { label: "Сохраню результат в S3 и Яндекс" },
-        ]}
+        steps={steps}
       />
     </div>
   );

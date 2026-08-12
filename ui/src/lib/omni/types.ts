@@ -11,6 +11,8 @@ import type { OmniGenerationCostSummary } from "./generation-cost";
 export type OmniProjectStatus = "active" | "archived";
 export type OmniReelStatus = "draft" | "queued" | "generating" | "stitching" | "completed" | "failed";
 export type OmniSegmentStatus = "draft" | "queued" | "submitted" | "processing" | "completed" | "failed";
+export type OmniAutomationJobStatus = "queued" | "processing" | "completed" | "failed";
+export type OmniAutomationStage = "script" | "reel" | "submit" | "sync";
 export type { OmniSubtitleStatus } from "./subtitle-settings";
 
 export interface OmniProject {
@@ -141,7 +143,17 @@ export interface OmniGeneratedScript {
   product_snapshot: Record<string, unknown> | null;
   model: string | null;
   generation_cost_summary?: OmniGenerationCostSummary | null;
+  automation_job?: OmniAutomationJobSummary | null;
   created_at: string;
+  updated_at: string;
+}
+
+export interface OmniAutomationJobSummary {
+  status: OmniAutomationJobStatus;
+  current_stage: OmniAutomationStage;
+  attempt_count: number;
+  max_attempts: number;
+  last_error: string | null;
   updated_at: string;
 }
 

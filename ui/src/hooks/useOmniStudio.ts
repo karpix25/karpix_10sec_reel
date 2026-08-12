@@ -133,6 +133,10 @@ export function useOmniGeneratedScripts(projectId: number | null, productId: num
       ).data,
     enabled: Boolean(projectId),
     staleTime: 20_000,
+    refetchInterval: (query) =>
+      query.state.data?.some((script) =>
+        script.automation_job?.status === "queued" || script.automation_job?.status === "processing"
+      ) ? 5_000 : false,
   });
 }
 

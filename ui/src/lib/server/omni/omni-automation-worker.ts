@@ -11,6 +11,7 @@ import {
 import { submitOmniReel, syncOmniReel } from "./omni-reel-runner";
 import { createOmniReel } from "./reels";
 import { ensureOmniSchema } from "./schema";
+import { isStoryboardVisionJsonFormatError } from "./storyboard-vision-validator";
 
 function envInt(name: string, fallback: number, min = 1) {
   const parsed = Number.parseInt(process.env[name] || "", 10);
@@ -30,6 +31,19 @@ function getRetryDelaySeconds(job: OmniAutomationJob) {
 
 async function handleJobError(job: OmniAutomationJob, error: unknown) {
   const message = getErrorMessage(error);
+  if (isStoryboardVisionJsonFormatError(error) && error.retryWithoutJobAttempt) {
+    return {
+      action: "requeued",
+      job: await requeueOmniAutomationJob({
+        jobId: job.id,
+        stage: "reel",
+        delaySeconds: 5,
+        errorMessage: message,
+        refundAttempt: true,
+      }),
+      error: message,
+    };
+  }
   if (job.attempt_count >= job.max_attempts) {
     return {
       action: "failed",

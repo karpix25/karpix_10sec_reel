@@ -11,7 +11,17 @@ export type GeneratedScriptPayload = {
   background_audio_mood?: string;
 };
 
-export function parseAndRepairJson(content: string): GeneratedScriptPayload {
+export class JsonOutputParseError extends Error {
+  readonly rawJson: string;
+
+  constructor(message: string, rawJson: string) {
+    super(message);
+    this.name = "JsonOutputParseError";
+    this.rawJson = rawJson;
+  }
+}
+
+export function parseAndRepairJson<T = GeneratedScriptPayload>(content: string): T {
   let cleaned = content.trim();
 
   // 1. Strip markdown fences
@@ -24,7 +34,7 @@ export function parseAndRepairJson(content: string): GeneratedScriptPayload {
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start < 0 || end <= start) {
-    throw new Error("No JSON object found in script model output");
+    throw new JsonOutputParseError("No JSON object found in script model output", cleaned);
   }
 
   let jsonStr = cleaned.slice(start, end + 1);
@@ -40,7 +50,7 @@ export function parseAndRepairJson(content: string): GeneratedScriptPayload {
   jsonStr = escapeNewlinesInStrings(jsonStr);
 
   try {
-    return JSON.parse(jsonStr) as GeneratedScriptPayload;
+    return JSON.parse(jsonStr) as T;
   } catch (err) {
     // 6. Try repairing single quotes if they are used as key or value delimiters
     let repaired = jsonStr;
@@ -48,13 +58,61 @@ export function parseAndRepairJson(content: string): GeneratedScriptPayload {
     repaired = repaired.replace(/([{,]\s*)'([^']*)'(\s*:)/g, '$1"$2"$3');
     // Single quotes around string values: : 'value' -> : "value"
     repaired = repaired.replace(/(:\s*)'([^']*)'(\s*[,}])/g, '$1"$2"$3');
+    repaired = insertMissingValueCommas(repaired);
 
     try {
-      return JSON.parse(repaired) as GeneratedScriptPayload;
+      return JSON.parse(repaired) as T;
     } catch {
-      throw new Error(`Failed to parse script JSON: ${(err as Error).message}. Repaired raw string was: ${jsonStr}`);
+      throw new JsonOutputParseError(
+        `Failed to parse script JSON: ${(err as Error).message}. Repaired raw string was: ${jsonStr}`,
+        jsonStr
+      );
     }
   }
+}
+
+/**
+ * Restores a missing comma only between adjacent JSON values outside strings.
+ * It deliberately does not close truncated arrays or objects: a partial model
+ * response must be retried, not silently accepted as a valid storyboard.
+ */
+function insertMissingValueCommas(str: string) {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  let previousSignificant = "";
+
+  for (const char of str) {
+    if (inString) {
+      result += char;
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') {
+        inString = false;
+        previousSignificant = char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      if (previousSignificant === '"' || previousSignificant === "}" || previousSignificant === "]") result += ",";
+      inString = true;
+      result += char;
+      continue;
+    }
+
+    if (char === "{" || char === "[") {
+      if (previousSignificant === "}" || previousSignificant === "]") result += ",";
+      result += char;
+      previousSignificant = char;
+      continue;
+    }
+
+    result += char;
+    if (!/\s/.test(char)) previousSignificant = char;
+  }
+
+  return result;
 }
 
 /**
