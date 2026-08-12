@@ -63,6 +63,28 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
   return urls;
 }
 
+export async function getSavedGeneratedScriptStoryboardUrls(input: {
+  projectId: number;
+  productId: number;
+  scriptId: number;
+}) {
+  await ensureOmniSchema();
+  const { rows } = await pool.query<{
+    segment_index: number;
+    storyboard_reference_url: string | null;
+  }>(
+    `SELECT segment_index, storyboard_reference_url
+     FROM omni_generated_script_storyboards
+     WHERE project_id = $1
+       AND product_id = $2
+       AND generated_script_id = $3
+       AND storyboard_reference_url IS NOT NULL
+     ORDER BY segment_index ASC`,
+    [input.projectId, input.productId, input.scriptId]
+  );
+  return rowsToUrlMap(rows);
+}
+
 async function getStoredGeneratedScriptStoryboardUrls(input: {
   projectId: number;
   productId: number;
