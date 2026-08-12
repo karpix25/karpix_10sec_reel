@@ -82,6 +82,21 @@ try {
   assert.deepEqual(hiddenProductKie.sent.map((image) => image.role), ["storyboard", "storyboard_canonical"]);
   assert.deepEqual(hiddenProductKie.skipped.map((image) => image.role), ["product", "product_secondary"]);
 
+  const continuityKie = selectReferenceImagesForSegment({
+    provider: "kie-ai",
+    continuityImages: [{ url: "https://example.com/segment-01-last.jpg", fieldName: "input_reference", role: "previous_last_frame" }],
+    cometReferenceImages: references,
+    kieReferenceImages: [references[0], { url: "https://example.com/first-storyboard.jpg", fieldName: "input_reference", role: "storyboard_canonical" }, ...references.slice(1)],
+    referenceImageTransport: "url",
+    segmentIndex: 2,
+    productIsVisible: false,
+  });
+  assert.deepEqual(
+    continuityKie.sent.map((image) => image.role),
+    ["previous_last_frame", "storyboard", "storyboard_canonical"],
+    "KIE receives the preceding frame before current composition and canonical wardrobe references"
+  );
+
   const firstComet = selectReferenceImagesForSegment({
     provider: "cometapi",
     continuityImages: [],

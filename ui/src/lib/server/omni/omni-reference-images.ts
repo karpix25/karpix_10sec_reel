@@ -35,11 +35,14 @@ export function selectReferenceImagesForSegment(input: {
 }): ReferenceImageSelection {
   const productReferencesAllowed = input.productIsVisible;
   if (input.provider === "kie-ai") {
-    const sent = input.kieReferenceImages.filter((image) => productReferencesAllowed || !isProductBearingReference(image));
+    const sent = [
+      ...input.continuityImages,
+      ...input.kieReferenceImages.filter((image) => productReferencesAllowed || !isProductBearingReference(image)),
+    ];
     const skippedProductReferences = input.kieReferenceImages.filter((image) => !productReferencesAllowed && isProductBearingReference(image));
     return {
       sent: uniqueReferenceImages(sent),
-      skipped: [...input.continuityImages, ...skippedProductReferences],
+      skipped: skippedProductReferences,
     };
   }
 

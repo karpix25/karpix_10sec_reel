@@ -133,7 +133,8 @@ const statements = [
 	    lead_magnet TEXT,
 	    background_audio_mood TEXT,
 	    source_snapshot JSONB,
-	    product_snapshot JSONB,
+    product_snapshot JSONB,
+    storyboard_set_validation JSONB,
     model TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -348,6 +349,7 @@ const statements = [
   "ALTER TABLE omni_legacy_video_analyses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP",
   "ALTER TABLE omni_generated_scripts ADD COLUMN IF NOT EXISTS director_analysis_id BIGINT",
   "ALTER TABLE omni_generated_scripts ADD COLUMN IF NOT EXISTS background_audio_mood TEXT",
+  "ALTER TABLE omni_generated_scripts ADD COLUMN IF NOT EXISTS storyboard_set_validation JSONB",
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS background_audio_mood TEXT",
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS background_audio_track_id BIGINT",
   "ALTER TABLE omni_reels ADD COLUMN IF NOT EXISTS background_audio_status TEXT NOT NULL DEFAULT 'not_selected'",

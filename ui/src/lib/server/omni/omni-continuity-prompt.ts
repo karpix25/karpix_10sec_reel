@@ -23,7 +23,9 @@ export function appendKieReferenceOrderPrompt(
     prompt.trim(),
     "",
     `KIE reference image order: ${labels.join("; ")}.`,
-    hasPreviousFrame ? "Follow the previous frame image for the starting pose and layout." : "",
+    hasPreviousFrame
+      ? "CONTINUITY AUTHORITY: begin exactly from the previous final frame. It controls the visible person, outfit, hair, camera, lighting, room and prop layout at the cut boundary; never replace this outfit in the new segment."
+      : "",
     hasCanonicalStoryboard
       ? "WARDROBE AUTHORITY: copy the exact outfit, color, fabric, fit, sleeves, glasses, and accessories from the canonical storyboard reference. It overrides the current storyboard, avatar, and model guesses for character appearance."
       : images.some((image) => image.role === "storyboard")

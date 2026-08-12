@@ -17,7 +17,6 @@ import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
 import {
   ensureGeneratedScriptStoryboardUrls,
-  getSavedGeneratedScriptStoryboardUrls,
 } from "./generated-script-storyboard-previews";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { detectKieOmniVoiceGender } from "./kie-omni-audio";
@@ -274,30 +273,23 @@ export async function createOmniReel(input: {
   });
   let storyboardReferenceUrls: (string | null)[];
   if (resolvedGeneratedScript) {
-    const savedStoryboardUrls = await getSavedGeneratedScriptStoryboardUrls({
+    const generatedStoryboardUrls = await ensureGeneratedScriptStoryboardUrls({
       projectId: input.projectId,
       productId: input.productId,
       scriptId: resolvedGeneratedScript.id,
+      productName: product.name,
+      productPhysicalContract: product.product_physical_contract,
+      avatarReferenceUrl: latestAvatar?.reference_url || null,
+      productReferenceUrls: resolveProductReferenceImageUrls(product),
+      directorReferenceImageUrls,
+      directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
+      directorBrief,
+      promptPlan: promptPlan.map((segment) => ({
+        index: segment.index,
+        storyboardPlan: segment.storyboardPlan,
+      })),
+      generationProvider: input.generationProvider,
     });
-    const generatedStoryboardUrls = hasSavedStoryboardUrls(savedStoryboardUrls, segmentCount)
-      ? savedStoryboardUrls
-      : await ensureGeneratedScriptStoryboardUrls({
-          projectId: input.projectId,
-          productId: input.productId,
-          scriptId: resolvedGeneratedScript.id,
-          productName: product.name,
-          productPhysicalContract: product.product_physical_contract,
-          avatarReferenceUrl: latestAvatar?.reference_url || null,
-          productReferenceUrls: resolveProductReferenceImageUrls(product),
-          directorReferenceImageUrls,
-          directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
-          directorBrief,
-          promptPlan: promptPlan.map((segment) => ({
-            index: segment.index,
-            storyboardPlan: segment.storyboardPlan,
-          })),
-          generationProvider: input.generationProvider,
-        });
     storyboardReferenceUrls = Array.from(
       { length: segmentCount },
       (_, index) => generatedStoryboardUrls.get(index + 1) || null
@@ -416,10 +408,6 @@ export async function createOmniReel(input: {
   } finally {
     client.release();
   }
-}
-
-function hasSavedStoryboardUrls(urls: ReadonlyMap<number, string>, segmentCount: number) {
-  return Array.from({ length: segmentCount }, (_, index) => urls.has(index + 1)).every(Boolean);
 }
 
 async function reserveOmniReelId() {

@@ -12,6 +12,10 @@ import {
   isKiePublicFigureSafetyBlock,
   regenerateKieSafetyBlockedStoryboard,
 } from "./omni-kie-safety-storyboard-repair";
+import {
+  getSegmentContinuityRepairInstructions,
+  isSegmentContinuityValidationError,
+} from "./omni-segment-continuity-validator";
 
 export async function syncOmniReelSegments(input: {
   reel: OmniReel;
@@ -69,6 +73,19 @@ export async function syncOmniReelSegments(input: {
         );
       }
     } catch (error) {
+      if (isSegmentContinuityValidationError(error)) {
+        const repairInstructions = getSegmentContinuityRepairInstructions(error.validation);
+        if (canRetryOmniSegment(segment.request_payload)) {
+          await resetSegmentForRetry(segment, {
+            ...segment.response_payload,
+            continuity_qa: error.validation,
+          }, error.message, false, repairInstructions);
+          retried = true;
+          continue;
+        }
+        await markSegmentFailed(segment, { ...segment.response_payload, continuity_qa: error.validation }, error.message);
+        continue;
+      }
       await pool.query(
         "UPDATE omni_reel_segments SET error_message = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
         [segment.id, error instanceof Error ? error.message : "Omni segment sync failed"]
@@ -82,7 +99,8 @@ async function resetSegmentForRetry(
   segment: OmniReelSegment,
   response: unknown,
   message: string,
-  safetyStoryboardRepaired = false
+  safetyStoryboardRepaired = false,
+  continuityRepairInstructions: readonly string[] = []
 ) {
   await pool.query(
     `UPDATE omni_reel_segments
@@ -97,7 +115,10 @@ async function resetSegmentForRetry(
     [
       segment.id,
       JSON.stringify(response),
-      JSON.stringify(buildOmniSegmentRetryPayload(segment.request_payload, message, { safetyStoryboardRepaired })),
+      JSON.stringify(buildOmniSegmentRetryPayload(segment.request_payload, message, {
+        safetyStoryboardRepaired,
+        continuityRepairInstructions,
+      })),
       message,
     ]
   );

@@ -17,7 +17,7 @@ export function getAutomationVideoStageLabel(job: OmniAutomationJobSummary | nul
   if (isStoryboardJsonRecovery(job)) return "Исправляю раскадровку";
   if (job.current_stage === "submit") return "Отправляю сегменты в KIE.ai";
   if (job.current_stage === "sync") return "Собираю видео";
-  return "Создаю раскадровку";
+  return "Проверяю раскадровки";
 }
 
 export function getPendingVideoStage(job: OmniAutomationJobSummary | null): PendingVideoStage {

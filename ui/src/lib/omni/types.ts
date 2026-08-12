@@ -7,6 +7,7 @@ import type { OmniSubtitleSettings, OmniSubtitleStatus } from "./subtitle-settin
 import type { OmniStoryboardSegment, OmniStoryboardValidationResult } from "./storyboard/omni-storyboard-types";
 import type { PhysicalFramePlan } from "./physical-scene-types";
 import type { OmniGenerationCostSummary } from "./generation-cost";
+import type { StoryboardSetQualityRecord } from "./storyboard/omni-storyboard-set-vision-types";
 
 export type OmniProjectStatus = "active" | "archived";
 export type OmniReelStatus = "draft" | "queued" | "generating" | "stitching" | "completed" | "failed";
@@ -141,6 +142,7 @@ export interface OmniGeneratedScript {
   background_audio_mood: AudioMood | null;
   source_snapshot: Record<string, unknown> | null;
   product_snapshot: Record<string, unknown> | null;
+  storyboard_set_validation?: StoryboardSetQualityRecord | null;
   model: string | null;
   generation_cost_summary?: OmniGenerationCostSummary | null;
   automation_job?: OmniAutomationJobSummary | null;
