@@ -174,7 +174,10 @@ async function tryMixBackgroundAudio(input: {
 
 async function loadSegmentBuffer(segment: OmniReelSegment) {
   if (!segment.video_url) throw new Error(`Segment ${segment.segment_index} video is missing`);
-  const response = await fetch(segment.video_url, { cache: "no-store" });
+  const response = await fetch(segment.video_url, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(60_000),
+  });
   if (!response.ok) {
     throw new Error(`Failed to load segment ${segment.segment_index} from S3: ${response.status}`);
   }
