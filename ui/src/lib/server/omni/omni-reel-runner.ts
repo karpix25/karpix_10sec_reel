@@ -334,6 +334,9 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       storyboard_validation: segment.storyboard_validation,
       prompt_validation: segment.prompt_validation,
       omni_retry_count: getOmniSegmentRetryCount(segment.request_payload),
+      ...(segment.request_payload?.omni_kie_safety_storyboard_repaired === true
+        ? { omni_kie_safety_storyboard_repaired: true }
+        : {}),
     };
 
     let task: ProviderTask;
