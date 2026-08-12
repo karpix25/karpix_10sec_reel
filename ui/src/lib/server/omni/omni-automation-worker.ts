@@ -1,4 +1,5 @@
 import { createGeneratedScriptFromLegacy } from "./generated-scripts";
+import pool from "@/lib/db";
 import {
   claimNextOmniAutomationJob,
   completeOmniAutomationJob,
@@ -73,6 +74,11 @@ async function runReelStage(job: OmniAutomationJob) {
     throw new Error("Omni automation job has no generated script for reel stage");
   }
 
+  const existingReel = await findReelCreatedForJob(job);
+  if (existingReel) {
+    return updateOmniAutomationJobStage({ jobId: job.id, stage: "submit", reelId: existingReel.id });
+  }
+
   const reel = await createOmniReel({
     projectId: job.project_id,
     productId: job.product_id,
@@ -85,6 +91,22 @@ async function runReelStage(job: OmniAutomationJob) {
     stage: "submit",
     reelId: reel.id,
   });
+}
+
+async function findReelCreatedForJob(job: OmniAutomationJob) {
+  if (!job.generated_script_id) return null;
+  const { rows } = await pool.query<{ id: number }>(
+    `SELECT id
+     FROM omni_reels
+     WHERE project_id = $1
+       AND product_id = $2
+       AND source_generated_script_id = $3
+       AND created_at >= $4
+     ORDER BY id DESC
+     LIMIT 1`,
+    [job.project_id, job.product_id, job.generated_script_id, job.started_at || job.created_at]
+  );
+  return rows[0] || null;
 }
 
 async function runSubmitStage(job: OmniAutomationJob) {

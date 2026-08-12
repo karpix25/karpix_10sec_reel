@@ -45,6 +45,7 @@ export async function enqueueOmniAutomationJob(input: {
   provider?: unknown;
   priority?: number;
   sourceLegacyScenarioId?: number | null;
+  generatedScriptId?: number | null;
 }) {
   await ensureOmniSchema();
   const provider = normalizeOmniGenerationProvider(input.provider);
@@ -53,15 +54,21 @@ export async function enqueueOmniAutomationJob(input: {
        project_id,
        product_id,
        source_legacy_scenario_id,
+       generated_script_id,
        generation_provider,
        priority
      )
-     VALUES ($1, $2, $3, $4, $5)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (generated_script_id)
+     WHERE generated_script_id IS NOT NULL
+       AND status IN ('queued', 'processing')
+     DO UPDATE SET updated_at = CURRENT_TIMESTAMP
      RETURNING *`,
     [
       input.projectId,
       input.productId,
       input.sourceLegacyScenarioId || null,
+      input.generatedScriptId || null,
       provider,
       Math.max(0, Math.floor(input.priority || 0)),
     ]
@@ -96,6 +103,11 @@ export async function claimNextOmniAutomationJob(input: {
        WHERE (
            (job.status = 'queued' AND job.scheduled_for <= CURRENT_TIMESTAMP)
            OR (job.status = 'processing' AND job.lease_until < CURRENT_TIMESTAMP)
+           OR (
+             job.status = 'processing'
+             AND job.worker_id = $2
+             AND job.generated_script_id IS NOT NULL
+           )
          )
          AND job.attempt_count < job.max_attempts
          AND (

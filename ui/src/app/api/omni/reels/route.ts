@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createOmniReel, listOmniReels, listOmniReelSegments } from "@/lib/server/omni/reels";
 import { submitOmniReel } from "@/lib/server/omni/omni-reel-runner";
+import { enqueueOmniAutomationJob } from "@/lib/server/omni/omni-automation-queue";
 import { getOmniErrorStatus, jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
 import { normalizeOmniGenerationProvider } from "@/lib/omni/provider";
 
@@ -31,13 +32,26 @@ export async function POST(request: Request) {
     const projectId = parsePositiveInt(body.projectId);
     const productId = parsePositiveInt(body.productId);
     const provider = normalizeOmniGenerationProvider(body.provider);
+    const sourceGeneratedScriptId = parsePositiveInt(body.sourceGeneratedScriptId);
     if (!projectId) return jsonError("projectId is required");
     if (!productId) return jsonError("productId is required");
+
+    if (body.autoRun && sourceGeneratedScriptId) {
+      const job = await enqueueOmniAutomationJob({
+        projectId,
+        productId,
+        provider,
+        sourceLegacyScenarioId: parsePositiveInt(body.sourceLegacyScenarioId),
+        generatedScriptId: sourceGeneratedScriptId,
+        priority: 100,
+      });
+      return NextResponse.json({ job }, { status: 202 });
+    }
 
     const reel = await createOmniReel({
       projectId,
       productId,
-      sourceGeneratedScriptId: parsePositiveInt(body.sourceGeneratedScriptId),
+      sourceGeneratedScriptId,
       sourceLegacyScenarioId: parsePositiveInt(body.sourceLegacyScenarioId),
       targetDurationSeconds: body.targetDurationSeconds,
       brief: body.brief,
