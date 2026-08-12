@@ -393,6 +393,10 @@ const statements = [
   "CREATE INDEX IF NOT EXISTS idx_omni_automation_jobs_project_created ON omni_automation_jobs(project_id, created_at)",
   "CREATE INDEX IF NOT EXISTS idx_omni_automation_jobs_reel ON omni_automation_jobs(reel_id)",
   "CREATE INDEX IF NOT EXISTS idx_omni_automation_jobs_script ON omni_automation_jobs(generated_script_id)",
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_omni_automation_jobs_active_script
+   ON omni_automation_jobs(generated_script_id)
+   WHERE generated_script_id IS NOT NULL
+     AND status IN ('queued', 'processing')`,
 ];
 
 export async function ensureOmniSchema() {

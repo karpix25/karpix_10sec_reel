@@ -352,6 +352,7 @@ export function useOmniStudio(
       ).data,
     enabled: Boolean(projectId),
     staleTime: 15_000,
+    refetchInterval: 20_000,
   });
 
   const generatedScriptsQuery = useOmniGeneratedScripts(projectId, productId);
