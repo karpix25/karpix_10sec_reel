@@ -1,4 +1,7 @@
+import { buildReferenceMeaningRepairGuidance } from "./reference-meaning-contract";
+
 export const MAX_SCRIPT_GENERATION_ATTEMPTS = 5;
+export const MAX_REFERENCE_MEANING_REPAIR_ATTEMPTS = 2;
 
 const RETRYABLE_MODEL_ERROR_FRAGMENTS = [
   "Сценарий отклонен:",
@@ -15,8 +18,25 @@ export function isRetryableScriptGenerationError(error: unknown) {
   return RETRYABLE_MODEL_ERROR_FRAGMENTS.some((fragment) => message.includes(fragment));
 }
 
-export function buildScriptRetryFeedback(error: unknown) {
+export function isReferenceMeaningScriptGenerationError(error: unknown) {
+  return /потерян смысл reference-видео/iu.test(getErrorMessage(error));
+}
+
+export function buildScriptRetryFeedback(
+  error: unknown,
+  input: { referenceScript?: string | null } = {}
+) {
   const message = getErrorMessage(error);
+
+  if (isReferenceMeaningScriptGenerationError(error)) {
+    return input.referenceScript?.trim()
+      ? buildReferenceMeaningRepairGuidance(input.referenceScript)
+      : [
+          "КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: предыдущий сценарий потерял смысл reference.",
+          "Верни главный тезис, причинную связь, конкретный механизм или доказательство и вывод.",
+          "Это требование сохраняется даже при исправлении длины, CTA, хука или грамматики.",
+        ].join(" ");
+  }
 
   const shortMatch = message.match(/слишком короткий[^(]*\((\d+) слов\).*?Нужно (\d+)-(\d+) слов/iu);
   if (shortMatch) {
