@@ -107,6 +107,7 @@ export async function claimNextOmniAutomationJob(input: {
              job.status = 'processing'
              AND job.worker_id = $2
              AND job.generated_script_id IS NOT NULL
+             AND job.updated_at < CURRENT_TIMESTAMP - INTERVAL '60 seconds'
            )
          )
          AND job.attempt_count < job.max_attempts
