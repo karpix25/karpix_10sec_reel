@@ -336,19 +336,25 @@ async function ensureStoryboardSetApproval(input: {
         scriptId: input.scriptId,
         segmentIndex,
       });
-      const regeneratedUrl = await tryGenerateStoryboardPreview({
-        ...input,
-        referenceSignature,
-        segmentIndex,
-        storyboardPlan,
-        canonicalStoryboardReferenceUrl,
-        previousStoryboardReferenceUrl: urls.get(segmentIndex) || repairContext.previousStoryboardReferenceUrl,
-        previousRepairInstructions: repairContext.previousRepairInstructions,
-        previousGenerationAttemptCount: repairContext.previousGenerationAttemptCount,
-        resetAttemptBudget: resetAttemptBudgetForQaPolicy && attempt === 0,
-        deferVisualQa,
-        referenceSafetyInstructions: buildSetRepairInstructions(validation.repairInstructions, validation.violations, segmentIndex),
-      });
+      let regeneratedUrl: string | null;
+      try {
+        regeneratedUrl = await tryGenerateStoryboardPreview({
+          ...input,
+          referenceSignature,
+          segmentIndex,
+          storyboardPlan,
+          canonicalStoryboardReferenceUrl,
+          previousStoryboardReferenceUrl: urls.get(segmentIndex) || repairContext.previousStoryboardReferenceUrl,
+          previousRepairInstructions: repairContext.previousRepairInstructions,
+          previousGenerationAttemptCount: repairContext.previousGenerationAttemptCount,
+          resetAttemptBudget: resetAttemptBudgetForQaPolicy && attempt === 0,
+          deferVisualQa,
+          referenceSafetyInstructions: buildSetRepairInstructions(validation.repairInstructions, validation.violations, segmentIndex),
+        });
+      } catch (error) {
+        if (error instanceof StoryboardImageRepairExhaustedError) throw new StoryboardSetQualityError(validation);
+        throw error;
+      }
       if (!regeneratedUrl) throw new Error(`Storyboard ${segmentIndex} could not be regenerated for cross-storyboard QA`);
       urls.set(segmentIndex, regeneratedUrl);
     }
