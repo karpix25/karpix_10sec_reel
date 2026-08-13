@@ -37,6 +37,7 @@ import {
   StoryboardKieSubmissionInProgressError,
   StoryboardKieSubmissionStalledError,
 } from "./storyboard-kie-submission-state";
+import { canReuseStoryboardRepairReference } from "./storyboard-repair-reference";
 
 type StoryboardPromptSegment = {
   index: number;
@@ -58,7 +59,7 @@ type EnsureGeneratedScriptStoryboardUrlsInput = {
   generationProvider?: OmniGenerationProvider;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-avatar-identity-v11";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-avatar-identity-v12";
 const MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES = 2;
 const MAX_STORYBOARD_SET_REPAIR_ATTEMPTS = 2;
 
@@ -336,6 +337,7 @@ async function ensureStoryboardSetApproval(input: {
         scriptId: input.scriptId,
         segmentIndex,
       });
+      const reusePreviousStoryboard = canReuseStoryboardRepairReference(validation.violations, segmentIndex);
       let regeneratedUrl: string | null;
       try {
         regeneratedUrl = await tryGenerateStoryboardPreview({
@@ -344,7 +346,9 @@ async function ensureStoryboardSetApproval(input: {
           segmentIndex,
           storyboardPlan,
           canonicalStoryboardReferenceUrl,
-          previousStoryboardReferenceUrl: urls.get(segmentIndex) || repairContext.previousStoryboardReferenceUrl,
+          previousStoryboardReferenceUrl: reusePreviousStoryboard
+            ? urls.get(segmentIndex) || repairContext.previousStoryboardReferenceUrl
+            : null,
           previousRepairInstructions: repairContext.previousRepairInstructions,
           previousGenerationAttemptCount: repairContext.previousGenerationAttemptCount,
           resetAttemptBudget: resetAttemptBudgetForQaPolicy && attempt === 0,

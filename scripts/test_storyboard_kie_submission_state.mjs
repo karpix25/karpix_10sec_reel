@@ -17,6 +17,7 @@ try {
     [
       "src/lib/server/omni/storyboard-repair-limit.ts",
       "src/lib/server/omni/storyboard-kie-submission-state.ts",
+      "src/lib/server/omni/storyboard-repair-reference.ts",
       "--outDir", output,
       "--module", "commonjs",
       "--target", "es2022",
@@ -31,6 +32,9 @@ try {
     resolveVersionedStoryboardKieSubmissionAction,
   } = require(
     join(output, "storyboard-kie-submission-state.js")
+  );
+  const { canReuseStoryboardRepairReference } = require(
+    join(output, "storyboard-repair-reference.js")
   );
   assert.deepEqual(resolveStoryboardKieSubmissionAction(null, now), { kind: "submit", generationAttemptCount: 1 });
   assert.deepEqual(resolveStoryboardKieSubmissionAction(row({ generationStatus: "generating", taskId: "kie-1", generationAttemptCount: 1 }), now), {
@@ -58,6 +62,15 @@ try {
   }, {
     referenceSignature: "current", generatorVersion: "v10", resetAttemptBudget: true,
   }, now), { kind: "submit", generationAttemptCount: 1 });
+  assert.equal(canReuseStoryboardRepairReference([
+    { segmentIndex: 2, code: "product_placement_mismatch" },
+  ], 2), true);
+  assert.equal(canReuseStoryboardRepairReference([
+    { segmentIndex: 2, code: "identity_mismatch" },
+  ], 2), false);
+  assert.equal(canReuseStoryboardRepairReference([
+    { segmentIndex: 3, code: "wardrobe_mismatch" },
+  ], 2), true);
   console.log("Storyboard KIE submission state checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
