@@ -16,6 +16,7 @@ export type StoryboardSetVisionValidation = {
 };
 
 export type StoryboardSetQualityRecord = {
+  policyVersion?: string;
   validation: StoryboardSetVisionValidation;
   storyboardUrls: readonly { segmentIndex: number; url: string }[];
   attemptCount: number;

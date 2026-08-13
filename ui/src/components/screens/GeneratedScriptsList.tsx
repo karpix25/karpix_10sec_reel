@@ -264,8 +264,8 @@ function GeneratedScriptCard({
   onSyncReel: (reelId: number) => void;
 }) {
   const { script, latestReel, latestSegments } = item;
-  const isPendingVideo = pendingVideo?.scriptId === script.id;
   const automationJob = script.automation_job || null;
+  const isPendingVideo = pendingVideo?.scriptId === script.id && automationJob?.status !== "failed";
   const videoStage = latestReel ? getVideoStageLabel(latestReel, latestSegments) : getAutomationVideoStageLabel(automationJob);
   const costSummary = extractOpenRouterCostSummaryFromSnapshot(script.source_snapshot);
   const generationCostSummary = script.generation_cost_summary;
@@ -306,8 +306,8 @@ function GeneratedScriptCard({
             variant="outline"
             onClick={() => onCreateVideo(script.id)}
             disabled={!canCreateVideo || isCreatingReel}
-            title={isPendingVideo ? "Сбросить зависший запуск" : "Создать видео"}
-            aria-label={isPendingVideo ? "Сбросить зависший запуск" : "Создать видео"}
+            title={isPendingVideo ? "Видео создаётся" : "Создать видео"}
+            aria-label={isPendingVideo ? "Видео создаётся" : "Создать видео"}
             className="h-9 w-9"
           >
             {isPendingVideo ? <RefreshCw className="h-4 w-4" /> : <Film className="h-4 w-4" />}
