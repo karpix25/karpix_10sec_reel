@@ -6,14 +6,16 @@ const CTA_ONLY_PATTERN =
   /^\s*(?:(?:артикул|код|ссылк|подробност|ищите|закаж|заказать|смотрите|можно\s+найти)|(?:(?:если|когда|кому|нужен|нужна|нужно|хотите|ищете)(?:\s|$)[\s\S]*(?:артикул|код|ссылк|описани|комментар|профил)))[\s\S]*/iu;
 
 export function mentionsOmniProduct(text: string, productName: string) {
+  return mentionsNamedOmniProduct(text, productName) || PRODUCT_FORM_PATTERN.test(normalize(text));
+}
+
+/** Matches the client's named product, without treating neutral props as the product. */
+export function mentionsNamedOmniProduct(text: string, productName: string) {
   const normalizedText = normalize(text);
   const productWords = normalize(productName)
     .split(/[^\p{L}\p{N}]+/u)
     .filter((word) => word.length >= 4);
-  return (
-    productWords.some((word) => normalizedText.includes(word.slice(0, Math.max(4, word.length - 2)))) ||
-    PRODUCT_FORM_PATTERN.test(normalizedText)
-  );
+  return productWords.some((word) => normalizedText.includes(word.slice(0, Math.max(4, word.length - 2))));
 }
 
 export function mentionsExplicitOmniProduct(text: string, productName: string) {

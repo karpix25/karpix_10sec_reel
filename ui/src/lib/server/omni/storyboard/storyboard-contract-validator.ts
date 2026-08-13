@@ -1,6 +1,7 @@
 import type { OmniStoryboardSegment } from "../../../omni/storyboard/omni-storyboard-types";
 import {
   isProductVisibleInStoryboardFrame,
+  mentionsNamedOmniProduct,
   mentionsOmniProduct,
 } from "../omni-intro-product-contract";
 import { deriveOmniSegmentIntents } from "../omni-segment-intent";
@@ -25,7 +26,6 @@ type StoryboardPromptContractInput = {
 
 const PRODUCT_ACTION_PATTERN =
   /(?:держит|бер[её]т|показывает|демонстрирует|наносит|использует|открывает|ставит|клад[её]т|holding|holds|shows|demonstrates|applies|uses|opens|places)/iu;
-const GENERIC_PRODUCT_PATTERN = /(?:продукт|товар|упаков|баноч|флакон|тюбик|product|package|jar|bottle|tube)/iu;
 const HIDDEN_PRODUCT_PATTERN = /(?:вне\s+кадра|не\s+виден|скрыт|без\s+(?:продукта|товара|упаковки)|hidden|off\s*camera)/iu;
 
 /** Validates the text plan before a storyboard image or video generation is paid for. */
@@ -131,7 +131,7 @@ function hasProductAction(action: string, productName: string) {
   return Boolean(text) &&
     !HIDDEN_PRODUCT_PATTERN.test(text) &&
     PRODUCT_ACTION_PATTERN.test(text) &&
-    (mentionsOmniProduct(text, productName) || GENERIC_PRODUCT_PATTERN.test(text));
+    mentionsNamedOmniProduct(text, productName);
 }
 
 function normalize(value: string) {

@@ -80,6 +80,18 @@ try {
   });
   assert.ok(actionWhenHidden.errors.includes("frame_1_product_action_when_contract_hidden"));
 
+  const neutralReferenceProp = validator.validateStoryboardSegmentContract({
+    storyboard: storyboard([
+      {
+        ...frame("Сон и питание важны", "герой показывает контейнер с овощами в камеру", "в кадре контейнер с овощами"),
+        referenceTransfer: removedProductTransfer(),
+      },
+      frame("для ровного тона кожи", "герой спокойно говорит в камеру", "в кадре только окружение"),
+    ]),
+    contract: contract("hidden"),
+  });
+  assert.equal(neutralReferenceProp.valid, true, JSON.stringify(neutralReferenceProp));
+
   assert.throws(
     () => validator.assertStoryboardPromptContracts([
       {
@@ -148,6 +160,30 @@ function frame(spokenText, visualAction, productPlacement) {
     wardrobe: "белый пиджак и кремовая блузка",
     productPlacement,
     sfxNotes: "тихая комнатная атмосфера",
+  };
+}
+
+function removedProductTransfer() {
+  return {
+    version: "reference-transfer-v3",
+    productMentioned: false,
+    productMeaningfulBeat: false,
+    visualCue: null,
+    cameraComposition: null,
+    requiredSupportProps: [],
+    requiredReferenceAction: null,
+    decisions: {
+      layout: "preserve",
+      camera: "preserve",
+      lighting: "preserve",
+      editLanguage: "preserve",
+      wardrobe: "preserve",
+      environment: "preserve",
+      presenterAction: "preserve",
+      sourceProduct: "remove",
+      sourceProps: "preserve",
+      overlays: "remove",
+    },
   };
 }
 
