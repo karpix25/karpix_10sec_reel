@@ -1,4 +1,4 @@
-import { uploadKieFileFromUrl } from "./kie-file-upload-client";
+import { uploadKieImageFromUrlWithFallback } from "./kie-file-upload-client";
 
 const DEFAULT_BASE_URL = "https://api.kie.ai";
 const DEFAULT_VIDEO_MODEL = "gemini-omni-video";
@@ -114,7 +114,7 @@ export async function createKieOmniCharacter(input: {
   audioIds?: string[];
 }) {
   const attempts = getCharacterCreateAttempts();
-  const uploadedImage = await uploadKieFileFromUrl(input.imageUrl);
+  const uploadedImage = await uploadKieImageFromUrlWithFallback({ fileUrl: input.imageUrl });
   const characterInput = { ...input, imageUrl: uploadedImage.url };
   let lastError: unknown = null;
 
@@ -205,13 +205,18 @@ async function createStoryboardImageTask(input: KieStoryboardImageInput, model: 
 }
 
 async function uploadStoryboardInputUrls(inputUrls: readonly string[]) {
-  return Promise.all(inputUrls.map(async (url, index) => {
+  const uploadedUrls: string[] = [];
+  for (const [index, url] of inputUrls.entries()) {
     try {
-      return (await uploadKieFileFromUrl(url, "omni/storyboards")).url;
+      uploadedUrls.push((await uploadKieImageFromUrlWithFallback({
+        fileUrl: url,
+        uploadPath: "omni/storyboards",
+      })).url);
     } catch (error) {
       throw new Error(`KIE storyboard input ${index + 1} upload failed: ${formatKieError(error)}`);
     }
-  }));
+  }
+  return uploadedUrls;
 }
 
 export async function retrieveKieOmniTask(taskId: string) {
@@ -380,6 +385,7 @@ function extractCharacterId(data: Record<string, unknown>) {
 }
 
 function formatKieError(error: unknown) {
+  if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   try {
     return JSON.stringify(error);

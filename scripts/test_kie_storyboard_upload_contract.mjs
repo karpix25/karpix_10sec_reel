@@ -71,6 +71,63 @@ try {
     "https://kie.example/2.jpg",
   ]);
 
+  const fallbackUploads = [];
+  let failedUrlUploadAttempts = 0;
+  global.fetch = async (url, init = {}) => {
+    const requestUrl = String(url);
+    if (requestUrl.endsWith("/api/file-url-upload")) {
+      const body = JSON.parse(String(init.body));
+      if (body.fileUrl.includes("director.jpg")) {
+        failedUrlUploadAttempts += 1;
+        return new Response(JSON.stringify({ msg: "remote fetch timeout" }), { status: 502 });
+      }
+      return response({ data: { downloadUrl: "https://kie.example/avatar.jpg" } });
+    }
+    if (requestUrl === "https://source.example/director.jpg") {
+      return new Response(Buffer.from("director-frame"), {
+        headers: { "content-type": "image/jpeg", "content-length": "14" },
+      });
+    }
+    if (requestUrl.endsWith("/api/file-base64-upload")) {
+      fallbackUploads.push(JSON.parse(String(init.body)));
+      return response({ data: { downloadUrl: "https://kie.example/director.jpg" } });
+    }
+    if (requestUrl.endsWith("/api/v1/jobs/createTask")) {
+      storyboardPayload = JSON.parse(String(init.body));
+      return response({ data: { taskId: "fallback-storyboard-task", status: "queued" } });
+    }
+    throw new Error(`Unexpected KIE request: ${requestUrl}`);
+  };
+  await assert.rejects(
+    () => createKieStoryboardImage({
+      prompt: "storyboard",
+      inputUrls: ["https://source.example/avatar.jpg", "https://source.example/director.jpg"],
+    }),
+    (error) => isKieStoryboardImagePendingError(error) && error.task.id === "fallback-storyboard-task"
+  );
+  assert.equal(failedUrlUploadAttempts, 3);
+  assert.equal(fallbackUploads.length, 1);
+  assert.match(fallbackUploads[0].base64Data, /^data:image\/jpeg;base64,/u);
+  assert.deepEqual(storyboardPayload.input.input_urls, [
+    "https://kie.example/avatar.jpg",
+    "https://kie.example/director.jpg",
+  ]);
+
+  global.fetch = async (url) => {
+    const requestUrl = String(url);
+    if (requestUrl.endsWith("/api/file-url-upload")) {
+      return new Response(JSON.stringify({ msg: "remote fetch timeout" }), { status: 502 });
+    }
+    if (requestUrl === "https://source.example/broken.jpg") {
+      return new Response("unavailable", { status: 503 });
+    }
+    throw new Error(`Unexpected KIE request: ${requestUrl}`);
+  };
+  await assert.rejects(
+    () => createKieStoryboardImage({ prompt: "storyboard", inputUrls: ["https://source.example/broken.jpg"] }),
+    /remote fetch timeout.*source image download failed: 503/u
+  );
+
   global.fetch = async (url) => {
     const requestUrl = String(url);
     if (requestUrl.includes("/api/v1/jobs/recordInfo")) {
