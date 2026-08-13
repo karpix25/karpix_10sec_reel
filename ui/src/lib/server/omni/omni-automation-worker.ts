@@ -12,7 +12,11 @@ import { submitOmniReel, syncOmniReel } from "./omni-reel-runner";
 import { createOmniReel } from "./reels";
 import { ensureOmniSchema } from "./schema";
 import { isStoryboardVisionJsonFormatError } from "./storyboard-vision-validator";
-import { isKieStoryboardImagePendingError } from "./kie-omni-client";
+import {
+  isKieStoryboardImagePendingError,
+  isKieStoryboardImagePollingError,
+  isKieStoryboardImageSubmissionUnknownError,
+} from "./kie-omni-client";
 import { isStoryboardImageRepairExhaustedError } from "./omni-storyboard-image-generator";
 import {
   isStoryboardSetQualityError,
@@ -20,6 +24,10 @@ import {
 import {
   isStoryboardSetVisionJsonFormatError,
 } from "./storyboard-set-vision-validator";
+import {
+  StoryboardKieSubmissionInProgressError,
+  StoryboardKieSubmissionStalledError,
+} from "./storyboard-kie-submission-state";
 
 function envInt(name: string, fallback: number, min = 1) {
   const parsed = Number.parseInt(process.env[name] || "", 10);
@@ -39,7 +47,12 @@ function getRetryDelaySeconds(job: OmniAutomationJob) {
 
 async function handleJobError(job: OmniAutomationJob, error: unknown) {
   const message = getErrorMessage(error);
-  if (isKieStoryboardImagePendingError(error)) {
+  if (
+    isKieStoryboardImagePendingError(error)
+    || isKieStoryboardImagePollingError(error)
+    || isKieStoryboardImageSubmissionUnknownError(error)
+    || error instanceof StoryboardKieSubmissionInProgressError
+  ) {
     return {
       action: "waiting",
       job: await requeueOmniAutomationJob({
@@ -49,6 +62,13 @@ async function handleJobError(job: OmniAutomationJob, error: unknown) {
         errorMessage: null,
         refundAttempt: true,
       }),
+    };
+  }
+  if (error instanceof StoryboardKieSubmissionStalledError) {
+    return {
+      action: "failed",
+      job: await failOmniAutomationJob({ jobId: job.id, errorMessage: message }),
+      error: message,
     };
   }
   if (isStoryboardImageRepairExhaustedError(error)) {
