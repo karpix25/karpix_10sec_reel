@@ -32,6 +32,7 @@ try {
       join(ui, "src/lib/server/omni/physical-storyboard-normalizer.ts"),
       join(ui, "src/lib/server/omni/storyboard/storyboard-contract-validator.ts"),
       join(ui, "src/lib/server/omni/storyboard/omni-stored-storyboard-frame-repair.ts"),
+      join(ui, "src/lib/server/omni/storyboard/omni-storyboard-builder.ts"),
       join(ui, "src/lib/server/omni/storyboard/omni-storyboard-speech.ts"),
     ],
   }));
@@ -40,8 +41,10 @@ try {
   const physicalModel = require(findFile(compiled, "physical-scene-model.js"));
   const normalizer = require(findFile(compiled, "physical-storyboard-normalizer.js"));
   const contractValidator = require(findFile(compiled, "storyboard-contract-validator.js"));
+  const referenceTransfer = require(findFile(compiled, "omni-reference-transfer-policy.js"));
   const speech = require(findFile(compiled, "omni-storyboard-speech.js"));
   const storedFrameRepair = require(findFile(compiled, "omni-stored-storyboard-frame-repair.js"));
+  const storyboardBuilder = require(findFile(compiled, "omni-storyboard-builder.js"));
 
   const handConflictPlan = physicalModel.buildPhysicalFramePlan({
     productName: "Коллаген",
@@ -77,6 +80,92 @@ try {
       productVisible: false,
     }),
     /нейтральным жестом/iu
+  );
+  const foodReferencePolicy = referenceTransfer.buildReferenceTransferPolicy({
+    hasProductReference: true,
+    directorBrief: {
+      visual_transfer: {
+        camera_composition: "phone camera from the side, lap and containers stay in the lower frame",
+        props: [
+          { role: "proof_prop", description: "food container on the lap", visible_from_start: true },
+          { role: "support_prop", description: "carrot sticks", visible_from_start: false },
+        ],
+        action_beats: [
+          { timestamp_sec: 0, action: "holds the food container while speaking", required_prop: "food container on the lap" },
+          { timestamp_sec: 8, action: "shows carrot sticks to the camera", required_prop: "carrot sticks" },
+        ],
+      },
+    },
+  });
+  const foodHookFrame = referenceTransfer.buildReferenceTransferFramePlan({
+    policy: foodReferencePolicy,
+    spokenText: "Рассказываю о полезном перекусе",
+    productName: "Коллаген",
+    productVisible: false,
+    position: 0,
+  });
+  assert.match(foodHookFrame.cameraComposition, /lap and containers/iu);
+  assert.deepEqual(foodHookFrame.requiredSupportProps, ["food container on the lap"]);
+  const foodActionFrame = referenceTransfer.buildReferenceTransferFramePlan({
+    policy: foodReferencePolicy,
+    spokenText: "Рассказываю о полезном перекусе",
+    productName: "Коллаген",
+    productVisible: false,
+    position: 1,
+  });
+  assert.ok(foodActionFrame.requiredSupportProps.includes("carrot sticks"));
+  assert.match(
+    physicalModel.repairReferenceAction({
+      action: "герой показывает морковные палочки в камеру",
+      spokenText: "Рассказываю о полезном перекусе",
+      productName: "Коллаген",
+      productVisible: false,
+      referenceSupportProps: ["морковные палочки"],
+    }),
+    /морковные палочки/iu
+  );
+  const foodStoryboard = storyboardBuilder.buildStoryboardFromCreativePlan({
+    plan: {
+      segmentIndex: 1,
+      lifeFormatId: "moving_vlog",
+      speechStartsAtSeconds: 0,
+      voiceoverText: "Когда времени мало полезный перекус лучше собрать заранее",
+      productRole: "hidden",
+      continuityProps: [],
+      beats: [
+        { startSeconds: 0, endSeconds: 2, action: "герой говорит в камеру" },
+        { startSeconds: 2, endSeconds: 4, action: "герой говорит в камеру" },
+        { startSeconds: 4, endSeconds: 6, action: "герой говорит в камеру" },
+      ],
+    },
+    productName: "Коллаген",
+    characterContract: {
+      identityLine: "главный персонаж",
+      clothingLine: "черная куртка",
+      sourceRuleLine: "фиксированный образ",
+      clothingSource: "fallback",
+      speechGender: "female",
+      speechGenderLine: "женский род",
+    },
+    segmentIndex: 1,
+    durationSeconds: 4,
+    directorBrief: directorBriefWithFoodProps(),
+    referenceTransferPolicy: foodReferencePolicy,
+  });
+  assert.match(foodStoryboard.frames[0].camera, /lap and containers/iu);
+  assert.match(foodStoryboard.frames[0].productPlacement, /food container on the lap/iu);
+  assert.match(foodStoryboard.frames[1].productPlacement, /carrot sticks/iu);
+  assert.match(foodStoryboard.frames[1].visualAction, /carrot sticks/iu);
+  assert.equal(
+    contractValidator.validateStoryboardSegmentContract({
+      storyboard: foodStoryboard,
+      contract: {
+        productName: "Коллаген",
+        productVisibility: "hidden",
+        fixedWardrobe: foodStoryboard.frames[0].wardrobe,
+      },
+    }).valid,
+    true
   );
   assert.match(
     physicalModel.repairReferenceAction({
@@ -354,6 +443,33 @@ function storyboard(frames) {
 
 function frame(spokenText, visualAction, productPlacement, camera = "средний план") {
   return { spokenText, visualAction, camera, environment: "комната", wardrobe: "одежда", productPlacement, sfxNotes: "естественный звук" };
+}
+
+function directorBriefWithFoodProps() {
+  return {
+    visual_hook: { action: "food container on lap", retention_trigger: "road snack" },
+    atmosphere: { mood: "casual", lighting: "daylight", color_grading: "natural", setting: "car passenger seat" },
+    clothing: { style: "black jacket", color_palette: ["black"], fit_details: "casual", source: "reference" },
+    camera: { shot_types: ["phone medium shot"], angles: ["side angle"], movements: ["handheld"], stabilization: "handheld" },
+    montage_rhythm: { cut_pace: "natural", beat_sync: "speech", transition_style: ["hard cuts"] },
+    action_beats: [],
+    prop_sources: [],
+    hand_object_interactions: [],
+    motion_continuity: [],
+    reference_action_style: "casual vlog",
+    reusable_mechanics: { visual_mechanics: ["proof prop"], safe_zones_for_elements: "none", looping_pattern: "none" },
+    visual_transfer: {
+      camera_composition: "phone camera from the side, lap and containers stay in the lower frame",
+      props: [
+        { role: "proof_prop", description: "food container on the lap", visible_from_start: true },
+        { role: "support_prop", description: "carrot sticks", visible_from_start: false },
+      ],
+      action_beats: [
+        { timestamp_sec: 0, action: "holds the food container while speaking", required_prop: "food container on the lap" },
+        { timestamp_sec: 8, action: "shows carrot sticks to the camera", required_prop: "carrot sticks" },
+      ],
+    },
+  };
 }
 
 function findFile(directory, fileName) {

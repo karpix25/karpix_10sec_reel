@@ -60,6 +60,19 @@ export function validateStoryboardSegmentContract(input: {
       if (transfer.decisions.sourceProduct === "remove" && productAction) {
         errors.push(`frame_${frameNumber}_reference_transfer_product_leak`);
       }
+      const supportText = `${frame.visualAction} ${frame.productPlacement} ${frame.camera}`;
+      for (const prop of transfer.requiredSupportProps || []) {
+        if (!mentionsRequiredSupportProp(supportText, prop)) {
+          errors.push(`frame_${frameNumber}_reference_support_prop_missing`);
+          break;
+        }
+      }
+      if (transfer.requiredReferenceAction && isGenericTalkingHead(frame.visualAction)) {
+        errors.push(`frame_${frameNumber}_reference_action_missing`);
+      }
+      if (transfer.cameraComposition && !mentionsRequiredSupportProp(frame.camera, transfer.cameraComposition)) {
+        errors.push(`frame_${frameNumber}_reference_composition_missing`);
+      }
     }
     if (!productAction) return;
     if (input.contract.productVisibility === "hidden") {
@@ -72,6 +85,21 @@ export function validateStoryboardSegmentContract(input: {
   });
 
   return { valid: errors.length === 0, errors };
+}
+
+function mentionsRequiredSupportProp(value: string, requirement: string) {
+  const actual = tokenSet(value);
+  const required = [...tokenSet(requirement)].filter((token) => token.length >= 4);
+  return required.length === 0 || required.some((token) => actual.has(token));
+}
+
+function isGenericTalkingHead(value: string) {
+  return /(?:говорит|talks?|speaks?)/iu.test(value) &&
+    !/(?:держит|бер[её]т|показывает|поднимает|клад[её]т|контейнер|овощ|фрукт|хлеб|вода|стакан|table|container|food|fruit|bread|water)/iu.test(value);
+}
+
+function tokenSet(value: string) {
+  return new Set(value.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) || []);
 }
 
 export function assertStoryboardPromptContracts(

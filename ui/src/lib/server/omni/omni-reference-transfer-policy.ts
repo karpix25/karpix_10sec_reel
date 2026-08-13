@@ -1,5 +1,6 @@
 import { mentionsOmniProduct } from "./omni-intro-product-contract";
 import type { OmniStoryboardReferenceTransfer } from "../../omni/storyboard/omni-storyboard-types";
+import type { DirectorBrief, DirectorVisualTransferContract } from "./director-analysis-types";
 
 export type ReferenceTransferMode = "full_reference" | "style_only";
 
@@ -24,22 +25,32 @@ export type ReferenceTransferDecisions = {
 };
 
 export type ReferenceTransferPolicy = {
-  version: "reference-transfer-v2";
+  version: "reference-transfer-v2" | "reference-transfer-v3";
   mode: ReferenceTransferMode;
   omitRawDirectorGuidance: boolean;
   decisions: ReferenceTransferDecisions;
+  visualContract: ReferenceVisualTransferContract;
+};
+
+export type ReferenceVisualTransferContract = {
+  cameraComposition: string | null;
+  persistentSupportProps: readonly string[];
+  actionBeats: readonly { timestampSeconds: number; action: string; requiredProp: string | null }[];
 };
 
 export type ReferenceTransferFramePlan = {
-  version: "reference-transfer-v2";
+  version: "reference-transfer-v2" | "reference-transfer-v3";
   productMentioned: boolean;
   productMeaningfulBeat: boolean;
   visualCue: string | null;
+  cameraComposition: string | null;
+  requiredSupportProps: readonly string[];
+  requiredReferenceAction: string | null;
   decisions: ReferenceTransferDecisions;
 };
 
 export const DEFAULT_REFERENCE_TRANSFER_POLICY: ReferenceTransferPolicy = {
-  version: "reference-transfer-v2",
+  version: "reference-transfer-v3",
   mode: "full_reference",
   omitRawDirectorGuidance: false,
   decisions: {
@@ -54,6 +65,11 @@ export const DEFAULT_REFERENCE_TRANSFER_POLICY: ReferenceTransferPolicy = {
     sourceProps: "preserve_as_support",
     overlays: "remove",
   },
+  visualContract: {
+    cameraComposition: null,
+    persistentSupportProps: [],
+    actionBeats: [],
+  },
 };
 
 /**
@@ -62,6 +78,7 @@ export const DEFAULT_REFERENCE_TRANSFER_POLICY: ReferenceTransferPolicy = {
  */
 export function buildReferenceTransferPolicy(input: {
   hasProductReference: boolean;
+  directorBrief?: DirectorBrief | null;
 }): ReferenceTransferPolicy {
   const productDecision: ReferenceTransferDecision = input.hasProductReference
     ? "replace_with_product"
@@ -74,6 +91,7 @@ export function buildReferenceTransferPolicy(input: {
     mode: "full_reference",
     omitRawDirectorGuidance: false,
     decisions: { ...DEFAULT_REFERENCE_TRANSFER_POLICY.decisions, sourceProduct: productDecision },
+    visualContract: buildReferenceVisualTransferContract(input.directorBrief),
   };
 }
 
@@ -88,16 +106,24 @@ export function buildReferenceTransferFramePlan(input: {
   visualCue?: string | null;
   productName: string;
   productVisible?: boolean;
+  position?: number;
 }): ReferenceTransferFramePlan {
   const productMentioned = mentionsProduct(input.spokenText, input.productName);
   const productMeaningfulBeat = input.productVisible ?? productMentioned;
   const visualCue = compactText(input.visualCue || "") || null;
+  const referenceBeat = selectReferenceBeat(input.policy.visualContract, input.position);
 
   return {
     version: input.policy.version,
     productMentioned,
     productMeaningfulBeat,
     visualCue,
+    cameraComposition: input.policy.visualContract.cameraComposition,
+    requiredSupportProps: uniqueCompact([
+      ...input.policy.visualContract.persistentSupportProps,
+      referenceBeat?.requiredProp || "",
+    ]),
+    requiredReferenceAction: referenceBeat?.action || null,
     decisions: {
       ...input.policy.decisions,
       // A source product is never allowed to leak into a non-product line.
@@ -121,6 +147,9 @@ export function synchronizeReferenceTransferProductVisibility(
     ...framePlan,
     productMentioned: framePlan.productMentioned ?? framePlan.productMeaningfulBeat,
     productMeaningfulBeat: productVisible,
+    cameraComposition: framePlan.cameraComposition || null,
+    requiredSupportProps: framePlan.requiredSupportProps || [],
+    requiredReferenceAction: framePlan.requiredReferenceAction || null,
     decisions: {
       ...framePlan.decisions,
       sourceProduct: productVisible ? framePlan.decisions.sourceProduct : "remove",
@@ -135,7 +164,9 @@ export function resolveReferenceTransferAction(input: {
 }) {
   const fallbackAction = compactText(input.fallbackAction);
   const referenceAction = compactText(input.referenceAction);
-  const primaryAction = input.framePlan.visualCue || referenceAction || fallbackAction;
+  const primaryAction = input.framePlan.productMeaningfulBeat
+    ? input.framePlan.visualCue || input.framePlan.requiredReferenceAction || referenceAction || fallbackAction
+    : input.framePlan.requiredReferenceAction || input.framePlan.visualCue || referenceAction || fallbackAction;
   const contextLine = referenceAction
     ? "сохраняет позу, ритм жеста и бытовой контекст reference, но действие подчинено текущей реплике"
     : "действие подчинено текущей реплике и сохраняет общий ритм reference";
@@ -143,10 +174,75 @@ export function resolveReferenceTransferAction(input: {
   if (input.framePlan.productMeaningfulBeat) {
     return `${primaryAction}; ${contextLine}; исходный рекламный предмет заменен нашим продуктом`;
   }
-  if (input.framePlan.visualCue) {
+  if (input.framePlan.visualCue || input.framePlan.requiredReferenceAction) {
     return `${primaryAction}; ${contextLine}; исходный рекламный предмет вне кадра`;
   }
   return primaryAction || "персонаж естественно говорит в камеру в контексте reference";
+}
+
+export function hasRequiredReferenceSupport(framePlan: OmniStoryboardReferenceTransfer | null | undefined) {
+  return Boolean(framePlan?.requiredSupportProps?.length);
+}
+
+export function renderRequiredReferenceSupport(framePlan: OmniStoryboardReferenceTransfer | null | undefined) {
+  const props = framePlan?.requiredSupportProps || [];
+  return props.length
+    ? `обязательный нейтральный реквизит reference: ${props.join("; ")}`
+    : "";
+}
+
+function buildReferenceVisualTransferContract(brief?: DirectorBrief | null): ReferenceVisualTransferContract {
+  const explicit = brief?.visual_transfer;
+  const fallbackProps = (brief?.prop_sources || [])
+    .filter((item) => !/(?:^|\s)(?:no|not|none|нет|не\s+(?:показан|виден|введен|введён))/iu.test(item))
+    .slice(0, 4)
+    .map((description) => ({ description, visible_from_start: /(?:already|start|с\s+начала|в\s+начале)/iu.test(description) }));
+  const source: DirectorVisualTransferContract = explicit || {
+    camera_composition: brief?.visual_hook.action || "",
+    props: fallbackProps.map((prop) => ({ role: "support_prop" as const, ...prop })),
+    action_beats: (brief?.action_beats || []).map((beat) => ({
+      timestamp_sec: beat.timestamp_sec,
+      action: [beat.action_description, beat.actor_gesture].filter(Boolean).join("; "),
+    })),
+  };
+  const persistentSupportProps = uniqueCompact(
+    source.props
+      .filter((prop) => (prop.role === "proof_prop" || prop.role === "support_prop") && prop.visible_from_start)
+      .map((prop) => prop.description)
+  );
+  return {
+    cameraComposition: compactText(source.camera_composition || "") || null,
+    persistentSupportProps,
+    actionBeats: source.action_beats
+      .map((beat) => ({
+        timestampSeconds: Math.max(0, Number(beat.timestamp_sec) || 0),
+        action: compactText(beat.action),
+        requiredProp: compactText(beat.required_prop || "") || null,
+      }))
+      .filter((beat) => Boolean(beat.action)),
+  };
+}
+
+function selectReferenceBeat(contract: ReferenceVisualTransferContract, position = 0) {
+  if (!contract.actionBeats.length) return null;
+  const maxTimestamp = Math.max(...contract.actionBeats.map((beat) => beat.timestampSeconds), 1);
+  const target = Math.max(0, Math.min(1, position)) * maxTimestamp;
+  return contract.actionBeats.reduce((best, beat) =>
+    Math.abs(beat.timestampSeconds - target) < Math.abs(best.timestampSeconds - target) ? beat : best
+  );
+}
+
+function uniqueCompact(values: readonly string[]) {
+  const seen = new Set<string>();
+  return values
+    .map((value) => compactText(value))
+    .filter(Boolean)
+    .filter((value) => {
+      const key = value.toLocaleLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 function mentionsProduct(text: string, productName: string) {

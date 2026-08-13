@@ -252,6 +252,7 @@ export async function createGeneratedScriptFromLegacy(input: {
   const directorReferenceImageUrls = extractDirectorReferenceImageUrls({ directorAnalysis });
   const referenceTransferPlan = buildReferenceTransferPolicy({
     hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),
+    directorBrief,
   });
 
   const model = process.env.SCENARIO_MODEL || "google/gemini-2.5-flash";

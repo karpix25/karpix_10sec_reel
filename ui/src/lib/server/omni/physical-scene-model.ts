@@ -53,6 +53,7 @@ export function repairReferenceAction(input: {
   spokenText: string;
   productName: string;
   productVisible: boolean;
+  referenceSupportProps?: readonly string[];
 }) {
   const action = input.action.trim();
   if (!action) return action;
@@ -62,13 +63,14 @@ export function repairReferenceAction(input: {
   const hasMultipleObjects = hasMultipleHeldObjects(action);
   const interactsWithObject = OBJECT_INTERACTION_PATTERN.test(action);
   const product = input.productName.trim() || "продукт";
+  const preservesSupportProp = hasReferenceSupportProp(action, input.referenceSupportProps);
 
   if (hasDriving) {
     return input.productVisible
       ? `герой едет пассажиром в движущемся автомобиле, держит ${product} в одной руке и второй рукой делает спокойный жест`
       : "герой едет пассажиром в движущемся автомобиле и спокойно говорит в камеру с нейтральным жестом";
   }
-  if (hasForeignPackagedProduct(action, product)) {
+  if (hasForeignPackagedProduct(action, product) && !preservesSupportProp) {
     return input.productVisible
       ? buildProductPresentationAction(product)
       : "герой спокойно говорит в камеру с нейтральным жестом, без чужих продуктов и упаковок";
@@ -77,15 +79,33 @@ export function repairReferenceAction(input: {
     return buildProductPresentationAction(product);
   }
   if (hasConsumption && hasSpeech && !CUTAWAY_PATTERN.test(action)) {
+    if (preservesSupportProp) {
+      return `герой берет небольшой предмет из обязательного реквизита reference и показывает его в руке, не ест и не жует во время речи`;
+    }
     return "герой спокойно говорит в камеру с нейтральным жестом, без еды во рту";
   }
   if (hasMultipleObjects && input.productVisible) {
     return buildProductPresentationAction(product);
   }
-  if (interactsWithObject && hasSpeech && !input.productVisible) {
+  if (interactsWithObject && hasSpeech && !input.productVisible && !preservesSupportProp) {
     return "герой показывает только один предмет из текущей реплики одной рукой; остальные предметы вне кадра";
   }
   return action;
+}
+
+function hasReferenceSupportProp(action: string, props: readonly string[] | undefined) {
+  if (!props?.length) return false;
+  const actionTokens = significantTokens(action);
+  return props.some((prop) => {
+    const tokens = significantTokens(prop);
+    return [...tokens].some((token) => actionTokens.has(token));
+  });
+}
+
+function significantTokens(value: string) {
+  return new Set(
+    value.toLocaleLowerCase().match(/[\p{L}\p{N}]{4,}/gu) || []
+  );
 }
 
 function hasForeignPackagedProduct(value: string, productName: string) {

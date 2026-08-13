@@ -43,6 +43,22 @@ export type DirectorProductIntroduction = {
   naturality_notes: string;
 };
 
+export type DirectorVisualPropRole = "source_product" | "proof_prop" | "support_prop";
+
+export type DirectorVisualTransferContract = {
+  camera_composition: string;
+  props: Array<{
+    role: DirectorVisualPropRole;
+    description: string;
+    visible_from_start: boolean;
+  }>;
+  action_beats: Array<{
+    timestamp_sec: number;
+    action: string;
+    required_prop?: string;
+  }>;
+};
+
 export type DirectorBrief = {
   visual_hook: {
     action: string;
@@ -84,6 +100,7 @@ export type DirectorBrief = {
     looping_pattern: string;
   };
   product_introduction?: DirectorProductIntroduction;
+  visual_transfer?: DirectorVisualTransferContract;
 };
 
 export type OmniDirectorAnalysis = {
@@ -180,6 +197,7 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
       looping_pattern: stringValue(mechanics.looping_pattern),
     },
     product_introduction: normalizeProductIntroduction(candidate.product_introduction),
+    visual_transfer: normalizeVisualTransferContract(candidate.visual_transfer),
   };
 
   return hasRequiredDirectorText(brief) ? brief : null;
@@ -357,4 +375,41 @@ function normalizeProductIntroduction(value: unknown): DirectorProductIntroducti
   const naturality_notes = stringValue(value.naturality_notes);
   if (!introduction_style && relative_position === "never") return undefined;
   return { first_appearance_sec, relative_position, introduction_style, naturality_notes };
+}
+
+function normalizeVisualTransferContract(value: unknown): DirectorVisualTransferContract | undefined {
+  if (!isRecord(value)) return undefined;
+  const props = Array.isArray(value.props)
+    ? value.props.map(normalizeVisualTransferProp).filter((item): item is DirectorVisualTransferContract["props"][number] => Boolean(item))
+    : [];
+  const action_beats = Array.isArray(value.action_beats)
+    ? value.action_beats.map(normalizeVisualTransferAction).filter((item): item is DirectorVisualTransferContract["action_beats"][number] => Boolean(item))
+    : [];
+  const camera_composition = stringValue(value.camera_composition);
+  return camera_composition || props.length || action_beats.length
+    ? { camera_composition, props, action_beats }
+    : undefined;
+}
+
+function normalizeVisualTransferProp(value: unknown) {
+  if (!isRecord(value)) return null;
+  const role = stringValue(value.role);
+  const description = stringValue(value.description);
+  if (!description || !["source_product", "proof_prop", "support_prop"].includes(role)) return null;
+  return {
+    role: role as DirectorVisualPropRole,
+    description,
+    visible_from_start: value.visible_from_start === true,
+  };
+}
+
+function normalizeVisualTransferAction(value: unknown) {
+  if (!isRecord(value)) return null;
+  const action = stringValue(value.action);
+  if (!action) return null;
+  return {
+    timestamp_sec: Math.max(0, Number(value.timestamp_sec) || 0),
+    action,
+    ...(stringValue(value.required_prop) ? { required_prop: stringValue(value.required_prop) } : {}),
+  };
 }

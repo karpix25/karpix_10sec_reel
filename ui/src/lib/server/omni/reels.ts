@@ -137,6 +137,7 @@ export async function createOmniReel(input: {
     extractDirectorBriefFromSnapshot(resolvedGeneratedScript?.source_snapshot);
   const referenceTransferPlan = buildReferenceTransferPolicy({
     hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),
+    directorBrief,
   });
   const directorReferenceImageUrls = sourceScenarioAnalysis
     ? extractDirectorReferenceImageUrls({ directorAnalysis: sourceScenarioAnalysis })
