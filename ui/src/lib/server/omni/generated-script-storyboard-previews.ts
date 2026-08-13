@@ -208,6 +208,7 @@ async function tryGenerateStoryboardPreview(input: {
     throw new StoryboardImageRepairExhaustedError({
       validation: null,
       generationAttemptCount: kieSubmission.generationAttemptCount,
+      failureReason: kieSubmission.generationError,
     });
   }
   const resetsPreviousRepair = kieSubmission?.kind === "submit"

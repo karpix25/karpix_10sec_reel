@@ -15,7 +15,7 @@ const OBJECT_INTERACTION_PATTERN = /(?:держит|держать|в руках
 const BOTH_CHEEKS_PATTERN = /(?:обеих?\s+щек|обе\s+щеки|both\s+cheeks)/iu;
 const ONE_CHEEK_PATTERN = /(?:одной\s+щек|одну\s+щеку|one\s+cheek)/iu;
 const HANDS_TO_FACE_PATTERN = /(?:обе\s+руки\s+(?:у|к)\s+лица|both\s+hands[^.;]{0,80}(?:face|jawline|cheek|щек|лиц))/iu;
-const CONSUMPTION_PATTERN = /(?:eat\w*|bite\w*|chew\w*|drink\w*|swallow\w*|sip\w*|tast\w*|consum\w*|кус\w*|жев\w*|пив\w*|пь\w*|отпив\w*|отхлеб\w*|выпив\w*|глот\w*|откус\w*|съед\w*|пробу\w*|дегуст\w*|смаку\w*|употребл\w*|(?<!\p{L})ест(?:ь)?(?=\s|$|[,.!?])|принима(?:ет|ть)(?=\s|$|[,.!?])|прием(?=\s|$|[,.!?])|приём(?=\s|$|[,.!?]))/iu;
+const CONSUMPTION_PATTERN = /(?:eat\w*|bite\w*|chew\w*|drink\w*|swallow\w*|sip\w*|tast\w*|consum\w*|into\s+(?:the\s+)?mouth|liquid[^.;]{0,60}(?:lips|mouth)|pour\w*[^.;]{0,60}(?:lips|mouth)|кус\w*|жев\w*|пив\w*|пь\w*|отпив\w*|отхлеб\w*|выпив\w*|глот\w*|откус\w*|съед\w*|пробу\w*|дегуст\w*|смаку\w*|употребл\w*|в\s+рот|во\s+рту|жидк\w*[^.;]{0,60}(?:губ|рот)|ль[её]т[^.;]{0,60}(?:губ|рот)|(?<!\p{L})ест(?:ь)?(?=\s|$|[,.!?])|принима(?:ет|ть)(?=\s|$|[,.!?])|прием(?=\s|$|[,.!?])|приём(?=\s|$|[,.!?]))/iu;
 const DRIVING_PATTERN = /(?:\bdriv(?:e|es|ing)?\b|\bsteer(?:s|ing)?\b|за рулем|за рулём|ведет машину|ведёт машину)/iu;
 const PICK_UP_PATTERN = /(?:берет|берёт|поднимает|pick\s*up|picks\s*up)/iu;
 const PUT_DOWN_PATTERN = /(?:кладет|кладёт|ставит|полож|убирает|откладывает|put\s*down|places?)/iu;
@@ -82,7 +82,7 @@ export function repairReferenceAction(input: {
     if (preservesSupportProp) {
       return `герой берет небольшой предмет из обязательного реквизита reference и показывает его в руке, не ест и не жует во время речи`;
     }
-    return "герой спокойно говорит в камеру с нейтральным жестом, без еды во рту";
+    return "герой спокойно говорит в камеру с нейтральным жестом, без приёма пищи";
   }
   if (hasMultipleObjects && input.productVisible) {
     return buildProductPresentationAction(product);

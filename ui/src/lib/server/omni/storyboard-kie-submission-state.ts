@@ -7,6 +7,7 @@ export type StoryboardKieSubmissionRow = {
   generationAttemptCount: number;
   taskId: string | null;
   lastAttemptAt: Date | string | null;
+  generationError?: string | null;
 };
 
 export type VersionedStoryboardKieSubmissionRow = StoryboardKieSubmissionRow & {
@@ -19,7 +20,7 @@ export type StoryboardKieSubmissionAction =
   | { kind: "poll"; generationAttemptCount: number; taskId: string }
   | { kind: "wait" }
   | { kind: "stalled" }
-  | { kind: "exhausted"; generationAttemptCount: number };
+  | { kind: "exhausted"; generationAttemptCount: number; generationError?: string | null };
 
 export class StoryboardKieSubmissionInProgressError extends Error {
   retryWithoutJobAttempt = true;
@@ -54,7 +55,7 @@ export function resolveStoryboardKieSubmissionAction(
     return isStaleSubmission(row.lastAttemptAt, now) ? { kind: "stalled" } : { kind: "wait" };
   }
   if (generationAttemptCount >= MAX_STORYBOARD_IMAGE_GENERATION_ATTEMPTS) {
-    return { kind: "exhausted", generationAttemptCount };
+    return { kind: "exhausted", generationAttemptCount, generationError: row.generationError || null };
   }
   return { kind: "submit", generationAttemptCount: generationAttemptCount + 1 };
 }

@@ -42,8 +42,8 @@ try {
   assert.deepEqual(resolveStoryboardKieSubmissionAction(row({ generationStatus: "failed", generationAttemptCount: 2 }), now), {
     kind: "submit", generationAttemptCount: 3,
   });
-  assert.deepEqual(resolveStoryboardKieSubmissionAction(row({ generationStatus: "failed", generationAttemptCount: 3 }), now), {
-    kind: "exhausted", generationAttemptCount: 3,
+  assert.deepEqual(resolveStoryboardKieSubmissionAction(row({ generationStatus: "failed", generationAttemptCount: 3, generationError: "KIE policy blocked the source action" }), now), {
+    kind: "exhausted", generationAttemptCount: 3, generationError: "KIE policy blocked the source action",
   });
   assert.deepEqual(resolveVersionedStoryboardKieSubmissionAction(versionedRow({ generationAttemptCount: 3 }), {
     referenceSignature: "current", generatorVersion: "v10",
@@ -69,6 +69,7 @@ function row(overrides = {}) {
     generationAttemptCount: 1,
     taskId: null,
     lastAttemptAt: new Date(now),
+    generationError: null,
     ...overrides,
   };
 }

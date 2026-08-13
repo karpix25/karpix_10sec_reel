@@ -1,4 +1,5 @@
 import { mentionsOmniProduct } from "./omni-intro-product-contract";
+import { hasConsumptionAction } from "./physical-scene-model";
 import type { OmniStoryboardReferenceTransfer } from "../../omni/storyboard/omni-storyboard-types";
 import type { DirectorBrief, DirectorVisualTransferContract } from "./director-analysis-types";
 
@@ -112,6 +113,7 @@ export function buildReferenceTransferFramePlan(input: {
   const productMeaningfulBeat = input.productVisible ?? productMentioned;
   const visualCue = compactText(input.visualCue || "") || null;
   const referenceBeat = selectReferenceBeat(input.policy.visualContract, input.position);
+  const requiredReferenceAction = safeReferenceAction(referenceBeat?.action || "");
 
   return {
     version: input.policy.version,
@@ -123,7 +125,7 @@ export function buildReferenceTransferFramePlan(input: {
       ...input.policy.visualContract.persistentSupportProps,
       referenceBeat?.requiredProp || "",
     ]),
-    requiredReferenceAction: referenceBeat?.action || null,
+    requiredReferenceAction: requiredReferenceAction || null,
     decisions: {
       ...input.policy.decisions,
       // A source product is never allowed to leak into a non-product line.
@@ -163,10 +165,12 @@ export function resolveReferenceTransferAction(input: {
   fallbackAction: string;
 }) {
   const fallbackAction = compactText(input.fallbackAction);
-  const referenceAction = compactText(input.referenceAction);
+  const referenceAction = safeReferenceAction(input.referenceAction);
+  const visualCue = safeReferenceAction(input.framePlan.visualCue || "");
+  const requiredReferenceAction = safeReferenceAction(input.framePlan.requiredReferenceAction || "");
   const primaryAction = input.framePlan.productMeaningfulBeat
-    ? input.framePlan.visualCue || input.framePlan.requiredReferenceAction || referenceAction || fallbackAction
-    : input.framePlan.visualCue || input.framePlan.requiredReferenceAction || referenceAction || fallbackAction;
+    ? visualCue || requiredReferenceAction || referenceAction || fallbackAction
+    : visualCue || requiredReferenceAction || referenceAction || fallbackAction;
   const contextLine = referenceAction
     ? "сохраняет позу, ритм жеста и бытовой контекст reference, но действие подчинено текущей реплике"
     : "действие подчинено текущей реплике и сохраняет общий ритм reference";
@@ -233,7 +237,12 @@ function referencesSourceProduct(value: string | undefined, sourceProductProps: 
 }
 
 function productPackageMarker(value: string) {
-  return value.toLocaleLowerCase().match(/\b(?:product|branded)\s+(?:box|package|packaging|bottle|jar|tube|stick(?:\s+pack)?)\b/u)?.[0] || "";
+  return value.toLocaleLowerCase().match(/\b(?:(?:product|branded)\s+)?(?:box|package|packaging|bottle|jar|tube|stick(?:\s+pack)?|sachet)\w*\b/u)?.[0] || "";
+}
+
+function safeReferenceAction(value: string) {
+  const action = compactText(value);
+  return hasConsumptionAction(action) ? "" : action;
 }
 
 function selectReferenceBeat(contract: ReferenceVisualTransferContract, position = 0) {
