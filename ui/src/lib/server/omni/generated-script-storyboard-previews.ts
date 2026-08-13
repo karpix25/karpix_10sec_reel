@@ -2,6 +2,7 @@ import pool from "@/lib/db";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
+import { recordGeneratedScriptStoryboardFailure } from "./generated-script-storyboard-failure";
 import { isKieStoryboardImagePendingError } from "./kie-omni-client";
 import { recordKieGenerationCost } from "./omni-generation-costs";
 import { isStoryboardVisionJsonFormatError } from "./storyboard-vision-validator";
@@ -17,6 +18,7 @@ import {
 } from "./generated-script-storyboard-set-qa";
 import { getStoryboardSetRepairSegments } from "./storyboard-set-vision-validator";
 import {
+  getGeneratedScriptStoryboardRepairContext,
   getPendingGeneratedScriptStoryboardKieTaskId,
   saveGeneratedScriptStoryboardKieTask,
 } from "./generated-script-storyboard-kie-tasks";
@@ -28,7 +30,6 @@ type StoryboardPromptSegment = {
 
 const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-avatar-identity-v9";
 const MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES = 2;
-const MAX_STORYBOARD_DIAGNOSTIC_CHARS = 12_000;
 const MAX_STORYBOARD_SET_REPAIR_ATTEMPTS = 2;
 
 export async function ensureGeneratedScriptStoryboardUrls(input: {
@@ -69,6 +70,12 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
         generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
       })
       : null;
+    const repairContext = await getGeneratedScriptStoryboardRepairContext({
+      scriptId: input.scriptId,
+      segmentIndex: segment.index,
+      referenceSignature,
+      generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
+    });
     const generatedUrl = await tryGenerateStoryboardPreview({
       ...input,
       referenceSignature,
@@ -77,6 +84,7 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
       canonicalStoryboardReferenceUrl,
       pendingKieStoryboardTaskId,
       generationProvider: input.generationProvider,
+      ...repairContext,
     });
     if (generatedUrl) {
       urls.set(segment.index, generatedUrl);
@@ -160,6 +168,9 @@ async function tryGenerateStoryboardPreview(input: {
   pendingKieStoryboardTaskId?: string | null;
   generationProvider?: OmniGenerationProvider;
   referenceSafetyInstructions?: readonly string[];
+  previousStoryboardReferenceUrl?: string | null;
+  previousRepairInstructions?: readonly string[];
+  previousGenerationAttemptCount?: number;
 }) {
   try {
     const url = await generateStoryboardImage({
@@ -180,6 +191,9 @@ async function tryGenerateStoryboardPreview(input: {
       generationProvider: input.generationProvider,
       pendingKieStoryboardTaskId: input.pendingKieStoryboardTaskId,
       referenceSafetyInstructions: input.referenceSafetyInstructions,
+      previousStoryboardReferenceUrl: input.previousStoryboardReferenceUrl,
+      previousRepairInstructions: input.previousRepairInstructions,
+      previousGenerationAttemptCount: input.previousGenerationAttemptCount,
     });
     if (!url) return null;
     await upsertGeneratedScriptStoryboardUrl({ ...input, url });
@@ -190,6 +204,9 @@ async function tryGenerateStoryboardPreview(input: {
         ...input,
         generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
         taskId: error.task.id,
+        repairStoryboardReferenceUrl: error.storyboardRepairReferenceUrl,
+        repairInstructions: error.storyboardRepairInstructions,
+        generationAttemptCount: error.storyboardGenerationAttemptCount,
       });
       await recordKieGenerationCost({
         projectId: input.projectId,
@@ -203,11 +220,14 @@ async function tryGenerateStoryboardPreview(input: {
       }).catch((recordError) => console.error("Could not record pending KIE storyboard cost:", recordError));
       throw error;
     }
-    const failure = await recordGeneratedScriptStoryboardFailure(input, error).catch((recordError) => {
+    const failure = await recordGeneratedScriptStoryboardFailure({
+      ...input,
+      generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
+    }, error).catch((recordError) => {
       console.error("Could not save storyboard generation diagnostic:", recordError);
       return null;
     });
-    if (isStoryboardVisionJsonFormatError(error) && failure && failure.generationAttemptCount <= MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES) {
+    if (isStoryboardVisionJsonFormatError(error) && failure && failure.diagnosticAttemptCount <= MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES) {
       error.retryWithoutJobAttempt = true;
     }
     throw error;
@@ -254,12 +274,21 @@ async function ensureStoryboardSetApproval(input: {
       if (!storyboardPlan) continue;
       const canonicalStoryboardReferenceUrl = urls.get(1) || null;
       if (!canonicalStoryboardReferenceUrl) throw new Error("Storyboard 1 must remain available for cross-storyboard repair");
+      const repairContext = await getGeneratedScriptStoryboardRepairContext({
+        scriptId: input.scriptId,
+        segmentIndex,
+        referenceSignature,
+        generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
+      });
       const regeneratedUrl = await tryGenerateStoryboardPreview({
         ...input,
         referenceSignature,
         segmentIndex,
         storyboardPlan,
         canonicalStoryboardReferenceUrl,
+        previousStoryboardReferenceUrl: urls.get(segmentIndex) || repairContext.previousStoryboardReferenceUrl,
+        previousRepairInstructions: repairContext.previousRepairInstructions,
+        previousGenerationAttemptCount: repairContext.previousGenerationAttemptCount,
         referenceSafetyInstructions: buildSetRepairInstructions(validation.repairInstructions, validation.violations, segmentIndex),
       });
       if (!regeneratedUrl) throw new Error(`Storyboard ${segmentIndex} could not be regenerated for cross-storyboard QA`);
@@ -315,12 +344,14 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
        kie_task_id,
        generation_status,
        generation_attempt_count,
+       repair_storyboard_reference_url,
+       repair_instructions,
        generation_error,
        last_attempt_at,
        retry_after,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, NULL, 'ready', 0, NULL, CURRENT_TIMESTAMP, NULL, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, NULL, 'ready', 1, NULL, '[]'::jsonb, NULL, CURRENT_TIMESTAMP, NULL, CURRENT_TIMESTAMP)
      ON CONFLICT (generated_script_id, segment_index)
      DO UPDATE SET
        storyboard_plan = EXCLUDED.storyboard_plan,
@@ -329,7 +360,9 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
        generator_version = EXCLUDED.generator_version,
        kie_task_id = NULL,
        generation_status = 'ready',
-       generation_attempt_count = 0,
+       generation_attempt_count = GREATEST(omni_generated_script_storyboards.generation_attempt_count, EXCLUDED.generation_attempt_count),
+       repair_storyboard_reference_url = NULL,
+       repair_instructions = '[]'::jsonb,
        generation_error = NULL,
        last_attempt_at = CURRENT_TIMESTAMP,
        retry_after = NULL,
@@ -345,86 +378,6 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
       STORYBOARD_PREVIEW_GENERATOR_VERSION,
     ]
   );
-}
-
-async function recordGeneratedScriptStoryboardFailure(input: {
-  projectId: number;
-  productId: number;
-  scriptId: number;
-  segmentIndex: number;
-  storyboardPlan: OmniStoryboardSegment | null;
-  referenceSignature: string;
-}, error: unknown) {
-  const reason = error instanceof Error ? error.message : String(error);
-  const jsonFormatError = isStoryboardVisionJsonFormatError(error);
-  const rawResponse = jsonFormatError ? error.rawResponse : null;
-  const diagnostic = {
-    at: new Date().toISOString(),
-    reason: truncateStoryboardDiagnostic(reason),
-    raw_response: rawResponse ? truncateStoryboardDiagnostic(rawResponse) : null,
-  };
-  const { rows } = await pool.query<{ generation_attempt_count: number }>(
-    `INSERT INTO omni_generated_script_storyboards (
-       project_id,
-       product_id,
-       generated_script_id,
-       segment_index,
-       storyboard_plan,
-       reference_signature,
-       generator_version,
-       kie_task_id,
-       generation_status,
-       generation_attempt_count,
-       generation_error,
-       generation_error_history,
-       last_attempt_at,
-       retry_after,
-       updated_at
-     )
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, NULL, $8, 1, $9, $10::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '5 seconds', CURRENT_TIMESTAMP)
-     ON CONFLICT (generated_script_id, segment_index)
-     DO UPDATE SET
-       storyboard_plan = EXCLUDED.storyboard_plan,
-       reference_signature = EXCLUDED.reference_signature,
-       generator_version = EXCLUDED.generator_version,
-       kie_task_id = NULL,
-       generation_status = EXCLUDED.generation_status,
-       generation_attempt_count = omni_generated_script_storyboards.generation_attempt_count + 1,
-       generation_error = EXCLUDED.generation_error,
-       generation_error_history = (
-         SELECT COALESCE(jsonb_agg(entry ORDER BY position), '[]'::jsonb)
-         FROM (
-           SELECT entry, position
-           FROM jsonb_array_elements(omni_generated_script_storyboards.generation_error_history || EXCLUDED.generation_error_history)
-                WITH ORDINALITY AS history(entry, position)
-           ORDER BY position DESC
-           LIMIT 3
-         ) AS recent
-       ),
-       last_attempt_at = CURRENT_TIMESTAMP,
-       retry_after = CURRENT_TIMESTAMP + INTERVAL '5 seconds',
-       updated_at = CURRENT_TIMESTAMP
-     RETURNING generation_attempt_count`,
-    [
-      input.projectId,
-      input.productId,
-      input.scriptId,
-      input.segmentIndex,
-      input.storyboardPlan ? JSON.stringify(input.storyboardPlan) : null,
-      input.referenceSignature,
-      STORYBOARD_PREVIEW_GENERATOR_VERSION,
-      jsonFormatError ? "repairing_json" : "failed",
-      truncateStoryboardDiagnostic(reason),
-      JSON.stringify([diagnostic]),
-    ]
-  );
-  return { generationAttemptCount: Number(rows[0]?.generation_attempt_count || 1) };
-}
-
-function truncateStoryboardDiagnostic(value: string) {
-  return value.length <= MAX_STORYBOARD_DIAGNOSTIC_CHARS
-    ? value
-    : `${value.slice(0, MAX_STORYBOARD_DIAGNOSTIC_CHARS)}\n[truncated]`;
 }
 
 function buildReferenceSignature(input: {

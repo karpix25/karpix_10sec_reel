@@ -44,6 +44,9 @@ export class KieStoryboardImagePendingError extends Error {
   readonly task: KieOmniTask;
   readonly model: string;
   retryWithoutJobAttempt = true;
+  storyboardRepairReferenceUrl: string | null = null;
+  storyboardRepairInstructions: readonly string[] = [];
+  storyboardGenerationAttemptCount = 1;
 
   constructor(task: KieOmniTask, model: string) {
     super(`KIE storyboard image task ${task.id} is still ${task.status}`);

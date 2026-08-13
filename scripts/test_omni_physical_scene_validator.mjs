@@ -34,6 +34,8 @@ try {
       join(ui, "src/lib/server/omni/storyboard/omni-stored-storyboard-frame-repair.ts"),
       join(ui, "src/lib/server/omni/storyboard/omni-storyboard-builder.ts"),
       join(ui, "src/lib/server/omni/storyboard/omni-storyboard-speech.ts"),
+      join(ui, "src/lib/server/omni/storyboard-vision-contract.ts"),
+      join(ui, "src/lib/server/omni/storyboard-repair-limit.ts"),
     ],
   }));
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", config], { cwd: ui, stdio: "inherit" });
@@ -45,6 +47,26 @@ try {
   const speech = require(findFile(compiled, "omni-storyboard-speech.js"));
   const storedFrameRepair = require(findFile(compiled, "omni-stored-storyboard-frame-repair.js"));
   const storyboardBuilder = require(findFile(compiled, "omni-storyboard-builder.js"));
+  const storyboardVisionContract = require(findFile(compiled, "storyboard-vision-contract.js"));
+  const storyboardRepairLimit = require(findFile(compiled, "storyboard-repair-limit.js"));
+
+  assert.equal(storyboardRepairLimit.canAttemptStoryboardImageGeneration(2), true);
+  assert.equal(storyboardRepairLimit.canAttemptStoryboardImageGeneration(3), false);
+  assert.deepEqual(
+    storyboardRepairLimit.resolveStoryboardImageGenerationAttempt({
+      previousAttemptCount: 3,
+      pendingKieTaskId: "already-paid-task",
+      usesKie: true,
+    }),
+    { shouldAttempt: true, resumesPendingKieTask: true, generationAttemptCount: 3 }
+  );
+  assert.equal(
+    storyboardVisionContract.normalizeStoryboardVisionValidation({
+      confidence: 0.9,
+      panels: [{ panel_index: 1, status: "repair", violations: [{ severity: "warning", code: "SOFT_LIGHT", evidence: "Minor" }] }],
+    }).status,
+    "pass"
+  );
 
   const handConflictPlan = physicalModel.buildPhysicalFramePlan({
     productName: "Коллаген",

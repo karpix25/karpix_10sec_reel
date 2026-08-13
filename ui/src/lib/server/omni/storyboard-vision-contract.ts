@@ -18,7 +18,7 @@ export function normalizeStoryboardVisionValidation(value: unknown, model?: stri
     .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
     .map((item) => item.trim());
   const hasBlockingPanel = panels.some((panel) => panel.status === "block");
-  const hasRepairPanel = panels.some((panel) => panel.status === "repair" && panel.violations.length > 0);
+  const hasRepairPanel = panels.some((panel) => panel.status === "repair" && panel.violations.some((violation) => violation.severity === "error"));
   const hasRepair = hasRepairPanel || repairInstructions.length > 0;
   const status: StoryboardVisionStatus = confidence < STORYBOARD_VISION_MIN_CONFIDENCE || hasBlockingPanel
     ? "block"

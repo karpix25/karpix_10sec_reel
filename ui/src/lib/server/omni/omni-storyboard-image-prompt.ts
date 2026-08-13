@@ -14,15 +14,18 @@ export function buildStoryboardImagePrompt(input: {
   productReferenceUrls?: readonly string[];
   directorReferenceImageUrls?: readonly string[];
   canonicalStoryboardReferenceUrl?: string | null;
+  previousStoryboardReferenceUrl?: string | null;
   directorBrief?: DirectorBrief | null;
   repairInstructions?: readonly string[];
 }) {
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
   const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || []);
   const canonicalStoryboardReferenceUrl = cleanUrl(input.canonicalStoryboardReferenceUrl);
+  const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
   const isPipLayout = isCollagePictureInPictureReference(input.directorBrief || null);
   const canonicalFile = canonicalStoryboardReferenceUrl ? 2 : null;
-  const productFileStart = 2 + (canonicalFile ? 1 : 0);
+  const repairFile = previousStoryboardReferenceUrl ? 2 + (canonicalFile ? 1 : 0) : null;
+  const productFileStart = 2 + (canonicalFile ? 1 : 0) + (repairFile ? 1 : 0);
   const directorFileStart = productFileStart + productReferenceUrls.length;
   const productPhysicalHint = productReferenceUrls.length
     ? renderProductPhysicalStoryboardHint(input.productPhysicalContract)
@@ -40,6 +43,9 @@ export function buildStoryboardImagePrompt(input: {
     canonicalFile
       ? `@file${canonicalFile} - эталон одежды из первого утверждённого storyboard. В точности повтори видимые верх, рукава, вырез, ткань, цвет, очки, украшения и волосы. Этот эталон важнее кадров оригинала для внешнего вида героя.`
       : "Первый storyboard задаёт эталон одежды для всех следующих частей ролика.",
+    repairFile
+      ? `@file${repairFile} - предыдущая версия этой раскадровки. Это база для точечной правки: сохрани без изменений все панели, которые не названы в PHYSICAL REPAIR FROM PRIOR CHECK. Меняй только указанные панели и детали; не создавай новый вариант всего storyboard.`
+      : "",
     productReferenceUrls.length
       ? `@file${productFileStart}${productReferenceUrls.length > 1 ? `-@file${productFileStart + productReferenceUrls.length - 1}` : ""} - product reference images: точный продукт ${input.productName}, форма, цвет, упаковка, материал и размер.`
       : "Product reference не передан: продукт не показывай.",
