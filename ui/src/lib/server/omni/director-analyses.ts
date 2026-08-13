@@ -66,6 +66,23 @@ export async function listFailedDirectorAnalysisLegacyIds(limit = 500) {
   return rows.map((row) => Number(row.legacy_scenario_id)).filter((id) => Number.isFinite(id) && id > 0);
 }
 
+export async function listReadyDirectorAnalysisLegacyIds(limit = 500) {
+  await ensureOmniSchema();
+  const { rows } = await pool.query<{ legacy_scenario_id: string | number }>(
+    `SELECT legacy_scenario_id
+     FROM omni_legacy_video_analyses
+     WHERE legacy_source = $1
+       AND analysis_prompt_version = $2
+       AND director_analysis_status = 'completed'
+       AND stored_video_url IS NOT NULL
+       AND director_analysis_json IS NOT NULL
+     ORDER BY updated_at DESC
+     LIMIT $3`,
+    [LEGACY_SOURCE, DIRECTOR_ANALYSIS_PROMPT_VERSION, limit]
+  );
+  return rows.map((row) => Number(row.legacy_scenario_id)).filter((id) => Number.isFinite(id) && id > 0);
+}
+
 async function upsertPendingAnalysis(input: {
   projectId: number;
   productId: number;

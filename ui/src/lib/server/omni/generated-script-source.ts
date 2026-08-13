@@ -1,9 +1,12 @@
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { getLegacyScenario, getRandomLegacyScenarioFromClients } from "./legacy-scenarios";
 import { listLegacyLibraryLinks } from "./legacy-library-links";
-import { listFailedDirectorAnalysisLegacyIds } from "./director-analyses";
+import { listFailedDirectorAnalysisLegacyIds, listReadyDirectorAnalysisLegacyIds } from "./director-analyses";
 
-export type GeneratedScriptSourceMode = "random_active_legacy_reference" | "selected_legacy_reference";
+export type GeneratedScriptSourceMode =
+  | "random_active_legacy_reference"
+  | "ready_active_legacy_reference"
+  | "selected_legacy_reference";
 
 export async function resolveGeneratedScriptSource(input: {
   projectId: number;
@@ -33,9 +36,17 @@ export async function resolveGeneratedScriptSource(input: {
   }
 
   const failedDirectorIds = await listFailedDirectorAnalysisLegacyIds();
+  const excludedAndFailedIds = [...failedDirectorIds, ...excludedIds];
+  const readyDirectorIds = await listReadyDirectorAnalysisLegacyIds();
+  const readySourceScenario = readyDirectorIds.length
+    ? await getRandomLegacyScenarioFromClients(legacyClientIds, excludedAndFailedIds, readyDirectorIds)
+    : null;
+  if (readySourceScenario) {
+    return { sourceScenario: readySourceScenario, sourceMode: "ready_active_legacy_reference" };
+  }
   const sourceScenario = await getRandomLegacyScenarioFromClients(
     legacyClientIds,
-    [...failedDirectorIds, ...excludedIds]
+    excludedAndFailedIds
   );
   if (!sourceScenario) {
     throw new Error("No reference transcripts found in active legacy bundles");
