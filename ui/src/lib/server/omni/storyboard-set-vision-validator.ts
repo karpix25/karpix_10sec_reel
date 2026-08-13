@@ -188,11 +188,11 @@ function buildStoryboardSetVisionPrompt(input: {
   }));
   return [
     "You are a strict cross-segment continuity QA for one vertical video.",
-    input.hasAvatarReference ? "The first image is the avatar identity reference. Every visible presenter must match it; gender, face, hair, and body type may not change." : "No avatar identity reference was supplied.",
+    input.hasAvatarReference ? "The first image is the avatar identity reference only. Every visible presenter must match it in gender, face, hair, and body type. Do not compare its clothing, accessories, room, lighting, or camera with the contact sheets." : "No avatar identity reference was supplied.",
     input.productReferenceCount ? `The next ${input.productReferenceCount} image(s) are product references for ${input.productName || "the client product"}. When the storyboard plan shows the product, its visible package must match these references.` : "No product reference images were supplied.",
     `The remaining images are contact sheets in order: ${input.storyboards.map((storyboard, index) => `contact sheet ${index + 1} is segment ${storyboard.segmentIndex}`).join("; ")}.`,
     "Segment 1 is the canonical visual identity. Compare every visible presenter panel in every later segment against it.",
-    "Reject the set if a visible change occurs in garment type, sleeves, neckline, fabric, color, fit, accessories, hairstyle, hair parting, face identity, body type, room, lighting, or camera setup. Different hand gestures are allowed. A spoken subject change never permits an outfit change.",
+    "Use the segment 1 contact sheet, not the avatar reference, as the canonical source for wardrobe, accessories, room, lighting, and camera. Reject later segments only if they visibly change from segment 1 in garment type, sleeves, neckline, fabric, color, fit, accessories, hairstyle, hair parting, face identity, body type, room, lighting, or camera setup. Different hand gestures are allowed. A spoken subject change never permits an outfit change.",
     `Canonical wardrobe contract: ${wardrobe}.`,
     "Also check the visual-mechanics contracts below. Required neutral support props are not competing products: retain them when listed. Reject a segment when its planned prop, action, or framing has been reduced to generic talking head. Use required_prop_missing, reference_action_missing, or reference_composition_lost with severity error.",
     `Visual-mechanics contracts: ${JSON.stringify(visualContracts)}.`,
