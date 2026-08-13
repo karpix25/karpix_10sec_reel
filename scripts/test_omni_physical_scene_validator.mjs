@@ -412,6 +412,32 @@ try {
     true
   );
 
+  const ordinaryReferenceSpeech = storyboard([
+    {
+      ...frame(
+        "Выбирайте удобный формат",
+        "герой спокойно говорит в камеру с нейтральным жестом",
+        "продукт вне кадра"
+      ),
+      referenceTransfer: {
+        ...hiddenCtaTransfer.frames[0].referenceTransfer,
+        version: "reference-transfer-v3",
+        requiredReferenceAction: "Presenter speaks to the camera with hands clasped.",
+      },
+    },
+  ]);
+  assert.equal(
+    contractValidator.validateStoryboardSegmentContract({
+      storyboard: ordinaryReferenceSpeech,
+      contract: {
+        productName: "Коллаген",
+        productVisibility: "hidden",
+        fixedWardrobe: "одежда",
+      },
+    }).valid,
+    true
+  );
+
   const normalizedCheekAction = normalizer.normalizePhysicalStoryboardSegment({
     productName: "Коллаген",
     storyboard: storyboard([
