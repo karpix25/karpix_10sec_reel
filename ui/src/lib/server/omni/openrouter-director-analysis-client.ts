@@ -9,6 +9,7 @@ import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_DIRECTOR_MODEL = "minimax/minimax-m3";
+const DIRECTOR_ANALYSIS_REQUEST_TIMEOUT_MS = 120_000;
 
 export type DirectorVideoAnalysisResult = {
   brief: DirectorBrief;
@@ -48,6 +49,7 @@ export async function analyzeDirectorVideo(input: {
         },
       ],
     }),
+    signal: AbortSignal.timeout(DIRECTOR_ANALYSIS_REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {

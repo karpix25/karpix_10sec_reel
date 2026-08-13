@@ -37,6 +37,7 @@ import { getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-pla
 import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const SCRIPT_GENERATION_REQUEST_TIMEOUT_MS = 90_000;
 
 export type GeneratedScriptResultPayload = {
   title: string;
@@ -190,6 +191,7 @@ async function requestScriptOnce(
         },
       ],
     }),
+    signal: AbortSignal.timeout(SCRIPT_GENERATION_REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {

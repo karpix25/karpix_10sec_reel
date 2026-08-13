@@ -1,6 +1,7 @@
 import { getS3Config, isS3Configured, putObjectToS3 } from "@/lib/server/s3-storage";
 
 const DEFAULT_MAX_VIDEO_BYTES = 80 * 1024 * 1024;
+const DIRECTOR_VIDEO_DOWNLOAD_TIMEOUT_MS = 90_000;
 
 export type StoredDirectorVideo = {
   url: string;
@@ -15,7 +16,10 @@ export async function storeDirectorReferenceVideo(input: {
   const config = getS3Config();
   if (!isS3Configured(config)) return null;
 
-  const response = await fetch(input.videoUrl, { cache: "no-store" });
+  const response = await fetch(input.videoUrl, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(DIRECTOR_VIDEO_DOWNLOAD_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(`Reference video download failed: ${response.status}`);
   }

@@ -7,6 +7,7 @@ import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "minimax/minimax-m3";
 const MIN_CONFIDENCE = 0.7;
+const DIRECTOR_VERIFICATION_REQUEST_TIMEOUT_MS = 90_000;
 
 export type DirectorAnalysisVerification = {
   status: "pass" | "repair";
@@ -59,6 +60,7 @@ export async function verifyDirectorBriefAgainstReferenceFrames(input: {
         },
       ],
     }),
+    signal: AbortSignal.timeout(DIRECTOR_VERIFICATION_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");

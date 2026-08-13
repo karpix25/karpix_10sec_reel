@@ -323,6 +323,7 @@ try {
   process.env.OPENROUTER_API_KEY = "test-key";
   process.env.OMNI_DIRECTOR_ANALYSIS_MODEL = "minimax/minimax-m3";
   let requestPayload = null;
+  let requestSignal = null;
   global.fetch = async (url, init = {}) => {
     if (String(url).includes("/api/v1/model/")) {
       return {
@@ -330,6 +331,7 @@ try {
         json: async () => ({ data: { pricing: { prompt: "0.000001", completion: "0.000002" } } }),
       };
     }
+    requestSignal = init.signal;
     requestPayload = JSON.parse(String(init.body));
     return {
       ok: true,
@@ -346,6 +348,8 @@ try {
     transcript: "Тестовая русская реплика.",
   });
   assert.equal(analyzed.model, "minimax/minimax-m3");
+  assert.ok(requestSignal, "director analysis request must have a timeout signal");
+  assert.equal(requestSignal.aborted, false);
   assert.equal(requestPayload.model, "minimax/minimax-m3");
   assert.equal(requestPayload.messages[1].content[1].type, "video_url");
   assert.equal(requestPayload.messages[1].content[1].video_url.url, "https://cdn.example.com/direct.mp4");
