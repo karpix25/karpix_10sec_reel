@@ -29,6 +29,9 @@ export function isStoryboardSetVisionJsonFormatError(error: unknown): error is S
 
 export async function validateStoryboardSet(input: {
   storyboards: readonly { segmentIndex: number; imageUrl: string; storyboard: OmniStoryboardSegment }[];
+  avatarReferenceUrl?: string | null;
+  productName?: string;
+  productReferenceUrls?: readonly string[];
   model?: string | null;
 }) {
   if (input.storyboards.length < 2) return buildSingleSegmentPass(input.storyboards[0]?.segmentIndex || 1);
@@ -36,13 +39,29 @@ export async function validateStoryboardSet(input: {
   if (!apiKey.trim()) throw new Error("OPENROUTER_API_KEY is not configured for storyboard set QA");
 
   const model = input.model || process.env.OMNI_STORYBOARD_VISION_MODEL || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL || DEFAULT_MODEL;
+  const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []).slice(0, 3);
   const response = await requestVisionJson({
     apiKey,
     model,
     messages: [{
       role: "user",
       content: [
-        { type: "text", text: buildStoryboardSetVisionPrompt(input.storyboards) },
+        {
+          type: "text",
+          text: buildStoryboardSetVisionPrompt({
+            storyboards: input.storyboards,
+            hasAvatarReference: Boolean(input.avatarReferenceUrl?.trim()),
+            productName: input.productName,
+            productReferenceCount: productReferenceUrls.length,
+          }),
+        },
+        ...(input.avatarReferenceUrl?.trim()
+          ? [{ type: "image_url" as const, image_url: { url: input.avatarReferenceUrl.trim() } }]
+          : []),
+        ...productReferenceUrls.map((url) => ({
+          type: "image_url" as const,
+          image_url: { url },
+        })),
         ...input.storyboards.map((storyboard) => ({ type: "image_url" as const, image_url: { url: storyboard.imageUrl } })),
       ],
     }],
@@ -80,7 +99,7 @@ export function normalizeStoryboardSetVisionValidation(value: unknown, model?: s
 export function getStoryboardSetRepairSegments(validation: StoryboardSetVisionValidation) {
   return [...new Set(
     validation.violations
-      .filter((violation) => violation.severity === "error" && violation.segmentIndex > 1)
+      .filter((violation) => violation.severity === "error")
       .map((violation) => violation.segmentIndex)
   )].sort((left, right) => left - right);
 }
@@ -148,21 +167,30 @@ async function requestVisionJson(input: { apiKey: string; model: string; message
   return await response.json() as Record<string, unknown>;
 }
 
-function buildStoryboardSetVisionPrompt(storyboards: readonly { segmentIndex: number; storyboard: OmniStoryboardSegment }[]) {
-  const canonical = storyboards[0];
+function buildStoryboardSetVisionPrompt(input: {
+  storyboards: readonly { segmentIndex: number; storyboard: OmniStoryboardSegment }[];
+  hasAvatarReference: boolean;
+  productName?: string;
+  productReferenceCount: number;
+}) {
+  const canonical = input.storyboards[0];
   const wardrobe = canonical?.storyboard.frames[0]?.wardrobe || "the complete visible outfit in segment 1";
-  const visualContracts = storyboards.map((storyboard) => ({
+  const visualContracts = input.storyboards.map((storyboard) => ({
     segment_index: storyboard.segmentIndex,
     panels: storyboard.storyboard.frames.map((frame, panelIndex) => ({
       panel_index: panelIndex + 1,
       required_support_props: frame.referenceTransfer?.requiredSupportProps || [],
       required_action: frame.referenceTransfer?.requiredReferenceAction || null,
       camera_composition: frame.referenceTransfer?.cameraComposition || null,
+      product_placement: frame.productPlacement,
+      physical_plan: frame.physicalPlan || null,
     })),
   }));
   return [
     "You are a strict cross-segment continuity QA for one vertical video.",
-    `The images are contact sheets in order: ${storyboards.map((storyboard, index) => `image ${index + 1} is segment ${storyboard.segmentIndex}`).join("; ")}.`,
+    input.hasAvatarReference ? "The first image is the avatar identity reference. Every visible presenter must match it; gender, face, hair, and body type may not change." : "No avatar identity reference was supplied.",
+    input.productReferenceCount ? `The next ${input.productReferenceCount} image(s) are product references for ${input.productName || "the client product"}. When the storyboard plan shows the product, its visible package must match these references.` : "No product reference images were supplied.",
+    `The remaining images are contact sheets in order: ${input.storyboards.map((storyboard, index) => `contact sheet ${index + 1} is segment ${storyboard.segmentIndex}`).join("; ")}.`,
     "Segment 1 is the canonical visual identity. Compare every visible presenter panel in every later segment against it.",
     "Reject the set if a visible change occurs in garment type, sleeves, neckline, fabric, color, fit, accessories, hairstyle, hair parting, face identity, body type, room, lighting, or camera setup. Different hand gestures are allowed. A spoken subject change never permits an outfit change.",
     `Canonical wardrobe contract: ${wardrobe}.`,
@@ -224,4 +252,8 @@ function truncateJsonRepairSource(value: string) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function uniqueUrls(values: readonly string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }

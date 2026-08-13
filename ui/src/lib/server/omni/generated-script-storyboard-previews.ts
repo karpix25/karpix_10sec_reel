@@ -55,7 +55,7 @@ type EnsureGeneratedScriptStoryboardUrlsInput = {
   generationProvider?: OmniGenerationProvider;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-avatar-identity-v9";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-avatar-identity-v10";
 const MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES = 2;
 const MAX_STORYBOARD_SET_REPAIR_ATTEMPTS = 2;
 
@@ -69,6 +69,7 @@ export async function ensureGeneratedScriptStoryboardUrls(input: EnsureGenerated
 async function ensureGeneratedScriptStoryboardUrlsLocked(input: EnsureGeneratedScriptStoryboardUrlsInput) {
   const referenceSignature = buildReferenceSignature(input);
   const urls = await getStoredGeneratedScriptStoryboardUrls({ ...input, referenceSignature });
+  const deferVisualQa = input.promptPlan.filter((segment) => Boolean(segment.storyboardPlan)).length > 1;
   let canonicalStoryboardReferenceUrl: string | null = null;
 
   for (const segment of input.promptPlan) {
@@ -93,6 +94,7 @@ async function ensureGeneratedScriptStoryboardUrlsLocked(input: EnsureGeneratedS
       storyboardPlan: segment.storyboardPlan,
       canonicalStoryboardReferenceUrl,
       generationProvider: input.generationProvider,
+      deferVisualQa,
       ...repairContext,
     });
     if (generatedUrl) {
@@ -179,6 +181,7 @@ async function tryGenerateStoryboardPreview(input: {
   pendingKieStoryboardTaskId?: string | null;
   generationProvider?: OmniGenerationProvider;
   referenceSafetyInstructions?: readonly string[];
+  deferVisualQa?: boolean;
   previousStoryboardReferenceUrl?: string | null;
   previousRepairInstructions?: readonly string[];
   previousGenerationAttemptCount?: number;
@@ -222,6 +225,7 @@ async function tryGenerateStoryboardPreview(input: {
       pendingKieStoryboardTaskId: kieSubmission?.kind === "poll"
         ? kieSubmission.taskId
         : input.pendingKieStoryboardTaskId,
+      deferVisualQa: input.deferVisualQa,
       referenceSafetyInstructions: input.referenceSafetyInstructions,
       previousStoryboardReferenceUrl: input.previousStoryboardReferenceUrl,
       previousRepairInstructions: input.previousRepairInstructions,
@@ -287,6 +291,7 @@ async function ensureStoryboardSetApproval(input: {
 }, urls: Map<number, string>, referenceSignature: string) {
   const storyboards = getStoryboardSetEntries(input.promptPlan, urls);
   const plannedStoryboardCount = input.promptPlan.filter((segment) => Boolean(segment.storyboardPlan)).length;
+  const deferVisualQa = plannedStoryboardCount > 1;
   if (storyboards.length !== plannedStoryboardCount) {
     throw new Error("All storyboard images must exist before cross-storyboard QA");
   }
@@ -298,19 +303,23 @@ async function ensureStoryboardSetApproval(input: {
       scriptId: input.scriptId,
       storyboards,
       attemptCount: attempt + 1,
+      avatarReferenceUrl: input.avatarReferenceUrl,
+      productName: input.productName,
+      productReferenceUrls: input.productReferenceUrls,
     });
     if (validation.status === "pass") return;
     if (attempt === MAX_STORYBOARD_SET_REPAIR_ATTEMPTS) throw new StoryboardSetQualityError(validation);
 
     const repairSegments = getStoryboardSetRepairSegments(validation);
+    const allSegments = storyboards.map((storyboard) => storyboard.segmentIndex);
     const targets = repairSegments.length
-      ? repairSegments
-      : storyboards.map((storyboard) => storyboard.segmentIndex).filter((segmentIndex) => segmentIndex > 1);
+      ? repairSegments.includes(1) ? allSegments : repairSegments
+      : allSegments;
     for (const segmentIndex of targets) {
       const storyboardPlan = input.promptPlan.find((segment) => segment.index === segmentIndex)?.storyboardPlan;
       if (!storyboardPlan) continue;
-      const canonicalStoryboardReferenceUrl = urls.get(1) || null;
-      if (!canonicalStoryboardReferenceUrl) throw new Error("Storyboard 1 must remain available for cross-storyboard repair");
+      const canonicalStoryboardReferenceUrl = segmentIndex === 1 ? null : urls.get(1) || null;
+      if (segmentIndex > 1 && !canonicalStoryboardReferenceUrl) throw new Error("Storyboard 1 must remain available for cross-storyboard repair");
       const repairContext = await getGeneratedScriptStoryboardRepairContext({
         scriptId: input.scriptId,
         segmentIndex,
@@ -324,6 +333,7 @@ async function ensureStoryboardSetApproval(input: {
         previousStoryboardReferenceUrl: urls.get(segmentIndex) || repairContext.previousStoryboardReferenceUrl,
         previousRepairInstructions: repairContext.previousRepairInstructions,
         previousGenerationAttemptCount: repairContext.previousGenerationAttemptCount,
+        deferVisualQa,
         referenceSafetyInstructions: buildSetRepairInstructions(validation.repairInstructions, validation.violations, segmentIndex),
       });
       if (!regeneratedUrl) throw new Error(`Storyboard ${segmentIndex} could not be regenerated for cross-storyboard QA`);

@@ -58,12 +58,10 @@ type StoryboardImageInput = {
   generationProvider?: OmniGenerationProvider;
   pendingKieStoryboardTaskId?: string | null;
   referenceSafetyInstructions?: readonly string[];
+  deferVisualQa?: boolean;
 };
 
-type GeneratedStoryboardImage = {
-  body: Buffer;
-  contentType: string;
-};
+type GeneratedStoryboardImage = { body: Buffer; contentType: string };
 
 export class StoryboardImageRepairExhaustedError extends Error {
   readonly generationAttemptCount: number;
@@ -142,6 +140,10 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     }
     pendingKieStoryboardTaskId = null;
     generationAttemptCount = attempt.generationAttemptCount;
+    if (input.deferVisualQa) {
+      if (!generated.body.length) throw new Error("Generated storyboard image is empty");
+      return uploadStoryboardImage({ ...input, body: generated.body, contentType: generated.contentType });
+    }
     const validationInput = {
       imageUrl: toDataUrl(generated.body, generated.contentType),
       avatarReferenceUrl,
@@ -393,7 +395,6 @@ async function uploadStoryboardRepairCandidate(input: StoryboardImageInput & Gen
   }
   throw new Error("Storyboard repair requires reelId or scriptId storage target");
 }
-
 function toDataUrl(body: Buffer, contentType: string) {
   return `data:${contentType};base64,${body.toString("base64")}`;
 }
