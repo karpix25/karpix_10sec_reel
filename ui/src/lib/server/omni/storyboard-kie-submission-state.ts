@@ -9,6 +9,11 @@ export type StoryboardKieSubmissionRow = {
   lastAttemptAt: Date | string | null;
 };
 
+export type VersionedStoryboardKieSubmissionRow = StoryboardKieSubmissionRow & {
+  referenceSignature: string | null;
+  generatorVersion: string | null;
+};
+
 export type StoryboardKieSubmissionAction =
   | { kind: "submit"; generationAttemptCount: number }
   | { kind: "poll"; generationAttemptCount: number; taskId: string }
@@ -52,6 +57,16 @@ export function resolveStoryboardKieSubmissionAction(
     return { kind: "exhausted", generationAttemptCount };
   }
   return { kind: "submit", generationAttemptCount: generationAttemptCount + 1 };
+}
+
+export function resolveVersionedStoryboardKieSubmissionAction(
+  row: VersionedStoryboardKieSubmissionRow | null,
+  input: { referenceSignature: string; generatorVersion: string },
+  now = Date.now()
+) {
+  const keepsActiveTask = row?.generationStatus === "generating" || row?.generationStatus === "submitting";
+  const matchesCurrentVersion = row?.referenceSignature === input.referenceSignature && row?.generatorVersion === input.generatorVersion;
+  return resolveStoryboardKieSubmissionAction(row && (keepsActiveTask || matchesCurrentVersion) ? row : null, now);
 }
 
 function isStaleSubmission(lastAttemptAt: Date | string | null, now: number) {

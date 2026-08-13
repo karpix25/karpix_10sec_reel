@@ -1,17 +1,14 @@
 import pool from "@/lib/db";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import {
-  resolveStoryboardKieSubmissionAction,
+  resolveVersionedStoryboardKieSubmissionAction,
   type StoryboardKieSubmissionAction,
-  type StoryboardKieSubmissionRow,
+  type VersionedStoryboardKieSubmissionRow,
 } from "./storyboard-kie-submission-state";
 
 const STORYBOARD_LOCK_NAMESPACE = 53_901;
 
-type PersistedStoryboardTask = StoryboardKieSubmissionRow & {
-  referenceSignature: string | null;
-  generatorVersion: string | null;
-};
+type PersistedStoryboardTask = VersionedStoryboardKieSubmissionRow;
 
 export async function withGeneratedScriptStoryboardLock<T>(scriptId: number, run: () => Promise<T>) {
   const client = await pool.connect();
@@ -58,7 +55,7 @@ export async function reserveGeneratedScriptStoryboardKieSubmission(input: {
       [input.scriptId, input.segmentIndex]
     );
     const existing = rows[0] || null;
-    const action = resolveStoryboardKieSubmissionAction(existing);
+    const action = resolveVersionedStoryboardKieSubmissionAction(existing, input);
     if (action.kind !== "submit") {
       await client.query("COMMIT");
       return action;

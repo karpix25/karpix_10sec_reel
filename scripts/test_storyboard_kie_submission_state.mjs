@@ -25,7 +25,11 @@ try {
     { cwd: ui, stdio: "inherit" }
   );
 
-  const { STORYBOARD_KIE_SUBMISSION_STALE_MS, resolveStoryboardKieSubmissionAction } = require(
+  const {
+    STORYBOARD_KIE_SUBMISSION_STALE_MS,
+    resolveStoryboardKieSubmissionAction,
+    resolveVersionedStoryboardKieSubmissionAction,
+  } = require(
     join(output, "storyboard-kie-submission-state.js")
   );
   assert.deepEqual(resolveStoryboardKieSubmissionAction(null, now), { kind: "submit", generationAttemptCount: 1 });
@@ -41,6 +45,12 @@ try {
   assert.deepEqual(resolveStoryboardKieSubmissionAction(row({ generationStatus: "failed", generationAttemptCount: 3 }), now), {
     kind: "exhausted", generationAttemptCount: 3,
   });
+  assert.deepEqual(resolveVersionedStoryboardKieSubmissionAction(versionedRow({ generationAttemptCount: 3 }), {
+    referenceSignature: "current", generatorVersion: "v10",
+  }, now), { kind: "submit", generationAttemptCount: 1 });
+  assert.deepEqual(resolveVersionedStoryboardKieSubmissionAction(versionedRow({ generationStatus: "generating", taskId: "old-task" }), {
+    referenceSignature: "current", generatorVersion: "v10",
+  }, now), { kind: "poll", taskId: "old-task", generationAttemptCount: 1 });
   console.log("Storyboard KIE submission state checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
@@ -52,6 +62,15 @@ function row(overrides = {}) {
     generationAttemptCount: 1,
     taskId: null,
     lastAttemptAt: new Date(now),
+    ...overrides,
+  };
+}
+
+function versionedRow(overrides = {}) {
+  return {
+    ...row(),
+    referenceSignature: "old",
+    generatorVersion: "v9",
     ...overrides,
   };
 }
