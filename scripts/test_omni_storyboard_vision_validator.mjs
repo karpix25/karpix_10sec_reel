@@ -172,8 +172,24 @@ try {
   });
   assert.equal(setValidation.status, "block");
   assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments(setValidation), [2, 3]);
+  assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments({
+    violations: [{ segmentIndex: 1, severity: "error" }],
+  }), [1], "a failed canonical storyboard must be eligible for targeted repair");
   const setImages = setRequests[0].messages[0].content.filter((item) => item.type === "image_url");
   assert.equal(setImages.length, 3, "cross-storyboard QA must see all contact sheets in one request");
+
+  await setVisionValidator.validateStoryboardSet({
+    storyboards: [1, 2, 3].map((segmentIndex) => ({
+      segmentIndex,
+      imageUrl: `https://example.com/storyboard-${segmentIndex}.jpg`,
+      storyboard: { segmentIndex, durationSeconds: 4, voiceoverText: "Тест", frames: [{ wardrobe: "black sleeveless top" }] },
+    })),
+    avatarReferenceUrl: "https://example.com/avatar.jpg",
+    productName: "Тестовый продукт",
+    productReferenceUrls: ["https://example.com/product-front.jpg", "https://example.com/product-back.jpg"],
+  });
+  const referencedSetImages = setRequests[1].messages[0].content.filter((item) => item.type === "image_url");
+  assert.equal(referencedSetImages.length, 6, "cross-storyboard QA must see avatar, product, and all contact sheets together");
 
   const continuityRequests = [];
   global.fetch = async (_url, init) => {

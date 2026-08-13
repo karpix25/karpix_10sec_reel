@@ -47,8 +47,16 @@ export async function validateAndSaveGeneratedScriptStoryboardSet(input: {
   scriptId: number;
   storyboards: readonly StoryboardSetEntry[];
   attemptCount: number;
+  avatarReferenceUrl?: string | null;
+  productName?: string;
+  productReferenceUrls?: readonly string[];
 }) {
-  const validation = await validateStoryboardSet({ storyboards: input.storyboards });
+  const validation = await validateStoryboardSet({
+    storyboards: input.storyboards,
+    avatarReferenceUrl: input.avatarReferenceUrl,
+    productName: input.productName,
+    productReferenceUrls: input.productReferenceUrls,
+  });
   await saveGeneratedScriptStoryboardSetQuality({
     scriptId: input.scriptId,
     storyboards: input.storyboards,
