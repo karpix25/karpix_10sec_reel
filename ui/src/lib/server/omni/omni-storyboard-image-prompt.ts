@@ -39,7 +39,7 @@ export function buildStoryboardImagePrompt(input: {
     `UGC-storyboard: черный фон, ровно ${frameCount} вертикальных панелей в ряд, белые разделители и номер панели.`,
     "В каждой панели: живой вертикальный кадр, точная реплика на русском, короткие подписи РАКУРС и ДЕЙСТВИЕ.",
     "Без рекламного дизайна, UI, соцсетей, водяных знаков, captions, стикеров и декора.",
-    "@file1 - avatar/character reference: единственный человек во всех панелях. Точно сохрани лицо, возраст, пол, волосы, телосложение и личность героя. Лицо, пол и телосложение оригинального автора не копируй, даже если они видны в reference-кадрах или в одежде.",
+    "@file1 - avatar/character reference: единственный человек во всех панелях; только лицо, возраст, волосы, телосложение и личность героя. Пол героя также фиксирован. Лицо, пол и телосложение оригинального автора не копируй, даже если они видны в reference-кадрах или в одежде.",
     canonicalFile
       ? `@file${canonicalFile} - эталон одежды из первого утверждённого storyboard. В точности повтори видимые верх, рукава, вырез, ткань, цвет, очки, украшения и волосы. Этот эталон важнее кадров оригинала для внешнего вида героя.`
       : "Первый storyboard задаёт эталон одежды для всех следующих частей ролика.",
@@ -51,8 +51,8 @@ export function buildStoryboardImagePrompt(input: {
       : "Product reference не передан: продукт не показывай.",
     directorReferenceImageUrls.length
       ? canonicalFile
-        ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник локации, ракурса, света, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо только из @file1; одежду не копируй, она задана эталоном @file${canonicalFile}; не копируй исходный рекламный товар, текст или логотипы.`
-        : `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник локации, ракурса, света, одежды, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо только из @file1; не копируй исходный рекламный товар, текст или логотипы.`
+        ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только локации, ракурса, света, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо только из @file1; одежду не копируй, она задана эталоном @file${canonicalFile}; не копируй исходный рекламный товар, текст или логотипы.`
+        : `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только локации, ракурса, света, одежды, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо только из @file1; не копируй исходный рекламный товар, текст или логотипы.`
       : "",
     isPipLayout
       ? "REFERENCE LAYOUT: оригинал целиком в PIP/collage. В каждой панели полноэкранный динамичный фон и avatar cutout в нижнем левом углу с той же позицией, размером и белой обводкой; не делай centered talking-head."
@@ -90,14 +90,14 @@ export function buildStoryboardImagePrompt(input: {
       [
         `Кадр ${index + 1}, ${index * 2}-${(index + 1) * 2} сек:`,
         `РЕПЛИКА "${frame.spokenText}".`,
-        `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)}; окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};`,
+        `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)};${index === 0 ? ` окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};` : ""}`,
         frame.effectNotes ? `переход: ${compactText(frame.effectNotes)};` : "",
         frame.referenceTransfer
           ? `перенос: исходный товар ${frame.referenceTransfer.decisions.sourceProduct}; нейтральный реквизит ${frame.referenceTransfer.decisions.sourceProps}; композиция ${compactText(frame.referenceTransfer.cameraComposition || "сохраняй reference")}; обязательный реквизит ${(frame.referenceTransfer.requiredSupportProps || []).join("; ") || "нет"}; обязательное действие ${compactText(frame.referenceTransfer.requiredReferenceAction || "нет")};`
           : "",
         productReferenceUrls.length
           ? isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName)
-            ? `продукт: ${compactText(frame.productPlacement, 150)};`
+            ? `продукт: ${index === 0 ? compactText(frame.productPlacement, 70) : "по действию кадра, без телепортации"};`
             : "продукт в этом кадре не показывай;"
           : `предметы: ${compactText(frame.productPlacement)};`,
         `звук: ${compactText(frame.sfxNotes)}.`,

@@ -103,7 +103,7 @@ export const PHYSICAL_STORYBOARD_REPAIR_SYSTEM_PROMPT = [
   "frameIndex is 1-based. Include only frames that need visual correction.",
   "Allowed patch fields are visualAction, productPlacement, sfxNotes, effectNotes.",
   "Never return spokenText, voiceoverText, camera, environment, wardrobe, or any other field.",
-  "Keep speech unchanged. Make actions physically possible: no speaking while biting, chewing, swallowing, or drinking; no driving actions while the vehicle moves; no foreign products; no object levitation or multiple held objects.",
+  "Keep speech unchanged. Make actions physically possible: no speaking while biting, chewing, swallowing, or drinking; no driving actions while the vehicle moves; no foreign products; no object levitation or multiple held objects. A physical product demo must keep the product visible in every panel: show it on the same support surface before pickup, show the hand pickup, then show it held or returned. Never make a product appear in a hand or disappear between adjacent panels. Never touch the face unless that panel's speech is specifically about skin, face, or applying a product.",
   "Preserve the requested product identity and change only visual fields needed to resolve the listed errors.",
 ].join(" ");
 

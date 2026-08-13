@@ -38,7 +38,7 @@ try {
   const valid = validator.validateStoryboardSegmentContract({
     storyboard: storyboard([
       frame("Эта пенка мягко очищает", "герой держит пенку в одной руке", "Пенка Geodemika в руке"),
-      frame("кожу без ощущения стянутости", "герой спокойно говорит в камеру", "в кадре только окружение"),
+      frame("кожу без ощущения стянутости", "герой спокойно говорит в камеру", "Пенка Geodemika стоит на той же поверхности"),
     ]),
     contract: contract("visible"),
   });
@@ -62,14 +62,14 @@ try {
   });
   assert.ok(wrongWardrobe.errors.includes("frame_1_wardrobe_contract_mismatch"));
 
-  const actionWithoutVoiceover = validator.validateStoryboardSegmentContract({
+  const demoWithoutVoiceover = validator.validateStoryboardSegmentContract({
     storyboard: storyboard([
       frame("Сон и питание важны", "герой показывает пенку в камеру", "Пенка Geodemika в руке"),
       frame("для ровного тона кожи", "герой спокойно говорит в камеру", "в кадре только окружение"),
     ]),
     contract: contract("visible"),
   });
-  assert.ok(actionWithoutVoiceover.errors.includes("frame_1_product_action_without_product_voiceover"));
+  assert.ok(demoWithoutVoiceover.errors.includes("product_demo_without_product_voiceover"));
 
   const actionWhenHidden = validator.validateStoryboardSegmentContract({
     storyboard: storyboard([
@@ -113,7 +113,7 @@ try {
         creativePlan: { productRole: "brief_demo" },
       },
     ], "Пенка Geodemika"),
-    /segment_2_frame_1_product_visible_when_contract_hidden/u
+    /segment_2_product_demo_without_product_voiceover/u
   );
 
   assert.throws(

@@ -222,6 +222,7 @@ function buildReferenceVisualTransferContract(brief?: DirectorBrief | null): Ref
     persistentSupportProps,
     actionBeats: source.action_beats
       .filter((beat) => !referencesSourceProduct(beat.required_prop || beat.action, sourceProductProps))
+      .filter((beat) => isVerifiedReferenceAction(beat.action))
       .map((beat) => ({
         timestampSeconds: Math.max(0, Number(beat.timestamp_sec) || 0),
         action: compactText(beat.action),
@@ -229,6 +230,10 @@ function buildReferenceVisualTransferContract(brief?: DirectorBrief | null): Ref
       }))
       .filter((beat) => Boolean(beat.action)),
   };
+}
+
+function isVerifiedReferenceAction(value: string) {
+  return !/(?:\binferred\b|not\s+directly\s+verified|unverified|предполож|не\s+провер|вероятно)/iu.test(value);
 }
 
 function referencesSourceProduct(value: string | undefined, sourceProductProps: readonly string[]) {

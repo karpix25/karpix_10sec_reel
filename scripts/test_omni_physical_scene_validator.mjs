@@ -238,6 +238,39 @@ try {
   });
   assert.equal(safe.valid, true);
 
+  const teleportingProduct = validator.validatePhysicalScene({
+    storyboard: storyboard([
+      frame("Рассказываю о составе", "герой говорит в камеру", "продукт вне кадра"),
+      frame("Это помогает держать ритм", "герой держит Коллаген в одной руке", "Коллаген в одной руке"),
+    ]),
+    creativePlan: null,
+    productName: "Коллаген",
+  });
+  assert.ok(teleportingProduct.errors.includes("frame_2_product_teleports_between_frames"));
+
+  const meaninglessFaceTouch = validator.validatePhysicalScene({
+    storyboard: storyboard([
+      frame("Рассказываю о составе", "герой касается обеих щек", "продукт вне кадра"),
+    ]),
+    creativePlan: null,
+    productName: "Коллаген",
+  });
+  assert.ok(meaninglessFaceTouch.errors.includes("frame_1_face_touch_without_spoken_reason"));
+
+  const physicalDemoSteps = [1, 2, 3].map((frameIndex) => physicalModel.buildPhysicalProductDemoStep({
+    productName: "Коллаген",
+    frameIndex,
+    frameCount: 3,
+  }));
+  const physicalDemo = validator.validatePhysicalScene({
+    storyboard: storyboard(physicalDemoSteps.map((step) =>
+      frame("Рассказываю, почему это удобно", step.action, step.placement)
+    )),
+    creativePlan: null,
+    productName: "Коллаген",
+  });
+  assert.equal(physicalDemo.valid, true, JSON.stringify(physicalDemo));
+
   const biteWhileSpeaking = validator.validatePhysicalScene({
     storyboard: storyboard([
       frame("Вот мой перекус", "герой говорит в камеру и кусает морковь", "морковь в руке"),
@@ -330,7 +363,7 @@ try {
       referenceRole: "product",
     },
     productName: "Коллаген",
-    productVisible: true,
+    productVisible: false,
   });
   assert.match(foreignSpeechFrame.productPlacement, /тематические объекты и окружение|вне кадра/iu);
   assert.equal(
@@ -344,6 +377,7 @@ try {
 
   const normalizedConflict = normalizer.normalizePhysicalStoryboardSegment({
     productName: "Коллаген",
+    productVisible: true,
     storyboard: storyboard([
       frame(
         "Рассказываю о составе продукта",
@@ -353,14 +387,12 @@ try {
       ),
     ]),
   });
-  assert.equal(
-    validator.validatePhysicalScene({
-      storyboard: normalizedConflict,
-      creativePlan: null,
-      productName: "Коллаген",
-    }).valid,
-    true
-  );
+  const normalizedConflictValidation = validator.validatePhysicalScene({
+    storyboard: normalizedConflict,
+    creativePlan: null,
+    productName: "Коллаген",
+  });
+  assert.equal(normalizedConflictValidation.valid, true, JSON.stringify(normalizedConflictValidation));
   assert.match(normalizedConflict.frames[0].visualAction, /пассажир.*движущемся автомобиле/iu);
   assert.doesNotMatch(normalizedConflict.frames[0].visualAction, /кус(?:ает|ать)|обе\s+руки\s+у\s+лица/iu);
   assert.doesNotMatch(normalizedConflict.frames[0].productPlacement, /сыр|несколько|два\s+предмета/iu);
@@ -384,6 +416,7 @@ try {
 
   const staleProduct = normalizer.normalizePhysicalStoryboardSegment({
     productName: "Коллаген",
+    productVisible: true,
     storyboard: storyboard([
       frame(
         "Вот этот Коллаген удобно брать с собой",
@@ -397,11 +430,12 @@ try {
       ),
     ]),
   });
-  assert.match(staleProduct.frames[1].productPlacement, /продукт вне кадра/iu);
-  assert.doesNotMatch(staleProduct.frames[1].visualAction, /держит Коллаген/iu);
+  assert.match(staleProduct.frames[1].productPlacement, /Коллаген/iu);
+  assert.match(staleProduct.frames[1].visualAction, /держит Коллаген/iu);
 
   const hiddenCtaTransfer = normalizer.normalizePhysicalStoryboardSegment({
     productName: "Geodemika Enzyme Cleansing Foam",
+    productVisible: false,
     storyboard: storyboard([
       {
         ...frame(
@@ -472,6 +506,7 @@ try {
 
   const normalizedCheekAction = normalizer.normalizePhysicalStoryboardSegment({
     productName: "Коллаген",
+    productVisible: true,
     storyboard: storyboard([
       frame(
         "Коллаген помогает коже",

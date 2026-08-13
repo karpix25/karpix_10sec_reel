@@ -50,10 +50,10 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     renderVehicleCameraLock(input.directorBrief),
     "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
-      ? `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: неизменная упаковка, только кадры ${productFrameNumbers.join(", ")}; в остальных кадрах вне кадра. В соседних product beat кадрах сохраняй руку или поверхность, без телепортаций.`
+      ? `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: неизменная упаковка в кадрах ${productFrameNumbers.join(", ")}; сначала на одной поверхности, затем взятие рукой, показ и возврат на нее. Без телепортаций.`
       : "В этом сегменте продукт вне кадра; не переноси его из reference-кадра.",
     productAppearsInThisSegment
-      ? "Состояние продукта держи одинаковым только внутри одного последовательного product beat."
+      ? "Состояние продукта держи одинаковым по утвержденной физической последовательности."
       : "",
     productAppearsInThisSegment ? renderProductPhysicalContractForOmni(input.productPhysicalContract) : "",
     OMNI_PHYSICAL_ACTION_CONTRACT,

@@ -8,13 +8,11 @@ import {
   repairPhysicalFrameAction,
   repairReferenceAction,
 } from "./physical-scene-model";
-import { isOmniProductVisualBeat } from "./omni-intro-product-contract";
 import {
   renderRequiredReferenceSupport,
   synchronizeReferenceTransferProductVisibility,
 } from "./omni-reference-transfer-policy";
 
-const HIDDEN_PRODUCT_PATTERN = /(?:вне кадра|не виден|скрыт|hidden|off\s*camera|только тематические объекты)/iu;
 const SURFACE_PATTERN = /(?:на столе|на поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
 const HELD_PRODUCT_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|одной рукой|в одну руку|в одной руке)/iu;
 const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр/iu;
@@ -27,10 +25,11 @@ const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|о
 export function normalizePhysicalStoryboardSegment(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
+  productVisible: boolean;
 }): OmniStoryboardSegment {
   return {
     ...input.storyboard,
-    frames: input.storyboard.frames.map((frame) => normalizeFrame(frame, input.productName)),
+    frames: input.storyboard.frames.map((frame) => normalizeFrame(frame, input.productName, Boolean(input.productVisible))),
   };
 }
 
@@ -45,21 +44,23 @@ export function renderCanonicalStoryboardOverrides(storyboard: OmniStoryboardSeg
   ].join("\n");
 }
 
-function normalizeFrame(frame: OmniStoryboardFrame, productName: string): OmniStoryboardFrame {
+function normalizeFrame(
+  frame: OmniStoryboardFrame,
+  productName: string,
+  productVisible: boolean
+): OmniStoryboardFrame {
   const product = productName.trim() || "продукт";
   const spokenText = frame.spokenText.trim();
   const sourceText = `${frame.visualAction} ${frame.productPlacement} ${frame.sfxNotes} ${frame.effectNotes || ""}`;
-  const productVisible = !HIDDEN_PRODUCT_PATTERN.test(frame.productPlacement) &&
-    isOmniProductVisualBeat(spokenText, product) &&
-    !hasForeignReferenceProduct(spokenText, product);
+  const visibleInFrame = productVisible;
   const initialAction = repairReferenceAction({
     action: frame.visualAction,
     spokenText,
     productName: product,
-    productVisible,
+    productVisible: visibleInFrame,
     referenceSupportProps: frame.referenceTransfer?.requiredSupportProps,
   });
-  const visualAction = productVisible
+  const visualAction = visibleInFrame
     ? initialAction
     : repairReferenceAction({
         action: initialAction,
@@ -68,7 +69,7 @@ function normalizeFrame(frame: OmniStoryboardFrame, productName: string): OmniSt
         productVisible: false,
         referenceSupportProps: frame.referenceTransfer?.requiredSupportProps,
       });
-  const productPlacement = productVisible
+  const productPlacement = visibleInFrame
     ? renderSafeProductPlacement(product, frame.productPlacement, frame.referenceTransfer)
     : [
         "в кадре тематические объекты и окружение текущей реплики; продукт вне кадра",
@@ -109,7 +110,7 @@ function normalizeFrame(frame: OmniStoryboardFrame, productName: string): OmniSt
     sfxNotes,
     effectNotes: speechDuringConsumption ? null : frame.effectNotes,
     physicalPlan,
-    referenceTransfer: synchronizeReferenceTransferProductVisibility(frame.referenceTransfer, productVisible),
+    referenceTransfer: synchronizeReferenceTransferProductVisibility(frame.referenceTransfer, visibleInFrame),
   };
 }
 

@@ -30,7 +30,11 @@ export async function assertOmniPhysicalPreflight(input: {
       productName: input.productName,
     });
     const storyboard = sourceStoryboard
-      ? normalizePhysicalStoryboardSegment({ storyboard: sourceStoryboard, productName: input.productName })
+      ? normalizePhysicalStoryboardSegment({
+          storyboard: sourceStoryboard,
+          productName: input.productName,
+          productVisible: segment.creative_plan?.productRole !== "hidden",
+        })
       : null;
     const changed = JSON.stringify(sourceStoryboard) !== JSON.stringify(storyboard);
     if (storyboard && changed) {

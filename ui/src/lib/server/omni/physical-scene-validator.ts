@@ -4,7 +4,13 @@ import type {
   OmniStoryboardSegment,
 } from "../../omni/storyboard/omni-storyboard-types";
 import type { OmniStoryboardPlanSource } from "../../omni/types";
-import { buildPhysicalFramePlan, hasConsumptionAction, hasDrivingAction } from "./physical-scene-model";
+import {
+  buildPhysicalFramePlan,
+  hasConsumptionAction,
+  hasDrivingAction,
+  isFaceTouchAction,
+  isFaceTouchSemanticallyRelevant,
+} from "./physical-scene-model";
 
 type PhysicalFrameState = "hidden" | "surface" | "held" | "visible" | "unknown";
 
@@ -65,6 +71,9 @@ export function validatePhysicalScene(input: {
     if (physicalPlan.requiredHands + physicalPlan.occupiedHandCount > 2) {
       errors.push(`frame_${frameNumber}_hand_capacity_conflict`);
     }
+    if (isFaceTouchAction(actionText) && !isFaceTouchSemanticallyRelevant(spoken)) {
+      errors.push(`frame_${frameNumber}_face_touch_without_spoken_reason`);
+    }
     if ((physicalPlan.productState === "unknown" || physicalPlan.productState === "visible") && productVisible) {
       errors.push(`frame_${frameNumber}_product_support_is_ambiguous`);
     }
@@ -88,10 +97,12 @@ export function validatePhysicalScene(input: {
   for (let index = 1; index < states.length; index += 1) {
     const previous = states[index - 1];
     const current = states[index];
-    if (previous === current || previous === "hidden" || current === "hidden") continue;
+    if (previous === current) continue;
     const transitionText = frameText(input.storyboard.frames[index]);
-    if (!TRANSITION_PATTERN.test(transitionText)) {
-      warnings.push(`frame_${index + 1}_object_state_change_without_transition`);
+    if (previous === "hidden" || current === "hidden") {
+      errors.push(`frame_${index + 1}_product_teleports_between_frames`);
+    } else if (!TRANSITION_PATTERN.test(transitionText)) {
+      errors.push(`frame_${index + 1}_object_state_change_without_transition`);
     }
   }
 

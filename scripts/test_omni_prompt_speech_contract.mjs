@@ -277,11 +277,14 @@ try {
 	  storedPrompts.forEach((item, index) => {
 	    assert.notEqual(item.prompt, storedSegments[index].prompt);
 	    assert.ok(item.prompt.includes("Динамичный разговорный ролик"));
-    const storedProductVisible = item.storyboardPlan.frames.some((frame) =>
-      /аэрогрил/iu.test(`${frame.spokenText} ${frame.productPlacement}`) &&
-      !/в\s+кадре\s+только\s+тематические|(?:продукт|товар)\s+вне\s+кадра/iu.test(frame.productPlacement)
+    assert.equal(
+      item.prompt.includes("@product_file"),
+      item.creativePlan.productRole !== "hidden",
+      JSON.stringify({ index: item.index, role: item.creativePlan.productRole, placements: item.storyboardPlan.frames.map((frame) => frame.productPlacement) })
     );
-	    assert.equal(item.prompt.includes("@product_file"), storedProductVisible);
+    if (item.creativePlan.productRole !== "hidden") {
+      assert.ok(item.storyboardPlan.frames.every((frame) => /аэрогрил/iu.test(frame.productPlacement)));
+    }
       assert.equal(normalizedCount(item.prompt, item.voiceoverText), 1);
 	    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
 	    assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2);

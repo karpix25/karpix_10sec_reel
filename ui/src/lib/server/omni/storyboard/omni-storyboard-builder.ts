@@ -16,15 +16,11 @@ import {
   type DirectorSegmentProfile,
 } from "../director-analysis-types";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
-import {
-  isOmniProductVisualBeat,
-  mentionsOmniProduct,
-} from "../omni-intro-product-contract";
+import { mentionsOmniProduct } from "../omni-intro-product-contract";
 import { renderFrameTransitionNote } from "./omni-storyboard-effects";
 import {
+  buildPhysicalProductDemoStep,
   buildPhysicalFramePlan,
-  buildProductPresentationAction,
-  isProductPresentationCue,
   normalizeVehicleContext,
   repairReferenceAction,
   repairPhysicalFrameAction,
@@ -108,10 +104,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
     durationSeconds: input.durationSeconds,
     voiceoverText: input.voiceoverText,
     frames: input.frames.map((frame, index) => {
-      const isFrameHidden = /(?:продукт|товар)\s+(?:вне\s+кадра|не\s+виден|скрыт)|hidden|off\s*camera/iu.test(frame.productState || "");
-      const productVisible = Boolean(input.productVisible) &&
-        !isFrameHidden &&
-        isOmniProductVisualBeat(frame.spokenWords, input.productName);
+      const productVisible = Boolean(input.productVisible);
       const referenceProfile = selectDirectorSegmentProfile({
         brief: input.directorBrief,
         segmentIndex: input.segmentIndex,
@@ -124,6 +117,9 @@ export function buildStoryboardFromPromptChainFrames(input: {
         productName: input.productName,
         productPhysicalHint: input.productPhysicalHint,
         productVisible,
+        productDemoFrame: productVisible
+          ? { frameIndex: index + 1, frameCount: input.frames.length }
+          : undefined,
         referenceProfile,
         referenceTransferPolicy: input.referenceTransferPolicy,
       });
@@ -165,8 +161,7 @@ function buildFrame(input: {
   const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
     input.plan.beats[0];
   const layoutLocked = /REFERENCE LAYOUT|collage\/PIP/iu.test(beat?.action || "");
-  const productVisible = input.plan.productRole !== "hidden" &&
-    isOmniProductVisualBeat(input.spokenText, input.productName);
+  const productVisible = input.plan.productRole !== "hidden";
   const referenceProfile = selectDirectorSegmentProfile({
     brief: input.directorBrief,
     segmentIndex: input.segmentIndex,
@@ -201,16 +196,31 @@ function buildFrame(input: {
         referenceSupportProps: referenceTransfer.requiredSupportProps,
       });
   const isCutawayFrame = Boolean(referenceAction && isReferenceCutawayAction(referenceAction));
-  const presentationAction = productVisible && isProductPresentationCue(input.spokenText)
-    ? buildProductPresentationAction(input.productName)
+  const productDemo = productVisible && input.plan.productRole === "brief_demo"
+    ? buildPhysicalProductDemoStep({
+        productName: input.productName,
+        frameIndex: input.frameIndex,
+        frameCount: input.frameCount,
+      })
     : null;
   const visualAction = layoutLocked
     ? visualActionSource
+    : productDemo
+      ? `${renderFrameAction(visualActionSource, isCutawayFrame)}; ${productDemo.action}`
     : input.segmentIndex === 1 && input.plan.productRole === "hidden"
       ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName, referenceTransfer)
       : productVisible
-        ? renderProductFrameAction(presentationAction || visualActionSource, isCutawayFrame, input.productName)
+        ? renderProductFrameAction(visualActionSource, isCutawayFrame, input.productName)
         : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName);
+  const productPlacement = renderStoryboardProductPlacement(
+    input.plan,
+    input.productName,
+    input.productVisualPassport,
+    input.productPhysicalHint,
+    productVisible,
+    referenceTransfer,
+    productDemo?.placement
+  );
   const finalVisualAction = layoutLocked
     ? visualAction
     : repairReferenceAction({
@@ -225,7 +235,7 @@ function buildFrame(input: {
     spokenText: input.spokenText,
     visualAction: finalVisualAction,
     camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, input.plan.productRole, referenceTransfer.cameraComposition),
-    productPlacement: renderStoryboardProductPlacement(input.plan, input.productName, input.productVisualPassport, input.productPhysicalHint, productVisible, referenceTransfer),
+    productPlacement,
   });
   const repairedVisualAction = repairPhysicalFrameAction({
     productName: input.productName,
@@ -239,7 +249,7 @@ function buildFrame(input: {
         spokenText: input.spokenText,
         visualAction: repairedVisualAction,
         camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, input.plan.productRole, referenceTransfer.cameraComposition),
-        productPlacement: renderStoryboardProductPlacement(input.plan, input.productName, input.productVisualPassport, input.productPhysicalHint, productVisible, referenceTransfer),
+        productPlacement,
       });
 
   return {
@@ -254,14 +264,7 @@ function buildFrame(input: {
     ),
     environment: renderDirectorEnvironment(input.directorBrief, referenceProfile),
     wardrobe: renderStoryboardWardrobe(input.characterContract, input.directorBrief, input.wardrobeSource),
-    productPlacement: renderStoryboardProductPlacement(
-      input.plan,
-      input.productName,
-      input.productVisualPassport,
-      input.productPhysicalHint,
-      productVisible,
-      referenceTransfer
-    ),
+    productPlacement,
     sfxNotes: isCutawayFrame
       ? productVisible
         ? "естественный звук короткого действия с продуктом"
