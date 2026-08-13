@@ -3,7 +3,7 @@ import {
   uploadOmniImageBufferToS3,
 } from "./omni-video-storage";
 import { buildStoryboardImagePrompt } from "./omni-storyboard-image-prompt";
-import { createKieStoryboardImage } from "./kie-omni-client";
+import { createKieStoryboardImage, isKieStoryboardImagePendingError } from "./kie-omni-client";
 import { recordKieGenerationCost } from "./omni-generation-costs";
 import {
   STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT,
@@ -19,6 +19,12 @@ import {
   getStoryboardVisionRepairInstructions,
   isStoryboardVisionValidationInconclusive,
 } from "./storyboard-vision-contract";
+import {
+  canAttemptStoryboardImageGeneration,
+  normalizeStoryboardImageGenerationAttemptCount,
+  resolveStoryboardImageGenerationAttempt,
+  withStoryboardGenerationAttemptCount,
+} from "./storyboard-repair-limit";
 
 const DEFAULT_COMETAPI_BASE_URL = "https://api.cometapi.com";
 const STORYBOARD_IMAGE_MODEL = "gpt-image-2";
@@ -29,7 +35,7 @@ const DEFAULT_OUTPUT_FORMAT = "jpeg";
 type StoryboardReferenceFile = {
   url: string;
   required: boolean;
-  kind: "avatar" | "canonical" | "product" | "director";
+  kind: "avatar" | "canonical" | "repair" | "product" | "director";
 };
 
 type StoryboardImageInput = {
@@ -45,6 +51,9 @@ type StoryboardImageInput = {
   productReferenceUrls?: readonly string[];
   directorReferenceImageUrls?: readonly string[];
   canonicalStoryboardReferenceUrl?: string | null;
+  previousStoryboardReferenceUrl?: string | null;
+  previousRepairInstructions?: readonly string[];
+  previousGenerationAttemptCount?: number;
   directorBrief?: DirectorBrief | null;
   generationProvider?: OmniGenerationProvider;
   pendingKieStoryboardTaskId?: string | null;
@@ -55,6 +64,20 @@ type GeneratedStoryboardImage = {
   body: Buffer;
   contentType: string;
 };
+
+export class StoryboardImageRepairExhaustedError extends Error {
+  readonly generationAttemptCount: number;
+
+  constructor(input: { validation: StoryboardVisionValidation | null; generationAttemptCount: number }) {
+    super(`Storyboard image did not pass visual QA after ${input.generationAttemptCount} generation attempts: ${JSON.stringify(input.validation)}`);
+    this.name = "StoryboardImageRepairExhaustedError";
+    this.generationAttemptCount = input.generationAttemptCount;
+  }
+}
+
+export function isStoryboardImageRepairExhaustedError(error: unknown): error is StoryboardImageRepairExhaustedError {
+  return error instanceof StoryboardImageRepairExhaustedError;
+}
 
 export async function generateStoryboardImage(input: StoryboardImageInput) {
   if (process.env.OMNI_STORYBOARD_IMAGE_GENERATION === "false") return null;
@@ -68,6 +91,7 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
       ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
       : STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT);
   const canonicalStoryboardReferenceUrl = cleanUrl(input.canonicalStoryboardReferenceUrl);
+  const previousStoryboardReferenceUrl = cleanUrl(input.previousStoryboardReferenceUrl);
 
   const preparedInput = {
     ...input,
@@ -75,19 +99,49 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     productReferenceUrls,
     directorReferenceImageUrls,
     canonicalStoryboardReferenceUrl,
+    previousStoryboardReferenceUrl,
     directorBrief: input.directorBrief,
   };
-  const referenceSafetyInstructions = [...(input.referenceSafetyInstructions || [])];
-  let repairInstructions = referenceSafetyInstructions;
+  const referenceSafetyInstructions = uniqueStrings(input.referenceSafetyInstructions || []);
+  let repairInstructions = uniqueStrings([
+    ...referenceSafetyInstructions,
+    ...(input.previousRepairInstructions || []),
+  ]);
+  let repairStoryboardReferenceUrl = previousStoryboardReferenceUrl;
+  let generationAttemptCount = normalizeStoryboardImageGenerationAttemptCount(input.previousGenerationAttemptCount);
+  let pendingKieStoryboardTaskId = input.pendingKieStoryboardTaskId || null;
   let lastValidation: StoryboardVisionValidation | null = null;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const generated = input.generationProvider === "kie-ai"
-      ? await generateKieStoryboardImageBytes({
-        ...preparedInput,
-        pendingKieStoryboardTaskId: attempt === 0 ? input.pendingKieStoryboardTaskId : null,
-        repairInstructions,
-      })
-      : await generateCometStoryboardImageBytes({ ...preparedInput, repairInstructions });
+  while (true) {
+    const attempt = resolveStoryboardImageGenerationAttempt({
+      previousAttemptCount: generationAttemptCount,
+      pendingKieTaskId: pendingKieStoryboardTaskId,
+      usesKie: input.generationProvider === "kie-ai",
+    });
+    if (!attempt.shouldAttempt) break;
+    let generated: GeneratedStoryboardImage;
+    try {
+      generated = input.generationProvider === "kie-ai"
+        ? await generateKieStoryboardImageBytes({
+          ...preparedInput,
+          previousStoryboardReferenceUrl: repairStoryboardReferenceUrl,
+          pendingKieStoryboardTaskId: attempt.resumesPendingKieTask ? pendingKieStoryboardTaskId : null,
+          repairInstructions,
+        })
+        : await generateCometStoryboardImageBytes({
+          ...preparedInput,
+          previousStoryboardReferenceUrl: repairStoryboardReferenceUrl,
+          repairInstructions,
+        });
+    } catch (error) {
+      if (isKieStoryboardImagePendingError(error)) {
+        error.storyboardRepairReferenceUrl = repairStoryboardReferenceUrl;
+        error.storyboardRepairInstructions = repairInstructions;
+        error.storyboardGenerationAttemptCount = attempt.generationAttemptCount;
+      }
+      throw error;
+    }
+    pendingKieStoryboardTaskId = null;
+    generationAttemptCount = attempt.generationAttemptCount;
     const validationInput = {
       imageUrl: toDataUrl(generated.body, generated.contentType),
       avatarReferenceUrl,
@@ -96,28 +150,47 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
       canonicalStoryboardReferenceUrl,
       directorReferenceImageUrls,
     };
-    let validation = await validateStoryboardImage(validationInput);
-    if (isStoryboardVisionValidationInconclusive(validation)) {
+    let validation: StoryboardVisionValidation;
+    try {
       validation = await validateStoryboardImage(validationInput);
+      if (isStoryboardVisionValidationInconclusive(validation)) {
+        validation = await validateStoryboardImage(validationInput);
+      }
+    } catch (error) {
+      throw withStoryboardGenerationAttemptCount(error, generationAttemptCount);
     }
     lastValidation = validation;
     if (validation.status === "pass") {
-      return uploadStoryboardImage({ ...input, body: generated.body, contentType: generated.contentType });
+      try {
+        return await uploadStoryboardImage({ ...input, body: generated.body, contentType: generated.contentType });
+      } catch (error) {
+        throw withStoryboardGenerationAttemptCount(error, generationAttemptCount);
+      }
     }
     const retryInstructions = getStoryboardVisionRepairInstructions(validation);
     const automaticRetryInstructions = isStoryboardVisionValidationInconclusive(validation)
       ? ["Re-render the same storyboard plan with every panel clear, readable, and the avatar fully visible for continuity QA."]
       : retryInstructions;
-    if (attempt === 0 && automaticRetryInstructions.length) {
-      repairInstructions = [...referenceSafetyInstructions, ...automaticRetryInstructions];
-      continue;
+    if (!automaticRetryInstructions.length || !canAttemptStoryboardImageGeneration(generationAttemptCount)) {
+      throw new StoryboardImageRepairExhaustedError({ validation: lastValidation, generationAttemptCount });
     }
-    if (isStoryboardVisionValidationInconclusive(validation)) {
-      throw new Error("Storyboard vision validation remained inconclusive after automatic retries");
+    try {
+      repairStoryboardReferenceUrl = await uploadStoryboardRepairCandidate({
+        ...input,
+        body: generated.body,
+        contentType: generated.contentType,
+        generationAttemptCount,
+      });
+    } catch (error) {
+      throw withStoryboardGenerationAttemptCount(error, generationAttemptCount);
     }
-    break;
+    repairInstructions = uniqueStrings([
+      ...referenceSafetyInstructions,
+      ...repairInstructions,
+      ...automaticRetryInstructions,
+    ]);
   }
-  throw new Error(`Storyboard image blocked by vision validation: ${JSON.stringify(lastValidation)}`);
+  throw new StoryboardImageRepairExhaustedError({ validation: lastValidation, generationAttemptCount });
 }
 
 async function generateKieStoryboardImageBytes(input: {
@@ -133,6 +206,7 @@ async function generateKieStoryboardImageBytes(input: {
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
   canonicalStoryboardReferenceUrl: string | null;
+  previousStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
   pendingKieStoryboardTaskId?: string | null;
   repairInstructions: readonly string[];
@@ -140,6 +214,7 @@ async function generateKieStoryboardImageBytes(input: {
   const inputUrls = [
     input.avatarReferenceUrl,
     ...(input.canonicalStoryboardReferenceUrl ? [input.canonicalStoryboardReferenceUrl] : []),
+    ...(input.previousStoryboardReferenceUrl ? [input.previousStoryboardReferenceUrl] : []),
     ...input.productReferenceUrls,
     ...input.directorReferenceImageUrls,
   ].slice(0, 16);
@@ -180,6 +255,7 @@ async function generateCometStoryboardImageBytes(input: {
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
   canonicalStoryboardReferenceUrl: string | null;
+  previousStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
   repairInstructions: readonly string[];
 }): Promise<GeneratedStoryboardImage> {
@@ -209,6 +285,7 @@ async function createStoryboardImage(input: {
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
   canonicalStoryboardReferenceUrl: string | null;
+  previousStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
   repairInstructions: readonly string[];
 }) {
@@ -221,6 +298,7 @@ async function createStoryboardImage(input: {
         .filter((item) => item.kind === "director")
         .map((item) => item.url),
       canonicalStoryboardReferenceUrl: downloaded.find((item) => item.kind === "canonical")?.url || null,
+      previousStoryboardReferenceUrl: downloaded.find((item) => item.kind === "repair")?.url || null,
     };
     const form = new FormData();
     form.set("model", STORYBOARD_IMAGE_MODEL);
@@ -290,6 +368,32 @@ async function uploadStoryboardImage(input: {
   throw new Error("Storyboard image generation requires reelId or scriptId storage target");
 }
 
+async function uploadStoryboardRepairCandidate(input: StoryboardImageInput & GeneratedStoryboardImage & { generationAttemptCount: number }) {
+  const extension = input.contentType.split("/")[1] || "jpg";
+  const fileName = `repair_candidate_${String(input.segmentIndex).padStart(2, "0")}_${input.generationAttemptCount}.${extension}`;
+  if (typeof input.reelId === "number") {
+    return uploadOmniImageBufferToS3({
+      projectId: input.projectId,
+      reelId: input.reelId,
+      segmentIndex: input.segmentIndex,
+      fileName,
+      body: input.body,
+      contentType: input.contentType,
+    });
+  }
+  if (typeof input.scriptId === "number") {
+    return uploadOmniGeneratedScriptStoryboardImageBufferToS3({
+      projectId: input.projectId,
+      scriptId: input.scriptId,
+      segmentIndex: input.segmentIndex,
+      fileName,
+      body: input.body,
+      contentType: input.contentType,
+    });
+  }
+  throw new Error("Storyboard repair requires reelId or scriptId storage target");
+}
+
 function toDataUrl(body: Buffer, contentType: string) {
   return `data:${contentType};base64,${body.toString("base64")}`;
 }
@@ -299,11 +403,15 @@ function buildReferenceFiles(input: {
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
   canonicalStoryboardReferenceUrl: string | null;
+  previousStoryboardReferenceUrl: string | null;
 }): StoryboardReferenceFile[] {
   return [
     { url: input.avatarReferenceUrl, required: true, kind: "avatar" },
     input.canonicalStoryboardReferenceUrl
       ? { url: input.canonicalStoryboardReferenceUrl, required: true, kind: "canonical" as const }
+      : null,
+    input.previousStoryboardReferenceUrl
+      ? { url: input.previousStoryboardReferenceUrl, required: true, kind: "repair" as const }
       : null,
     ...input.productReferenceUrls.map((url) => ({ url, required: true, kind: "product" as const })),
     ...input.directorReferenceImageUrls.map((url) => ({ url, required: false, kind: "director" as const })),
@@ -376,6 +484,10 @@ function uniqueUrls(values: readonly string[]) {
       seen.add(value);
       return true;
     });
+}
+
+function uniqueStrings(values: readonly string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
 function normalizeImageContentType(value: string | null) {

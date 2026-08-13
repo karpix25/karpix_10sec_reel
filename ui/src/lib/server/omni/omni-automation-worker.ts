@@ -13,6 +13,7 @@ import { createOmniReel } from "./reels";
 import { ensureOmniSchema } from "./schema";
 import { isStoryboardVisionJsonFormatError } from "./storyboard-vision-validator";
 import { isKieStoryboardImagePendingError } from "./kie-omni-client";
+import { isStoryboardImageRepairExhaustedError } from "./omni-storyboard-image-generator";
 import {
   isStoryboardSetQualityError,
 } from "./generated-script-storyboard-set-qa";
@@ -48,6 +49,13 @@ async function handleJobError(job: OmniAutomationJob, error: unknown) {
         errorMessage: null,
         refundAttempt: true,
       }),
+    };
+  }
+  if (isStoryboardImageRepairExhaustedError(error)) {
+    return {
+      action: "failed",
+      job: await failOmniAutomationJob({ jobId: job.id, errorMessage: message }),
+      error: message,
     };
   }
   if (isStoryboardSetQualityError(error)) {
