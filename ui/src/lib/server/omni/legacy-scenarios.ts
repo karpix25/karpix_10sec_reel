@@ -106,7 +106,8 @@ export async function getLegacyScenario(legacyScenarioId: number) {
 
 export async function getRandomLegacyScenarioFromClients(
   legacyClientIds: number[],
-  excludedScenarioIds: number[] = []
+  excludedScenarioIds: number[] = [],
+  preferredScenarioIds: number[] = []
 ) {
   const clientIds = Array.from(
     new Set(legacyClientIds.filter((id) => Number.isFinite(id) && id > 0))
@@ -117,9 +118,17 @@ export async function getRandomLegacyScenarioFromClients(
   );
   const values: unknown[] = [clientIds];
   let excludeClause = "";
+  let preferredClause = "";
   if (excludedIds.length) {
     values.push(excludedIds);
     excludeClause = `AND NOT (pc.id = ANY($${values.length}::bigint[]))`;
+  }
+  const preferredIds = Array.from(
+    new Set(preferredScenarioIds.filter((id) => Number.isFinite(id) && id > 0))
+  );
+  if (preferredIds.length) {
+    values.push(preferredIds);
+    preferredClause = `AND pc.id = ANY($${values.length}::bigint[])`;
   }
 
   const legacyPool = oldPool;
@@ -142,6 +151,7 @@ export async function getRandomLegacyScenarioFromClients(
        AND COALESCE(TRIM(pc.transcript), '') <> ''
        AND pc.transcript NOT ILIKE 'Error %'
        ${excludeClause}
+       ${preferredClause}
      ORDER BY RANDOM()
      LIMIT 1`,
     values
