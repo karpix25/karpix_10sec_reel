@@ -1,4 +1,5 @@
 const SCRAPECREATORS_BASE_URL = "https://api.scrapecreators.com";
+const SCRAPECREATORS_REQUEST_TIMEOUT_MS = 45_000;
 
 export type ScrapeCreatorsInstagramVideo = {
   videoUrl: string;
@@ -24,6 +25,7 @@ export async function resolveInstagramVideoWithScrapeCreators(reelsUrl: string):
   const response = await fetch(requestUrl, {
     headers: { "x-api-key": apiKey.trim() },
     cache: "no-store",
+    signal: AbortSignal.timeout(SCRAPECREATORS_REQUEST_TIMEOUT_MS),
   });
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {

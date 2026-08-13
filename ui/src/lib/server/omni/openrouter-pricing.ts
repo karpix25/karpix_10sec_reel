@@ -2,6 +2,7 @@ import type { OpenRouterPricingSnapshot } from "@/lib/omni/openrouter-cost";
 
 const OPENROUTER_MODEL_URL = "https://openrouter.ai/api/v1/model";
 const CACHE_TTL_MS = 10 * 60 * 1000;
+const OPENROUTER_PRICING_TIMEOUT_MS = 10_000;
 
 type CacheEntry = {
   expiresAt: number;
@@ -25,6 +26,7 @@ export async function getOpenRouterPricingSnapshot(model: string): Promise<OpenR
 async function fetchOpenRouterPricing(model: string): Promise<OpenRouterPricingSnapshot | null> {
   const response = await fetch(`${OPENROUTER_MODEL_URL}/${encodeModelPath(model)}`, {
     headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(OPENROUTER_PRICING_TIMEOUT_MS),
   });
   if (!response.ok) return null;
 
