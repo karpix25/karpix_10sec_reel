@@ -290,6 +290,34 @@ try {
     }),
     /исходный рекламный предмет заменен нашим продуктом/iu
   );
+  const productPackageBrief = normalizeDirectorBrief({
+    director_brief: {
+      ...brief,
+      visual_transfer: {
+        camera_composition: "close-up with a product box at the lower edge",
+        props: [
+          { role: "source_product", description: "pink and white product box held low by the presenter", visible_from_start: true },
+          { role: "support_prop", description: "food container on the passenger seat", visible_from_start: true },
+        ],
+        action_beats: [
+          { timestamp_sec: 0, action: "holds the product box low while speaking", required_prop: "pink and white product box" },
+          { timestamp_sec: 5, action: "shows the food container", required_prop: "food container" },
+        ],
+      },
+    },
+  });
+  assert.ok(productPackageBrief);
+  const productPackagePolicy = buildReferenceTransferPolicy({ hasProductReference: true, directorBrief: productPackageBrief });
+  const neutralFoodBeat = buildReferenceTransferFramePlan({
+    policy: productPackagePolicy,
+    productName: "Апельсиновый коллаген",
+    spokenText: "В дорогу беру овощи и воду.",
+    position: 1,
+  });
+  assert.ok(neutralFoodBeat.requiredSupportProps.includes("food container on the passenger seat"));
+  assert.ok(neutralFoodBeat.requiredSupportProps.includes("food container"));
+  assert.ok(!neutralFoodBeat.requiredSupportProps.some((prop) => /product box/iu.test(prop)));
+  assert.equal(neutralFoodBeat.requiredReferenceAction, "shows the food container");
   const referencePrompt = renderSimpleFullBodyUgcPrompt({
     plan: {
       segmentIndex: 1,

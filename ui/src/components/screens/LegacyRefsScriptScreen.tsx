@@ -75,10 +75,6 @@ export function LegacyRefsScriptScreen({
 
   const handleCreateVideo = (scriptId: number) => {
     if (!selectedProjectId || !selectedProductId || !activeProduct) return;
-    if (pendingVideo?.scriptId === scriptId) {
-      setPendingVideo(null);
-      return;
-    }
     setPendingVideo({ scriptId, startedAt: Date.now() });
     studio.createReelMutation.mutate({
       projectId: selectedProjectId,

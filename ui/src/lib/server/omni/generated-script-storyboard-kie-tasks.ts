@@ -37,6 +37,7 @@ export async function reserveGeneratedScriptStoryboardKieSubmission(input: {
   storyboardPlan: OmniStoryboardSegment;
   referenceSignature: string;
   generatorVersion: string;
+  resetAttemptBudget?: boolean;
 }): Promise<StoryboardKieSubmissionAction> {
   const client = await pool.connect();
   try {

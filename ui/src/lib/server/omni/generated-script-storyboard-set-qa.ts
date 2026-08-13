@@ -2,6 +2,7 @@ import pool from "@/lib/db";
 import type { StoryboardSetQualityRecord, StoryboardSetVisionValidation } from "@/lib/omni/storyboard/omni-storyboard-set-vision-types";
 import {
   buildStoryboardSetQualityRecord,
+  STORYBOARD_SET_QA_POLICY_VERSION,
   validateStoryboardSet,
 } from "./storyboard-set-vision-validator";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
@@ -38,7 +39,7 @@ export function isCurrentStoryboardSetApproval(
   record: StoryboardSetQualityRecord | null,
   storyboards: readonly StoryboardSetEntry[]
 ) {
-  if (record?.validation.status !== "pass") return false;
+  if (record?.policyVersion !== STORYBOARD_SET_QA_POLICY_VERSION || record.validation.status !== "pass") return false;
   const savedUrls = new Map(record.storyboardUrls.map((item) => [item.segmentIndex, item.url]));
   return storyboards.every((storyboard) => savedUrls.get(storyboard.segmentIndex) === storyboard.imageUrl);
 }
@@ -92,6 +93,7 @@ function normalizeQualityRecord(value: unknown): StoryboardSetQualityRecord | nu
   const record = value as Partial<StoryboardSetQualityRecord>;
   if (!record.validation || !Array.isArray(record.storyboardUrls)) return null;
   return {
+    policyVersion: typeof record.policyVersion === "string" ? record.policyVersion : undefined,
     validation: record.validation,
     storyboardUrls: record.storyboardUrls.filter((item): item is { segmentIndex: number; url: string } =>
       Boolean(item) && Number.isInteger(item.segmentIndex) && typeof item.url === "string" && Boolean(item.url)

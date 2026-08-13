@@ -191,8 +191,10 @@ try {
   const referencedSetImages = setRequests[1].messages[0].content.filter((item) => item.type === "image_url");
   assert.equal(referencedSetImages.length, 6, "cross-storyboard QA must see avatar, product, and all contact sheets together");
   const referencedSetPrompt = setRequests[1].messages[0].content[0].text;
-  assert.match(referencedSetPrompt, /avatar identity reference only/u);
-  assert.match(referencedSetPrompt, /not the avatar reference, as the canonical source for wardrobe/u);
+  assert.match(referencedSetPrompt, /final image is the avatar identity reference only/u);
+  assert.match(referencedSetPrompt, /expected_wardrobe.*ground truth/u);
+  assert.match(referencedSetPrompt, /first 3 image\(s\) are contact sheets/u);
+  assert.equal(referencedSetImages[0].image_url.url, "https://example.com/storyboard-1.jpg");
 
   const continuityRequests = [];
   global.fetch = async (_url, init) => {

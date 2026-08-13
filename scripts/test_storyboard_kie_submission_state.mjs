@@ -51,6 +51,13 @@ try {
   assert.deepEqual(resolveVersionedStoryboardKieSubmissionAction(versionedRow({ generationStatus: "generating", taskId: "old-task" }), {
     referenceSignature: "current", generatorVersion: "v10",
   }, now), { kind: "poll", taskId: "old-task", generationAttemptCount: 1 });
+  assert.deepEqual(resolveVersionedStoryboardKieSubmissionAction({
+    ...versionedRow({ generationAttemptCount: 3 }),
+    referenceSignature: "current",
+    generatorVersion: "v10",
+  }, {
+    referenceSignature: "current", generatorVersion: "v10", resetAttemptBudget: true,
+  }, now), { kind: "submit", generationAttemptCount: 1 });
   console.log("Storyboard KIE submission state checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });

@@ -166,7 +166,7 @@ export function resolveReferenceTransferAction(input: {
   const referenceAction = compactText(input.referenceAction);
   const primaryAction = input.framePlan.productMeaningfulBeat
     ? input.framePlan.visualCue || input.framePlan.requiredReferenceAction || referenceAction || fallbackAction
-    : input.framePlan.requiredReferenceAction || input.framePlan.visualCue || referenceAction || fallbackAction;
+    : input.framePlan.visualCue || input.framePlan.requiredReferenceAction || referenceAction || fallbackAction;
   const contextLine = referenceAction
     ? "сохраняет позу, ритм жеста и бытовой контекст reference, но действие подчинено текущей реплике"
     : "действие подчинено текущей реплике и сохраняет общий ритм reference";
@@ -210,10 +210,14 @@ function buildReferenceVisualTransferContract(brief?: DirectorBrief | null): Ref
       .filter((prop) => (prop.role === "proof_prop" || prop.role === "support_prop") && prop.visible_from_start)
       .map((prop) => prop.description)
   );
+  const sourceProductProps = source.props
+    .filter((prop) => prop.role === "source_product")
+    .map((prop) => prop.description);
   return {
     cameraComposition: compactText(source.camera_composition || "") || null,
     persistentSupportProps,
     actionBeats: source.action_beats
+      .filter((beat) => !referencesSourceProduct(beat.required_prop || beat.action, sourceProductProps))
       .map((beat) => ({
         timestampSeconds: Math.max(0, Number(beat.timestamp_sec) || 0),
         action: compactText(beat.action),
@@ -221,6 +225,15 @@ function buildReferenceVisualTransferContract(brief?: DirectorBrief | null): Ref
       }))
       .filter((beat) => Boolean(beat.action)),
   };
+}
+
+function referencesSourceProduct(value: string | undefined, sourceProductProps: readonly string[]) {
+  const marker = productPackageMarker(value || "");
+  return Boolean(marker) && sourceProductProps.some((prop) => productPackageMarker(prop) === marker);
+}
+
+function productPackageMarker(value: string) {
+  return value.toLocaleLowerCase().match(/\b(?:product|branded)\s+(?:box|package|packaging|bottle|jar|tube|stick(?:\s+pack)?)\b/u)?.[0] || "";
 }
 
 function selectReferenceBeat(contract: ReferenceVisualTransferContract, position = 0) {

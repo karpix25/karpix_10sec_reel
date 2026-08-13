@@ -23,7 +23,10 @@ import {
   StoryboardSetQualityError,
   validateAndSaveGeneratedScriptStoryboardSet,
 } from "./generated-script-storyboard-set-qa";
-import { getStoryboardSetRepairSegments } from "./storyboard-set-vision-validator";
+import {
+  getStoryboardSetRepairSegments,
+  STORYBOARD_SET_QA_POLICY_VERSION,
+} from "./storyboard-set-vision-validator";
 import {
   getGeneratedScriptStoryboardRepairContext,
   reserveGeneratedScriptStoryboardKieSubmission,
@@ -185,6 +188,7 @@ async function tryGenerateStoryboardPreview(input: {
   previousStoryboardReferenceUrl?: string | null;
   previousRepairInstructions?: readonly string[];
   previousGenerationAttemptCount?: number;
+  resetAttemptBudget?: boolean;
 }) {
   const kieSubmission = input.generationProvider === "kie-ai"
     ? await reserveGeneratedScriptStoryboardKieSubmission({
@@ -195,6 +199,7 @@ async function tryGenerateStoryboardPreview(input: {
       storyboardPlan: input.storyboardPlan,
       referenceSignature: input.referenceSignature,
       generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
+      resetAttemptBudget: input.resetAttemptBudget,
     })
     : null;
   if (kieSubmission?.kind === "wait") throw new StoryboardKieSubmissionInProgressError();
@@ -299,6 +304,9 @@ async function ensureStoryboardSetApproval(input: {
     throw new Error("All storyboard images must exist before cross-storyboard QA");
   }
   const storedQuality = await getGeneratedScriptStoryboardSetQuality(input.scriptId);
+  const resetAttemptBudgetForQaPolicy = Boolean(
+    storedQuality && storedQuality.policyVersion !== STORYBOARD_SET_QA_POLICY_VERSION
+  );
   if (isCurrentStoryboardSetApproval(storedQuality, storyboards)) return;
 
   for (let attempt = 0; attempt <= MAX_STORYBOARD_SET_REPAIR_ATTEMPTS; attempt += 1) {
@@ -336,6 +344,7 @@ async function ensureStoryboardSetApproval(input: {
         previousStoryboardReferenceUrl: urls.get(segmentIndex) || repairContext.previousStoryboardReferenceUrl,
         previousRepairInstructions: repairContext.previousRepairInstructions,
         previousGenerationAttemptCount: repairContext.previousGenerationAttemptCount,
+        resetAttemptBudget: resetAttemptBudgetForQaPolicy && attempt === 0,
         deferVisualQa,
         referenceSafetyInstructions: buildSetRepairInstructions(validation.repairInstructions, validation.violations, segmentIndex),
       });

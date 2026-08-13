@@ -11,6 +11,7 @@ const DEFAULT_MODEL = "minimax/minimax-m3";
 const MIN_CONFIDENCE = 0.65;
 const MAX_JSON_REPAIR_ATTEMPTS = 2;
 const MAX_JSON_REPAIR_SOURCE_CHARS = 12_000;
+export const STORYBOARD_SET_QA_POLICY_VERSION = "storyboard-set-qa-v2";
 
 export class StoryboardSetVisionJsonFormatError extends Error {
   readonly rawResponse: string;
@@ -55,14 +56,11 @@ export async function validateStoryboardSet(input: {
             productReferenceCount: productReferenceUrls.length,
           }),
         },
+        ...input.storyboards.map((storyboard) => ({ type: "image_url" as const, image_url: { url: storyboard.imageUrl } })),
+        ...productReferenceUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
         ...(input.avatarReferenceUrl?.trim()
           ? [{ type: "image_url" as const, image_url: { url: input.avatarReferenceUrl.trim() } }]
           : []),
-        ...productReferenceUrls.map((url) => ({
-          type: "image_url" as const,
-          image_url: { url },
-        })),
-        ...input.storyboards.map((storyboard) => ({ type: "image_url" as const, image_url: { url: storyboard.imageUrl } })),
       ],
     }],
   });
@@ -110,6 +108,7 @@ export function buildStoryboardSetQualityRecord(input: {
   attemptCount: number;
 }): StoryboardSetQualityRecord {
   return {
+    policyVersion: STORYBOARD_SET_QA_POLICY_VERSION,
     validation: input.validation,
     storyboardUrls: input.storyboards.map((storyboard) => ({
       segmentIndex: storyboard.segmentIndex,
@@ -179,6 +178,7 @@ function buildStoryboardSetVisionPrompt(input: {
     segment_index: storyboard.segmentIndex,
     panels: storyboard.storyboard.frames.map((frame, panelIndex) => ({
       panel_index: panelIndex + 1,
+      expected_wardrobe: frame.wardrobe,
       required_support_props: frame.referenceTransfer?.requiredSupportProps || [],
       required_action: frame.referenceTransfer?.requiredReferenceAction || null,
       camera_composition: frame.referenceTransfer?.cameraComposition || null,
@@ -188,11 +188,11 @@ function buildStoryboardSetVisionPrompt(input: {
   }));
   return [
     "You are a strict cross-segment continuity QA for one vertical video.",
-    input.hasAvatarReference ? "The first image is the avatar identity reference only. Every visible presenter must match it in gender, face, hair, and body type. Do not compare its clothing, accessories, room, lighting, or camera with the contact sheets." : "No avatar identity reference was supplied.",
+    `The first ${input.storyboards.length} image(s) are contact sheets in order: ${input.storyboards.map((storyboard, index) => `contact sheet ${index + 1} is segment ${storyboard.segmentIndex}`).join("; ")}.`,
     input.productReferenceCount ? `The next ${input.productReferenceCount} image(s) are product references for ${input.productName || "the client product"}. When the storyboard plan shows the product, its visible package must match these references.` : "No product reference images were supplied.",
-    `The remaining images are contact sheets in order: ${input.storyboards.map((storyboard, index) => `contact sheet ${index + 1} is segment ${storyboard.segmentIndex}`).join("; ")}.`,
+    input.hasAvatarReference ? "The final image is the avatar identity reference only. Every visible presenter must match it in gender, face, hair, and body type. Do not compare its clothing, accessories, room, lighting, or camera with the contact sheets." : "No avatar identity reference was supplied.",
     "Segment 1 is the canonical visual identity. Compare every visible presenter panel in every later segment against it.",
-    "Use the segment 1 contact sheet, not the avatar reference, as the canonical source for wardrobe, accessories, room, lighting, and camera. Reject later segments only if they visibly change from segment 1 in garment type, sleeves, neckline, fabric, color, fit, accessories, hairstyle, hair parting, face identity, body type, room, lighting, or camera setup. Different hand gestures are allowed. A spoken subject change never permits an outfit change.",
+    "The expected_wardrobe in the visual-mechanics contract is ground truth for every panel, including segment 1. Use the segment 1 contact sheet, not the avatar reference, as the canonical source for wardrobe, accessories, room, lighting, and camera between segments. Reject a panel that conflicts with its expected_wardrobe, or a later segment that visibly changes from segment 1 in garment type, sleeves, neckline, fabric, color, fit, accessories, hairstyle, hair parting, face identity, body type, room, lighting, or camera setup. Different hand gestures are allowed. A spoken subject change never permits an outfit change.",
     `Canonical wardrobe contract: ${wardrobe}.`,
     "Also check the visual-mechanics contracts below. Required neutral support props are not competing products: retain them when listed. Reject a segment when its planned prop, action, or framing has been reduced to generic talking head. Use required_prop_missing, reference_action_missing, or reference_composition_lost with severity error.",
     `Visual-mechanics contracts: ${JSON.stringify(visualContracts)}.`,
