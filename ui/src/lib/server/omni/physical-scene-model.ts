@@ -15,6 +15,8 @@ const OBJECT_INTERACTION_PATTERN = /(?:держит|держать|в руках
 const BOTH_CHEEKS_PATTERN = /(?:обеих?\s+щек|обе\s+щеки|both\s+cheeks)/iu;
 const ONE_CHEEK_PATTERN = /(?:одной\s+щек|одну\s+щеку|one\s+cheek)/iu;
 const HANDS_TO_FACE_PATTERN = /(?:обе\s+руки\s+(?:у|к)\s+лица|both\s+hands[^.;]{0,80}(?:face|jawline|cheek|щек|лиц))/iu;
+const FACE_TOUCH_PATTERN = /(?:обеих?\s+щек|обе\s+щеки|одной\s+щек|одну\s+щеку|обе\s+руки\s+(?:у|к)\s+лица|both\s+cheeks|one\s+cheek|hands?[^.;]{0,80}(?:face|jawline|cheek))/iu;
+const FACE_TOUCH_SPEECH_PATTERN = /(?:кож[аеиу]|лиц[аоеу]|щёк|щек|челюст|подбород|лоб|морщин|высып|акне|покраснен|упругост|очища|умыва|уход|крем|сыворот|пенк|нанос|skin|face|cheek|jawline|chin|forehead|wrinkl|acne|redness|cleanse|wash|skincare|apply)/iu;
 const CONSUMPTION_PATTERN = /(?:eat\w*|bite\w*|chew\w*|drink\w*|swallow\w*|sip\w*|tast\w*|consum\w*|into\s+(?:the\s+)?mouth|liquid[^.;]{0,60}(?:lips|mouth)|pour\w*[^.;]{0,60}(?:lips|mouth)|кус\w*|жев\w*|пив\w*|пь\w*|отпив\w*|отхлеб\w*|выпив\w*|глот\w*|откус\w*|съед\w*|пробу\w*|дегуст\w*|смаку\w*|употребл\w*|в\s+рот|во\s+рту|жидк\w*[^.;]{0,60}(?:губ|рот)|ль[её]т[^.;]{0,60}(?:губ|рот)|(?<!\p{L})ест(?:ь)?(?=\s|$|[,.!?])|принима(?:ет|ть)(?=\s|$|[,.!?])|прием(?=\s|$|[,.!?])|приём(?=\s|$|[,.!?]))/iu;
 const DRIVING_PATTERN = /(?:\bdriv(?:e|es|ing)?\b|\bsteer(?:s|ing)?\b|за рулем|за рулём|ведет машину|ведёт машину)/iu;
 const PICK_UP_PATTERN = /(?:берет|берёт|поднимает|pick\s*up|picks\s*up)/iu;
@@ -34,6 +36,14 @@ export function hasDrivingAction(value: string) {
 
 export function hasMultipleHeldObjects(value: string) {
   return MULTIPLE_HELD_OBJECTS_PATTERN.test(value);
+}
+
+export function isFaceTouchAction(value: string) {
+  return FACE_TOUCH_PATTERN.test(value);
+}
+
+export function isFaceTouchSemanticallyRelevant(spokenText: string) {
+  return FACE_TOUCH_SPEECH_PATTERN.test(spokenText);
 }
 
 export function hasForeignReferenceProduct(value: string, productName: string) {
@@ -67,8 +77,13 @@ export function repairReferenceAction(input: {
 
   if (hasDriving) {
     return input.productVisible
-      ? `герой едет пассажиром в движущемся автомобиле, держит ${product} в одной руке и второй рукой делает спокойный жест`
+      ? `герой едет пассажиром в движущемся автомобиле; держит ${product} в одной руке, свободной рукой делает спокойный жест`
       : "герой едет пассажиром в движущемся автомобиле и спокойно говорит в камеру с нейтральным жестом";
+  }
+  if (isFaceTouchAction(action) && !isFaceTouchSemanticallyRelevant(input.spokenText)) {
+    return input.productVisible
+      ? `герой спокойно говорит в камеру, ${product} остается физически видимым по утвержденному плану, без касания лица`
+      : "герой спокойно говорит в камеру с нейтральным жестом, без касания лица";
   }
   if (hasForeignPackagedProduct(action, product) && !preservesSupportProp) {
     return input.productVisible
@@ -166,6 +181,40 @@ export function isProductPresentationCue(spokenText: string) {
 export function buildProductPresentationAction(productName: string) {
   const product = productName.trim() || "продукт";
   return `герой держит ${product} в одной руке, поворачивает лицевой стороной к камере, второй рукой делает спокойный жест`;
+}
+
+export function buildPhysicalProductDemoStep(input: {
+  productName: string;
+  frameIndex: number;
+  frameCount: number;
+}) {
+  const product = input.productName.trim() || "продукт";
+  const first = input.frameIndex === 1;
+  const last = input.frameIndex === input.frameCount;
+  const shortDemo = input.frameCount <= 2;
+
+  if (first) {
+    return {
+      action: `${product} уже стоит на одной видимой поверхности в нижней части кадра, рука рядом, без появления из пустоты`,
+      placement: `${product} стоит на одной видимой поверхности в нижней части кадра, сохраняет это положение`,
+    };
+  }
+  if (last && !shortDemo) {
+    return {
+      action: `герой спокойно ставит ${product} обратно на ту же поверхность, не меняя упаковку и ее положение`,
+      placement: `${product} снова стоит на той же видимой поверхности в нижней части кадра`,
+    };
+  }
+  if (input.frameIndex === 2 && input.frameCount > 3) {
+    return {
+      action: `герой одной рукой берет ${product} с этой поверхности, движение руки и предмет остаются полностью видимыми`,
+      placement: `${product} еще на той же поверхности, рука героя начинает его брать`,
+    };
+  }
+  return {
+    action: `герой видимо берет ${product} и держит в одной руке на уровне груди, упаковка повернута лицевой стороной к камере`,
+    placement: `${product} в одной руке, целая упаковка сохраняет тот же вид`,
+  };
 }
 
 function detectAction(value: string): PhysicalActionKind {

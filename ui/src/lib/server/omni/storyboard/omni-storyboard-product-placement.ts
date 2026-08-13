@@ -10,12 +10,21 @@ export function renderStoryboardProductPlacement(
   productVisualPassport?: string | null,
   productPhysicalHint?: string | null,
   productVisible = false,
-  referenceTransfer?: ReferenceTransferFramePlan
+  referenceTransfer?: ReferenceTransferFramePlan,
+  physicalDemoPlacement?: string
 ) {
   const support = renderRequiredReferenceSupport(referenceTransfer);
   const productDetails = productVisualPassport ? `, детали из референса: ${compactProductReference(productVisualPassport)}` : "";
   if (plan.productRole === "hidden") return ["продукт вне кадра в этом сегменте", support].filter(Boolean).join("; ");
   if (!productVisible) return ["в кадре тематические объекты и окружение текущей реплики", support].filter(Boolean).join("; ");
+
+  if (physicalDemoPlacement) {
+    return [
+      physicalDemoPlacement,
+      "это единственный физический показ продукта в ролике; не добавлять другой продукт или упаковку",
+      support,
+    ].filter(Boolean).join("; ");
+  }
 
   const placement = plan.productRole === "background_prop"
     ? `${productName} может быть виден только как небольшой вспомогательный предмет: стоит на поверхности в блогерской сцене, без крупного рекламного плана и без демонстрации этикетки${productDetails}`

@@ -2,6 +2,7 @@ import type { OmniStoryboardFrame } from "../../../omni/storyboard/omni-storyboa
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
 import type { DirectorSegmentProfile } from "../director-analysis-types";
 import {
+  buildPhysicalProductDemoStep,
   buildPhysicalFramePlan,
   hasConsumptionAction,
   hasForeignReferenceProduct,
@@ -9,7 +10,6 @@ import {
   repairPhysicalFrameAction,
   repairReferenceAction,
 } from "../physical-scene-model";
-import { isOmniProductVisualBeat } from "../omni-intro-product-contract";
 import {
   buildReferenceTransferFramePlan,
   renderRequiredReferenceSupport,
@@ -26,13 +26,12 @@ export function buildStoredStoryboardFrame(input: {
   productName: string;
   productPhysicalHint?: string | null;
   productVisible: boolean;
+  productDemoFrame?: { frameIndex: number; frameCount: number };
   referenceProfile?: DirectorSegmentProfile | null;
   referenceTransferPolicy?: ReferenceTransferPolicy;
 }): OmniStoryboardFrame {
   const spokenText = input.frame.spokenWords;
-  const productVisible = input.productVisible &&
-    isOmniProductVisualBeat(spokenText, input.productName) &&
-    !hasForeignReferenceProduct(spokenText, input.productName);
+  const productVisible = input.productVisible;
   const sourceAction = input.frame.visualDescription || input.frame.action;
   const referenceAction = [
     input.referenceProfile?.action_description,
@@ -56,8 +55,11 @@ export function buildStoredStoryboardFrame(input: {
     productVisible,
     referenceSupportProps: referenceTransfer.requiredSupportProps,
   });
+  const productDemo = productVisible && input.productDemoFrame
+    ? buildPhysicalProductDemoStep({ productName: input.productName, ...input.productDemoFrame })
+    : null;
   const visualAction = productVisible
-    ? repairedAction
+    ? [repairedAction, productDemo?.action].filter(Boolean).join("; ")
     : renderNonProductAction(repairedAction, input.productName);
   const productState = repairProductState({
     state: input.frame.productState,
@@ -65,7 +67,7 @@ export function buildStoredStoryboardFrame(input: {
     productVisible,
   });
   const productPlacement = productVisible
-    ? renderProductPlacement(productState, input.productPhysicalHint, referenceTransfer)
+    ? renderProductPlacement(productDemo?.placement || productState, input.productPhysicalHint, referenceTransfer)
     : ["в кадре тематические объекты и окружение текущей реплики", renderRequiredReferenceSupport(referenceTransfer)]
       .filter(Boolean)
       .join("; ");

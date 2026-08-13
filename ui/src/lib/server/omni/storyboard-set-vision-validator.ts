@@ -11,7 +11,7 @@ const DEFAULT_MODEL = "minimax/minimax-m3";
 const MIN_CONFIDENCE = 0.65;
 const MAX_JSON_REPAIR_ATTEMPTS = 2;
 const MAX_JSON_REPAIR_SOURCE_CHARS = 12_000;
-export const STORYBOARD_SET_QA_POLICY_VERSION = "storyboard-set-qa-v2";
+export const STORYBOARD_SET_QA_POLICY_VERSION = "storyboard-set-qa-v3";
 
 export class StoryboardSetVisionJsonFormatError extends Error {
   readonly rawResponse: string;
@@ -195,6 +195,7 @@ function buildStoryboardSetVisionPrompt(input: {
     "The expected_wardrobe in the visual-mechanics contract is ground truth for every panel, including segment 1. Use the segment 1 contact sheet, not the avatar reference, as the canonical source for wardrobe, accessories, room, lighting, and camera between segments. Reject a panel that conflicts with its expected_wardrobe, or a later segment that visibly changes from segment 1 in garment type, sleeves, neckline, fabric, color, fit, accessories, hairstyle, hair parting, face identity, body type, room, lighting, or camera setup. Different hand gestures are allowed. A spoken subject change never permits an outfit change.",
     `Canonical wardrobe contract: ${wardrobe}.`,
     "Also check the visual-mechanics contracts below. Required neutral support props are not competing products: retain them when listed. Reject a segment when its planned prop, action, or framing has been reduced to generic talking head. Use required_prop_missing, reference_action_missing, or reference_composition_lost with severity error.",
+    "Physical product continuity is mandatory. In a visible product-demo segment, the client product must be visibly present in every panel. Its first panel must show it already supported by the same visible surface; it may be picked up only through a visible hand movement, and must be visibly returned to that surface before the segment ends. Reject any disappearance, appearance in a hand without a prior pickup, or unexplained state change with severity error and code product_teleportation. A face-touch gesture is valid only when that panel's spoken line is specifically about skin, face, or application; otherwise use face_gesture_without_spoken_reason with severity error.",
     `Visual-mechanics contracts: ${JSON.stringify(visualContracts)}.`,
     "Return only JSON: { status: pass|repair|block, confidence: number, canonical_identity: string, violations: [{ segment_index: integer, panels: integer[], code: string, severity: error|warning, evidence: string }], repair_instructions: string[] }.",
     "For any outfit or identity mismatch, use severity error and list every affected segment and panel. If every segment matches, return pass with an empty violations array.",

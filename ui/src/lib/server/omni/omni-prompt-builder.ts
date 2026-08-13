@@ -38,6 +38,10 @@ import {
   buildStoryboardFromPromptChainFrames,
   buildStoryboardFromCreativePlan,
 } from "./storyboard/omni-storyboard-builder";
+import {
+  isOmniProductVisualBeat,
+  mentionsExplicitOmniProduct,
+} from "./omni-intro-product-contract";
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { applyDirectorLayoutToPlan, buildDirectorLayoutContract } from "./director-layout-contract";
@@ -160,6 +164,11 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     ctaValue: input.ctaValue,
     recentFormatIds: input.recentFormatIds,
   });
+  const productDemoSegmentIndex = selectPhysicalProductDemoSegmentIndex({
+    segments: segmentIntents,
+    productName: input.product.name,
+    productRole: strategy.productRole,
+  });
   assertOmniCtaContract(scriptText, strategy);
   const prompts: OmniSegmentPrompt[] = [];
   let previousContinuityState: OmniGenerationContinuityState | null = null;
@@ -170,11 +179,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const segmentSeconds = segmentDurationsSeconds[index] || input.segmentSeconds;
     const segmentRole = getSegmentRole(segmentIndex, input.segmentCount);
     const segmentScriptBeats = selectScriptBeatsForSegment(scriptPlan, segmentIndex, input.segmentCount);
-    const baseProductRole = getSegmentProductRole(
-      strategy.productRole,
-      segmentIntent.productVisible
-    );
-    const productRole = baseProductRole;
+    const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex);
     const segmentProductVisualPassport = productVisualPassport;
     const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
       segmentIndex,
@@ -246,11 +251,19 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   return prompts;
 }
 
-function getSegmentProductRole(
-  role: ProductRole,
-  productVisible: boolean
-): ProductRole {
-  return role === "hidden" || !productVisible ? "hidden" : role;
+function selectPhysicalProductDemoSegmentIndex(input: {
+  segments: readonly { index: number; spokenText: string }[];
+  productName: string;
+  productRole: ProductRole;
+}) {
+  if (input.productRole === "hidden") return null;
+  const explicit = input.segments.find((segment) => mentionsExplicitOmniProduct(segment.spokenText, input.productName));
+  if (explicit) return explicit.index;
+  return input.segments.find((segment) => isOmniProductVisualBeat(segment.spokenText, input.productName))?.index || null;
+}
+
+function resolvePhysicalProductDemoRole(segmentIndex: number, productDemoSegmentIndex: number | null): ProductRole {
+  return segmentIndex === productDemoSegmentIndex ? "brief_demo" : "hidden";
 }
 
 function buildStoredProviderPromptSegments(
@@ -291,11 +304,16 @@ function buildStoredProviderPromptSegments(
     providerPromptPlan.segmentPrompts.map((segment) => ({ index: segment.index, spokenText: segment.voiceover })),
     input.product.name
   );
+  const productDemoSegmentIndex = selectPhysicalProductDemoSegmentIndex({
+    segments: segmentIntents,
+    productName: input.product.name,
+    productRole: strategy.productRole,
+  });
 
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
     const segmentIntent = segmentIntents[index];
-    const productRole = getSegmentProductRole(strategy.productRole, Boolean(segmentIntent?.productVisible));
+    const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex);
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,
@@ -313,7 +331,7 @@ function buildStoredProviderPromptSegments(
       productPhysicalHint,
       directorBrief,
       segmentCount: providerPromptPlan.segmentPrompts.length,
-      productVisible: Boolean(segmentIntent?.productVisible),
+      productVisible: productRole !== "hidden",
       referenceTransferPolicy: referencePolicy,
     });
     const validation = validatePhysicalScene({
@@ -332,7 +350,7 @@ function buildStoredProviderPromptSegments(
       index: segmentIndex,
       role: getSegmentRole(segmentIndex, providerPromptPlan.segmentPrompts.length),
       prompt,
-      referenceUrl: selectStoredReferenceUrl(segment.referenceRole, avatarReference, productReference),
+      referenceUrl: selectReferenceUrl(productRole, avatarReference, productReference),
       durationSeconds: segment.durationSeconds,
       voiceoverText: segment.voiceover,
       storyboardPlan,
@@ -367,16 +385,6 @@ function buildStoredCreativePlan(input: {
       { startSeconds: middleEnd, endSeconds: input.segmentSeconds, action: "LLM provider prompt face return" },
     ],
   };
-}
-
-function selectStoredReferenceUrl(
-  referenceRole: "avatar" | "product" | "none",
-  avatarReference: string | null,
-  productReference: OmniReferenceAsset | null
-) {
-  if (referenceRole === "product") return productReference?.url || avatarReference;
-  if (referenceRole === "none") return null;
-  return avatarReference;
 }
 
 function selectReferenceUrl(

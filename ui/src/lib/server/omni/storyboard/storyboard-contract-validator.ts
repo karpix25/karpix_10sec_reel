@@ -4,7 +4,6 @@ import {
   mentionsNamedOmniProduct,
   mentionsOmniProduct,
 } from "../omni-intro-product-contract";
-import { deriveOmniSegmentIntents } from "../omni-segment-intent";
 
 export type StoryboardSegmentContract = {
   productName: string;
@@ -47,6 +46,9 @@ export function validateStoryboardSegmentContract(input: {
     if (input.contract.productVisibility === "hidden" && productVisible) {
       errors.push(`frame_${frameNumber}_product_visible_when_contract_hidden`);
     }
+    if (input.contract.productVisibility === "visible" && !productVisible) {
+      errors.push(`frame_${frameNumber}_product_missing_from_physical_demo`);
+    }
     if (fixedWardrobe && normalize(frame.wardrobe) !== fixedWardrobe) {
       errors.push(`frame_${frameNumber}_wardrobe_contract_mismatch`);
     }
@@ -76,10 +78,13 @@ export function validateStoryboardSegmentContract(input: {
       errors.push(`frame_${frameNumber}_product_action_when_contract_hidden`);
     } else if (!productVisible) {
       errors.push(`frame_${frameNumber}_product_action_without_visible_product`);
-    } else if (!mentionsOmniProduct(frame.spokenText, input.contract.productName)) {
-      errors.push(`frame_${frameNumber}_product_action_without_product_voiceover`);
     }
   });
+
+  if (input.contract.productVisibility === "visible" &&
+      !mentionsOmniProduct(input.storyboard.voiceoverText, input.contract.productName)) {
+    errors.push("product_demo_without_product_voiceover");
+  }
 
   return { valid: errors.length === 0, errors };
 }
@@ -98,29 +103,22 @@ export function assertStoryboardPromptContracts(
   promptPlan: readonly StoryboardPromptContractInput[],
   productName: string
 ) {
-  const intents = deriveOmniSegmentIntents(
-    promptPlan.map((segment) => ({ index: segment.index, spokenText: segment.voiceoverText })),
-    productName
-  );
   const fixedWardrobe = promptPlan.find((segment) => segment.storyboardPlan?.frames[0])
     ?.storyboardPlan?.frames[0]?.wardrobe || "";
-  const errors = promptPlan.flatMap((segment, offset) => {
-    const intent = intents[offset];
+  const errors = promptPlan.flatMap((segment) => {
     if (!segment.storyboardPlan) return [`segment_${segment.index}_storyboard_required`];
-    const voiceoverMismatch = normalize(segment.storyboardPlan.voiceoverText) !== normalize(intent?.spokenText || "");
+    const voiceoverMismatch = normalize(segment.storyboardPlan.voiceoverText) !== normalize(segment.voiceoverText);
     const result = validateStoryboardSegmentContract({
       storyboard: segment.storyboardPlan,
       contract: {
         productName,
-        productVisibility: intent?.productVisible ? "visible" : "hidden",
+        productVisibility: segment.creativePlan.productRole === "hidden" ? "hidden" : "visible",
         fixedWardrobe,
       },
     });
-    const roleMismatch = (segment.creativePlan.productRole !== "hidden") !== Boolean(intent?.productVisible);
     return [
       ...result.errors.map((error) => `segment_${segment.index}_${error}`),
       ...(voiceoverMismatch ? [`segment_${segment.index}_storyboard_voiceover_mismatch`] : []),
-      ...(roleMismatch ? [`segment_${segment.index}_product_role_voiceover_mismatch`] : []),
     ];
   });
   if (errors.length) throw new Error(`Omni storyboard contract preflight blocked: ${errors.join(", ")}`);
