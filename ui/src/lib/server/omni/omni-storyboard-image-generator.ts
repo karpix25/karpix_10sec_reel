@@ -66,8 +66,8 @@ type GeneratedStoryboardImage = { body: Buffer; contentType: string };
 export class StoryboardImageRepairExhaustedError extends Error {
   readonly generationAttemptCount: number;
 
-  constructor(input: { validation: StoryboardVisionValidation | null; generationAttemptCount: number }) {
-    super(`Storyboard image did not pass visual QA after ${input.generationAttemptCount} generation attempts: ${JSON.stringify(input.validation)}`);
+  constructor(input: { validation: StoryboardVisionValidation | null; generationAttemptCount: number; failureReason?: string | null }) {
+    super(input.failureReason?.trim() || `Storyboard image did not pass visual QA after ${input.generationAttemptCount} generation attempts: ${JSON.stringify(input.validation)}`);
     this.name = "StoryboardImageRepairExhaustedError";
     this.generationAttemptCount = input.generationAttemptCount;
   }

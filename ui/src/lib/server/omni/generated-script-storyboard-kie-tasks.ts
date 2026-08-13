@@ -47,6 +47,7 @@ export async function reserveGeneratedScriptStoryboardKieSubmission(input: {
               generation_attempt_count AS "generationAttemptCount",
               kie_task_id AS "taskId",
               last_attempt_at AS "lastAttemptAt",
+              generation_error AS "generationError",
               reference_signature AS "referenceSignature",
               generator_version AS "generatorVersion"
      FROM omni_generated_script_storyboards

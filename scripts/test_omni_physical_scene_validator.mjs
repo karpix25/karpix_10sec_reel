@@ -103,6 +103,16 @@ try {
     }),
     /нейтральным жестом/iu
   );
+  assert.equal(physicalModel.hasConsumptionAction("liquid pours from a stick pack at her lips into mouth"), true);
+  assert.match(
+    physicalModel.repairReferenceAction({
+      action: "liquid pours from a stick pack at her lips into mouth",
+      spokenText: "Рассказываю о составе",
+      productName: "Коллаген",
+      productVisible: true,
+    }),
+    /без приёма пищи/iu
+  );
   const foodReferencePolicy = referenceTransfer.buildReferenceTransferPolicy({
     hasProductReference: true,
     directorBrief: {
@@ -305,7 +315,7 @@ try {
     creativePlan: null,
     productName: "Коллаген",
   });
-  assert.equal(repairedStoredValidation.valid, true);
+  assert.equal(repairedStoredValidation.valid, true, repairedStoredValidation.errors.join(", "));
 
   const foreignSpeechFrame = storedFrameRepair.buildStoredStoryboardFrame({
     frame: {

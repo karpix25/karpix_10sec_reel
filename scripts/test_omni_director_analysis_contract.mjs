@@ -290,6 +290,30 @@ try {
     }),
     /исходный рекламный предмет заменен нашим продуктом/iu
   );
+  const unsafeActionBeat = buildReferenceTransferFramePlan({
+    policy: buildReferenceTransferPolicy({
+      hasProductReference: true,
+      directorBrief: {
+        visual_transfer: {
+          camera_composition: "close-up in a car",
+          props: [],
+          action_beats: [{ timestamp_sec: 0, action: "liquid pours from a stick pack at her lips into mouth" }],
+        },
+      },
+    }),
+    productName: "Апельсиновый коллаген",
+    spokenText: "Коллаген удобно взять с собой.",
+    productVisible: true,
+  });
+  assert.equal(unsafeActionBeat.requiredReferenceAction, null);
+  assert.doesNotMatch(
+    resolveReferenceTransferAction({
+      framePlan: unsafeActionBeat,
+      referenceAction: "liquid pours from a stick pack at her lips into mouth",
+      fallbackAction: "герой держит коллаген у камеры",
+    }),
+    /mouth|lips|liquid/iu
+  );
   const productPackageBrief = normalizeDirectorBrief({
     director_brief: {
       ...brief,
