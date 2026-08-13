@@ -67,9 +67,6 @@ export function validateStoryboardSegmentContract(input: {
           break;
         }
       }
-      if (transfer.requiredReferenceAction && isGenericTalkingHead(frame.visualAction)) {
-        errors.push(`frame_${frameNumber}_reference_action_missing`);
-      }
       if (transfer.cameraComposition && !mentionsRequiredSupportProp(frame.camera, transfer.cameraComposition)) {
         errors.push(`frame_${frameNumber}_reference_composition_missing`);
       }
@@ -91,11 +88,6 @@ function mentionsRequiredSupportProp(value: string, requirement: string) {
   const actual = tokenSet(value);
   const required = [...tokenSet(requirement)].filter((token) => token.length >= 4);
   return required.length === 0 || required.some((token) => actual.has(token));
-}
-
-function isGenericTalkingHead(value: string) {
-  return /(?:говорит|talks?|speaks?)/iu.test(value) &&
-    !/(?:держит|бер[её]т|показывает|поднимает|клад[её]т|контейнер|овощ|фрукт|хлеб|вода|стакан|table|container|food|fruit|bread|water)/iu.test(value);
 }
 
 function tokenSet(value: string) {
