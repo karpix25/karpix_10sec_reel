@@ -205,6 +205,9 @@ async function tryGenerateStoryboardPreview(input: {
       generationAttemptCount: kieSubmission.generationAttemptCount,
     });
   }
+  const resetsPreviousRepair = kieSubmission?.kind === "submit"
+    && kieSubmission.generationAttemptCount === 1
+    && Number(input.previousGenerationAttemptCount || 0) > 0;
   try {
     const url = await generateStoryboardImage({
       projectId: input.projectId,
@@ -227,8 +230,8 @@ async function tryGenerateStoryboardPreview(input: {
         : input.pendingKieStoryboardTaskId,
       deferVisualQa: input.deferVisualQa,
       referenceSafetyInstructions: input.referenceSafetyInstructions,
-      previousStoryboardReferenceUrl: input.previousStoryboardReferenceUrl,
-      previousRepairInstructions: input.previousRepairInstructions,
+      previousStoryboardReferenceUrl: resetsPreviousRepair ? null : input.previousStoryboardReferenceUrl,
+      previousRepairInstructions: resetsPreviousRepair ? [] : input.previousRepairInstructions,
       previousGenerationAttemptCount: kieSubmission?.kind === "submit"
         ? kieSubmission.generationAttemptCount - 1
         : input.previousGenerationAttemptCount,
