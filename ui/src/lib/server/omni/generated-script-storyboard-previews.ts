@@ -1,9 +1,16 @@
 import pool from "@/lib/db";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
-import { generateStoryboardImage } from "./omni-storyboard-image-generator";
+import {
+  generateStoryboardImage,
+  StoryboardImageRepairExhaustedError,
+} from "./omni-storyboard-image-generator";
 import { recordGeneratedScriptStoryboardFailure } from "./generated-script-storyboard-failure";
-import { isKieStoryboardImagePendingError } from "./kie-omni-client";
+import {
+  isKieStoryboardImagePendingError,
+  isKieStoryboardImagePollingError,
+  isKieStoryboardImageSubmissionUnknownError,
+} from "./kie-omni-client";
 import { recordKieGenerationCost } from "./omni-generation-costs";
 import { isStoryboardVisionJsonFormatError } from "./storyboard-vision-validator";
 import { ensureOmniSchema } from "./schema";
@@ -19,20 +26,21 @@ import {
 import { getStoryboardSetRepairSegments } from "./storyboard-set-vision-validator";
 import {
   getGeneratedScriptStoryboardRepairContext,
-  getPendingGeneratedScriptStoryboardKieTaskId,
+  reserveGeneratedScriptStoryboardKieSubmission,
   saveGeneratedScriptStoryboardKieTask,
+  withGeneratedScriptStoryboardLock,
 } from "./generated-script-storyboard-kie-tasks";
+import {
+  StoryboardKieSubmissionInProgressError,
+  StoryboardKieSubmissionStalledError,
+} from "./storyboard-kie-submission-state";
 
 type StoryboardPromptSegment = {
   index: number;
   storyboardPlan: OmniStoryboardSegment | null;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-avatar-identity-v9";
-const MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES = 2;
-const MAX_STORYBOARD_SET_REPAIR_ATTEMPTS = 2;
-
-export async function ensureGeneratedScriptStoryboardUrls(input: {
+type EnsureGeneratedScriptStoryboardUrlsInput = {
   projectId: number;
   productId: number;
   scriptId: number;
@@ -45,8 +53,20 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
   directorBrief?: DirectorBrief | null;
   promptPlan: readonly StoryboardPromptSegment[];
   generationProvider?: OmniGenerationProvider;
-}) {
+};
+
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-avatar-identity-v9";
+const MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES = 2;
+const MAX_STORYBOARD_SET_REPAIR_ATTEMPTS = 2;
+
+export async function ensureGeneratedScriptStoryboardUrls(input: EnsureGeneratedScriptStoryboardUrlsInput) {
   await ensureOmniSchema();
+  const urls = await withGeneratedScriptStoryboardLock(input.scriptId, () => ensureGeneratedScriptStoryboardUrlsLocked(input));
+  if (urls) return urls;
+  throw new StoryboardKieSubmissionInProgressError();
+}
+
+async function ensureGeneratedScriptStoryboardUrlsLocked(input: EnsureGeneratedScriptStoryboardUrlsInput) {
   const referenceSignature = buildReferenceSignature(input);
   const urls = await getStoredGeneratedScriptStoryboardUrls({ ...input, referenceSignature });
   let canonicalStoryboardReferenceUrl: string | null = null;
@@ -62,19 +82,9 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
     if (segment.index > 1 && !canonicalStoryboardReferenceUrl) {
       throw new Error("Storyboard 1 must be approved before generating later storyboard segments");
     }
-    const pendingKieStoryboardTaskId = input.generationProvider === "kie-ai"
-      ? await getPendingGeneratedScriptStoryboardKieTaskId({
-        scriptId: input.scriptId,
-        segmentIndex: segment.index,
-        referenceSignature,
-        generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
-      })
-      : null;
     const repairContext = await getGeneratedScriptStoryboardRepairContext({
       scriptId: input.scriptId,
       segmentIndex: segment.index,
-      referenceSignature,
-      generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
     });
     const generatedUrl = await tryGenerateStoryboardPreview({
       ...input,
@@ -82,7 +92,6 @@ export async function ensureGeneratedScriptStoryboardUrls(input: {
       segmentIndex: segment.index,
       storyboardPlan: segment.storyboardPlan,
       canonicalStoryboardReferenceUrl,
-      pendingKieStoryboardTaskId,
       generationProvider: input.generationProvider,
       ...repairContext,
     });
@@ -113,6 +122,7 @@ export async function getSavedGeneratedScriptStoryboardUrls(input: {
      WHERE project_id = $1
        AND product_id = $2
        AND generated_script_id = $3
+       AND generation_status = 'ready'
        AND storyboard_reference_url IS NOT NULL
      ORDER BY segment_index ASC`,
     [input.projectId, input.productId, input.scriptId]
@@ -137,6 +147,7 @@ async function getStoredGeneratedScriptStoryboardUrls(input: {
        AND generated_script_id = $3
        AND reference_signature = $4
        AND generator_version = $5
+       AND generation_status = 'ready'
      ORDER BY segment_index ASC`,
     [
       input.projectId,
@@ -172,6 +183,25 @@ async function tryGenerateStoryboardPreview(input: {
   previousRepairInstructions?: readonly string[];
   previousGenerationAttemptCount?: number;
 }) {
+  const kieSubmission = input.generationProvider === "kie-ai"
+    ? await reserveGeneratedScriptStoryboardKieSubmission({
+      projectId: input.projectId,
+      productId: input.productId,
+      scriptId: input.scriptId,
+      segmentIndex: input.segmentIndex,
+      storyboardPlan: input.storyboardPlan,
+      referenceSignature: input.referenceSignature,
+      generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
+    })
+    : null;
+  if (kieSubmission?.kind === "wait") throw new StoryboardKieSubmissionInProgressError();
+  if (kieSubmission?.kind === "stalled") throw new StoryboardKieSubmissionStalledError();
+  if (kieSubmission?.kind === "exhausted") {
+    throw new StoryboardImageRepairExhaustedError({
+      validation: null,
+      generationAttemptCount: kieSubmission.generationAttemptCount,
+    });
+  }
   try {
     const url = await generateStoryboardImage({
       projectId: input.projectId,
@@ -189,11 +219,15 @@ async function tryGenerateStoryboardPreview(input: {
       canonicalStoryboardReferenceUrl: input.canonicalStoryboardReferenceUrl,
       directorBrief: input.directorBrief,
       generationProvider: input.generationProvider,
-      pendingKieStoryboardTaskId: input.pendingKieStoryboardTaskId,
+      pendingKieStoryboardTaskId: kieSubmission?.kind === "poll"
+        ? kieSubmission.taskId
+        : input.pendingKieStoryboardTaskId,
       referenceSafetyInstructions: input.referenceSafetyInstructions,
       previousStoryboardReferenceUrl: input.previousStoryboardReferenceUrl,
       previousRepairInstructions: input.previousRepairInstructions,
-      previousGenerationAttemptCount: input.previousGenerationAttemptCount,
+      previousGenerationAttemptCount: kieSubmission?.kind === "submit"
+        ? kieSubmission.generationAttemptCount - 1
+        : input.previousGenerationAttemptCount,
     });
     if (!url) return null;
     await upsertGeneratedScriptStoryboardUrl({ ...input, url });
@@ -218,6 +252,9 @@ async function tryGenerateStoryboardPreview(input: {
         model: error.model,
         raw: error.task.raw,
       }).catch((recordError) => console.error("Could not record pending KIE storyboard cost:", recordError));
+      throw error;
+    }
+    if (isKieStoryboardImagePollingError(error) || isKieStoryboardImageSubmissionUnknownError(error)) {
       throw error;
     }
     const failure = await recordGeneratedScriptStoryboardFailure({
@@ -277,8 +314,6 @@ async function ensureStoryboardSetApproval(input: {
       const repairContext = await getGeneratedScriptStoryboardRepairContext({
         scriptId: input.scriptId,
         segmentIndex,
-        referenceSignature,
-        generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
       });
       const regeneratedUrl = await tryGenerateStoryboardPreview({
         ...input,
@@ -384,17 +419,9 @@ function buildReferenceSignature(input: {
   avatarReferenceUrl: string | null;
   productPhysicalContract?: string | null;
   productReferenceUrls: readonly string[];
-  directorReferenceImageUrls?: readonly string[];
-  directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   generationProvider?: OmniGenerationProvider;
   promptPlan: readonly StoryboardPromptSegment[];
 }) {
-  const segmentReferenceUrls = Array.from(input.directorReferenceImageUrlsBySegment || [])
-    .flatMap(([segmentIndex, urls]) =>
-      urls.map((url) => `${segmentIndex}:${normalizeUrl(url) || ""}`)
-    )
-    .filter(Boolean)
-    .sort();
   return [
     STORYBOARD_PREVIEW_GENERATOR_VERSION,
     buildStoryboardPlanSignature(input.promptPlan),
@@ -402,8 +429,6 @@ function buildReferenceSignature(input: {
     normalizeUrl(input.avatarReferenceUrl) || "",
     normalizeContract(input.productPhysicalContract),
     ...input.productReferenceUrls.map((url) => normalizeUrl(url) || "").filter(Boolean).sort(),
-    ...Array.from(input.directorReferenceImageUrls || []).map((url) => normalizeUrl(url) || "").filter(Boolean).sort(),
-    ...segmentReferenceUrls,
   ].join("|");
 }
 

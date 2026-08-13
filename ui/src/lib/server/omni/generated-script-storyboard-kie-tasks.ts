@@ -1,33 +1,125 @@
 import pool from "@/lib/db";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
+import {
+  resolveStoryboardKieSubmissionAction,
+  type StoryboardKieSubmissionAction,
+  type StoryboardKieSubmissionRow,
+} from "./storyboard-kie-submission-state";
 
-export async function getPendingGeneratedScriptStoryboardKieTaskId(input: {
+const STORYBOARD_LOCK_NAMESPACE = 53_901;
+
+type PersistedStoryboardTask = StoryboardKieSubmissionRow & {
+  referenceSignature: string | null;
+  generatorVersion: string | null;
+};
+
+export async function withGeneratedScriptStoryboardLock<T>(scriptId: number, run: () => Promise<T>) {
+  const client = await pool.connect();
+  let locked = false;
+  try {
+    const { rows } = await client.query<{ locked: boolean }>(
+      "SELECT pg_try_advisory_lock($1::int, $2::int) AS locked",
+      [STORYBOARD_LOCK_NAMESPACE, scriptId]
+    );
+    locked = Boolean(rows[0]?.locked);
+    if (!locked) return null;
+    return await run();
+  } finally {
+    if (locked) {
+      await client.query("SELECT pg_advisory_unlock($1::int, $2::int)", [STORYBOARD_LOCK_NAMESPACE, scriptId]);
+    }
+    client.release();
+  }
+}
+
+export async function reserveGeneratedScriptStoryboardKieSubmission(input: {
+  projectId: number;
+  productId: number;
   scriptId: number;
   segmentIndex: number;
+  storyboardPlan: OmniStoryboardSegment;
   referenceSignature: string;
   generatorVersion: string;
-}) {
-  const { rows } = await pool.query<{ kie_task_id: string | null }>(
-    `SELECT kie_task_id
+}): Promise<StoryboardKieSubmissionAction> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query<PersistedStoryboardTask>(
+      `SELECT generation_status AS "generationStatus",
+              generation_attempt_count AS "generationAttemptCount",
+              kie_task_id AS "taskId",
+              last_attempt_at AS "lastAttemptAt",
+              reference_signature AS "referenceSignature",
+              generator_version AS "generatorVersion"
      FROM omni_generated_script_storyboards
      WHERE generated_script_id = $1
        AND segment_index = $2
-       AND reference_signature = $3
-       AND generator_version = $4
-       AND generation_status = 'generating'
-       AND kie_task_id IS NOT NULL
-     LIMIT 1`,
-    [input.scriptId, input.segmentIndex, input.referenceSignature, input.generatorVersion]
-  );
-  const taskId = rows[0]?.kie_task_id?.trim();
-  return taskId || null;
+     FOR UPDATE`,
+      [input.scriptId, input.segmentIndex]
+    );
+    const existing = rows[0] || null;
+    const action = resolveStoryboardKieSubmissionAction(existing);
+    if (action.kind !== "submit") {
+      await client.query("COMMIT");
+      return action;
+    }
+
+    if (!existing) {
+      await client.query(
+        `INSERT INTO omni_generated_script_storyboards (
+           project_id, product_id, generated_script_id, segment_index, storyboard_plan,
+           reference_signature, generator_version, generation_status,
+           generation_attempt_count, last_attempt_at, retry_after, updated_at
+         ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, 'submitting', $8, CURRENT_TIMESTAMP, NULL, CURRENT_TIMESTAMP)`,
+        [
+          input.projectId,
+          input.productId,
+          input.scriptId,
+          input.segmentIndex,
+          JSON.stringify(input.storyboardPlan),
+          input.referenceSignature,
+          input.generatorVersion,
+          action.generationAttemptCount,
+        ]
+      );
+    } else {
+      await client.query(
+        `UPDATE omni_generated_script_storyboards
+         SET storyboard_plan = $3::jsonb,
+             storyboard_reference_url = NULL,
+             reference_signature = $4,
+             generator_version = $5,
+             kie_task_id = NULL,
+             generation_status = 'submitting',
+             generation_attempt_count = $6,
+             generation_error = NULL,
+             last_attempt_at = CURRENT_TIMESTAMP,
+             retry_after = NULL,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE generated_script_id = $1 AND segment_index = $2`,
+        [
+          input.scriptId,
+          input.segmentIndex,
+          JSON.stringify(input.storyboardPlan),
+          input.referenceSignature,
+          input.generatorVersion,
+          action.generationAttemptCount,
+        ]
+      );
+    }
+    await client.query("COMMIT");
+    return action;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getGeneratedScriptStoryboardRepairContext(input: {
   scriptId: number;
   segmentIndex: number;
-  referenceSignature: string;
-  generatorVersion: string;
 }) {
   const { rows } = await pool.query<{
     repair_storyboard_reference_url: string | null;
@@ -38,10 +130,8 @@ export async function getGeneratedScriptStoryboardRepairContext(input: {
      FROM omni_generated_script_storyboards
      WHERE generated_script_id = $1
        AND segment_index = $2
-       AND reference_signature = $3
-       AND generator_version = $4
      LIMIT 1`,
-    [input.scriptId, input.segmentIndex, input.referenceSignature, input.generatorVersion]
+    [input.scriptId, input.segmentIndex]
   );
   const row = rows[0];
   return {

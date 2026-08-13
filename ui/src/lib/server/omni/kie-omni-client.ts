@@ -60,6 +60,34 @@ export function isKieStoryboardImagePendingError(error: unknown): error is KieSt
   return error instanceof KieStoryboardImagePendingError;
 }
 
+export class KieStoryboardImagePollingError extends Error {
+  readonly taskId: string;
+  retryWithoutJobAttempt = true;
+
+  constructor(taskId: string, cause: unknown) {
+    super(`KIE storyboard image task ${taskId} could not be checked: ${formatKieError(cause)}`);
+    this.name = "KieStoryboardImagePollingError";
+    this.taskId = taskId;
+  }
+}
+
+export class KieStoryboardImageSubmissionUnknownError extends Error {
+  retryWithoutJobAttempt = true;
+
+  constructor(cause: unknown) {
+    super(`KIE storyboard image submission outcome is unknown: ${formatKieError(cause)}`);
+    this.name = "KieStoryboardImageSubmissionUnknownError";
+  }
+}
+
+export function isKieStoryboardImagePollingError(error: unknown): error is KieStoryboardImagePollingError {
+  return error instanceof KieStoryboardImagePollingError;
+}
+
+export function isKieStoryboardImageSubmissionUnknownError(error: unknown): error is KieStoryboardImageSubmissionUnknownError {
+  return error instanceof KieStoryboardImageSubmissionUnknownError;
+}
+
 function getApiKey() {
   const key = process.env.KIE_API_KEY || process.env.KIE_AI_API_KEY || "";
   if (!key.trim()) throw new Error("KIE_API_KEY is not configured");
@@ -93,21 +121,42 @@ async function parseError(response: Response) {
   }
 }
 
-async function postCreateTask(payload: Record<string, unknown>, action: string) {
-  const response = await fetch(`${getBaseUrl()}/api/v1/jobs/createTask`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${getApiKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
+async function postCreateTask(
+  payload: Record<string, unknown>,
+  action: string,
+  options?: { protectUnknownStoryboardSubmission?: boolean }
+) {
+  let response: Response;
+  try {
+    response = await fetch(`${getBaseUrl()}/api/v1/jobs/createTask`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${getApiKey()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      signal: options?.protectUnknownStoryboardSubmission
+        ? AbortSignal.timeout(KIE_TASK_REQUEST_TIMEOUT_MS)
+        : undefined,
+    });
+  } catch (error) {
+    if (options?.protectUnknownStoryboardSubmission) {
+      throw new KieStoryboardImageSubmissionUnknownError(error);
+    }
+    throw error;
+  }
   if (!response.ok) {
     throw new Error(`KIE Gemini Omni ${action} failed: ${response.status} ${await parseError(response)}`);
   }
-
-  return normalizeTask((await response.json()) as Record<string, unknown>);
+  try {
+    return normalizeTask((await response.json()) as Record<string, unknown>);
+  } catch (error) {
+    if (options?.protectUnknownStoryboardSubmission) {
+      throw new KieStoryboardImageSubmissionUnknownError(error);
+    }
+    throw error;
+  }
 }
 
 export async function createKieOmniCharacter(input: {
@@ -178,9 +227,16 @@ export async function createKieOmniVideoTask(input: KieOmniVideoInput) {
 
 export async function createKieStoryboardImage(input: KieStoryboardImageInput) {
   const model = getStoryboardImageModel();
-  const payload = input.taskId
-    ? await retrieveKieTaskDetails(input.taskId)
-    : (await createStoryboardImageTask(input, model)).raw;
+  let payload: Record<string, unknown>;
+  if (input.taskId) {
+    try {
+      payload = await retrieveKieTaskDetails(input.taskId);
+    } catch (error) {
+      throw new KieStoryboardImagePollingError(input.taskId, error);
+    }
+  } else {
+    payload = (await createStoryboardImageTask(input, model)).raw;
+  }
   const task = normalizeTask(payload);
   const imageUrl = extractGeneratedImageUrl(payload);
   if (imageUrl) return { imageUrl, task, model };
@@ -203,7 +259,8 @@ async function createStoryboardImageTask(input: KieStoryboardImageInput, model: 
         aspect_ratio: input.aspectRatio || "auto",
       }),
     },
-    "storyboard image create"
+    "storyboard image create",
+    { protectUnknownStoryboardSubmission: true }
   );
 }
 
