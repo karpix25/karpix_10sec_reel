@@ -12,6 +12,7 @@ import {
 import { isOmniProductVisualBeat } from "../omni-intro-product-contract";
 import {
   buildReferenceTransferFramePlan,
+  renderRequiredReferenceSupport,
   resolveReferenceTransferAction,
   resolveReferenceTransferPolicy,
   type ReferenceTransferPolicy,
@@ -53,6 +54,7 @@ export function buildStoredStoryboardFrame(input: {
     spokenText,
     productName: input.productName,
     productVisible,
+    referenceSupportProps: referenceTransfer.requiredSupportProps,
   });
   const visualAction = productVisible
     ? repairedAction
@@ -63,8 +65,10 @@ export function buildStoredStoryboardFrame(input: {
     productVisible,
   });
   const productPlacement = productVisible
-    ? renderProductPlacement(productState, input.productPhysicalHint)
-    : "в кадре только тематические объекты и окружение текущей реплики";
+    ? renderProductPlacement(productState, input.productPhysicalHint, referenceTransfer)
+    : ["в кадре тематические объекты и окружение текущей реплики", renderRequiredReferenceSupport(referenceTransfer)]
+      .filter(Boolean)
+      .join("; ");
   const camera = renderReferenceCamera(input.frame.camera, input.referenceProfile);
   const environment = renderReferenceEnvironment(input.referenceProfile);
   const sfxNotes = sanitizeSpeechSfx(input.frame.sfx, spokenText);
@@ -137,9 +141,14 @@ function repairProductState(input: {
   return state;
 }
 
-function renderProductPlacement(productState: string, productPhysicalHint?: string | null) {
+function renderProductPlacement(
+  productState: string,
+  productPhysicalHint: string | null | undefined,
+  referenceTransfer: ReturnType<typeof buildReferenceTransferFramePlan>
+) {
   const hint = productPhysicalHint?.trim();
-  return hint ? `${productState}; ${hint}` : `${productState}; продукт физически виден по product reference`;
+  const support = renderRequiredReferenceSupport(referenceTransfer);
+  return [productState, hint || "продукт физически виден по product reference", support].filter(Boolean).join("; ");
 }
 
 function renderNonProductAction(action: string, productName: string) {

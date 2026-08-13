@@ -151,12 +151,23 @@ async function requestVisionJson(input: { apiKey: string; model: string; message
 function buildStoryboardSetVisionPrompt(storyboards: readonly { segmentIndex: number; storyboard: OmniStoryboardSegment }[]) {
   const canonical = storyboards[0];
   const wardrobe = canonical?.storyboard.frames[0]?.wardrobe || "the complete visible outfit in segment 1";
+  const visualContracts = storyboards.map((storyboard) => ({
+    segment_index: storyboard.segmentIndex,
+    panels: storyboard.storyboard.frames.map((frame, panelIndex) => ({
+      panel_index: panelIndex + 1,
+      required_support_props: frame.referenceTransfer?.requiredSupportProps || [],
+      required_action: frame.referenceTransfer?.requiredReferenceAction || null,
+      camera_composition: frame.referenceTransfer?.cameraComposition || null,
+    })),
+  }));
   return [
     "You are a strict cross-segment continuity QA for one vertical video.",
     `The images are contact sheets in order: ${storyboards.map((storyboard, index) => `image ${index + 1} is segment ${storyboard.segmentIndex}`).join("; ")}.`,
     "Segment 1 is the canonical visual identity. Compare every visible presenter panel in every later segment against it.",
     "Reject the set if a visible change occurs in garment type, sleeves, neckline, fabric, color, fit, accessories, hairstyle, hair parting, face identity, body type, room, lighting, or camera setup. Different hand gestures are allowed. A spoken subject change never permits an outfit change.",
     `Canonical wardrobe contract: ${wardrobe}.`,
+    "Also check the visual-mechanics contracts below. Required neutral support props are not competing products: retain them when listed. Reject a segment when its planned prop, action, or framing has been reduced to generic talking head. Use required_prop_missing, reference_action_missing, or reference_composition_lost with severity error.",
+    `Visual-mechanics contracts: ${JSON.stringify(visualContracts)}.`,
     "Return only JSON: { status: pass|repair|block, confidence: number, canonical_identity: string, violations: [{ segment_index: integer, panels: integer[], code: string, severity: error|warning, evidence: string }], repair_instructions: string[] }.",
     "For any outfit or identity mismatch, use severity error and list every affected segment and panel. If every segment matches, return pass with an empty violations array.",
   ].join("\n");

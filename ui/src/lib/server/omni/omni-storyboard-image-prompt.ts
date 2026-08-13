@@ -45,8 +45,8 @@ export function buildStoryboardImagePrompt(input: {
       : "Product reference не передан: продукт не показывай.",
     directorReferenceImageUrls.length
       ? canonicalFile
-        ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только локации, ракурса, света, движения камеры, PIP и монтажа. Лицо только из @file1; одежду не копируй, она задана эталоном @file${canonicalFile}; не копируй исходный товар, текст, логотипы или предметы вне действия панели.`
-        : `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только локации, ракурса, света, одежды, движения камеры, PIP и монтажа. Лицо только из @file1; не копируй исходный товар, текст, логотипы или предметы вне действия панели.`
+        ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник локации, ракурса, света, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо только из @file1; одежду не копируй, она задана эталоном @file${canonicalFile}; не копируй исходный рекламный товар, текст или логотипы.`
+        : `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник локации, ракурса, света, одежды, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо только из @file1; не копируй исходный рекламный товар, текст или логотипы.`
       : "",
     isPipLayout
       ? "REFERENCE LAYOUT: оригинал целиком в PIP/collage. В каждой панели полноэкранный динамичный фон и avatar cutout в нижнем левом углу с той же позицией, размером и белой обводкой; не делай centered talking-head."
@@ -66,7 +66,7 @@ export function buildStoryboardImagePrompt(input: {
         ].filter(Boolean).join("; ") + ". Same fabric, cut, and color in every panel — any deviation is a failure."
       : "",
     "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
-    "Смысл реплики определяет главный предмет и действие кадра. Сохраняй мир съемки: ракурс, свет, одежду, тряску, PIP и монтаж; жест адаптируй. Исходный рекламный товар всегда заменяй нашим или убирай; нейтральный реквизит только поддерживает реплику.",
+    "Смысл реплики определяет главный предмет и действие кадра. Сохраняй мир съемки: ракурс, геометрию кадра, свет, одежду, тряску, PIP и монтаж; жест адаптируй. Исходный рекламный товар всегда заменяй нашим или убирай. Обязательный нейтральный реквизит из плана панели сохраняй: он не является товаром и не конкурирует с продуктом клиента.",
     OMNI_PHYSICAL_ACTION_CONTRACT,
     "Не меняй одежду, цвет, ткань, крой, аксессуары или волосы между панелями.",
     productReferenceUrls.length
@@ -87,7 +87,7 @@ export function buildStoryboardImagePrompt(input: {
         `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)}; окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};`,
         frame.effectNotes ? `переход: ${compactText(frame.effectNotes)};` : "",
         frame.referenceTransfer
-          ? `перенос: исходный товар ${frame.referenceTransfer.decisions.sourceProduct}; нейтральный реквизит ${frame.referenceTransfer.decisions.sourceProps};`
+          ? `перенос: исходный товар ${frame.referenceTransfer.decisions.sourceProduct}; нейтральный реквизит ${frame.referenceTransfer.decisions.sourceProps}; композиция ${compactText(frame.referenceTransfer.cameraComposition || "сохраняй reference")}; обязательный реквизит ${(frame.referenceTransfer.requiredSupportProps || []).join("; ") || "нет"}; обязательное действие ${compactText(frame.referenceTransfer.requiredReferenceAction || "нет")};`
           : "",
         productReferenceUrls.length
           ? isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName)

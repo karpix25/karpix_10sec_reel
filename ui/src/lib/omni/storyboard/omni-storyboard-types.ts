@@ -15,10 +15,13 @@ export const FIVE_FRAMES_PER_TEN_SECONDS = 5;
 export const OMNI_STORYBOARD_SEGMENT_SECONDS = 10;
 
 export type OmniStoryboardReferenceTransfer = {
-  version: "reference-transfer-v2";
+  version: "reference-transfer-v2" | "reference-transfer-v3";
   productMentioned: boolean;
   productMeaningfulBeat: boolean;
   visualCue: string | null;
+  cameraComposition: string | null;
+  requiredSupportProps: readonly string[];
+  requiredReferenceAction: string | null;
   decisions: {
     layout: string;
     camera: string;

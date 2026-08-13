@@ -94,6 +94,7 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
       storyboard: input.storyboard,
       productName: input.productName,
       canonicalStoryboardReferenceUrl,
+      directorReferenceImageUrls,
     };
     let validation = await validateStoryboardImage(validationInput);
     if (isStoryboardVisionValidationInconclusive(validation)) {

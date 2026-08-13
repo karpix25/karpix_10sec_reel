@@ -9,7 +9,10 @@ import {
   repairReferenceAction,
 } from "./physical-scene-model";
 import { isOmniProductVisualBeat } from "./omni-intro-product-contract";
-import { synchronizeReferenceTransferProductVisibility } from "./omni-reference-transfer-policy";
+import {
+  renderRequiredReferenceSupport,
+  synchronizeReferenceTransferProductVisibility,
+} from "./omni-reference-transfer-policy";
 
 const HIDDEN_PRODUCT_PATTERN = /(?:вне кадра|не виден|скрыт|hidden|off\s*camera|только тематические объекты)/iu;
 const SURFACE_PATTERN = /(?:на столе|на поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
@@ -54,6 +57,7 @@ function normalizeFrame(frame: OmniStoryboardFrame, productName: string): OmniSt
     spokenText,
     productName: product,
     productVisible,
+    referenceSupportProps: frame.referenceTransfer?.requiredSupportProps,
   });
   const visualAction = productVisible
     ? initialAction
@@ -62,10 +66,14 @@ function normalizeFrame(frame: OmniStoryboardFrame, productName: string): OmniSt
         spokenText,
         productName: product,
         productVisible: false,
+        referenceSupportProps: frame.referenceTransfer?.requiredSupportProps,
       });
   const productPlacement = productVisible
-    ? renderSafeProductPlacement(product, frame.productPlacement)
-    : "в кадре только тематические объекты и окружение текущей реплики; продукт вне кадра";
+    ? renderSafeProductPlacement(product, frame.productPlacement, frame.referenceTransfer)
+    : [
+        "в кадре тематические объекты и окружение текущей реплики; продукт вне кадра",
+        renderRequiredReferenceSupport(frame.referenceTransfer),
+      ].filter(Boolean).join("; ");
   const sfxNotes = spokenText && !CUTAWAY_PATTERN.test(`${visualAction} ${frame.camera}`) && hasConsumptionAction(sourceText)
     ? "тихие естественные звуки комнаты и живой речи"
     : frame.sfxNotes;
@@ -105,13 +113,18 @@ function normalizeFrame(frame: OmniStoryboardFrame, productName: string): OmniSt
   };
 }
 
-function renderSafeProductPlacement(product: string, sourcePlacement: string) {
+function renderSafeProductPlacement(
+  product: string,
+  sourcePlacement: string,
+  referenceTransfer: OmniStoryboardFrame["referenceTransfer"]
+) {
+  const support = renderRequiredReferenceSupport(referenceTransfer);
   if (SURFACE_PATTERN.test(sourcePlacement) && !hasForeignReferenceProduct(sourcePlacement, product)) {
-    return `${product} стоит на одной поверхности; без других продуктов и упаковок`;
+    return `${product} стоит на одной поверхности; без других брендовых продуктов и упаковок; ${support}`;
   }
   if (hasForeignReferenceProduct(sourcePlacement, product) || hasMultipleHeldObjects(sourcePlacement)) {
-    return `${product} в одной руке, упаковка повернута лицевой стороной к камере; без других продуктов и упаковок`;
+    return `${product} в одной руке, упаковка повернута лицевой стороной к камере; без других брендовых продуктов и упаковок; ${support}`;
   }
-  if (HELD_PRODUCT_PATTERN.test(sourcePlacement)) return sourcePlacement.trim();
-  return `${product} в одной руке, упаковка повернута лицевой стороной к камере`;
+  if (HELD_PRODUCT_PATTERN.test(sourcePlacement)) return [sourcePlacement.trim(), support].filter(Boolean).join("; ");
+  return `${product} в одной руке, упаковка повернута лицевой стороной к камере; ${support}`;
 }

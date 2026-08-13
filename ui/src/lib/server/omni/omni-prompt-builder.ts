@@ -146,6 +146,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
   const referencePolicy = buildReferenceTransferPolicy({
     hasProductReference: Boolean(productReference),
+    directorBrief,
   });
   const layoutContract = buildDirectorLayoutContract(directorBrief, referencePolicy);
   const strategy = selectOmniCreativeStrategy({
@@ -272,6 +273,7 @@ function buildStoredProviderPromptSegments(
   const directorBrief = input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
   const referencePolicy = buildReferenceTransferPolicy({
     hasProductReference: Boolean(productReference),
+    directorBrief,
   });
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,

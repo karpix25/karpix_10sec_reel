@@ -1,7 +1,7 @@
 import type { DirectorBrief } from "./director-analysis-types";
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v5";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v6";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
@@ -18,7 +18,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
   return [
     "Analyze the attached video and transcript.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction.",
+    "visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -42,6 +42,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
     "- product_introduction.relative_position must be 'hook' if the product appears in the first 20% of the video, 'body' if it appears in the middle 60%, 'payoff' if it appears in the last 20%, or 'never' if no product is shown.",
     "- product_introduction.introduction_style must describe the exact physical action: 'already holding at start', 'placed on table at Xs', 'taken from bag at Xs', 'slides into frame at Xs', 'never shown'. Be specific and include the second.",
     "- product_introduction.naturality_notes must describe how organically the product appears: does the presenter pause to show it, or introduce it mid-sentence without breaking eye contact, etc.",
+    "- visual_transfer is the reusable visual contract. camera_composition must state the exact usable framing geometry, including where the hands, lap, table, or proof props remain visible. props must classify each visible item as source_product (replace with the client product), proof_prop (must remain because it proves the idea), or support_prop (must remain when it creates the scenario). Never classify neutral food, tools, containers, or a car interior as source_product just because they are visible. action_beats must name the visible action and its required prop. Use only unbranded descriptions.",
   ].join("\n");
 }
 
@@ -140,6 +141,11 @@ function buildDirectorBriefSkeleton() {
       relative_position: "hook|body|payoff|never",
       introduction_style: "already holding at start|placed on table at Xs|taken from bag at Xs|never shown",
       naturality_notes: "describe how organically the product appears without breaking the presenter flow",
+    },
+    visual_transfer: {
+      camera_composition: "exact framing geometry: side phone angle, lower frame keeps the lap and food containers visible",
+      props: [{ role: "proof_prop", description: "unbranded food container on the lap", visible_from_start: true }],
+      action_beats: [{ timestamp_sec: 0, action: "holds the food container while speaking", required_prop: "unbranded food container on the lap" }],
     },
   };
 }
