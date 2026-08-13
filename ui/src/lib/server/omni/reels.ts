@@ -33,7 +33,10 @@ import {
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
-import { repairOmniPromptPlanWithAi } from "./omni-physical-repair-pipeline";
+import {
+  normalizeOmniPromptPlanWithPhysicalRules,
+  repairOmniPromptPlanWithAi,
+} from "./omni-physical-repair-pipeline";
 import { assertStoryboardPromptContracts } from "./storyboard/storyboard-contract-validator";
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 
@@ -227,7 +230,7 @@ export async function createOmniReel(input: {
       }
     : null;
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
-  const promptPlan = await repairOmniPromptPlanWithAi({
+  const repairedPromptPlan = await repairOmniPromptPlanWithAi({
     promptPlan: buildOmniSegmentPrompts({
       generatedScript: resolvedGeneratedScript,
       legacyTranscript: sourceScenario?.script || null,
@@ -245,6 +248,13 @@ export async function createOmniReel(input: {
       recentFormatIds,
       wardrobeSource: project.wardrobe_source,
     }),
+    productName: product.name,
+    productPhysicalContract: product.product_physical_contract,
+    segmentCount,
+    directorBrief,
+  });
+  const promptPlan = normalizeOmniPromptPlanWithPhysicalRules({
+    promptPlan: repairedPromptPlan,
     productName: product.name,
     productPhysicalContract: product.product_physical_contract,
     segmentCount,

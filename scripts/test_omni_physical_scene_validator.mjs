@@ -30,6 +30,7 @@ try {
       join(ui, "src/lib/omni/**/*.ts"),
       join(ui, "src/lib/server/omni/physical-scene-validator.ts"),
       join(ui, "src/lib/server/omni/physical-storyboard-normalizer.ts"),
+      join(ui, "src/lib/server/omni/storyboard/storyboard-contract-validator.ts"),
       join(ui, "src/lib/server/omni/storyboard/omni-stored-storyboard-frame-repair.ts"),
       join(ui, "src/lib/server/omni/storyboard/omni-storyboard-speech.ts"),
     ],
@@ -38,6 +39,7 @@ try {
   const validator = require(findFile(compiled, "physical-scene-validator.js"));
   const physicalModel = require(findFile(compiled, "physical-scene-model.js"));
   const normalizer = require(findFile(compiled, "physical-storyboard-normalizer.js"));
+  const contractValidator = require(findFile(compiled, "storyboard-contract-validator.js"));
   const speech = require(findFile(compiled, "omni-storyboard-speech.js"));
   const storedFrameRepair = require(findFile(compiled, "omni-stored-storyboard-frame-repair.js"));
 
@@ -309,6 +311,17 @@ try {
   assert.equal(hiddenCtaTransfer.frames[0].referenceTransfer.productMentioned, true);
   assert.equal(hiddenCtaTransfer.frames[0].referenceTransfer.productMeaningfulBeat, false);
   assert.equal(hiddenCtaTransfer.frames[0].referenceTransfer.decisions.sourceProduct, "remove");
+  assert.equal(
+    contractValidator.validateStoryboardSegmentContract({
+      storyboard: hiddenCtaTransfer,
+      contract: {
+        productName: "Geodemika Enzyme Cleansing Foam",
+        productVisibility: "hidden",
+        fixedWardrobe: "одежда",
+      },
+    }).valid,
+    true
+  );
 
   const normalizedCheekAction = normalizer.normalizePhysicalStoryboardSegment({
     productName: "Коллаген",
