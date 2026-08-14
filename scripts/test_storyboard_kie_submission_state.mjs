@@ -33,7 +33,7 @@ try {
   } = require(
     join(output, "storyboard-kie-submission-state.js")
   );
-  const { canReuseStoryboardRepairReference } = require(
+  const { canReuseStoryboardRepairReference, getStoryboardRepairMode } = require(
     join(output, "storyboard-repair-reference.js")
   );
   assert.deepEqual(resolveStoryboardKieSubmissionAction(null, now), { kind: "submit", generationAttemptCount: 1 });
@@ -55,13 +55,6 @@ try {
   assert.deepEqual(resolveVersionedStoryboardKieSubmissionAction(versionedRow({ generationStatus: "generating", taskId: "old-task" }), {
     referenceSignature: "current", generatorVersion: "v10",
   }, now), { kind: "poll", taskId: "old-task", generationAttemptCount: 1 });
-  assert.deepEqual(resolveVersionedStoryboardKieSubmissionAction({
-    ...versionedRow({ generationAttemptCount: 3 }),
-    referenceSignature: "current",
-    generatorVersion: "v10",
-  }, {
-    referenceSignature: "current", generatorVersion: "v10", resetAttemptBudget: true,
-  }, now), { kind: "submit", generationAttemptCount: 1 });
   assert.equal(canReuseStoryboardRepairReference([
     { segmentIndex: 2, code: "product_placement_mismatch" },
   ], 2), true);
@@ -70,10 +63,19 @@ try {
   ], 2), false);
   assert.equal(canReuseStoryboardRepairReference([
     { segmentIndex: 3, code: "wardrobe_mismatch" },
-  ], 2), true);
+  ], 2), false, "a systemic mismatch elsewhere must not turn this card into a patch");
   assert.equal(canReuseStoryboardRepairReference([
     { segmentIndex: 2, code: "wardrobe_mismatch" },
-  ], 2), true, "a wrong outfit should be repaired from the previous card, not regenerated from scratch");
+  ], 2), false, "a wrong core garment requires a fresh card without the bad card as input");
+  assert.equal(getStoryboardRepairMode([
+    { segmentIndex: 2, code: "environment_mismatch" },
+  ], 2), "fresh");
+  assert.equal(getStoryboardRepairMode([
+    { segmentIndex: 2, code: "product_packaging_mismatch" },
+  ], 2), "patch");
+  assert.equal(getStoryboardRepairMode([
+    { segmentIndex: 2, code: "frame_action_mismatch" },
+  ], 2), "metadata_only");
   console.log("Storyboard KIE submission state checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });

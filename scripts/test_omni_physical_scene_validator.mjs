@@ -273,6 +273,17 @@ try {
   assert.match(physicalDemoSteps[0].action, /жестикулирует/iu);
   assert.match(physicalDemoSteps[1].action, /берет Коллаген.*поднимает/iu);
   assert.match(physicalDemoSteps[2].action, /держит Коллаген.*поворачивает/iu);
+  const fivePanelDemoSteps = [1, 2, 3, 4, 5].map((frameIndex) => physicalModel.buildPhysicalProductDemoStep({
+    productName: "Коллаген",
+    frameIndex,
+    frameCount: 5,
+  }));
+  assert.match(fivePanelDemoSteps[0].placement, /стоит на видимой поверхности/iu);
+  assert.match(fivePanelDemoSteps[1].action, /тянется к Коллаген/iu);
+  assert.match(fivePanelDemoSteps[2].action, /касается Коллаген/iu);
+  assert.match(fivePanelDemoSteps[2].placement, /не поднимает/iu);
+  assert.match(fivePanelDemoSteps[3].action, /берет Коллаген.*поднимает/iu);
+  assert.match(fivePanelDemoSteps[4].action, /держит Коллаген.*поворачивает/iu);
   const firstDemoPlan = physicalModel.buildPhysicalFramePlan({
     productName: "Коллаген",
     spokenText: "Рассказываю, почему это удобно",
@@ -464,7 +475,8 @@ try {
   });
   assert.equal(canonicalDemoValidation.valid, true, JSON.stringify(canonicalDemoValidation));
   assert.match(canonicalDemo.frames[0].visualAction, /не касаются упаковки/iu);
-  assert.match(canonicalDemo.frames[2].visualAction, /берет Коллаген.*поднимает/iu);
+  assert.match(canonicalDemo.frames[2].visualAction, /касается Коллаген/iu);
+  assert.match(canonicalDemo.frames[3].visualAction, /берет Коллаген.*поднимает/iu);
   assert.match(canonicalDemo.frames[4].visualAction, /держит Коллаген.*поворачивает/iu);
   assert.doesNotMatch(canonicalDemo.frames[0].visualAction, /держит Коллаген/iu);
 

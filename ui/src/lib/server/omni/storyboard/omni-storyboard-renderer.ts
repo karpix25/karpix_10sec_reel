@@ -44,13 +44,12 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
     "Фиксируй те же волосы, пробор, аксессуары.",
     "Канонический outfit задается первым кадром первой части: один и тот же полный комплект одежды во всех частях; не меняй цвет, ткань, крой или аксессуары.",
-    "WARDROBE AUTHORITY: первый outfit из раскадровки единственный; не бери одежду из avatar reference и не меняй outfit.",
     renderReferenceTransitionCue(input.directorBrief),
     renderStoryboardCameraLock(),
     renderVehicleCameraLock(input.directorBrief),
     "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
-      ? `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: неизменная упаковка в кадрах ${productFrameNumbers.join(", ")}; сначала на одной поверхности, затем взятие рукой, показ и возврат на нее. Без телепортаций.`
+      ? `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: неизменная упаковка в кадрах ${productFrameNumbers.join(", ")}; оживи утвержденную последовательность без телепортаций.`
       : "В этом сегменте продукт вне кадра; не переноси его из reference-кадра.",
     productAppearsInThisSegment
       ? "Состояние продукта держи одинаковым по утвержденной физической последовательности."

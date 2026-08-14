@@ -143,11 +143,19 @@ export interface OmniGeneratedScript {
   source_snapshot: Record<string, unknown> | null;
   product_snapshot: Record<string, unknown> | null;
   storyboard_set_validation?: StoryboardSetQualityRecord | null;
+  storyboard_set_repair_state?: OmniStoryboardSetRepairState | null;
   model: string | null;
   generation_cost_summary?: OmniGenerationCostSummary | null;
   automation_job?: OmniAutomationJobSummary | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface OmniStoryboardSetRepairState {
+  status: "repairing" | "awaiting_qa";
+  qaRound: number;
+  targetSegments: number[];
+  cursor: number;
 }
 
 export interface OmniAutomationJobSummary {

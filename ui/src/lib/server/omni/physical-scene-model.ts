@@ -190,7 +190,9 @@ export function buildPhysicalProductDemoStep(input: {
 }) {
   const product = input.productName.trim() || "продукт";
   const first = input.frameIndex === 1;
-  const pickupFrame = Math.max(2, Math.ceil(input.frameCount / 2));
+  const usesFiveStateSequence = input.frameCount >= 5;
+  const touchFrame = usesFiveStateSequence ? 3 : null;
+  const pickupFrame = usesFiveStateSequence ? 4 : Math.max(2, Math.ceil(input.frameCount / 2));
 
   if (first) {
     return {
@@ -199,6 +201,12 @@ export function buildPhysicalProductDemoStep(input: {
     };
   }
   if (input.frameIndex < pickupFrame) {
+    if (input.frameIndex === touchFrame) {
+      return {
+        action: `герой продолжает живо говорить в камеру; одной рукой касается ${product}, который остается на той же видимой поверхности`,
+        placement: `${product} остается на той же видимой поверхности, рука героя уже касается упаковки, но не поднимает ее`,
+      };
+    }
     return {
       action: `герой продолжает живо говорить в камеру, делает естественный жест и тянется к ${product}, который остается на той же видимой поверхности`,
       placement: `${product} остается на той же видимой поверхности, рука героя только приближается к упаковке`,

@@ -1,8 +1,9 @@
-import {
-  uploadOmniGeneratedScriptStoryboardImageBufferToS3,
-  uploadOmniImageBufferToS3,
-} from "./omni-video-storage";
+import { randomUUID } from "node:crypto";
 import { buildStoryboardImagePrompt } from "./omni-storyboard-image-prompt";
+import {
+  uploadStoryboardRepairCandidate,
+  uploadVersionedStoryboardImage,
+} from "./omni-storyboard-image-storage";
 import { createKieStoryboardImage, isKieStoryboardImagePendingError } from "./kie-omni-client";
 import { recordKieGenerationCost } from "./omni-generation-costs";
 import {
@@ -19,6 +20,7 @@ import {
   getStoryboardVisionRepairInstructions,
   isStoryboardVisionValidationInconclusive,
 } from "./storyboard-vision-contract";
+import { resolveStoryboardRepairMode } from "./storyboard-qa-contract";
 import {
   canAttemptStoryboardImageGeneration,
   normalizeStoryboardImageGenerationAttemptCount,
@@ -61,7 +63,7 @@ type StoryboardImageInput = {
   deferVisualQa?: boolean;
 };
 
-type GeneratedStoryboardImage = { body: Buffer; contentType: string };
+type GeneratedStoryboardImage = { body: Buffer; contentType: string; storageToken: string };
 
 export class StoryboardImageRepairExhaustedError extends Error {
   readonly generationAttemptCount: number;
@@ -142,7 +144,13 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     generationAttemptCount = attempt.generationAttemptCount;
     if (input.deferVisualQa) {
       if (!generated.body.length) throw new Error("Generated storyboard image is empty");
-      return uploadStoryboardImage({ ...input, body: generated.body, contentType: generated.contentType });
+      return uploadVersionedStoryboardImage({
+        ...input,
+        body: generated.body,
+        contentType: generated.contentType,
+        generationAttemptCount,
+        generationToken: generated.storageToken,
+      });
     }
     const validationInput = {
       imageUrl: toDataUrl(generated.body, generated.contentType),
@@ -164,7 +172,13 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     lastValidation = validation;
     if (validation.status === "pass") {
       try {
-        return await uploadStoryboardImage({ ...input, body: generated.body, contentType: generated.contentType });
+        return await uploadVersionedStoryboardImage({
+          ...input,
+          body: generated.body,
+          contentType: generated.contentType,
+          generationAttemptCount,
+          generationToken: generated.storageToken,
+        });
       } catch (error) {
         throw withStoryboardGenerationAttemptCount(error, generationAttemptCount);
       }
@@ -176,15 +190,21 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     if (!automaticRetryInstructions.length || !canAttemptStoryboardImageGeneration(generationAttemptCount)) {
       throw new StoryboardImageRepairExhaustedError({ validation: lastValidation, generationAttemptCount });
     }
-    try {
-      repairStoryboardReferenceUrl = await uploadStoryboardRepairCandidate({
-        ...input,
-        body: generated.body,
-        contentType: generated.contentType,
-        generationAttemptCount,
-      });
-    } catch (error) {
-      throw withStoryboardGenerationAttemptCount(error, generationAttemptCount);
+    const repairMode = resolveStoryboardRepairMode(validation.panels.flatMap((panel) => panel.violations));
+    if (repairMode === "patch") {
+      try {
+        repairStoryboardReferenceUrl = await uploadStoryboardRepairCandidate({
+          ...input,
+          body: generated.body,
+          contentType: generated.contentType,
+          generationAttemptCount,
+          generationToken: generated.storageToken,
+        });
+      } catch (error) {
+        throw withStoryboardGenerationAttemptCount(error, generationAttemptCount);
+      }
+    } else {
+      repairStoryboardReferenceUrl = null;
     }
     repairInstructions = uniqueStrings([
       ...referenceSafetyInstructions,
@@ -241,7 +261,7 @@ async function generateKieStoryboardImageBytes(input: {
   if (!response.ok) throw new Error(`KIE storyboard image download failed: ${response.status}`);
   const body = Buffer.from(await response.arrayBuffer());
   const contentType = normalizeImageContentType(response.headers.get("content-type")) || "image/jpeg";
-  return { body, contentType };
+  return { body, contentType, storageToken: generated.task.id };
 }
 
 async function generateCometStoryboardImageBytes(input: {
@@ -271,7 +291,7 @@ async function generateCometStoryboardImageBytes(input: {
   }
   const b64 = extractBase64Image(payload);
   if (!b64) throw new Error("CometAPI gpt-image-2 storyboard response did not include b64_json");
-  return { body: Buffer.from(b64, "base64"), contentType: "image/jpeg" };
+  return { body: Buffer.from(b64, "base64"), contentType: "image/jpeg", storageToken: randomUUID() };
 }
 
 async function createStoryboardImage(input: {
@@ -337,64 +357,6 @@ async function createStoryboardImage(input: {
   });
 }
 
-async function uploadStoryboardImage(input: {
-  projectId: number;
-  reelId?: number;
-  scriptId?: number;
-  segmentIndex: number;
-  body: Buffer;
-  contentType: string;
-}) {
-  const extension = input.contentType.split("/")[1] || "jpg";
-  const fileName = `storyboard_${String(input.segmentIndex).padStart(2, "0")}.${extension}`;
-  if (typeof input.reelId === "number") {
-    return uploadOmniImageBufferToS3({
-      projectId: input.projectId,
-      reelId: input.reelId,
-      segmentIndex: input.segmentIndex,
-      fileName,
-      body: input.body,
-      contentType: input.contentType,
-    });
-  }
-  if (typeof input.scriptId === "number") {
-    return uploadOmniGeneratedScriptStoryboardImageBufferToS3({
-      projectId: input.projectId,
-      scriptId: input.scriptId,
-      segmentIndex: input.segmentIndex,
-      fileName,
-      body: input.body,
-      contentType: input.contentType,
-    });
-  }
-  throw new Error("Storyboard image generation requires reelId or scriptId storage target");
-}
-
-async function uploadStoryboardRepairCandidate(input: StoryboardImageInput & GeneratedStoryboardImage & { generationAttemptCount: number }) {
-  const extension = input.contentType.split("/")[1] || "jpg";
-  const fileName = `repair_candidate_${String(input.segmentIndex).padStart(2, "0")}_${input.generationAttemptCount}.${extension}`;
-  if (typeof input.reelId === "number") {
-    return uploadOmniImageBufferToS3({
-      projectId: input.projectId,
-      reelId: input.reelId,
-      segmentIndex: input.segmentIndex,
-      fileName,
-      body: input.body,
-      contentType: input.contentType,
-    });
-  }
-  if (typeof input.scriptId === "number") {
-    return uploadOmniGeneratedScriptStoryboardImageBufferToS3({
-      projectId: input.projectId,
-      scriptId: input.scriptId,
-      segmentIndex: input.segmentIndex,
-      fileName,
-      body: input.body,
-      contentType: input.contentType,
-    });
-  }
-  throw new Error("Storyboard repair requires reelId or scriptId storage target");
-}
 function toDataUrl(body: Buffer, contentType: string) {
   return `data:${contentType};base64,${body.toString("base64")}`;
 }

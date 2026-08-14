@@ -18,15 +18,18 @@ import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import type { DirectorBrief } from "./director-analysis-types";
 import { buildStoryboardPlanSignature } from "./storyboard-cache-signature";
 import {
-  getGeneratedScriptStoryboardSetQuality,
-  isCurrentStoryboardSetApproval,
   StoryboardSetQualityError,
-  validateAndSaveGeneratedScriptStoryboardSet,
 } from "./generated-script-storyboard-set-qa";
 import {
-  getStoryboardSetRepairSegments,
-  STORYBOARD_SET_QA_POLICY_VERSION,
-} from "./storyboard-set-vision-validator";
+  ensureGeneratedScriptStoryboardSetApproval,
+  getStoryboardSetRepairState,
+} from "./generated-script-storyboard-set-repair";
+import {
+  advanceStoryboardSetRepairState,
+  getStoryboardSetRepairSnapshotUrls,
+  normalizeStoryboardSetRepairState,
+  type StoryboardSetRepairProgress,
+} from "./storyboard-set-repair-state";
 import {
   getGeneratedScriptStoryboardRepairContext,
   reserveGeneratedScriptStoryboardKieSubmission,
@@ -37,7 +40,7 @@ import {
   StoryboardKieSubmissionInProgressError,
   StoryboardKieSubmissionStalledError,
 } from "./storyboard-kie-submission-state";
-import { canReuseStoryboardRepairReference } from "./storyboard-repair-reference";
+import { getStoryboardRepairMode } from "./storyboard-repair-reference";
 
 type StoryboardPromptSegment = {
   index: number;
@@ -59,9 +62,8 @@ type EnsureGeneratedScriptStoryboardUrlsInput = {
   generationProvider?: OmniGenerationProvider;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-physical-product-v17";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-physical-product-v18";
 const MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES = 2;
-const MAX_STORYBOARD_SET_REPAIR_ATTEMPTS = 2;
 
 export async function ensureGeneratedScriptStoryboardUrls(input: EnsureGeneratedScriptStoryboardUrlsInput) {
   await ensureOmniSchema();
@@ -73,6 +75,10 @@ export async function ensureGeneratedScriptStoryboardUrls(input: EnsureGenerated
 async function ensureGeneratedScriptStoryboardUrlsLocked(input: EnsureGeneratedScriptStoryboardUrlsInput) {
   const referenceSignature = buildReferenceSignature(input);
   const urls = await getStoredGeneratedScriptStoryboardUrls({ ...input, referenceSignature });
+  const repairState = await getStoryboardSetRepairState(input.scriptId);
+  for (const [segmentIndex, url] of getStoryboardSetRepairSnapshotUrls(repairState, referenceSignature)) {
+    if (!urls.has(segmentIndex)) urls.set(segmentIndex, url);
+  }
   const deferVisualQa = input.promptPlan.filter((segment) => Boolean(segment.storyboardPlan)).length > 1;
   let canonicalStoryboardReferenceUrl: string | null = null;
 
@@ -109,7 +115,7 @@ async function ensureGeneratedScriptStoryboardUrlsLocked(input: EnsureGeneratedS
     throw new Error(`Storyboard ${segment.index} did not pass outfit validation`);
   }
 
-  await ensureStoryboardSetApproval(input, urls, referenceSignature);
+  await ensureStoryboardSetApproval(input, urls, referenceSignature, deferVisualQa);
   return urls;
 }
 
@@ -189,7 +195,7 @@ async function tryGenerateStoryboardPreview(input: {
   previousStoryboardReferenceUrl?: string | null;
   previousRepairInstructions?: readonly string[];
   previousGenerationAttemptCount?: number;
-  resetAttemptBudget?: boolean;
+  repairStateProgress?: StoryboardSetRepairProgress;
 }) {
   const kieSubmission = input.generationProvider === "kie-ai"
     ? await reserveGeneratedScriptStoryboardKieSubmission({
@@ -200,7 +206,6 @@ async function tryGenerateStoryboardPreview(input: {
       storyboardPlan: input.storyboardPlan,
       referenceSignature: input.referenceSignature,
       generatorVersion: STORYBOARD_PREVIEW_GENERATOR_VERSION,
-      resetAttemptBudget: input.resetAttemptBudget,
     })
     : null;
   if (kieSubmission?.kind === "wait") throw new StoryboardKieSubmissionInProgressError();
@@ -285,73 +290,45 @@ async function tryGenerateStoryboardPreview(input: {
   }
 }
 
-async function ensureStoryboardSetApproval(input: {
-  projectId: number;
-  productId: number;
-  scriptId: number;
-  productName: string;
-  productPhysicalContract?: string | null;
-  avatarReferenceUrl: string | null;
-  productReferenceUrls: readonly string[];
-  directorReferenceImageUrls?: readonly string[];
-  directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
-  directorBrief?: DirectorBrief | null;
-  promptPlan: readonly StoryboardPromptSegment[];
-  generationProvider?: OmniGenerationProvider;
-}, urls: Map<number, string>, referenceSignature: string) {
-  const storyboards = getStoryboardSetEntries(input.promptPlan, urls);
-  const plannedStoryboardCount = input.promptPlan.filter((segment) => Boolean(segment.storyboardPlan)).length;
-  const deferVisualQa = plannedStoryboardCount > 1;
-  if (storyboards.length !== plannedStoryboardCount) {
-    throw new Error("All storyboard images must exist before cross-storyboard QA");
-  }
-  const storedQuality = await getGeneratedScriptStoryboardSetQuality(input.scriptId);
-  const resetAttemptBudgetForQaPolicy = Boolean(
-    storedQuality && storedQuality.policyVersion !== STORYBOARD_SET_QA_POLICY_VERSION
-  );
-  if (isCurrentStoryboardSetApproval(storedQuality, storyboards)) return;
-
-  for (let attempt = 0; attempt <= MAX_STORYBOARD_SET_REPAIR_ATTEMPTS; attempt += 1) {
-    const validation = await validateAndSaveGeneratedScriptStoryboardSet({
-      scriptId: input.scriptId,
-      storyboards,
-      attemptCount: attempt + 1,
-      avatarReferenceUrl: input.avatarReferenceUrl,
-      productName: input.productName,
-      productReferenceUrls: input.productReferenceUrls,
-    });
-    if (validation.status === "pass") return;
-    if (attempt === MAX_STORYBOARD_SET_REPAIR_ATTEMPTS) throw new StoryboardSetQualityError(validation);
-
-    const repairSegments = getStoryboardSetRepairSegments(validation);
-    const allSegments = storyboards.map((storyboard) => storyboard.segmentIndex);
-    const targets = repairSegments.length
-      ? repairSegments.includes(1) ? allSegments : repairSegments
-      : allSegments;
-    for (const segmentIndex of targets) {
+async function ensureStoryboardSetApproval(
+  input: EnsureGeneratedScriptStoryboardUrlsInput,
+  urls: Map<number, string>,
+  referenceSignature: string,
+  deferVisualQa: boolean
+) {
+  await ensureGeneratedScriptStoryboardSetApproval({
+    scriptId: input.scriptId,
+    referenceSignature,
+    promptPlan: input.promptPlan,
+    urls,
+    avatarReferenceUrl: input.avatarReferenceUrl,
+    productName: input.productName,
+    productReferenceUrls: input.productReferenceUrls,
+    regenerateTarget: async ({ segmentIndex, validation, repairProgress }) => {
       const storyboardPlan = input.promptPlan.find((segment) => segment.index === segmentIndex)?.storyboardPlan;
-      if (!storyboardPlan) continue;
+      if (!storyboardPlan) throw new Error(`Storyboard ${segmentIndex} is missing from the repair plan`);
       const canonicalStoryboardReferenceUrl = segmentIndex === 1 ? null : urls.get(1) || null;
-      if (segmentIndex > 1 && !canonicalStoryboardReferenceUrl) throw new Error("Storyboard 1 must remain available for cross-storyboard repair");
-      const repairContext = await getGeneratedScriptStoryboardRepairContext({
-        scriptId: input.scriptId,
-        segmentIndex,
-      });
-      const reusePreviousStoryboard = canReuseStoryboardRepairReference(validation.violations, segmentIndex);
-      let regeneratedUrl: string | null;
+      if (segmentIndex > 1 && !canonicalStoryboardReferenceUrl) {
+        throw new Error("Storyboard 1 must remain available for cross-storyboard repair");
+      }
+      const repairContext = await getGeneratedScriptStoryboardRepairContext({ scriptId: input.scriptId, segmentIndex });
+      const repairMode = getStoryboardRepairMode(validation.violations, segmentIndex);
+      if (repairMode === "metadata_only") {
+        throw new Error(`Storyboard ${segmentIndex} has no visual repair target`);
+      }
       try {
-        regeneratedUrl = await tryGenerateStoryboardPreview({
+        return await tryGenerateStoryboardPreview({
           ...input,
           referenceSignature,
           segmentIndex,
           storyboardPlan,
           canonicalStoryboardReferenceUrl,
-          previousStoryboardReferenceUrl: reusePreviousStoryboard
+          previousStoryboardReferenceUrl: repairMode === "patch"
             ? urls.get(segmentIndex) || repairContext.previousStoryboardReferenceUrl
             : null,
-          previousRepairInstructions: repairContext.previousRepairInstructions,
+          previousRepairInstructions: repairMode === "patch" ? repairContext.previousRepairInstructions : [],
           previousGenerationAttemptCount: repairContext.previousGenerationAttemptCount,
-          resetAttemptBudget: resetAttemptBudgetForQaPolicy && attempt === 0,
+          repairStateProgress: repairProgress,
           deferVisualQa,
           referenceSafetyInstructions: buildSetRepairInstructions(validation.repairInstructions, validation.violations, segmentIndex),
         });
@@ -359,19 +336,7 @@ async function ensureStoryboardSetApproval(input: {
         if (error instanceof StoryboardImageRepairExhaustedError) throw new StoryboardSetQualityError(validation);
         throw error;
       }
-      if (!regeneratedUrl) throw new Error(`Storyboard ${segmentIndex} could not be regenerated for cross-storyboard QA`);
-      urls.set(segmentIndex, regeneratedUrl);
-    }
-    storyboards.splice(0, storyboards.length, ...getStoryboardSetEntries(input.promptPlan, urls));
-  }
-}
-
-function getStoryboardSetEntries(promptPlan: readonly StoryboardPromptSegment[], urls: ReadonlyMap<number, string>) {
-  return promptPlan.flatMap((segment) => {
-    const imageUrl = urls.get(segment.index);
-    return segment.storyboardPlan && imageUrl
-      ? [{ segmentIndex: segment.index, imageUrl, storyboard: segment.storyboardPlan }]
-      : [];
+    },
   });
 }
 
@@ -383,8 +348,11 @@ function buildSetRepairInstructions(
   const targeted = violations
     .filter((violation) => violation.segmentIndex === segmentIndex)
     .map((violation) => `${violation.code}: ${violation.evidence}`);
+  const repairMode = getStoryboardRepairMode(violations, segmentIndex);
   return [
-    "Copy the canonical outfit and hair from the first approved storyboard exactly; do not change sleeves, neckline, fabric, color, accessories, or hairstyle.",
+    repairMode === "fresh"
+      ? "Create a fresh storyboard from the avatar, canonical frame, product references, and reference frames. Do not use the previous failed storyboard as a source."
+      : "Patch only the visibly incorrect package or prop in the previous storyboard. Preserve the approved person, core garment, setting, and every unaffected panel.",
     ...instructions,
     ...targeted,
   ];
@@ -398,9 +366,13 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
   storyboardPlan: OmniStoryboardSegment | null;
   referenceSignature: string;
   url: string;
+  repairStateProgress?: StoryboardSetRepairProgress;
 }) {
-  await pool.query(
-    `INSERT INTO omni_generated_script_storyboards (
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO omni_generated_script_storyboards (
        project_id,
        product_id,
        generated_script_id,
@@ -435,17 +407,43 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
        last_attempt_at = CURRENT_TIMESTAMP,
        retry_after = NULL,
        updated_at = CURRENT_TIMESTAMP`,
-    [
-      input.projectId,
-      input.productId,
-      input.scriptId,
-      input.segmentIndex,
-      input.storyboardPlan ? JSON.stringify(input.storyboardPlan) : null,
-      input.url,
-      input.referenceSignature,
-      STORYBOARD_PREVIEW_GENERATOR_VERSION,
-    ]
-  );
+      [
+        input.projectId,
+        input.productId,
+        input.scriptId,
+        input.segmentIndex,
+        input.storyboardPlan ? JSON.stringify(input.storyboardPlan) : null,
+        input.url,
+        input.referenceSignature,
+        STORYBOARD_PREVIEW_GENERATOR_VERSION,
+      ]
+    );
+    if (input.repairStateProgress) {
+      const { rows } = await client.query<{ storyboard_set_repair_state: unknown }>(
+        `SELECT storyboard_set_repair_state
+         FROM omni_generated_scripts
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.scriptId]
+      );
+      const state = normalizeStoryboardSetRepairState(rows[0]?.storyboard_set_repair_state);
+      const advanced = state && advanceStoryboardSetRepairState(state, input.repairStateProgress);
+      if (!advanced) throw new Error("Storyboard set repair state was missing while saving a completed card");
+      await client.query(
+        `UPDATE omni_generated_scripts
+         SET storyboard_set_repair_state = $2::jsonb,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [input.scriptId, JSON.stringify(advanced)]
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 function buildReferenceSignature(input: {

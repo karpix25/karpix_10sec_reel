@@ -4,6 +4,11 @@ import type {
   StoryboardVisionValidation,
   StoryboardVisionViolation,
 } from "../../omni/storyboard/omni-storyboard-vision-types";
+import {
+  isBlockingStoryboardQaViolation,
+  isStoryboardQaMetadataOnly,
+  normalizeStoryboardQaViolation,
+} from "./storyboard-qa-contract";
 
 export const STORYBOARD_VISION_MIN_CONFIDENCE = 0.65;
 
@@ -14,24 +19,21 @@ export function normalizeStoryboardVisionValidation(value: unknown, model?: stri
   const repairInstructionSource = Array.isArray(source.repair_instructions)
     ? source.repair_instructions
     : typeof source.repair_instructions === "string" ? [source.repair_instructions] : [];
-  const repairInstructions = repairInstructionSource
+  const hasBlockingViolation = panels.some((panel) => panel.violations.some(isBlockingStoryboardQaViolation));
+  const repairInstructions = hasBlockingViolation ? repairInstructionSource
     .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
-    .map((item) => item.trim());
-  const hasBlockingPanel = panels.some((panel) => panel.status === "block");
-  const hasRepairPanel = panels.some((panel) => panel.status === "repair" && panel.violations.some((violation) => violation.severity === "error"));
-  const hasRepair = hasRepairPanel || repairInstructions.length > 0;
-  const status: StoryboardVisionStatus = confidence < STORYBOARD_VISION_MIN_CONFIDENCE || hasBlockingPanel
+    .map((item) => item.trim()) : [];
+  const hasBlockingPanel = panels.some((panel) => panel.status === "block" && panel.violations.some(isBlockingStoryboardQaViolation));
+  const status: StoryboardVisionStatus = hasBlockingPanel
     ? "block"
-    : hasRepair
-      ? "repair"
-      : panels.length > 0 ? "pass" : "block";
+    : hasBlockingViolation ? "repair" : "pass";
   return { schemaVersion: "storyboard_vision_v1", status, confidence, panels, repairInstructions, model };
 }
 
 export function isStoryboardVisionValidationInconclusive(validation: StoryboardVisionValidation) {
-  return validation.status === "block"
-    && !validation.repairInstructions.length
-    && !validation.panels.some((panel) => panel.violations.some(isActionableViolation));
+  return validation.status === "block" &&
+    !validation.repairInstructions.length &&
+    !validation.panels.some((panel) => panel.violations.some(isBlockingStoryboardQaViolation));
 }
 
 export function getStoryboardVisionRepairInstructions(validation: StoryboardVisionValidation) {
@@ -39,7 +41,7 @@ export function getStoryboardVisionRepairInstructions(validation: StoryboardVisi
     ...validation.repairInstructions,
     ...validation.panels.flatMap((panel) =>
       panel.violations
-        .filter(isActionableViolation)
+        .filter(isBlockingStoryboardQaViolation)
         .map((violation) => `Panel ${panel.panelIndex}: ${violation.code} — ${violation.evidence}`)
     ),
   ];
@@ -51,10 +53,19 @@ function normalizePanel(value: unknown): StoryboardVisionPanel | null {
   const source = value as Record<string, unknown>;
   const panelIndex = Number(source.panel_index ?? source.panelIndex);
   if (!Number.isInteger(panelIndex) || panelIndex < 1) return null;
-  const violations = Array.isArray(source.violations)
-    ? source.violations.map(normalizeViolation).filter(Boolean) as StoryboardVisionViolation[]
+  const normalizedViolations = Array.isArray(source.violations)
+    ? source.violations.map(normalizeViolation).filter(isStoryboardVisionViolation)
     : [];
-  return { panelIndex, status: normalizeStatus(source.status) || (violations.length ? "repair" : "pass"), violations };
+  const violations = normalizedViolations
+    .filter((violation) => !isStoryboardQaMetadataOnly(violation))
+    .map(normalizeStoryboardQaViolation);
+  return {
+    panelIndex,
+    status: violations.some(isBlockingStoryboardQaViolation)
+      ? normalizeStatus(source.status) || "repair"
+      : "pass",
+    violations,
+  };
 }
 
 function normalizeViolation(value: unknown): StoryboardVisionViolation | null {
@@ -67,6 +78,10 @@ function normalizeViolation(value: unknown): StoryboardVisionViolation | null {
   };
 }
 
+function isStoryboardVisionViolation(value: StoryboardVisionViolation | null): value is StoryboardVisionViolation {
+  return Boolean(value);
+}
+
 function normalizeStatus(value: unknown): StoryboardVisionStatus | null {
   return value === "pass" || value === "repair" || value === "block" ? value : null;
 }
@@ -77,8 +92,4 @@ function clampNumber(value: unknown, fallback: number) {
     : typeof value === "string" && value.trim() ? Number(value) : fallback;
   if (!Number.isFinite(number)) return fallback;
   return Math.min(1, Math.max(0, number));
-}
-
-function isActionableViolation(violation: StoryboardVisionViolation) {
-  return violation.code !== "UNKNOWN_PHYSICAL_VIOLATION" && violation.evidence !== "No evidence provided";
 }

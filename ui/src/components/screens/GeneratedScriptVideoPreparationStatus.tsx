@@ -1,19 +1,33 @@
-import type { OmniAutomationJobSummary, OmniReel } from "@/lib/omni/types";
+import type { OmniAutomationJobSummary, OmniReel, OmniStoryboardSetRepairState } from "@/lib/omni/types";
 import type { PendingVideoStage } from "./GenerationPendingCards";
 
 export type VideoFilter = "all" | "none" | "active" | "completed" | "failed";
 
-export function VideoPreparationError() {
+export function VideoPreparationError({ errorMessage }: { errorMessage?: string | null }) {
   return (
     <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5 text-sm text-foreground">
-      Не удалось подготовить раскадровку. Видео в KIE.ai не отправлялось.
+      <p>Не удалось подготовить раскадровку. Видео в KIE.ai не отправлялось.</p>
+      {errorMessage ? <p className="mt-2 text-xs text-muted-foreground">{errorMessage}</p> : null}
     </div>
   );
 }
 
-export function getAutomationVideoStageLabel(job: OmniAutomationJobSummary | null) {
+export function getStoryboardRepairStatus(state: OmniStoryboardSetRepairState | null | undefined) {
+  if (!state) return null;
+  if (state.status === "awaiting_qa") return "Пакетный QA раскадровок";
+  const segmentIndex = state.targetSegments[state.cursor];
+  if (!Number.isInteger(segmentIndex)) return "Исправляю раскадровки";
+  return `Исправляю раскадровку: сегмент ${state.cursor + 1} из ${state.targetSegments.length} (№${segmentIndex}), раунд ${state.qaRound}`;
+}
+
+export function getAutomationVideoStageLabel(
+  job: OmniAutomationJobSummary | null,
+  repairState?: OmniStoryboardSetRepairState | null
+) {
   if (!job) return "Видео ещё не создавалось";
   if (job.status === "failed") return "Ошибка подготовки раскадровки";
+  const repairStatus = getStoryboardRepairStatus(repairState);
+  if (repairStatus) return repairStatus;
   if (isStoryboardJsonRecovery(job)) return "Исправляю раскадровку";
   if (job.current_stage === "submit") return "Отправляю сегменты в KIE.ai";
   if (job.current_stage === "sync") return "Собираю видео";
