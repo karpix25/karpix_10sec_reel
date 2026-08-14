@@ -26,7 +26,7 @@ export type ReferenceTransferDecisions = {
 };
 
 export type ReferenceTransferPolicy = {
-  version: "reference-transfer-v2" | "reference-transfer-v3" | "reference-transfer-v4" | "reference-transfer-v5";
+  version: "reference-transfer-v2" | "reference-transfer-v3" | "reference-transfer-v4" | "reference-transfer-v5" | "reference-transfer-v6";
   mode: ReferenceTransferMode;
   omitRawDirectorGuidance: boolean;
   decisions: ReferenceTransferDecisions;
@@ -45,7 +45,7 @@ export type ReferenceVisualTransferContract = {
 };
 
 export type ReferenceTransferFramePlan = {
-  version: "reference-transfer-v2" | "reference-transfer-v3" | "reference-transfer-v4" | "reference-transfer-v5";
+  version: "reference-transfer-v2" | "reference-transfer-v3" | "reference-transfer-v4" | "reference-transfer-v5" | "reference-transfer-v6";
   productMentioned: boolean;
   productMeaningfulBeat: boolean;
   visualCue: string | null;
@@ -56,7 +56,7 @@ export type ReferenceTransferFramePlan = {
 };
 
 export const DEFAULT_REFERENCE_TRANSFER_POLICY: ReferenceTransferPolicy = {
-  version: "reference-transfer-v5",
+  version: "reference-transfer-v6",
   mode: "full_reference",
   omitRawDirectorGuidance: false,
   decisions: {
@@ -175,9 +175,10 @@ export function resolveReferenceTransferAction(input: {
   const referenceAction = safeReferenceAction(input.referenceAction);
   const visualCue = safeReferenceAction(input.framePlan.visualCue || "");
   const requiredReferenceAction = safeReferenceAction(input.framePlan.requiredReferenceAction || "");
-  const primaryAction = input.framePlan.productMeaningfulBeat
-    ? visualCue || requiredReferenceAction || referenceAction || fallbackAction
-    : visualCue || requiredReferenceAction || referenceAction || fallbackAction;
+  // The storyboard beat is the only hard action for this frame. Reference
+  // movement is useful direction, but must never override a planned pickup,
+  // gesture, or cutaway and create an impossible QA contract.
+  const primaryAction = visualCue || fallbackAction || requiredReferenceAction || referenceAction;
   const contextLine = referenceAction
     ? "сохраняет позу, ритм жеста и бытовой контекст reference, но действие подчинено текущей реплике"
     : "действие подчинено текущей реплике и сохраняет общий ритм reference";

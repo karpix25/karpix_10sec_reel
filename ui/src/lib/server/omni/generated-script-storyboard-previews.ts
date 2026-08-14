@@ -59,7 +59,7 @@ type EnsureGeneratedScriptStoryboardUrlsInput = {
   generationProvider?: OmniGenerationProvider;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-physical-product-v16";
+const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-physical-product-v17";
 const MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES = 2;
 const MAX_STORYBOARD_SET_REPAIR_ATTEMPTS = 2;
 

@@ -290,6 +290,15 @@ try {
     }),
     /исходный рекламный предмет заменен нашим продуктом/iu
   );
+  assert.match(
+    resolveReferenceTransferAction({
+      framePlan: { ...collagenBeat, visualCue: null, requiredReferenceAction: "держит руки на поясе" },
+      referenceAction: "держит руки на поясе",
+      fallbackAction: "берет банку со стола и поднимает к камере",
+    }),
+    /берет банку со стола/iu,
+    "the planned frame action must take priority over a literal reference gesture"
+  );
   const unsafeActionBeat = buildReferenceTransferFramePlan({
     policy: buildReferenceTransferPolicy({
       hasProductReference: true,

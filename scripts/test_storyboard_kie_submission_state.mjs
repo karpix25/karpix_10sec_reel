@@ -71,6 +71,9 @@ try {
   assert.equal(canReuseStoryboardRepairReference([
     { segmentIndex: 3, code: "wardrobe_mismatch" },
   ], 2), true);
+  assert.equal(canReuseStoryboardRepairReference([
+    { segmentIndex: 2, code: "wardrobe_mismatch" },
+  ], 2), true, "a wrong outfit should be repaired from the previous card, not regenerated from scratch");
   console.log("Storyboard KIE submission state checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
