@@ -26,7 +26,7 @@ export type ReferenceTransferDecisions = {
 };
 
 export type ReferenceTransferPolicy = {
-  version: "reference-transfer-v2" | "reference-transfer-v3" | "reference-transfer-v4";
+  version: "reference-transfer-v2" | "reference-transfer-v3" | "reference-transfer-v4" | "reference-transfer-v5";
   mode: ReferenceTransferMode;
   omitRawDirectorGuidance: boolean;
   decisions: ReferenceTransferDecisions;
@@ -45,7 +45,7 @@ export type ReferenceVisualTransferContract = {
 };
 
 export type ReferenceTransferFramePlan = {
-  version: "reference-transfer-v2" | "reference-transfer-v3" | "reference-transfer-v4";
+  version: "reference-transfer-v2" | "reference-transfer-v3" | "reference-transfer-v4" | "reference-transfer-v5";
   productMentioned: boolean;
   productMeaningfulBeat: boolean;
   visualCue: string | null;
@@ -56,7 +56,7 @@ export type ReferenceTransferFramePlan = {
 };
 
 export const DEFAULT_REFERENCE_TRANSFER_POLICY: ReferenceTransferPolicy = {
-  version: "reference-transfer-v4",
+  version: "reference-transfer-v5",
   mode: "full_reference",
   omitRawDirectorGuidance: false,
   decisions: {
@@ -223,7 +223,7 @@ function buildReferenceVisualTransferContract(brief?: DirectorBrief | null): Ref
     source.props
       .filter((prop) => (prop.role === "proof_prop" || prop.role === "support_prop") && prop.visible_from_start)
       .map((prop) => prop.description)
-      .filter((prop) => !referencesSourceProduct(prop, sourceProductProps))
+      .filter((prop) => !referencesSourceProduct(prop, sourceProductProps) && !isWearableReferenceProp(prop))
   );
   return {
     cameraComposition: compactText(source.camera_composition || "") || null,
@@ -238,7 +238,9 @@ function buildReferenceVisualTransferContract(brief?: DirectorBrief | null): Ref
         return {
           timestampSeconds: Math.max(0, Number(beat.timestamp_sec) || 0),
           action: compactText(beat.action),
-          requiredProp: sourceProductAction ? null : compactText(beat.required_prop || "") || null,
+          requiredProp: sourceProductAction || isWearableReferenceProp(beat.required_prop || "")
+            ? null
+            : compactText(beat.required_prop || "") || null,
           sourceProductAction,
         };
       })
@@ -267,6 +269,10 @@ function productPackageMarkers(value: string) {
   if (/(?:\bsachet\p{L}*\b|\bсаше\p{L}*)/u.test(text)) markers.add("sachet");
   if (/(?:\bpouch\p{L}*\b|\bпакет\p{L}*)/u.test(text)) markers.add("pouch");
   return markers;
+}
+
+function isWearableReferenceProp(value: string) {
+  return /(?:\b(?:chef(?:'s)?\s+coat|coat|jacket|blazer|shirt|t-?shirt|top|dress|jeans|trousers?|pants|skirt|shorts|uniform|apron|watch|ring|earrings?|necklace|glasses|hat|cap|shoes?)\b|поварск\p{L}*\s+(?:куртк\p{L}*|кител\p{L}*|рубашк\p{L}*)|одежд\p{L}*|рубашк\p{L}*|футболк\p{L}*|блуз\p{L}*|свитер\p{L}*|кофт\p{L}*|пиджак\p{L}*|жакет\p{L}*|куртк\p{L}*|пальт\p{L}*|плать\p{L}*|джинс\p{L}*|брюк\p{L}*|штан\p{L}*|юбк\p{L}*|фартук\p{L}*|униформ\p{L}*|кител\p{L}*|рукав\p{L}*|воротник\p{L}*|вырез\p{L}*|час\p{L}*|кольц\p{L}*|серьг\p{L}*|ожерел\p{L}*|цепочк\p{L}*|очки|шляп\p{L}*|кепк\p{L}*|обув\p{L}*)/iu.test(value);
 }
 
 function hasSharedMarker(left: ReadonlySet<string>, right: ReadonlySet<string>) {
