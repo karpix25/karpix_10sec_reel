@@ -35,7 +35,6 @@ export function isStoryboardSetVisionJsonFormatError(error: unknown): error is S
 
 export async function validateStoryboardSet(input: {
   storyboards: readonly { segmentIndex: number; imageUrl: string; storyboard: OmniStoryboardSegment }[];
-  avatarReferenceUrl?: string | null;
   productName?: string;
   productReferenceUrls?: readonly string[];
   model?: string | null;
@@ -56,16 +55,12 @@ export async function validateStoryboardSet(input: {
           type: "text",
           text: buildStoryboardSetVisionPrompt({
             storyboards: input.storyboards,
-            hasAvatarReference: Boolean(input.avatarReferenceUrl?.trim()),
             productName: input.productName,
             productReferenceCount: productReferenceUrls.length,
           }),
         },
         ...input.storyboards.map((storyboard) => ({ type: "image_url" as const, image_url: { url: storyboard.imageUrl } })),
         ...productReferenceUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
-        ...(input.avatarReferenceUrl?.trim()
-          ? [{ type: "image_url" as const, image_url: { url: input.avatarReferenceUrl.trim() } }]
-          : []),
       ],
     }],
   });
@@ -79,7 +74,8 @@ export function normalizeStoryboardSetVisionValidation(value: unknown, model?: s
     ? source.violations.map(normalizeViolation).filter(Boolean) as StoryboardSetVisionViolation[]
     : [])
     .filter((violation) => !isStoryboardQaMetadataOnly(violation))
-    .map(normalizeStoryboardQaViolation);
+    .map(normalizeStoryboardQaViolation)
+    .map(downgradeAvatarWardrobeEvidence);
   const hasError = violations.some(isBlockingStoryboardQaViolation);
   const repairInstructions = hasError ? normalizeStrings(source.repair_instructions) : [];
   const confidence = clampConfidence(source.confidence);
@@ -175,7 +171,6 @@ async function requestVisionJson(input: { apiKey: string; model: string; message
 
 function buildStoryboardSetVisionPrompt(input: {
   storyboards: readonly { segmentIndex: number; storyboard: OmniStoryboardSegment }[];
-  hasAvatarReference: boolean;
   productName?: string;
   productReferenceCount: number;
 }) {
@@ -195,7 +190,7 @@ function buildStoryboardSetVisionPrompt(input: {
     "You are a strict cross-segment continuity QA for one vertical video.",
     `The first ${input.storyboards.length} image(s) are contact sheets in order: ${input.storyboards.map((storyboard, index) => `contact sheet ${index + 1} is segment ${storyboard.segmentIndex}`).join("; ")}.`,
     input.productReferenceCount ? `The next ${input.productReferenceCount} image(s) are product references for ${input.productName || "the client product"}. When the storyboard plan shows the product, its visible package must match these references.` : "No product reference images were supplied.",
-    input.hasAvatarReference ? "The final image is the avatar identity reference only. Every visible presenter must match it in gender, face, hair, and body type. Do not compare its clothing, accessories, room, lighting, or camera with the contact sheets." : "No avatar identity reference was supplied.",
+    "Do not use an avatar reference in this QA pass. Segment 1 contact sheet is the sole visual authority for the presenter outfit, hairstyle, lighting, environment, and camera. Compare later contact sheets only against segment 1 and never against an avatar image.",
     "Segment 1 becomes the canonical visual identity only when it matches its own expected wardrobe. Then compare every visible presenter panel in every later segment against it.",
     "The expected_wardrobe in the visual-mechanics contract is the complete outfit ground truth, not a requirement to show every detail in every crop. Use the segment 1 contact sheet, not the avatar reference, as the canonical source for the visible core garment and hairstyle. Block only a positively visible contradiction in face, hair, or the core garment: garment type, sleeves, neckline, fabric, color, or fit. A detail wholly outside a panel is not a mismatch: do not fail a close crop because jeans, a watch, a ring, earrings, or any other accessory are offscreen. Do not block accessories at all. A spoken subject change never permits a visible core-garment change.",
     `Canonical wardrobe contract: ${wardrobe}.`,
@@ -221,6 +216,14 @@ function normalizeViolation(value: unknown): StoryboardSetVisionViolation | null
     severity: value.severity === "warning" ? "warning" : "error",
     evidence: typeof value.evidence === "string" && value.evidence.trim() ? value.evidence.trim() : "No evidence provided",
   };
+}
+
+function downgradeAvatarWardrobeEvidence(violation: StoryboardSetVisionViolation) {
+  const isWardrobeViolation = /(?:wardrobe|outfit|garment|clothing|sleeve|neckline|fabric)/iu.test(violation.code);
+  const referencesAvatar = /(?:avatar|character reference|identity reference|аватар|персонаж)/iu.test(violation.evidence);
+  return isWardrobeViolation && referencesAvatar
+    ? { ...violation, severity: "warning" as const }
+    : violation;
 }
 
 function buildSingleSegmentPass(segmentIndex: number): StoryboardSetVisionValidation {

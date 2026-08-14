@@ -301,7 +301,6 @@ async function ensureStoryboardSetApproval(
     referenceSignature,
     promptPlan: input.promptPlan,
     urls,
-    avatarReferenceUrl: input.avatarReferenceUrl,
     productName: input.productName,
     productReferenceUrls: input.productReferenceUrls,
     regenerateTarget: async ({ segmentIndex, validation, repairProgress }) => {
