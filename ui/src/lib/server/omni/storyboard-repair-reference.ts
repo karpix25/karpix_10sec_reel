@@ -1,15 +1,23 @@
+import {
+  resolveStoryboardRepairMode,
+  type StoryboardRepairMode,
+} from "./storyboard-qa-contract";
+
 type StoryboardSetViolation = {
   segmentIndex: number;
   code: string;
 };
 
-const IDENTITY_REPAIR_CODES = /identity|gender|hair|body/iu;
+export function getStoryboardRepairMode(
+  violations: readonly StoryboardSetViolation[],
+  segmentIndex: number
+): StoryboardRepairMode {
+  return resolveStoryboardRepairMode(violations, segmentIndex);
+}
 
 export function canReuseStoryboardRepairReference(
   violations: readonly StoryboardSetViolation[],
   segmentIndex: number
 ) {
-  return !violations.some((violation) =>
-    violation.segmentIndex === segmentIndex && IDENTITY_REPAIR_CODES.test(violation.code)
-  );
+  return getStoryboardRepairMode(violations, segmentIndex) === "patch";
 }

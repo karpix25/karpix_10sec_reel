@@ -49,14 +49,16 @@ export function PendingVideoCard({
   provider,
   stage = "storyboard",
   recovering = false,
+  storyboardStatus,
 }: {
   provider: OmniGenerationProvider;
   stage?: PendingVideoStage;
   recovering?: boolean;
+  storyboardStatus?: string | null;
 }) {
   const providerLabel = getOmniGenerationProviderLabel(provider);
   const steps = [
-    { label: recovering ? "Исправляю ответ проверки раскадровки" : "Проверяю раскадровки и единый образ", active: stage === "storyboard" },
+    { label: storyboardStatus || (recovering ? "Исправляю ответ проверки раскадровки" : "Проверяю раскадровки и единый образ"), active: stage === "storyboard" },
     { label: `Отправляю сегменты в ${providerLabel}`, active: stage === "submit" },
     { label: "Сохраняю результат в S3 и Яндекс", active: stage === "sync" },
   ];

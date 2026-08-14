@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
-  ExternalLink,
   FileText,
   Film,
   ListFilter,
@@ -11,36 +10,34 @@ import {
   Minimize2,
   Play,
   RefreshCw,
-  Video,
   WandSparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { extractOpenRouterCostSummaryFromSnapshot } from "@/lib/omni/openrouter-cost";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
-import type { OmniAutomationJobSummary, OmniGeneratedScript, OmniReel, OmniReelSegment } from "@/lib/omni/types";
+import type {
+  OmniGeneratedScript,
+  OmniReel,
+  OmniReelSegment,
+} from "@/lib/omni/types";
 import { GeneratedScriptPromptTabs } from "./GeneratedScriptPromptTabs";
 import {
   PendingGeneratedScriptCard,
-  PendingVideoCard,
   type PendingScriptDraft,
   type PendingVideoDraft,
 } from "./GenerationPendingCards";
 import { OpenRouterCostBadge } from "./OpenRouterCostBadge";
 import { GenerationCostBadge } from "./GenerationCostBadge";
 import { OriginalReferenceLink } from "./OriginalReferenceLink";
-import { SegmentDots, StatusBadge } from "./OmniStudio/ui";
-import { ReelSubtitlesPanel } from "./ReelSubtitlesPanel";
-import { getVideoStageLabel, VideoProgressSteps } from "./VideoProgressStatus";
+import { StatusBadge } from "./OmniStudio/ui";
+import { getVideoStageLabel } from "./VideoProgressStatus";
 import {
-  EmptyVideoPanel,
   getAutomationVideoStageLabel,
-  getPendingVideoStage,
-  isStoryboardJsonRecovery,
   matchesVideoFilter,
-  VideoPreparationError,
   type VideoFilter,
 } from "./GeneratedScriptVideoPreparationStatus";
+import { GeneratedScriptVideoPanel } from "./GeneratedScriptVideoPanel";
 
 type ViewMode = "compact" | "detail";
 type CardTab = "script" | "video" | "prompts";
@@ -266,7 +263,9 @@ function GeneratedScriptCard({
   const { script, latestReel, latestSegments } = item;
   const automationJob = script.automation_job || null;
   const isPendingVideo = pendingVideo?.scriptId === script.id && automationJob?.status !== "failed";
-  const videoStage = latestReel ? getVideoStageLabel(latestReel, latestSegments) : getAutomationVideoStageLabel(automationJob);
+  const videoStage = latestReel
+    ? getVideoStageLabel(latestReel, latestSegments)
+    : getAutomationVideoStageLabel(automationJob, script.storyboard_set_repair_state);
   const costSummary = extractOpenRouterCostSummaryFromSnapshot(script.source_snapshot);
   const generationCostSummary = script.generation_cost_summary;
   const hasGenerationCost = Boolean(
@@ -365,11 +364,12 @@ function GeneratedScriptCard({
             ) : null}
           </TabsContent>
           <TabsContent value="video" className="px-4 pb-4">
-            <VideoPanel
+            <GeneratedScriptVideoPanel
               reel={latestReel}
               segments={latestSegments}
               pendingVideo={isPendingVideo}
               automationJob={automationJob}
+              storyboardRepairState={script.storyboard_set_repair_state}
               omniGenerationProvider={omniGenerationProvider}
             />
           </TabsContent>
@@ -388,112 +388,5 @@ function GeneratedScriptCard({
         </Tabs>
       )}
     </article>
-  );
-}
-
-function VideoPanel({
-  reel,
-  segments,
-  pendingVideo,
-  automationJob,
-  omniGenerationProvider,
-}: {
-  reel: OmniReel | null;
-  segments: OmniReelSegment[];
-  pendingVideo: boolean;
-  automationJob: OmniAutomationJobSummary | null;
-  omniGenerationProvider: OmniGenerationProvider;
-}) {
-  const [currentReel, setCurrentReel] = useState(reel);
-
-  useEffect(() => {
-    setCurrentReel(reel);
-  }, [reel]);
-
-  if (!currentReel) {
-    if (automationJob?.status === "failed") return <VideoPreparationError />;
-    const stage = getPendingVideoStage(automationJob);
-    return pendingVideo || automationJob ? (
-      <PendingVideoCard
-        provider={omniGenerationProvider}
-        stage={stage}
-        recovering={isStoryboardJsonRecovery(automationJob)}
-      />
-    ) : <EmptyVideoPanel />;
-  }
-
-  const displayVideoUrl = currentReel.subtitled_video_url || currentReel.final_video_url;
-  const isShowingSubtitled = Boolean(currentReel.subtitled_video_url);
-
-  return (
-    <div className="rounded-lg border border-border bg-card p-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Видео</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Reel #{currentReel.id} · {currentReel.target_duration_seconds} сек · {currentReel.segment_count} сегмента
-          </p>
-          <p className="mt-1 text-sm font-semibold text-foreground">{getVideoStageLabel(currentReel, segments)}</p>
-        </div>
-        <StatusBadge status={currentReel.status} />
-      </div>
-
-      {displayVideoUrl ? (
-        <div className="mt-3 overflow-hidden rounded-lg border border-border bg-black">
-          <video
-            key={displayVideoUrl}
-            src={displayVideoUrl}
-            controls
-            playsInline
-            className="aspect-[9/16] max-h-[34rem] w-full object-contain"
-          />
-        </div>
-      ) : null}
-      {isShowingSubtitled ? (
-        <p className="mt-2 text-xs text-muted-foreground">Показываю версию с burned-in субтитрами.</p>
-      ) : null}
-
-      {segments.length ? (
-        <div className="mt-3 space-y-3">
-          <SegmentDots segments={segments} />
-          <VideoProgressSteps reel={currentReel} segments={segments} />
-        </div>
-      ) : null}
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {displayVideoUrl ? (
-          <ExternalIconLink href={displayVideoUrl} label="Открыть S3 preview">
-            <Video className="h-4 w-4" />
-          </ExternalIconLink>
-        ) : null}
-        {currentReel.yandex_public_url ? (
-          <ExternalIconLink href={currentReel.yandex_public_url} label="Открыть на Яндекс Диске">
-            <ExternalLink className="h-4 w-4" />
-          </ExternalIconLink>
-        ) : null}
-        {currentReel.yandex_disk_path ? (
-          <span className="min-w-0 truncate rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-            {currentReel.yandex_disk_path}
-          </span>
-        ) : null}
-      </div>
-
-      {currentReel.final_video_url ? <ReelSubtitlesPanel reel={currentReel} onReelUpdate={setCurrentReel} /> : null}
-    </div>
-  );
-}
-
-function ExternalIconLink({ href, label, children }: { href: string; label: string; children: React.ReactNode }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-primary hover:bg-muted"
-      title={label}
-      aria-label={label}
-    >
-      {children}
-    </a>
   );
 }

@@ -3,6 +3,7 @@ import {
   buildPhysicalProductDemoStep,
   buildPhysicalFramePlan,
   hasConsumptionAction,
+  hasDrivingAction,
   hasForeignReferenceProduct,
   hasMultipleHeldObjects,
   normalizeVehicleContext,
@@ -71,7 +72,7 @@ function normalizeFrame(input: {
       })
     : null;
   const initialAction = repairReferenceAction({
-    action: productDemo?.action || frame.visualAction,
+    action: withPassengerContext(productDemo?.action || frame.visualAction, frame.visualAction),
     spokenText,
     productName: product,
     productVisible: visibleInFrame,
@@ -147,4 +148,9 @@ function renderSafeProductPlacement(
   }
   if (HELD_PRODUCT_PATTERN.test(sourcePlacement)) return [sourcePlacement.trim(), support].filter(Boolean).join("; ");
   return `${product} в одной руке, упаковка повернута лицевой стороной к камере; ${support}`;
+}
+
+function withPassengerContext(action: string, sourceAction: string) {
+  if (!hasDrivingAction(sourceAction)) return action;
+  return action.replace(/^герой\s+/iu, "герой едет пассажиром в движущемся автомобиле; ");
 }

@@ -56,20 +56,20 @@ try {
     panels: [{
       panel_index: 5,
       status: "repair",
-      violations: [{ code: "HAND_CAPACITY_CONFLICT", severity: "error", evidence: "one hand holds the jar" }],
+      violations: [{ code: "PRODUCT_PACKAGING_MISMATCH", severity: "error", evidence: "visible jar label differs from the client reference" }],
     }],
-    repair_instructions: ["touch one cheek"],
+    repair_instructions: ["restore the visible client package"],
   });
   assert.equal(repair.status, "repair");
-  assert.deepEqual(repair.repairInstructions, ["touch one cheek"]);
+  assert.deepEqual(repair.repairInstructions, ["restore the visible client package"]);
 
   const lowConfidence = validator.normalizeStoryboardVisionValidation({
     status: "pass",
     confidence: 0.42,
     panels: [{ panel_index: 1, status: "pass", violations: [] }],
   });
-  assert.equal(lowConfidence.status, "block");
-  assert.equal(validator.isStoryboardVisionValidationInconclusive(lowConfidence), true);
+  assert.equal(lowConfidence.status, "pass", "uncertain static QA must not spend an image retry");
+  assert.equal(validator.isStoryboardVisionValidationInconclusive(lowConfidence), false);
 
   const actionableBlock = validator.normalizeStoryboardVisionValidation({
     status: "block",
@@ -115,7 +115,7 @@ try {
         panels: [{
           panel_index: 1,
           status: "repair",
-          violations: [{ code: "ACTION_MISMATCH", severity: "error", evidence: "hand position differs" }],
+          violations: [{ code: "PRODUCT_PACKAGING_MISMATCH", severity: "error", evidence: "visible label differs from product reference" }],
         }],
         repair_instructions: [],
       });
@@ -171,7 +171,7 @@ try {
   assert.equal(setValidation.status, "block");
   assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments(setValidation), [2, 3]);
   assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments({
-    violations: [{ segmentIndex: 1, severity: "error" }],
+    violations: [{ segmentIndex: 1, severity: "error", code: "wardrobe_mismatch", evidence: "visible sleeve changed" }],
   }), [1], "a failed canonical storyboard must be eligible for targeted repair");
   const softReferenceOnly = setVisionValidator.normalizeStoryboardSetVisionValidation({
     status: "block",
@@ -187,6 +187,19 @@ try {
   });
   assert.equal(softReferenceOnly.status, "pass", "a soft reference gesture must not block a valid storyboard");
   assert.deepEqual(softReferenceOnly.violations, []);
+  const croppedAccessoryOnly = setVisionValidator.normalizeStoryboardSetVisionValidation({
+    status: "repair",
+    confidence: 0.95,
+    violations: [{
+      segment_index: 2,
+      panels: [1],
+      code: "accessory_mismatch",
+      severity: "error",
+      evidence: "watch is outside the crop and not visible",
+    }],
+  });
+  assert.equal(croppedAccessoryOnly.status, "pass", "cropped accessories must not trigger regeneration");
+  assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments(croppedAccessoryOnly), []);
   const setImages = setRequests[0].messages[0].content.filter((item) => item.type === "image_url");
   assert.equal(setImages.length, 3, "cross-storyboard QA must see all contact sheets in one request");
 
@@ -205,10 +218,10 @@ try {
   const referencedSetPrompt = setRequests[1].messages[0].content[0].text;
   assert.match(referencedSetPrompt, /final image is the avatar identity reference only/u);
   assert.match(referencedSetPrompt, /complete outfit ground truth/u);
-  assert.match(referencedSetPrompt, /jeans, a watch, a ring, or earrings are offscreen/u);
-  assert.match(referencedSetPrompt, /valid start, not a put_down and not product_teleportation/u);
-  assert.match(referencedSetPrompt, /expected_action is the hard action contract/u);
-  assert.match(referencedSetPrompt, /reference_action_hint and reference_camera_hint are soft direction only/u);
+  assert.match(referencedSetPrompt, /jeans, a watch, a ring, earrings, or any other accessory are offscreen/u);
+  assert.match(referencedSetPrompt, /contact sheet is static/u);
+  assert.match(referencedSetPrompt, /video-prompt metadata, never QA blockers/u);
+  assert.doesNotMatch(referencedSetPrompt, /expected_action is the hard action contract/u);
   assert.match(referencedSetPrompt, /first 3 image\(s\) are contact sheets/u);
   assert.equal(referencedSetImages[0].image_url.url, "https://example.com/storyboard-1.jpg");
 

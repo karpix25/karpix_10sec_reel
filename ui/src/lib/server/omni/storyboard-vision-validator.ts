@@ -141,12 +141,11 @@ async function parseStoryboardVisionValidation(input: {
 }
 
 const STORYBOARD_VISION_SYSTEM_PROMPT = [
-  "You are a strict physical continuity auditor for storyboard contact sheets.",
-  "Inspect the generated contact sheet, panel by panel, and compare it with the expected storyboard plan.",
-  "Compare the candidate contact sheet against the supplied avatar identity reference. When a canonical storyboard image is supplied, compare the candidate contact sheet against it for the hero outfit.",
-  "Judge hard visual contracts too: product visibility, required neutral support props, required reference actions, composition, the one locked outfit, avatar identity, camera angle, lighting, environment, and whether the image action matches the spoken line.",
+  "You are a strict static visual QA auditor for storyboard contact sheets.",
+  "Inspect only facts that are positively visible in the candidate panels. Compare the candidate against the avatar identity reference and, when supplied, the canonical storyboard for the visible core garment.",
+  "Use severity error only for a visible face or hair identity mismatch, a visible core-garment mismatch, a visibly wrong client product package when the product is planned in the panel, or a visible foreign advertised product. Never reject missing offscreen accessories, cropped jeans, camera composition, reference gestures, hand motion, pickup timing, face gestures, or an action that occurs between static panels.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
-  "If the image is ambiguous or you cannot verify a physical constraint, return block with low confidence.",
+  "If a detail is ambiguous, outside the crop, or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
 
 function buildStoryboardVisionPrompt(input: {
@@ -157,27 +156,23 @@ function buildStoryboardVisionPrompt(input: {
 }) {
   return [
     input.hasCanonicalStoryboardReference
-      ? "The first image is the candidate storyboard. The second image is the approved avatar identity reference. The third image is the approved canonical storyboard outfit reference. Every candidate panel must show the same person as the avatar: perceived gender, age range, face, hair, and body type. The candidate must also preserve every visible outfit detail from the canonical reference: garment type, sleeves, neckline, fabric, color, glasses, jewelry, and hair. Ignore a detail only when it is not visible in the candidate panel. Any identity or visible outfit mismatch requires repair."
-      : "The first image is the candidate storyboard. The second image is the approved avatar identity reference. Every candidate panel must show the same person as the avatar: perceived gender, age range, face, hair, and body type. Any identity mismatch requires repair.",
+      ? "The first image is the candidate storyboard. The second image is the approved avatar identity reference. The third image is the approved canonical storyboard core-garment reference. Every candidate panel must show the same person as the avatar in face, hair, and body type. Preserve the visible core garment from the canonical reference: garment type, sleeves, neckline, fabric, color, and fit. Do not require jewelry, glasses, watches, rings, jeans, or other accessories. Ignore any detail outside the candidate crop."
+      : "The first image is the candidate storyboard. The second image is the approved avatar identity reference. Every candidate panel must show the same person as the avatar in face, hair, and body type. Only a positively visible identity mismatch requires repair.",
     input.hasDirectorReference
-      ? "The final supplied image is a source-reference frame. Use it only to verify camera geometry, scene mechanics, required neutral props, and physical actions. Never copy its face, source brand, text, or logos."
+      ? "The final supplied image is a source-reference frame. It is a creative source only: never use it to reject camera, gesture, action timing, face identity, clothing, source brand, text, or logos in the candidate."
       : "",
     "Expected storyboard plan:",
     JSON.stringify({
       product: input.productName,
       panels: input.storyboard.frames.map((frame, index) => ({
         panel_index: index + 1,
-        speech: frame.spokenText,
-        action: frame.visualAction,
         product_placement: frame.productPlacement,
         physical_plan: frame.physicalPlan || null,
         reference_transfer: frame.referenceTransfer || null,
         wardrobe: frame.wardrobe,
-        camera: frame.camera,
-        environment: frame.environment,
       })),
     }),
-    "For every panel, verify that the visible image obeys the expected action, physical_plan, and reference_transfer. Each required_support_prop must be visibly present where planned; it is allowed alongside the client product and must not be treated as a copied source product. A product must be held or rest on a visible surface; it must never float. Reject a generic centered talking-head image when the expected camera composition requires visible proof props, hands, lap, table, or another reference geometry. If reference_transfer says the source product is removed or replaced, reject only the copied source product or a competing branded package.",
+    "For every panel, inspect only the visible person, visible core garment, and visible branded packages. The action and physical_plan guide the final video prompt; a static card cannot prove motion, pickup, timing, or face-touch intent. If reference_transfer says the source product is removed or replaced, reject only a visibly copied source product or competing branded package. Neutral support props, crops, camera geometry, and ordinary food are not evidence of a foreign advertised product.",
   ].join("\n");
 }
 

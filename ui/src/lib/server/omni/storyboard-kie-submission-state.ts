@@ -62,13 +62,12 @@ export function resolveStoryboardKieSubmissionAction(
 
 export function resolveVersionedStoryboardKieSubmissionAction(
   row: VersionedStoryboardKieSubmissionRow | null,
-  input: { referenceSignature: string; generatorVersion: string; resetAttemptBudget?: boolean },
+  input: { referenceSignature: string; generatorVersion: string },
   now = Date.now()
 ) {
   const keepsActiveTask = row?.generationStatus === "generating" || row?.generationStatus === "submitting";
   const matchesCurrentVersion = row?.referenceSignature === input.referenceSignature && row?.generatorVersion === input.generatorVersion;
-  const resetsFinishedAttemptBudget = Boolean(input.resetAttemptBudget) && !keepsActiveTask;
-  return resolveStoryboardKieSubmissionAction(row && !resetsFinishedAttemptBudget && (keepsActiveTask || matchesCurrentVersion) ? row : null, now);
+  return resolveStoryboardKieSubmissionAction(row && (keepsActiveTask || matchesCurrentVersion) ? row : null, now);
 }
 
 function isStaleSubmission(lastAttemptAt: Date | string | null, now: number) {

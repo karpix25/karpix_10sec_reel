@@ -93,7 +93,7 @@ try {
     assert.doesNotMatch(segment.storyboardPlan.frames[0].visualAction, /кус(?:ает|ать)|ведет машину|за рулем|обе\s+руки\s+у\s+лица/iu);
     assert.match(segment.storyboardPlan.frames[0].visualAction, /пассажир.*движущемся автомобиле/iu);
     assert.doesNotMatch(segment.storyboardPlan.frames[0].productPlacement, /сыр|несколько|два\s+предмета/iu);
-    assert.match(segment.prompt, /РУКИ|продукт в одной руке/iu);
+    assert.match(segment.prompt, /ДЕЙСТВИЕ: продукт на поверхности.*рука подходит.*касается.*берет.*держит/iu);
   }
 
   const missingValidation = await pipeline.repairOmniPromptPlanWithAi({
