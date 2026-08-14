@@ -153,6 +153,7 @@ export function normalizeStoryboardSource(input: {
         productPlacement: readText(frame, "productPlacement", "product_placement"),
         sfxNotes: readText(frame, "sfxNotes", "sfx_notes", "sfx"),
         effectNotes: readOptionalText(frame, "effectNotes", "effect_notes", "effects"),
+        referenceTransfer: readReferenceTransfer(frame),
       };
       return {
         ...normalizedFrame,
@@ -209,6 +210,13 @@ function readText(frame: Record<string, unknown>, ...keys: string[]) {
 function readOptionalText(frame: Record<string, unknown>, ...keys: string[]) {
   const value = readText(frame, ...keys);
   return value || null;
+}
+
+function readReferenceTransfer(frame: Record<string, unknown>): OmniStoryboardFrame["referenceTransfer"] {
+  const value = frame.referenceTransfer ?? frame.reference_transfer;
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as OmniStoryboardFrame["referenceTransfer"]
+    : null;
 }
 
 function result(errors: string[], warnings: string[]): OmniPromptValidationResult {

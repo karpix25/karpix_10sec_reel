@@ -6,8 +6,8 @@ import {
   validatePhysicalScene,
 } from "./physical-scene-validator";
 import {
+  applyCanonicalStoryboardOverrides,
   normalizePhysicalStoryboardSegment,
-  renderCanonicalStoryboardOverrides,
 } from "./physical-storyboard-normalizer";
 
 export async function assertOmniPhysicalPreflight(input: {
@@ -36,10 +36,13 @@ export async function assertOmniPhysicalPreflight(input: {
           productVisible: segment.creative_plan?.productRole !== "hidden",
         })
       : null;
-    const changed = JSON.stringify(sourceStoryboard) !== JSON.stringify(storyboard);
+    const normalizedPrompt = storyboard
+      ? applyCanonicalStoryboardOverrides(segment.prompt || "", storyboard)
+      : segment.prompt;
+    const changed = JSON.stringify(sourceStoryboard) !== JSON.stringify(storyboard) || normalizedPrompt !== segment.prompt;
     if (storyboard && changed) {
       segment.storyboard_plan = storyboard;
-      segment.prompt = `${segment.prompt}\n\n${renderCanonicalStoryboardOverrides(storyboard)}`;
+      segment.prompt = normalizedPrompt;
     }
     return {
       segment,

@@ -9,7 +9,6 @@ import type { CreativeScriptDraft, DirectorSegmentPlan } from "./llm-prompt-chai
 import { formatPromptChainRange } from "./llm-prompt-chain-number-words";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
-import { OMNI_PHYSICAL_ACTION_CONTRACT } from "./omni-physical-action-contract";
 
 export type PromptChainInput = {
   projectName: string;
@@ -115,7 +114,6 @@ SFX это только естественные звуки кадра. Музы
 ${renderRussianSpeechGenderRule(input.chainInput.avatarSpeechGender)}
 В segment без продуктовой демонстрации продукт остается либо вне кадра, либо в одном стабильном положении. В segment с демонстрацией опиши физическую последовательность: на поверхности, рука подходит, касается, берет, затем держит.
 Если cutaway frame говорит без рук, весь segment не должен включать взятие продукта в руки.
-${OMNI_PHYSICAL_ACTION_CONTRACT}
 Аватарный character_id передается Omni отдельно. Product reference передается Omni отдельно. Не пиши идентификаторы или ссылки в JSON.
 Все числа в текстовых значениях JSON пиши словами. Не используй emoji, дефисы, тире или минусы.
 
@@ -208,7 +206,6 @@ ${wardrobeRule}
 Все числа в текстовых значениях JSON пиши словами. Не используй emoji, дефисы, тире или минусы.
 Если продукт на столе, не пиши что персонаж держит его в руках.
 Если перебивка без рук, не пиши что рука двигает или берет продукт.
-${OMNI_PHYSICAL_ACTION_CONTRACT}
 Talking head prompt должен начинаться с лица, иметь короткую середину cutaway и возвращаться к лицу.
 
 Продукт: ${input.chainInput.productName}

@@ -18,6 +18,8 @@ import {
 const SURFACE_PATTERN = /(?:на столе|на\s+(?:\p{L}+\s+){0,3}поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
 const HELD_PRODUCT_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|(?<!\p{L})одной рукой|в одну руку|в одной руке)/iu;
 const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр/iu;
+export const CANONICAL_STORYBOARD_OVERRIDES_HEADER =
+  "FINAL CANONICAL STORYBOARD OVERRIDES: these per-frame physical actions are authoritative; ignore conflicting earlier action wording.";
 
 /**
  * Applies the cheap, deterministic physical fixes before any model call.
@@ -43,13 +45,18 @@ export function normalizePhysicalStoryboardSegment(input: {
 
 export function renderCanonicalStoryboardOverrides(storyboard: OmniStoryboardSegment) {
   return [
-    "FINAL CANONICAL STORYBOARD OVERRIDES: these per-frame physical actions are authoritative; ignore conflicting earlier action wording.",
+    CANONICAL_STORYBOARD_OVERRIDES_HEADER,
     ...storyboard.frames.map((frame, index) => [
       `FRAME ${index + 1} ACTION: ${frame.visualAction}`,
       `FRAME ${index + 1} PRODUCT: ${frame.productPlacement}`,
       `FRAME ${index + 1} SOUND: ${frame.sfxNotes}`,
     ].join("\n")),
   ].join("\n");
+}
+
+export function applyCanonicalStoryboardOverrides(prompt: string, storyboard: OmniStoryboardSegment) {
+  const basePrompt = prompt.split(CANONICAL_STORYBOARD_OVERRIDES_HEADER)[0].trimEnd();
+  return [basePrompt, renderCanonicalStoryboardOverrides(storyboard)].filter(Boolean).join("\n\n");
 }
 
 function normalizeFrame(input: {

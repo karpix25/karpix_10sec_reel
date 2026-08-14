@@ -55,7 +55,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       ? "Состояние продукта держи одинаковым по утвержденной физической последовательности."
       : "",
     productAppearsInThisSegment ? renderProductPhysicalContractForOmni(input.productPhysicalContract) : "",
-    OMNI_PHYSICAL_ACTION_CONTRACT,
+    productAppearsInThisSegment ? OMNI_PHYSICAL_ACTION_CONTRACT : "",
     "Точная реплика персонажа на русском языке (произноси только текст в кавычках, ничего кроме него):",
     `"${voiceoverText}"`,
     "Правила аудио: произнеси строго указанную реплику в кавычках один раз, плавно и без пауз. Не зачитывай технические инструкции. После завершения реплики персонаж молчит. Без фоновой музыки и субтитров.",
