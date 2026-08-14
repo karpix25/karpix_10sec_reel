@@ -1,5 +1,6 @@
 import type { OmniStoryboardFrame, OmniStoryboardSegment } from "../../omni/storyboard/omni-storyboard-types";
 import {
+  buildPhysicalProductDemoStep,
   buildPhysicalFramePlan,
   hasConsumptionAction,
   hasForeignReferenceProduct,
@@ -13,8 +14,8 @@ import {
   synchronizeReferenceTransferProductVisibility,
 } from "./omni-reference-transfer-policy";
 
-const SURFACE_PATTERN = /(?:на столе|на поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
-const HELD_PRODUCT_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|одной рукой|в одну руку|в одной руке)/iu;
+const SURFACE_PATTERN = /(?:на столе|на\s+(?:\p{L}+\s+){0,3}поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
+const HELD_PRODUCT_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|(?<!\p{L})одной рукой|в одну руку|в одной руке)/iu;
 const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр/iu;
 
 /**
@@ -29,7 +30,13 @@ export function normalizePhysicalStoryboardSegment(input: {
 }): OmniStoryboardSegment {
   return {
     ...input.storyboard,
-    frames: input.storyboard.frames.map((frame) => normalizeFrame(frame, input.productName, Boolean(input.productVisible))),
+    frames: input.storyboard.frames.map((frame, index) => normalizeFrame({
+      frame,
+      productName: input.productName,
+      productVisible: Boolean(input.productVisible),
+      frameIndex: index + 1,
+      frameCount: input.storyboard.frames.length,
+    })),
   };
 }
 
@@ -44,17 +51,27 @@ export function renderCanonicalStoryboardOverrides(storyboard: OmniStoryboardSeg
   ].join("\n");
 }
 
-function normalizeFrame(
-  frame: OmniStoryboardFrame,
-  productName: string,
-  productVisible: boolean
-): OmniStoryboardFrame {
+function normalizeFrame(input: {
+  frame: OmniStoryboardFrame;
+  productName: string;
+  productVisible: boolean;
+  frameIndex: number;
+  frameCount: number;
+}): OmniStoryboardFrame {
+  const { frame, productName, productVisible } = input;
   const product = productName.trim() || "продукт";
   const spokenText = frame.spokenText.trim();
   const sourceText = `${frame.visualAction} ${frame.productPlacement} ${frame.sfxNotes} ${frame.effectNotes || ""}`;
   const visibleInFrame = productVisible;
+  const productDemo = visibleInFrame && input.frameCount > 1
+    ? buildPhysicalProductDemoStep({
+        productName: product,
+        frameIndex: input.frameIndex,
+        frameCount: input.frameCount,
+      })
+    : null;
   const initialAction = repairReferenceAction({
-    action: frame.visualAction,
+    action: productDemo?.action || frame.visualAction,
     spokenText,
     productName: product,
     productVisible: visibleInFrame,
@@ -69,7 +86,9 @@ function normalizeFrame(
         productVisible: false,
         referenceSupportProps: frame.referenceTransfer?.requiredSupportProps,
       });
-  const productPlacement = visibleInFrame
+  const productPlacement = productDemo
+    ? [productDemo.placement, renderRequiredReferenceSupport(frame.referenceTransfer)].filter(Boolean).join("; ")
+    : visibleInFrame
     ? renderSafeProductPlacement(product, frame.productPlacement, frame.referenceTransfer)
     : [
         "в кадре тематические объекты и окружение текущей реплики; продукт вне кадра",

@@ -58,8 +58,10 @@ export function buildStoredStoryboardFrame(input: {
   const productDemo = productVisible && input.productDemoFrame
     ? buildPhysicalProductDemoStep({ productName: input.productName, ...input.productDemoFrame })
     : null;
-  const visualAction = productVisible
-    ? [repairedAction, productDemo?.action].filter(Boolean).join("; ")
+  const visualAction = productDemo
+    ? productDemo.action
+    : productVisible
+      ? repairedAction
     : renderNonProductAction(repairedAction, input.productName);
   const productState = repairProductState({
     state: input.frame.productState,
