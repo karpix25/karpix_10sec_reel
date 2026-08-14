@@ -7,8 +7,8 @@ import type {
 
 const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр/iu;
 const HIDDEN_PATTERN = /(?:вне кадра|не виден|скрыт|hidden|off\s*camera|only thematic objects|только тематические объекты)/iu;
-const SURFACE_PATTERN = /(?:на столе|на поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
-const HOLDING_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|одной рукой|в одну руку|в одной руке|двумя руками|в двух руках)/iu;
+const SURFACE_PATTERN = /(?:на столе|на\s+(?:\p{L}+\s+){0,3}поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
+const HOLDING_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|(?<!\p{L})одной рукой|в одну руку|в одной руке|(?<!\p{L})двумя руками|в двух руках)/iu;
 const PRODUCT_PATTERN = /(?:продукт|товар|product|package|упаков|баноч|бутыл|капсул|порош|крем|collagen|коллаген)/iu;
 const MULTIPLE_HELD_OBJECTS_PATTERN = /(?:несколько предметов|два предмета|multiple objects|two objects|(?:держит|holding|holds|в руках)[^.;]{0,90}(?: и | and |,\s*))/iu;
 const OBJECT_INTERACTION_PATTERN = /(?:держит|держать|в руках|holding|holds|показывает|показать|showing|shows|кус(?:ает|ать|ил)|eat(?:s|ing)?|bite(?:s|ing)?|drink(?:s|ing)?)/iu;
@@ -190,30 +190,29 @@ export function buildPhysicalProductDemoStep(input: {
 }) {
   const product = input.productName.trim() || "продукт";
   const first = input.frameIndex === 1;
-  const last = input.frameIndex === input.frameCount;
-  const shortDemo = input.frameCount <= 2;
+  const pickupFrame = Math.max(2, Math.ceil(input.frameCount / 2));
 
   if (first) {
     return {
-      action: `${product} уже стоит на одной видимой поверхности в нижней части кадра, рука рядом, без появления из пустоты`,
-      placement: `${product} стоит на одной видимой поверхности в нижней части кадра, сохраняет это положение`,
+      action: `герой живо говорит в камеру и жестикулирует свободной рукой; ${product} уже стоит на видимой поверхности в переднем плане, руки не касаются упаковки`,
+      placement: `${product} стоит на видимой поверхности в переднем плане и не меняет положения`,
     };
   }
-  if (last && !shortDemo) {
+  if (input.frameIndex < pickupFrame) {
     return {
-      action: `герой спокойно ставит ${product} обратно на ту же поверхность, не меняя упаковку и ее положение`,
-      placement: `${product} снова стоит на той же видимой поверхности в нижней части кадра`,
+      action: `герой продолжает живо говорить в камеру, делает естественный жест и тянется к ${product}, который остается на той же видимой поверхности`,
+      placement: `${product} остается на той же видимой поверхности, рука героя только приближается к упаковке`,
     };
   }
-  if (input.frameIndex === 2 && input.frameCount > 3) {
+  if (input.frameIndex === pickupFrame) {
     return {
-      action: `герой одной рукой берет ${product} с этой поверхности, движение руки и предмет остаются полностью видимыми`,
-      placement: `${product} еще на той же поверхности, рука героя начинает его брать`,
+      action: `герой одной рукой берет ${product} с видимой поверхности и поднимает его в кадре, не прерывая речь`,
+      placement: `${product} только что поднят с поверхности и уже находится в одной руке героя`,
     };
   }
   return {
-    action: `герой видимо берет ${product} и держит в одной руке на уровне груди, упаковка повернута лицевой стороной к камере`,
-    placement: `${product} в одной руке, целая упаковка сохраняет тот же вид`,
+    action: `герой держит ${product} в одной руке; поворачивает упаковку лицевой стороной к камере и продолжает объяснение`,
+    placement: `${product} остается в одной руке, целая упаковка повернута лицевой стороной к камере`,
   };
 }
 

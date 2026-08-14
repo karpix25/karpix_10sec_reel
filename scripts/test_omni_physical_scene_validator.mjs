@@ -270,6 +270,9 @@ try {
     productName: "Коллаген",
   });
   assert.equal(physicalDemo.valid, true, JSON.stringify(physicalDemo));
+  assert.match(physicalDemoSteps[0].action, /жестикулирует/iu);
+  assert.match(physicalDemoSteps[1].action, /берет Коллаген.*поднимает/iu);
+  assert.match(physicalDemoSteps[2].action, /держит Коллаген.*поворачивает/iu);
 
   const biteWhileSpeaking = validator.validatePhysicalScene({
     storyboard: storyboard([
@@ -431,7 +434,30 @@ try {
     ]),
   });
   assert.match(staleProduct.frames[1].productPlacement, /Коллаген/iu);
-  assert.match(staleProduct.frames[1].visualAction, /держит Коллаген/iu);
+  assert.match(staleProduct.frames[0].visualAction, /не касаются упаковки/iu);
+  assert.match(staleProduct.frames[1].visualAction, /берет Коллаген.*поднимает/iu);
+
+  const canonicalDemo = normalizer.normalizePhysicalStoryboardSegment({
+    productName: "Коллаген",
+    productVisible: true,
+    storyboard: storyboard([
+      frame("Сначала объясняю", "герой держит Коллаген", "Коллаген на столе"),
+      frame("Потом показываю", "герой держит Коллаген", "Коллаген на столе"),
+      frame("Рассказываю дальше", "герой держит Коллаген", "Коллаген на столе"),
+      frame("Объясняю состав", "герой держит Коллаген", "Коллаген на столе"),
+      frame("Завершаю мысль", "герой держит Коллаген", "Коллаген на столе"),
+    ]),
+  });
+  const canonicalDemoValidation = validator.validatePhysicalScene({
+    storyboard: canonicalDemo,
+    creativePlan: null,
+    productName: "Коллаген",
+  });
+  assert.equal(canonicalDemoValidation.valid, true, JSON.stringify(canonicalDemoValidation));
+  assert.match(canonicalDemo.frames[0].visualAction, /не касаются упаковки/iu);
+  assert.match(canonicalDemo.frames[2].visualAction, /берет Коллаген.*поднимает/iu);
+  assert.match(canonicalDemo.frames[4].visualAction, /держит Коллаген.*поворачивает/iu);
+  assert.doesNotMatch(canonicalDemo.frames[0].visualAction, /держит Коллаген/iu);
 
   const hiddenCtaTransfer = normalizer.normalizePhysicalStoryboardSegment({
     productName: "Geodemika Enzyme Cleansing Foam",

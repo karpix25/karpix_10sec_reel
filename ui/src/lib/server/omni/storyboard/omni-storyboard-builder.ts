@@ -203,10 +203,10 @@ function buildFrame(input: {
         frameCount: input.frameCount,
       })
     : null;
-  const visualAction = layoutLocked
-    ? visualActionSource
-    : productDemo
-      ? `${renderFrameAction(visualActionSource, isCutawayFrame)}; ${productDemo.action}`
+  const visualAction = productDemo
+    ? productDemo.action
+    : layoutLocked
+      ? visualActionSource
     : input.segmentIndex === 1 && input.plan.productRole === "hidden"
       ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName, referenceTransfer)
       : productVisible
@@ -221,7 +221,7 @@ function buildFrame(input: {
     referenceTransfer,
     productDemo?.placement
   );
-  const finalVisualAction = layoutLocked
+  const finalVisualAction = layoutLocked || productDemo
     ? visualAction
     : repairReferenceAction({
         action: visualAction,
