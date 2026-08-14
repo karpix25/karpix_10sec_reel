@@ -19,12 +19,11 @@ import { stitchAndStoreReel } from "./omni-segment-completion";
 import { detectKieOmniVoiceGender, resolveKieOmniAudioIds, type KieOmniVoiceGender } from "./kie-omni-audio";
 import { applyOmniStoryboardFileReference } from "./storyboard/omni-storyboard-file-reference";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
-import {
-  getOmniSegmentRetryCount,
-} from "./omni-segment-retry";
+import { getOmniSegmentRetryCount } from "./omni-segment-retry";
 import { syncOmniReelSegments } from "./omni-segment-sync";
 import { assertOmniPhysicalPreflight } from "./omni-physical-preflight";
 import { recordKieGenerationCost } from "./omni-generation-costs";
+import { withOmniReelExecutionLock } from "./omni-reel-execution-lock";
 type ReelBundle = {
   reel: OmniReel;
   segments: OmniReelSegment[];
@@ -47,6 +46,10 @@ async function getReelBundle(reelId: number): Promise<ReelBundle> {
   );
 
   return { reel, segments: segmentResult.rows };
+}
+
+export async function getOmniReelBundle(reelId: number) {
+  return getReelBundle(reelId);
 }
 
 function hasRunningSegments(segments: OmniReelSegment[]) {
@@ -97,6 +100,13 @@ function getReelGenerationProvider(segments: OmniReelSegment[]) {
 }
 
 export async function submitOmniReel(reelId: number, providerInput?: unknown) {
+  return withOmniReelExecutionLock(reelId, {
+    onLocked: async () => (await getReelBundle(reelId)).reel,
+    run: () => submitOmniReelUnlocked(reelId, providerInput),
+  });
+}
+
+async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
   const { reel, segments } = await getReelBundle(reelId);
   const provider = normalizeOmniGenerationProvider(providerInput);
   const continuityChainEnabled = isOmniContinuityChainEnabled();
@@ -323,6 +333,9 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       storyboard_validation: segment.storyboard_validation,
       prompt_validation: segment.prompt_validation,
       omni_retry_count: getOmniSegmentRetryCount(segment.request_payload),
+      ...(typeof segment.request_payload?.omni_retry_reason === "string"
+        ? { omni_retry_reason: segment.request_payload.omni_retry_reason }
+        : {}),
       ...(segment.request_payload?.omni_kie_safety_storyboard_repaired === true
         ? { omni_kie_safety_storyboard_repaired: true }
         : {}),

@@ -27,14 +27,15 @@ export function buildStoryboardImagePrompt(input: {
   const repairFile = previousStoryboardReferenceUrl ? 2 + (canonicalFile ? 1 : 0) : null;
   const productFileStart = 2 + (canonicalFile ? 1 : 0) + (repairFile ? 1 : 0);
   const directorFileStart = productFileStart + productReferenceUrls.length;
-  const productPhysicalHint = productReferenceUrls.length
-    ? renderProductPhysicalStoryboardHint(input.productPhysicalContract)
-    : "";
   const frameCount = input.storyboard.frames.length;
   const productFrameNumbers = input.storyboard.frames
     .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName) ? index + 1 : null)
     .filter((index): index is number => index !== null);
   const productRevealFrame = productFrameNumbers[0] || null;
+  const productAppearsInThisSegment = productFrameNumbers.length > 0;
+  const productPhysicalHint = productAppearsInThisSegment
+    ? renderProductPhysicalStoryboardHint(input.productPhysicalContract)
+    : "";
   return [
     `UGC-storyboard: черный фон, ровно ${frameCount} вертикальных панелей в ряд, белые разделители и номер панели.`,
     "В каждой панели: живой вертикальный кадр, точная реплика на русском, короткие подписи РАКУРС и ДЕЙСТВИЕ.",
@@ -73,11 +74,11 @@ export function buildStoryboardImagePrompt(input: {
       : "",
     "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
     "Смысл реплики определяет главный предмет и действие кадра. Сохраняй ракурс, свет, одежду, тряску, PIP и монтаж reference; жест адаптируй. Исходный рекламный товар и его упаковка никогда не являются нейтральным реквизитом: при replace_with_product показывай только продукт клиента, при remove не показывай. Остальной реквизит — только из плана.",
-    OMNI_PHYSICAL_ACTION_CONTRACT,
-    productReferenceUrls.length
+    productAppearsInThisSegment ? OMNI_PHYSICAL_ACTION_CONTRACT : "",
+    productAppearsInThisSegment
       ? `Продукт впервые появляется только в панели ${productRevealFrame || "по смыслу реплики"}; точно по product reference, без смены формы, упаковки и положения.`
       : "",
-    productReferenceUrls.length
+    productAppearsInThisSegment
       ? "Показывай продукт естественно, без рекламного close-up, дублей и телепортации."
       : "",
     productPhysicalHint ? compactText(productPhysicalHint, 180) : "",
