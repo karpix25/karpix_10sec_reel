@@ -34,7 +34,6 @@ export async function ensureGeneratedScriptStoryboardSetApproval(input: {
   referenceSignature: string;
   promptPlan: readonly StoryboardPromptSegment[];
   urls: Map<number, string>;
-  avatarReferenceUrl: string | null;
   productName: string;
   productReferenceUrls: readonly string[];
   regenerateTarget: (input: {
@@ -146,7 +145,6 @@ async function validateStoryboardSetRound(
     scriptId: input.scriptId,
     storyboards: getStoryboardSetEntries(input.promptPlan, input.urls),
     attemptCount: qaRound,
-    avatarReferenceUrl: input.avatarReferenceUrl,
     productName: input.productName,
     productReferenceUrls: input.productReferenceUrls,
   });

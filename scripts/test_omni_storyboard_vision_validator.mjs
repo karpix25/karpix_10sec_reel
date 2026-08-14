@@ -214,9 +214,9 @@ try {
     productReferenceUrls: ["https://example.com/product-front.jpg", "https://example.com/product-back.jpg"],
   });
   const referencedSetImages = setRequests[1].messages[0].content.filter((item) => item.type === "image_url");
-  assert.equal(referencedSetImages.length, 6, "cross-storyboard QA must see avatar, product, and all contact sheets together");
+  assert.equal(referencedSetImages.length, 5, "cross-storyboard QA must see contact sheets and product references, but not avatar clothing");
   const referencedSetPrompt = setRequests[1].messages[0].content[0].text;
-  assert.match(referencedSetPrompt, /final image is the avatar identity reference only/u);
+  assert.match(referencedSetPrompt, /Do not use an avatar reference in this QA pass/u);
   assert.match(referencedSetPrompt, /complete outfit ground truth/u);
   assert.match(referencedSetPrompt, /jeans, a watch, a ring, earrings, or any other accessory are offscreen/u);
   assert.match(referencedSetPrompt, /contact sheet is static/u);
@@ -224,6 +224,21 @@ try {
   assert.doesNotMatch(referencedSetPrompt, /expected_action is the hard action contract/u);
   assert.match(referencedSetPrompt, /first 3 image\(s\) are contact sheets/u);
   assert.equal(referencedSetImages[0].image_url.url, "https://example.com/storyboard-1.jpg");
+
+  const avatarWardrobeFalsePositive = setVisionValidator.normalizeStoryboardSetVisionValidation({
+    status: "block",
+    confidence: 0.95,
+    violations: [1, 2, 3].map((segmentIndex) => ({
+      segment_index: segmentIndex,
+      panels: [1, 2, 3, 4, 5],
+      code: "wardrobe_mismatch",
+      severity: "error",
+      evidence: "The black short-sleeve tee differs from the light-colored top in the avatar reference.",
+    })),
+    repair_instructions: ["restore the avatar outfit"],
+  });
+  assert.equal(avatarWardrobeFalsePositive.status, "pass", "avatar clothing must not block cross-storyboard QA");
+  assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments(avatarWardrobeFalsePositive), []);
 
   console.log("Omni storyboard vision validator checks passed");
 } finally {
