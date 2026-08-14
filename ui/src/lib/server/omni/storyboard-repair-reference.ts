@@ -3,7 +3,7 @@ type StoryboardSetViolation = {
   code: string;
 };
 
-const IDENTITY_REPAIR_CODES = /identity|gender|hair|body|wardrobe/iu;
+const IDENTITY_REPAIR_CODES = /identity|gender|hair|body/iu;
 
 export function canReuseStoryboardRepairReference(
   violations: readonly StoryboardSetViolation[],

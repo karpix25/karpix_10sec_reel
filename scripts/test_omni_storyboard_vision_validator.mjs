@@ -173,6 +173,20 @@ try {
   assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments({
     violations: [{ segmentIndex: 1, severity: "error" }],
   }), [1], "a failed canonical storyboard must be eligible for targeted repair");
+  const softReferenceOnly = setVisionValidator.normalizeStoryboardSetVisionValidation({
+    status: "block",
+    confidence: 0.95,
+    violations: [{
+      segment_index: 1,
+      panels: [1],
+      code: "reference_action_missing",
+      severity: "error",
+      evidence: "hands are not clasped as in the reference",
+    }],
+    repair_instructions: ["restore the exact reference hand pose"],
+  });
+  assert.equal(softReferenceOnly.status, "pass", "a soft reference gesture must not block a valid storyboard");
+  assert.deepEqual(softReferenceOnly.violations, []);
   const setImages = setRequests[0].messages[0].content.filter((item) => item.type === "image_url");
   assert.equal(setImages.length, 3, "cross-storyboard QA must see all contact sheets in one request");
 
@@ -193,6 +207,8 @@ try {
   assert.match(referencedSetPrompt, /complete outfit ground truth/u);
   assert.match(referencedSetPrompt, /jeans, a watch, a ring, or earrings are offscreen/u);
   assert.match(referencedSetPrompt, /valid start, not a put_down and not product_teleportation/u);
+  assert.match(referencedSetPrompt, /expected_action is the hard action contract/u);
+  assert.match(referencedSetPrompt, /reference_action_hint and reference_camera_hint are soft direction only/u);
   assert.match(referencedSetPrompt, /first 3 image\(s\) are contact sheets/u);
   assert.equal(referencedSetImages[0].image_url.url, "https://example.com/storyboard-1.jpg");
 
