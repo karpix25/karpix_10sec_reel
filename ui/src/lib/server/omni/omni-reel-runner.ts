@@ -21,7 +21,6 @@ import { applyOmniStoryboardFileReference } from "./storyboard/omni-storyboard-f
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import {
   getOmniSegmentRetryCount,
-  getOmniSegmentContinuityRepairInstructions,
 } from "./omni-segment-retry";
 import { syncOmniReelSegments } from "./omni-segment-sync";
 import { assertOmniPhysicalPreflight } from "./omni-physical-preflight";
@@ -257,10 +256,7 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       provider === "kie-ai"
         ? appendKieReferenceOrderPrompt(kieStoryboardPrompt, selectedReferenceImages.sent)
         : continuityPrompt;
-    const continuityRepairInstructions = getOmniSegmentContinuityRepairInstructions(segment.request_payload);
-    const finalProviderPrompt = continuityRepairInstructions.length
-      ? `${providerPrompt}\n\nFINAL-FRAME QA REPAIR: ${continuityRepairInstructions.join("; ")}.`
-      : providerPrompt;
+    const finalProviderPrompt = providerPrompt;
     const usesStoryboardReference = selectedReferenceImages.sent.some((image) => image.role === "storyboard");
     const videoCharacterId = provider === "kie-ai" ? avatarCharacterId : null;
     const continuitySourceSegmentId =
@@ -327,9 +323,6 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
       storyboard_validation: segment.storyboard_validation,
       prompt_validation: segment.prompt_validation,
       omni_retry_count: getOmniSegmentRetryCount(segment.request_payload),
-      ...(continuityRepairInstructions.length
-        ? { omni_continuity_repair_instructions: continuityRepairInstructions }
-        : {}),
       ...(segment.request_payload?.omni_kie_safety_storyboard_repaired === true
         ? { omni_kie_safety_storyboard_repaired: true }
         : {}),
