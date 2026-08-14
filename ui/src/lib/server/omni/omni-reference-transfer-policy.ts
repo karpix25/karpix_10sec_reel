@@ -26,7 +26,7 @@ export type ReferenceTransferDecisions = {
 };
 
 export type ReferenceTransferPolicy = {
-  version: "reference-transfer-v2" | "reference-transfer-v3";
+  version: "reference-transfer-v2" | "reference-transfer-v3" | "reference-transfer-v4";
   mode: ReferenceTransferMode;
   omitRawDirectorGuidance: boolean;
   decisions: ReferenceTransferDecisions;
@@ -36,11 +36,16 @@ export type ReferenceTransferPolicy = {
 export type ReferenceVisualTransferContract = {
   cameraComposition: string | null;
   persistentSupportProps: readonly string[];
-  actionBeats: readonly { timestampSeconds: number; action: string; requiredProp: string | null }[];
+  actionBeats: readonly {
+    timestampSeconds: number;
+    action: string;
+    requiredProp: string | null;
+    sourceProductAction: boolean;
+  }[];
 };
 
 export type ReferenceTransferFramePlan = {
-  version: "reference-transfer-v2" | "reference-transfer-v3";
+  version: "reference-transfer-v2" | "reference-transfer-v3" | "reference-transfer-v4";
   productMentioned: boolean;
   productMeaningfulBeat: boolean;
   visualCue: string | null;
@@ -51,7 +56,7 @@ export type ReferenceTransferFramePlan = {
 };
 
 export const DEFAULT_REFERENCE_TRANSFER_POLICY: ReferenceTransferPolicy = {
-  version: "reference-transfer-v3",
+  version: "reference-transfer-v4",
   mode: "full_reference",
   omitRawDirectorGuidance: false,
   decisions: {
@@ -113,7 +118,9 @@ export function buildReferenceTransferFramePlan(input: {
   const productMeaningfulBeat = input.productVisible ?? productMentioned;
   const visualCue = compactText(input.visualCue || "") || null;
   const referenceBeat = selectReferenceBeat(input.policy.visualContract, input.position);
-  const requiredReferenceAction = safeReferenceAction(referenceBeat?.action || "");
+  const requiredReferenceAction = referenceBeat?.sourceProductAction
+    ? renderClientProductAction(referenceBeat.action, productMeaningfulBeat)
+    : safeReferenceAction(referenceBeat?.action || "");
 
   return {
     version: input.policy.version,
@@ -209,25 +216,32 @@ function buildReferenceVisualTransferContract(brief?: DirectorBrief | null): Ref
       action: [beat.action_description, beat.actor_gesture].filter(Boolean).join("; "),
     })),
   };
+  const sourceProductProps = uniqueCompact(source.props
+    .filter((prop) => prop.role === "source_product")
+    .map((prop) => prop.description));
   const persistentSupportProps = uniqueCompact(
     source.props
       .filter((prop) => (prop.role === "proof_prop" || prop.role === "support_prop") && prop.visible_from_start)
       .map((prop) => prop.description)
+      .filter((prop) => !referencesSourceProduct(prop, sourceProductProps))
   );
-  const sourceProductProps = source.props
-    .filter((prop) => prop.role === "source_product")
-    .map((prop) => prop.description);
   return {
     cameraComposition: compactText(source.camera_composition || "") || null,
     persistentSupportProps,
     actionBeats: source.action_beats
-      .filter((beat) => !referencesSourceProduct(beat.required_prop || beat.action, sourceProductProps))
       .filter((beat) => isVerifiedReferenceAction(beat.action))
-      .map((beat) => ({
-        timestampSeconds: Math.max(0, Number(beat.timestamp_sec) || 0),
-        action: compactText(beat.action),
-        requiredProp: compactText(beat.required_prop || "") || null,
-      }))
+      .map((beat) => {
+        const sourceProductAction = referencesSourceProduct(
+          [beat.required_prop, beat.action].filter(Boolean).join(" "),
+          sourceProductProps
+        );
+        return {
+          timestampSeconds: Math.max(0, Number(beat.timestamp_sec) || 0),
+          action: compactText(beat.action),
+          requiredProp: sourceProductAction ? null : compactText(beat.required_prop || "") || null,
+          sourceProductAction,
+        };
+      })
       .filter((beat) => Boolean(beat.action)),
   };
 }
@@ -237,12 +251,31 @@ function isVerifiedReferenceAction(value: string) {
 }
 
 function referencesSourceProduct(value: string | undefined, sourceProductProps: readonly string[]) {
-  const marker = productPackageMarker(value || "");
-  return Boolean(marker) && sourceProductProps.some((prop) => productPackageMarker(prop) === marker);
+  const markers = productPackageMarkers(value || "");
+  return markers.size > 0 && sourceProductProps.some((prop) => hasSharedMarker(markers, productPackageMarkers(prop)));
 }
 
-function productPackageMarker(value: string) {
-  return value.toLocaleLowerCase().match(/\b(?:(?:product|branded)\s+)?(?:box|package|packaging|bottle|jar|tube|stick(?:\s+pack)?|sachet)\w*\b/u)?.[0] || "";
+function productPackageMarkers(value: string) {
+  const text = value.toLocaleLowerCase();
+  const markers = new Set<string>();
+  if (/(?:\bbox(?:es)?\b|\bкороб\p{L}*)/u.test(text)) markers.add("box");
+  if (/(?:\b(?:packag(?:e|ing)|pack)\b|\bупаков\p{L}*)/u.test(text)) markers.add("package");
+  if (/(?:\bbottl\p{L}*\b|\bбутыл\p{L}*|\bфлакон\p{L}*)/u.test(text)) markers.add("bottle");
+  if (/(?:\bjar\p{L}*\b|\bбан\p{L}*)/u.test(text)) markers.add("jar");
+  if (/(?:\btube\p{L}*\b|\bтюбик\p{L}*)/u.test(text)) markers.add("tube");
+  if (/(?:\bstick(?:\s+pack)?s?\b|\bстик\p{L}*)/u.test(text)) markers.add("stick");
+  if (/(?:\bsachet\p{L}*\b|\bсаше\p{L}*)/u.test(text)) markers.add("sachet");
+  if (/(?:\bpouch\p{L}*\b|\bпакет\p{L}*)/u.test(text)) markers.add("pouch");
+  return markers;
+}
+
+function hasSharedMarker(left: ReadonlySet<string>, right: ReadonlySet<string>) {
+  return [...left].some((marker) => right.has(marker));
+}
+
+function renderClientProductAction(action: string, productVisible: boolean) {
+  if (!productVisible || hasConsumptionAction(action)) return "";
+  return "повторяет только безопасную механику движения рук из reference с продуктом клиента";
 }
 
 function safeReferenceAction(value: string) {

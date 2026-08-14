@@ -342,6 +342,43 @@ try {
   assert.ok(neutralFoodBeat.requiredSupportProps.includes("food container"));
   assert.ok(!neutralFoodBeat.requiredSupportProps.some((prop) => /product box/iu.test(prop)));
   assert.equal(neutralFoodBeat.requiredReferenceAction, "shows the food container");
+  const splitPackageBrief = normalizeDirectorBrief({
+    director_brief: {
+      ...brief,
+      visual_transfer: {
+        camera_composition: "close-up with hands and product package in the lower frame",
+        props: [
+          { role: "source_product", description: "red collagen stick pack and branded product box", visible_from_start: true },
+          { role: "support_prop", description: "phone on the table", visible_from_start: true },
+        ],
+        action_beats: [
+          { timestamp_sec: 0, action: "holds two red collagen stick packs", required_prop: "two red collagen stick packs" },
+          { timestamp_sec: 5, action: "shows the red product box", required_prop: "red product box and stick pack" },
+          { timestamp_sec: 9, action: "uses the phone", required_prop: "phone on the table" },
+        ],
+      },
+    },
+  });
+  assert.ok(splitPackageBrief);
+  const splitPackagePolicy = buildReferenceTransferPolicy({ hasProductReference: true, directorBrief: splitPackageBrief });
+  const hiddenSourceProductBeat = buildReferenceTransferFramePlan({
+    policy: splitPackagePolicy,
+    productName: "Апельсиновый коллаген",
+    spokenText: "Объясняю, как выбрать подходящий продукт.",
+    productVisible: false,
+    position: 0,
+  });
+  assert.deepEqual(hiddenSourceProductBeat.requiredSupportProps, ["phone on the table"]);
+  assert.equal(hiddenSourceProductBeat.requiredReferenceAction, null);
+  const replacementSourceProductBeat = buildReferenceTransferFramePlan({
+    policy: splitPackagePolicy,
+    productName: "Апельсиновый коллаген",
+    spokenText: "Показываю свой коллаген.",
+    productVisible: true,
+    position: 0.5,
+  });
+  assert.deepEqual(replacementSourceProductBeat.requiredSupportProps, ["phone on the table"]);
+  assert.match(replacementSourceProductBeat.requiredReferenceAction, /продуктом клиента/iu);
   const referencePrompt = renderSimpleFullBodyUgcPrompt({
     plan: {
       segmentIndex: 1,

@@ -72,7 +72,7 @@ export function buildStoryboardImagePrompt(input: {
         ].filter(Boolean).join("; ") + ". Same fabric, cut, and color in every panel — any deviation is a failure."
       : "",
     "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
-    "Смысл реплики определяет главный предмет и действие кадра. Сохраняй мир съемки: ракурс, геометрию кадра, свет, одежду, тряску, PIP и монтаж; жест адаптируй. Исходный рекламный товар всегда заменяй нашим или убирай. Обязательный нейтральный реквизит из плана панели сохраняй: он не является товаром и не конкурирует с продуктом клиента.",
+    "Смысл реплики определяет главный предмет и действие кадра. Сохраняй мир съемки: ракурс, геометрию кадра, свет, одежду, тряску, PIP и монтаж; жест адаптируй. Исходный рекламный товар и любые части его упаковки, коробка, банка, бутылка, стик или саше никогда не являются нейтральным реквизитом: при replace_with_product замени их только продуктом клиента, при remove не показывай. Сохраняй лишь явно названный в плане нейтральный реквизит.",
     OMNI_PHYSICAL_ACTION_CONTRACT,
     "Не меняй одежду, цвет, ткань, крой, аксессуары или волосы между панелями.",
     productReferenceUrls.length
@@ -93,7 +93,7 @@ export function buildStoryboardImagePrompt(input: {
         `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)};${index === 0 ? ` окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};` : ""}`,
         frame.effectNotes ? `переход: ${compactText(frame.effectNotes)};` : "",
         frame.referenceTransfer
-          ? `перенос: исходный товар ${frame.referenceTransfer.decisions.sourceProduct}; нейтральный реквизит ${frame.referenceTransfer.decisions.sourceProps}; композиция ${compactText(frame.referenceTransfer.cameraComposition || "сохраняй reference")}; обязательный реквизит ${(frame.referenceTransfer.requiredSupportProps || []).join("; ") || "нет"}; обязательное действие ${compactText(frame.referenceTransfer.requiredReferenceAction || "нет")};`
+          ? `перенос: исходный рекламный товар ${frame.referenceTransfer.decisions.sourceProduct}; его упаковку и части не сохраняй; нейтральный реквизит ${frame.referenceTransfer.decisions.sourceProps}; композиция ${compactText(frame.referenceTransfer.cameraComposition || "сохраняй reference")}; обязательный реквизит ${(frame.referenceTransfer.requiredSupportProps || []).join("; ") || "нет"}; обязательное действие ${compactText(frame.referenceTransfer.requiredReferenceAction || "нет")};`
           : "",
         productReferenceUrls.length
           ? isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName)
