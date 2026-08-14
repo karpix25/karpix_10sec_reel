@@ -273,6 +273,15 @@ try {
   assert.match(physicalDemoSteps[0].action, /жестикулирует/iu);
   assert.match(physicalDemoSteps[1].action, /берет Коллаген.*поднимает/iu);
   assert.match(physicalDemoSteps[2].action, /держит Коллаген.*поворачивает/iu);
+  const firstDemoPlan = physicalModel.buildPhysicalFramePlan({
+    productName: "Коллаген",
+    spokenText: "Рассказываю, почему это удобно",
+    visualAction: physicalDemoSteps[0].action,
+    camera: "средний план",
+    productPlacement: physicalDemoSteps[0].placement,
+  });
+  assert.equal(firstDemoPlan.productState, "surface");
+  assert.equal(firstDemoPlan.actionKind, "neutral_speech", "initial product position must not be parsed as put_down");
 
   const biteWhileSpeaking = validator.validatePhysicalScene({
     storyboard: storyboard([

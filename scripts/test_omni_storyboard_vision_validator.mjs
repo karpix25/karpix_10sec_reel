@@ -190,7 +190,9 @@ try {
   assert.equal(referencedSetImages.length, 6, "cross-storyboard QA must see avatar, product, and all contact sheets together");
   const referencedSetPrompt = setRequests[1].messages[0].content[0].text;
   assert.match(referencedSetPrompt, /final image is the avatar identity reference only/u);
-  assert.match(referencedSetPrompt, /expected_wardrobe.*ground truth/u);
+  assert.match(referencedSetPrompt, /complete outfit ground truth/u);
+  assert.match(referencedSetPrompt, /jeans, a watch, a ring, or earrings are offscreen/u);
+  assert.match(referencedSetPrompt, /valid start, not a put_down and not product_teleportation/u);
   assert.match(referencedSetPrompt, /first 3 image\(s\) are contact sheets/u);
   assert.equal(referencedSetImages[0].image_url.url, "https://example.com/storyboard-1.jpg");
 

@@ -379,6 +379,31 @@ try {
   });
   assert.deepEqual(replacementSourceProductBeat.requiredSupportProps, ["phone on the table"]);
   assert.match(replacementSourceProductBeat.requiredReferenceAction, /продуктом клиента/iu);
+  const wardrobePropPolicy = buildReferenceTransferPolicy({
+    hasProductReference: true,
+    directorBrief: normalizeDirectorBrief({
+      director_brief: {
+        ...brief,
+        visual_transfer: {
+          camera_composition: "chef at a steel worktable",
+          props: [
+            { role: "support_prop", description: "white short-sleeve chef coat with mandarin collar", visible_from_start: true },
+            { role: "proof_prop", description: "silver watch and ring", visible_from_start: true },
+            { role: "support_prop", description: "steel worktable", visible_from_start: true },
+          ],
+          action_beats: [{ timestamp_sec: 0, action: "speaks to camera", required_prop: "white chef coat" }],
+        },
+      },
+    }),
+  });
+  const wardrobePropFrame = buildReferenceTransferFramePlan({
+    policy: wardrobePropPolicy,
+    productName: "Апельсиновый коллаген",
+    spokenText: "Объясняю выбор",
+    productVisible: false,
+  });
+  assert.deepEqual(wardrobePropFrame.requiredSupportProps, ["steel worktable"]);
+  assert.equal(wardrobePropFrame.requiredReferenceAction, "speaks to camera");
   const referencePrompt = renderSimpleFullBodyUgcPrompt({
     plan: {
       segmentIndex: 1,

@@ -20,7 +20,7 @@ const FACE_TOUCH_SPEECH_PATTERN = /(?:кож[аеиу]|лиц[аоеу]|щёк|�
 const CONSUMPTION_PATTERN = /(?:eat\w*|bite\w*|chew\w*|drink\w*|swallow\w*|sip\w*|tast\w*|consum\w*|into\s+(?:the\s+)?mouth|liquid[^.;]{0,60}(?:lips|mouth)|pour\w*[^.;]{0,60}(?:lips|mouth)|кус\w*|жев\w*|пив\w*|пь\w*|отпив\w*|отхлеб\w*|выпив\w*|глот\w*|откус\w*|съед\w*|пробу\w*|дегуст\w*|смаку\w*|употребл\w*|в\s+рот|во\s+рту|жидк\w*[^.;]{0,60}(?:губ|рот)|ль[её]т[^.;]{0,60}(?:губ|рот)|(?<!\p{L})ест(?:ь)?(?=\s|$|[,.!?])|принима(?:ет|ть)(?=\s|$|[,.!?])|прием(?=\s|$|[,.!?])|приём(?=\s|$|[,.!?]))/iu;
 const DRIVING_PATTERN = /(?:\bdriv(?:e|es|ing)?\b|\bsteer(?:s|ing)?\b|за рулем|за рулём|ведет машину|ведёт машину)/iu;
 const PICK_UP_PATTERN = /(?:берет|берёт|поднимает|pick\s*up|picks\s*up)/iu;
-const PUT_DOWN_PATTERN = /(?:кладет|кладёт|ставит|полож|убирает|откладывает|put\s*down|places?)/iu;
+const PUT_DOWN_PATTERN = /(?:клад[её]т|клад(?:ут|у|и|ите|ем|ла|ли)|став(?:ит|ят|ить|лю|ила|или)|полож(?:ит|ил|ила|или|ить|у|ите)|убирает|откладывает|put\s*down|places?)/iu;
 const HANDOFF_PATTERN = /(?:передает|передаёт|handoff|hands?\s+(?:it|the object)\s+to)/iu;
 const FOREIGN_PRODUCT_REFERENCE_PATTERN = /(?:product|brand|package|packaging|label|jar|bottle|box|tube|sachet|snack|food|drink|cream|serum|supplement|vitamin|apple|banana|fruit|vegetable|коллаген|сыр|морков|перекус|яблок|банан|фрукт|овощ|продукт|товар|бренд|упаков|этикет|баноч|бутыл|короб|тюбик|пакет|еда|напит|крем|сыворот|добавк|витамин)/iu;
 const FOREIGN_PACKAGED_PRODUCT_PATTERN = /(?:product|brand|package|packaging|label|jar|bottle|box|tube|sachet|cream|serum|supplement|vitamin|коллаген|продукт|товар|бренд|упаков|этикет|баноч|бутыл|короб|тюбик|пакет|крем|сыворот|добавк|витамин)/iu;

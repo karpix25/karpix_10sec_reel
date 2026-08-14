@@ -131,17 +131,17 @@ try {
       "storyboard image prompt must lock hair details"
     );
     assert.ok(imagePrompt.includes("герой смотрит прямо в объектив"), "storyboard image prompt must lock eye contact");
-    assert.ok(imagePrompt.includes("Не меняй одежду, цвет, ткань, крой, аксессуары или волосы"), "storyboard image prompt must lock wardrobe details");
+    assert.ok(imagePrompt.includes("OUTFIT LOCK") || imagePrompt.includes("CLOTHING LOCK (all panels)"), "storyboard image prompt must lock wardrobe details");
     if (item.index > 1) {
       assert.ok(imagePrompt.includes("эталон одежды из первого утверждённого storyboard"), "later storyboards must receive the canonical outfit reference");
       assert.ok(!imagePrompt.includes("CLOTHING LOCK (all panels)"), "the reference wardrobe must not override the canonical outfit");
     }
-    assert.ok(imagePrompt.includes("только лицо, возраст, волосы, телосложение и личность героя"), "storyboard image prompt must limit avatar reference to identity");
+    assert.ok(imagePrompt.includes("фиксирует лицо, пол, возраст, волосы, телосложение и личность"), "storyboard image prompt must limit avatar reference to identity");
     assert.ok(imagePrompt.includes("Смысл реплики определяет главный предмет и действие кадра"), "storyboard image prompt must request semantic reference-driven shots");
     if (productVisible) {
       assert.ok(imagePrompt.includes("Продукт впервые появляется"), "storyboard image prompt must require a clear natural product reveal");
     }
-    assert.ok(imagePrompt.includes("Исходный рекламный товар всегда заменяй нашим или убирай"), "storyboard image prompt must replace source products");
+    assert.ok(imagePrompt.includes("никогда не являются нейтральным реквизитом"), "storyboard image prompt must replace source products");
     assert.ok(imagePrompt.includes("нейтральный реквизит"), "storyboard image prompt must keep neutral reference props secondary");
     assert.ok(imagePrompt.includes("Не добавляй selfie-ракурсы"), "storyboard image prompt must not invent camera transitions");
     assert.ok(imagePrompt.length < 3500, `storyboard image prompt must stay under KIE text limit: ${imagePrompt.length}`);
