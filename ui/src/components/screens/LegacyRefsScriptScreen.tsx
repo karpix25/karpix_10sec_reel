@@ -113,7 +113,7 @@ export function LegacyRefsScriptScreen({
           </Badge>
           <Badge variant="outline" className="gap-1">
             <Archive className="h-3.5 w-3.5" />
-            1 random reference transcript
+            1 reference по очереди
           </Badge>
         </div>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -121,8 +121,8 @@ export function LegacyRefsScriptScreen({
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Legacy refs</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Написать сценарий под продукт</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Берём одну случайную оригинальную транскрибацию reference-видео из активного legacy-бандла и внедряем
-              выбранный продукт в её формат, ритм, хук и структуру удержания.
+              Берём следующий оригинальный reference по очереди из активных legacy-бандлов. Если его режиссёрский
+              анализ ещё не готов, сначала проводим анализ, затем внедряем выбранный продукт в его формат, ритм и хук.
             </p>
           </div>
           <Button type="button" onClick={() => void handleGenerate()} disabled={!canGenerate} className="min-h-11">

@@ -49,7 +49,7 @@ try {
       resolveCalls.push({ ...input, excludedLegacyScenarioIds: [...(input.excludedLegacyScenarioIds || [])] });
       if (input.legacyScenarioId) return { sourceScenario: selected, sourceMode: "selected_legacy_reference" };
       assert.deepEqual(input.excludedLegacyScenarioIds, [2930]);
-      return { sourceScenario: fallback, sourceMode: "random_active_legacy_reference" };
+      return { sourceScenario: fallback, sourceMode: "round_robin_active_legacy_reference" };
     },
     shouldAnalyze: () => true,
     ensureAnalysis: async ({ sourceScenario }) =>
@@ -60,7 +60,7 @@ try {
   });
 
   assert.equal(resolved.sourceScenario.id, fallback.id);
-  assert.equal(resolved.sourceMode, "random_active_legacy_reference");
+  assert.equal(resolved.sourceMode, "round_robin_active_legacy_reference");
   assert.equal(resolveCalls.length, 2);
   assert.match(warnings[0], /source #2930/);
   assert.match(warnings[0], /empty content/);
@@ -75,7 +75,7 @@ try {
     resolveSource: async (input) =>
       input.legacyScenarioId
         ? { sourceScenario: invalidCompleted, sourceMode: "selected_legacy_reference" }
-        : { sourceScenario: fallback, sourceMode: "random_active_legacy_reference" },
+        : { sourceScenario: fallback, sourceMode: "round_robin_active_legacy_reference" },
     shouldAnalyze: () => true,
     ensureAnalysis: async ({ sourceScenario }) =>
       sourceScenario.id === invalidCompleted.id
@@ -97,7 +97,7 @@ try {
     resolveSource: async (input) =>
       input.legacyScenarioId
         ? { sourceScenario: storageFailed, sourceMode: "selected_legacy_reference" }
-        : { sourceScenario: visualReady, sourceMode: "random_active_legacy_reference" },
+        : { sourceScenario: visualReady, sourceMode: "round_robin_active_legacy_reference" },
     shouldAnalyze: () => true,
     ensureAnalysis: async ({ sourceScenario }) =>
       sourceScenario.id === storageFailed.id
@@ -114,7 +114,7 @@ try {
       projectId: 7,
       productId: 9,
       maxAttempts: 2,
-      resolveSource: async () => ({ sourceScenario: selected, sourceMode: "random_active_legacy_reference" }),
+      resolveSource: async () => ({ sourceScenario: selected, sourceMode: "round_robin_active_legacy_reference" }),
       shouldAnalyze: () => true,
       ensureAnalysis: async ({ sourceScenario }) =>
         directorAnalysis(sourceScenario.id, "failed", "Director analysis model returned empty content"),
