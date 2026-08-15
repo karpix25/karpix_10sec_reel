@@ -1,11 +1,11 @@
 import type { OmniLegacyScenario } from "@/lib/omni/types";
-import { getLegacyScenario, getRandomLegacyScenarioFromClients } from "./legacy-scenarios";
+import pool from "@/lib/db";
+import { getLegacyScenario, getNextLegacyScenarioFromClients } from "./legacy-scenarios";
 import { listLegacyLibraryLinks } from "./legacy-library-links";
-import { listFailedDirectorAnalysisLegacyIds, listReadyDirectorAnalysisLegacyIds } from "./director-analyses";
+import { listFailedDirectorAnalysisLegacyIds } from "./director-analyses";
 
 export type GeneratedScriptSourceMode =
-  | "random_active_legacy_reference"
-  | "ready_active_legacy_reference"
+  | "round_robin_active_legacy_reference"
   | "selected_legacy_reference";
 
 export async function resolveGeneratedScriptSource(input: {
@@ -36,22 +36,32 @@ export async function resolveGeneratedScriptSource(input: {
   }
 
   const failedDirectorIds = await listFailedDirectorAnalysisLegacyIds();
-  const excludedAndFailedIds = [...failedDirectorIds, ...excludedIds];
-  const readyDirectorIds = await listReadyDirectorAnalysisLegacyIds();
-  const readySourceScenario = readyDirectorIds.length
-    ? await getRandomLegacyScenarioFromClients(legacyClientIds, excludedAndFailedIds, readyDirectorIds)
-    : null;
-  if (readySourceScenario) {
-    return { sourceScenario: readySourceScenario, sourceMode: "ready_active_legacy_reference" };
-  }
-  const sourceScenario = await getRandomLegacyScenarioFromClients(
+  const lastSelectedScenarioId = await getLastGeneratedScriptSourceId(input.projectId, input.productId);
+  const sourceScenario = await getNextLegacyScenarioFromClients(
     legacyClientIds,
-    excludedAndFailedIds
+    lastSelectedScenarioId,
+    [...failedDirectorIds, ...excludedIds],
   );
   if (!sourceScenario) {
     throw new Error("No reference transcripts found in active legacy bundles");
   }
-  return { sourceScenario, sourceMode: "random_active_legacy_reference" };
+  return { sourceScenario, sourceMode: "round_robin_active_legacy_reference" };
+}
+
+async function getLastGeneratedScriptSourceId(projectId: number, productId: number) {
+  const { rows } = await pool.query<{ source_legacy_scenario_id: number | string }>(
+    `SELECT source_legacy_scenario_id
+     FROM omni_generated_scripts
+     WHERE project_id = $1
+       AND product_id = $2
+       AND status <> 'archived'
+       AND source_legacy_scenario_id IS NOT NULL
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1`,
+    [projectId, productId],
+  );
+  const sourceId = rows[0]?.source_legacy_scenario_id;
+  return sourceId === undefined ? null : Number(sourceId);
 }
 
 function normalizeExcludedIds(ids: readonly number[] = []) {

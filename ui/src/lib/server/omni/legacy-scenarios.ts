@@ -1,5 +1,6 @@
 import { OmniLegacyScenario } from "@/lib/omni/types";
 import { oldPool } from "@/lib/db";
+import { selectRoundRobinCandidate } from "./legacy-round-robin";
 
 type LegacyScenarioRow = {
   id: number;
@@ -104,10 +105,10 @@ export async function getLegacyScenario(legacyScenarioId: number) {
   return rowsResult.rows[0] ? normalizeLegacyScenario(rowsResult.rows[0]) : null;
 }
 
-export async function getRandomLegacyScenarioFromClients(
+export async function getNextLegacyScenarioFromClients(
   legacyClientIds: number[],
+  lastSelectedScenarioId: number | null = null,
   excludedScenarioIds: number[] = [],
-  preferredScenarioIds: number[] = []
 ) {
   const clientIds = Array.from(
     new Set(legacyClientIds.filter((id) => Number.isFinite(id) && id > 0))
@@ -118,17 +119,9 @@ export async function getRandomLegacyScenarioFromClients(
   );
   const values: unknown[] = [clientIds];
   let excludeClause = "";
-  let preferredClause = "";
   if (excludedIds.length) {
     values.push(excludedIds);
     excludeClause = `AND NOT (pc.id = ANY($${values.length}::bigint[]))`;
-  }
-  const preferredIds = Array.from(
-    new Set(preferredScenarioIds.filter((id) => Number.isFinite(id) && id > 0))
-  );
-  if (preferredIds.length) {
-    values.push(preferredIds);
-    preferredClause = `AND pc.id = ANY($${values.length}::bigint[])`;
   }
 
   const legacyPool = oldPool;
@@ -151,13 +144,12 @@ export async function getRandomLegacyScenarioFromClients(
        AND COALESCE(TRIM(pc.transcript), '') <> ''
        AND pc.transcript NOT ILIKE 'Error %'
        ${excludeClause}
-       ${preferredClause}
-     ORDER BY RANDOM()
-     LIMIT 1`,
+     ORDER BY pc.client_id ASC, pc.id ASC`,
     values
   );
 
-  return rowsResult.rows[0] ? normalizeLegacyScenario(rowsResult.rows[0]) : null;
+  const selected = selectRoundRobinCandidate(rowsResult.rows, lastSelectedScenarioId, excludedIds);
+  return selected ? normalizeLegacyScenario(selected) : null;
 }
 
 function normalizeLegacyScenario(row: LegacyScenarioRow): OmniLegacyScenario {
