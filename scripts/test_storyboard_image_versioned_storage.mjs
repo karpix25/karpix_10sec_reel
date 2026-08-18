@@ -52,8 +52,8 @@ try {
 
   assert.notEqual(first, second, "different generation tokens must create different immutable URLs");
   assert.deepEqual(global.__omniStoryboardObjectKeys, [
-    "omni-videos/project-6/generated-script-22/storyboard/frames/01_storyboard_01_attempt_01_kie-task_first.jpeg",
-    "omni-videos/project-6/generated-script-22/storyboard/frames/01_storyboard_01_attempt_01_kie-task-second.jpeg",
+    "omni/omni-videos/project-6/generated-script-22/storyboard/frames/01_storyboard_01_attempt_01_kie-task_first.jpeg",
+    "omni/omni-videos/project-6/generated-script-22/storyboard/frames/01_storyboard_01_attempt_01_kie-task-second.jpeg",
   ]);
   console.log("Versioned storyboard image storage checks passed");
 } finally {

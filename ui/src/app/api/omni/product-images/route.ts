@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
 import { getS3Config, isS3Configured, putObjectToS3 } from "@/lib/server/s3-storage";
 import type { OmniReferenceAsset } from "@/lib/omni/types";
+import { buildOmniStorageKey } from "@/lib/server/omni/omni-storage-path";
 
 function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+/, "") || "product-image";
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
       if (useS3) {
         url = await putObjectToS3(
           s3Config,
-          `omni-product-images/project-${projectId}/${fileName}`,
+          buildOmniStorageKey(`omni-product-images/project-${projectId}/${fileName}`),
           fileBuffer,
           file.type || "image/jpeg"
         );

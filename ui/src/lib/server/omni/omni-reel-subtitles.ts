@@ -10,6 +10,7 @@ import { transcribeAudioFileWithDeepgram } from "./deepgram-transcription";
 import { runOmniFfmpeg, runOmniFfprobeDuration } from "./omni-ffmpeg";
 import { resolveOmniProjectSubtitleSettings } from "./omni-project-subtitle-settings";
 import { uploadOmniVideoBufferToS3 } from "./omni-video-storage";
+import { getReadableS3Url } from "@/lib/server/s3-storage";
 import { ensureOmniSchema } from "./schema";
 
 const SUBTITLE_RENDER_LOCK_NAMESPACE = 20260717;
@@ -254,7 +255,7 @@ async function updateSubtitleState(
 }
 
 async function downloadVideo(url: string, destinationPath: string) {
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await fetch((await getReadableS3Url(url)) || url, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Failed to download final video: ${response.status}`);
   }
