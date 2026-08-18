@@ -2,6 +2,7 @@ import { mkdir, rm, writeFile } from "fs/promises";
 import path from "path";
 import { getS3Config, isS3Configured, putObjectToS3 } from "@/lib/server/s3-storage";
 import type { OmniReferenceAsset } from "@/lib/omni/types";
+import { buildOmniStorageKey } from "./omni-storage-path";
 
 export type AvatarReferenceUploadInput = {
   projectId: number;
@@ -53,7 +54,7 @@ export async function saveAvatarReference(input: AvatarReferenceUploadInput) {
   if (useS3) {
     url = await putObjectToS3(
       s3Config,
-      `omni-avatar-references/project-${input.projectId}/${fileName}`,
+      buildOmniStorageKey(`omni-avatar-references/project-${input.projectId}/${fileName}`),
       input.buffer,
       input.contentType || "application/octet-stream"
     );

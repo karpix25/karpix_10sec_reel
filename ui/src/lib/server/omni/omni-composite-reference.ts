@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { getS3Config, putObjectToS3 } from "@/lib/server/s3-storage";
+import { buildOmniStorageKey } from "./omni-storage-path";
 
 const CANVAS_WIDTH = 720;
 const CANVAS_HEIGHT = 1280;
@@ -40,7 +41,7 @@ export async function createOmniCompositeReference(input: CompositeReferenceInpu
     .jpeg({ quality: 92, mozjpeg: true })
     .toBuffer();
 
-  const key = `omni-composite-references/project-${input.projectId}/reel-${input.reelId}/${Date.now()}_avatar_product_9x16.jpg`;
+  const key = buildOmniStorageKey(`omni-composite-references/project-${input.projectId}/reel-${input.reelId}/${Date.now()}_avatar_product_9x16.jpg`);
   return putObjectToS3(getS3Config(), key, body, "image/jpeg");
 }
 

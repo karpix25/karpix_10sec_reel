@@ -3,6 +3,7 @@ import pool from "@/lib/db";
 import { getS3Config, putObjectToS3 } from "@/lib/server/s3-storage";
 import { isYandexDiskConfigured, uploadVideoFileToYandexFolder } from "@/lib/server/yandex-disk";
 import type { OmniProduct, OmniProject, OmniReel } from "@/lib/omni/types";
+import { buildOmniStorageKey } from "./omni-storage-path";
 
 const YANDEX_VIDEO_ROOT = "ВИДЕО";
 const OMNI_CONTENT_FOLDER = "omni";
@@ -46,7 +47,7 @@ export async function uploadOmniVideoBufferToS3(input: {
     typeof input.segmentIndex === "number"
       ? `segments/${String(input.segmentIndex).padStart(2, "0")}_${input.fileName}`
       : `final/${input.fileName}`;
-  const key = `omni-videos/project-${input.projectId}/reel-${input.reelId}/${section}`;
+  const key = buildOmniStorageKey(`omni-videos/project-${input.projectId}/reel-${input.reelId}/${section}`);
   return putObjectToS3(config, key, input.body, "video/mp4");
 }
 
@@ -63,7 +64,7 @@ export async function uploadOmniImageBufferToS3(input: {
     typeof input.segmentIndex === "number"
       ? `frames/${String(input.segmentIndex).padStart(2, "0")}_${input.fileName}`
       : `frames/${input.fileName}`;
-  const key = `omni-videos/project-${input.projectId}/reel-${input.reelId}/${section}`;
+  const key = buildOmniStorageKey(`omni-videos/project-${input.projectId}/reel-${input.reelId}/${section}`);
   return putObjectToS3(config, key, input.body, input.contentType || "image/jpeg");
 }
 
@@ -77,7 +78,7 @@ export async function uploadOmniGeneratedScriptStoryboardImageBufferToS3(input: 
 }) {
   const config = getS3Config();
   const section = `frames/${String(input.segmentIndex).padStart(2, "0")}_${input.fileName}`;
-  const key = `omni-videos/project-${input.projectId}/generated-script-${input.scriptId}/storyboard/${section}`;
+  const key = buildOmniStorageKey(`omni-videos/project-${input.projectId}/generated-script-${input.scriptId}/storyboard/${section}`);
   return putObjectToS3(config, key, input.body, input.contentType || "image/jpeg");
 }
 
