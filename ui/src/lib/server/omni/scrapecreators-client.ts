@@ -1,3 +1,5 @@
+import { resolveInstagramVideoWithRapidApi } from "./rapidapi-instagram-client";
+
 const SCRAPECREATORS_BASE_URL = "https://api.scrapecreators.com";
 const SCRAPECREATORS_REQUEST_TIMEOUT_MS = 45_000;
 
@@ -7,6 +9,21 @@ export type ScrapeCreatorsInstagramVideo = {
 };
 
 export async function resolveInstagramVideoWithScrapeCreators(reelsUrl: string): Promise<ScrapeCreatorsInstagramVideo> {
+  try {
+    return await resolveWithScrapeCreators(reelsUrl);
+  } catch (scrapeCreatorsError) {
+    try {
+      return await resolveInstagramVideoWithRapidApi(reelsUrl);
+    } catch (rapidApiError) {
+      throw new Error(
+        `Instagram video resolution failed. ScrapeCreators: ${formatError(scrapeCreatorsError)}; ` +
+        `RapidAPI fallback: ${formatError(rapidApiError)}`
+      );
+    }
+  }
+}
+
+async function resolveWithScrapeCreators(reelsUrl: string): Promise<ScrapeCreatorsInstagramVideo> {
   const apiKey =
     process.env.SCRAPECREATORS_API_KEY ||
     process.env.SCRAPE_CREATORS_API_KEY ||
@@ -88,4 +105,8 @@ function pickString(data: Record<string, unknown>, keys: string[]) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function formatError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
