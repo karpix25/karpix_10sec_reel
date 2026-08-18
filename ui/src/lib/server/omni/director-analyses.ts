@@ -1,5 +1,6 @@
 import pool from "@/lib/db";
 import { summarizeOpenRouterUsage } from "@/lib/omni/openrouter-cost";
+import { getReadableS3Url } from "@/lib/server/s3-storage";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
 import { DIRECTOR_ANALYSIS_PROMPT_VERSION } from "./director-analysis-prompt";
@@ -10,6 +11,7 @@ import { normalizeDirectorBrief, type OmniDirectorAnalysis } from "./director-an
 import { verifyDirectorBriefAgainstReferenceFrames } from "./director-analysis-frame-verifier";
 
 const LEGACY_SOURCE = "old_db";
+const STORED_VIDEO_PROBE_TIMEOUT_MS = 15_000;
 
 type DirectorAnalysisRow = Omit<
   OmniDirectorAnalysis,
@@ -44,11 +46,46 @@ export async function ensureDirectorAnalysis(input: {
   await ensureOmniSchema();
   const existing = await getDirectorAnalysisForLegacy({ legacyScenarioId: input.sourceScenario.id });
   if (existing?.director_analysis_status === "completed" && normalizeDirectorBrief(existing.director_analysis_json)) {
-    return existing;
+    if (!existing.stored_video_url || await isStoredDirectorVideoAvailable(existing.stored_video_url)) {
+      return existing;
+    }
+
+    await resetDirectorAnalysisForRetry(existing.id);
+    return runDirectorAnalysis(existing.id, input.sourceScenario);
   }
 
   const row = await upsertPendingAnalysis(input);
   return runDirectorAnalysis(row.id, input.sourceScenario);
+}
+
+async function isStoredDirectorVideoAvailable(sourceUrl: string) {
+  try {
+    const readableUrl = await getReadableS3Url(sourceUrl);
+    const response = await fetch(readableUrl || sourceUrl, {
+      method: "GET",
+      headers: { Range: "bytes=0-15" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(STORED_VIDEO_PROBE_TIMEOUT_MS),
+    });
+    await response.body?.cancel();
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function resetDirectorAnalysisForRetry(analysisId: number) {
+  await pool.query(
+    `UPDATE omni_legacy_video_analyses
+     SET director_analysis_status = 'pending',
+         stored_video_url = NULL,
+         video_storage_status = NULL,
+         video_storage_error = NULL,
+         analysis_error = NULL,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [analysisId]
+  );
 }
 
 export async function listFailedDirectorAnalysisLegacyIds(limit = 500) {
