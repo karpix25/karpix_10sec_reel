@@ -1,3 +1,6 @@
+import { normalizeReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
+import { normalizeReferenceFormatMode, type ReferenceFormatMode } from "./omni-reference-format-mode";
+
 export type DirectorAnalysisStatus = "pending" | "processing" | "completed" | "failed";
 
 export type DirectorLocationTimelineItem = {
@@ -60,6 +63,8 @@ export type DirectorVisualTransferContract = {
 };
 
 export type DirectorBrief = {
+  reference_subject_mode?: ReferenceSceneMode;
+  reference_format_mode?: ReferenceFormatMode;
   visual_hook: {
     action: string;
     retention_trigger: string;
@@ -150,6 +155,12 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
   }
 
   const brief: DirectorBrief = {
+    reference_subject_mode: normalizeReferenceSceneMode(
+      candidate.reference_subject_mode ?? candidate.referenceSceneMode ?? candidate.reference_scene_mode ?? candidate.referenceSubjectMode
+    ) || undefined,
+    reference_format_mode: normalizeReferenceFormatMode(
+      candidate.reference_format_mode ?? candidate.referenceFormatMode
+    ) || undefined,
     visual_hook: {
       action: stringValue(visualHook.action),
       retention_trigger: stringValue(visualHook.retention_trigger),

@@ -4,6 +4,8 @@ import type {
 } from "../../omni/storyboard/omni-storyboard-vision-types";
 import { JsonOutputParseError, parseAndRepairJson } from "./script-json-repair";
 import { normalizeStoryboardVisionValidation } from "./storyboard-vision-contract";
+import { isFacelessReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
+import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "minimax/minimax-m3";
@@ -27,21 +29,33 @@ export function isStoryboardVisionJsonFormatError(error: unknown): error is Stor
 
 export async function validateStoryboardImage(input: {
   imageUrl: string;
-  avatarReferenceUrl: string;
+  avatarReferenceUrl?: string | null;
   storyboard: OmniStoryboardSegment;
   productName: string;
   canonicalStoryboardReferenceUrl?: string | null;
   directorReferenceImageUrls?: readonly string[];
+  referenceSceneMode?: ReferenceSceneMode;
+  referenceFormatMode?: ReferenceFormatMode;
   model?: string | null;
 }): Promise<StoryboardVisionValidation> {
   const apiKey = process.env.OPENROUTER_API_KEY || "";
   if (!apiKey.trim()) throw new Error("OPENROUTER_API_KEY is not configured for storyboard vision validation");
   const model = input.model || process.env.OMNI_STORYBOARD_VISION_MODEL || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL || DEFAULT_MODEL;
+  const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(null);
+  const referenceFormatMode = input.referenceFormatMode || "continuous_story";
+  const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
+  if (!facelessReferenceScene && !input.avatarReferenceUrl?.trim()) {
+    throw new Error("Storyboard vision validation requires the avatar reference for presenter mode");
+  }
   const data = await requestStoryboardVisionResponse({
     apiKey,
     model,
     messages: [
-      { role: "system", content: STORYBOARD_VISION_SYSTEM_PROMPT },
+      { role: "system", content: facelessReferenceScene
+        ? STORYBOARD_VISION_FACELESS_SYSTEM_PROMPT
+        : referenceFormatMode === "voiceover_montage"
+          ? STORYBOARD_VISION_MONTAGE_SYSTEM_PROMPT
+          : STORYBOARD_VISION_SYSTEM_PROMPT },
       {
         role: "user",
         content: [
@@ -52,10 +66,14 @@ export async function validateStoryboardImage(input: {
               productName: input.productName,
               hasCanonicalStoryboardReference: Boolean(input.canonicalStoryboardReferenceUrl?.trim()),
               hasDirectorReference: Boolean(input.directorReferenceImageUrls?.length),
+              referenceSceneMode,
+              referenceFormatMode,
             }),
           },
           { type: "image_url", image_url: { url: input.imageUrl } },
-          { type: "image_url", image_url: { url: input.avatarReferenceUrl } },
+          ...(facelessReferenceScene || !input.avatarReferenceUrl?.trim()
+            ? []
+            : [{ type: "image_url" as const, image_url: { url: input.avatarReferenceUrl.trim() } }]),
           ...(input.canonicalStoryboardReferenceUrl?.trim()
             ? [{ type: "image_url" as const, image_url: { url: input.canonicalStoryboardReferenceUrl.trim() } }]
             : []),
@@ -148,15 +166,61 @@ const STORYBOARD_VISION_SYSTEM_PROMPT = [
   "If a detail is ambiguous, outside the crop, or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
 
+const STORYBOARD_VISION_FACELESS_SYSTEM_PROMPT = [
+  "You are a strict static visual QA auditor for faceless storyboard contact sheets.",
+  "Inspect only facts that are positively visible in the candidate panels.",
+  "The approved format is hands-only, body-crop, or object-only with off-camera narration.",
+  "Use severity error when a face, head, eyes, lips, portrait, or talking-head framing is visibly introduced. Do not require avatar identity, face, hair, or wardrobe continuity.",
+  "Hands, arms, an approved body crop, neutral props, and product packages are allowed when required by the storyboard plan.",
+  "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
+  "If a detail is ambiguous or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
+].join(" ");
+
+const STORYBOARD_VISION_MONTAGE_SYSTEM_PROMPT = [
+  "You are a strict static visual QA auditor for storyboard contact sheets in a voiceover montage.",
+  "Inspect only facts that are positively visible in the candidate panels. The same presenter identity must remain, but independent cuts may use different outfits, locations, lighting, and camera setups.",
+  "Use severity error only for a visible face or hair identity mismatch, a contradiction with the current segment's expected core garment, a visibly wrong client product package, or a visible foreign advertised product.",
+  "Never reject a valid outfit or scene change between independent cuts. Do not block missing offscreen accessories, cropped jeans, camera composition, reference gestures, hand motion, pickup timing, face gestures, or an action that occurs between static panels.",
+  "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
+  "If a detail is ambiguous, outside the crop, or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
+].join(" ");
+
 function buildStoryboardVisionPrompt(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
   hasCanonicalStoryboardReference: boolean;
   hasDirectorReference: boolean;
+  referenceSceneMode: ReferenceSceneMode;
+  referenceFormatMode: ReferenceFormatMode;
 }) {
+  if (isFacelessReferenceScene(input.referenceSceneMode)) {
+    return [
+      "The first image is the candidate storyboard. No avatar identity reference is supplied because this is a faceless reference format.",
+      input.hasCanonicalStoryboardReference
+        ? "The next image is the canonical storyboard for scene and prop continuity only; it is not an identity reference."
+        : "",
+      input.hasDirectorReference
+        ? "The final supplied image is a source-reference frame for camera, light, props, and action only."
+        : "",
+      "For every panel, verify that no face, head, eyes, lips, portrait, or talking-head framing is visible. Hands, arms, body crops, objects, and neutral props are allowed when present in the storyboard plan.",
+      "Expected storyboard plan:",
+      JSON.stringify({
+        product: input.productName,
+        panels: input.storyboard.frames.map((frame, index) => ({
+          panel_index: index + 1,
+          physical_plan: frame.physicalPlan || null,
+          reference_transfer: frame.referenceTransfer || null,
+          visual_action: frame.visualAction,
+        })),
+      }),
+    ].join("\n");
+  }
+  const montageReference = input.referenceFormatMode === "voiceover_montage";
   return [
     input.hasCanonicalStoryboardReference
-      ? "The first image is the candidate storyboard. The second image is the approved avatar identity reference. The third image is the approved canonical storyboard core-garment reference. Every candidate panel must show the same person as the avatar in face, hair, and body type. Preserve the visible core garment from the canonical reference: garment type, sleeves, neckline, fabric, color, and fit. Do not require jewelry, glasses, watches, rings, jeans, or other accessories. Ignore any detail outside the candidate crop."
+      ? montageReference
+        ? "The first image is the candidate storyboard. The second image is the approved avatar identity reference. The third image is an optional canonical storyboard identity reference, not a whole-reel wardrobe lock. Every candidate panel must show the same person as the avatar in face, hair, and body type; use the current segment's plan for its local visible core garment. Do not require jewelry, glasses, watches, rings, jeans, or other accessories. Ignore any detail outside the candidate crop."
+        : "The first image is the candidate storyboard. The second image is the approved avatar identity reference. The third image is the approved canonical storyboard core-garment reference. Every candidate panel must show the same person as the avatar in face, hair, and body type. Preserve the visible core garment from the canonical reference: garment type, sleeves, neckline, fabric, color, and fit. Do not require jewelry, glasses, watches, rings, jeans, or other accessories. Ignore any detail outside the candidate crop."
       : "The first image is the candidate storyboard. The second image is the approved avatar identity reference. Every candidate panel must show the same person as the avatar in face, hair, and body type. Only a positively visible identity mismatch requires repair.",
     input.hasDirectorReference
       ? "The final supplied image is a source-reference frame. It is a creative source only: never use it to reject camera, gesture, action timing, face identity, clothing, source brand, text, or logos in the candidate."
@@ -172,7 +236,9 @@ function buildStoryboardVisionPrompt(input: {
         wardrobe: frame.wardrobe,
       })),
     }),
-    "For every panel, inspect only the visible person, visible core garment, and visible branded packages. The action and physical_plan guide the final video prompt; a static card cannot prove motion, pickup, timing, or face-touch intent. If reference_transfer says the source product is removed or replaced, reject only a visibly copied source product or competing branded package. Neutral support props, crops, camera geometry, and ordinary food are not evidence of a foreign advertised product.",
+    montageReference
+      ? "For every panel, inspect only the visible person, that panel's local expected core garment, and visible branded packages. The action and physical_plan guide the final video prompt; a static card cannot prove motion, pickup, timing, or face-touch intent. If reference_transfer says the source product is removed or replaced, reject only a visibly copied source product or competing branded package. Neutral support props, crops, camera geometry, and ordinary food are not evidence of a foreign advertised product."
+      : "For every panel, inspect only the visible person, visible core garment, and visible branded packages. The action and physical_plan guide the final video prompt; a static card cannot prove motion, pickup, timing, or face-touch intent. If reference_transfer says the source product is removed or replaced, reject only a visibly copied source product or competing branded package. Neutral support props, crops, camera geometry, and ordinary food are not evidence of a foreign advertised product.",
   ].join("\n");
 }
 

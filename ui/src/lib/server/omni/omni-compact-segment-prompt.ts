@@ -17,6 +17,7 @@ import {
 } from "./omni-scene-safety-contract";
 import { renderScriptBeatGuidance } from "./script-beat-plan";
 import { renderOmniVerticalRhythmContract } from "./omni-vertical-rhythm-contract";
+import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
 export function renderCompactSegmentPrompt(input: {
   plan: OmniSegmentCreativePlan;
@@ -57,7 +58,10 @@ export function renderCompactSegmentPrompt(input: {
     .map((item) => `${item.name}: ${item.appearance}; start: ${item.initialPosition}`)
     .join(" | ");
   const talkingHead = input.plan.lifeFormatId === "talking_head_cutaways";
-  const continuity = input.segmentIndex < input.segmentCount
+  const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.directorBrief));
+  const continuity = montageReference
+    ? "This is an independent montage segment. Do not continue the previous segment's room, outfit, camera, or prop positions; preserve the same presenter identity and exact product appearance only."
+    : input.segmentIndex < input.segmentCount
     ? "End in a stable believable state that the next part can continue from."
     : "End after the last spoken word without adding a new phrase or CTA.";
 
@@ -73,7 +77,11 @@ export function renderCompactSegmentPrompt(input: {
     layoutContract?.layoutLine,
     referenceBrief.locationLine,
     referenceBrief.cameraLine,
-    talkingHead ? "FORMAT: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Face-to-camera with short product-relevant cutaways, not copied reference montage." : null,
+    talkingHead
+      ? montageReference
+        ? "FORMAT: VOICEOVER MONTAGE. Off-camera narration carries one idea across independent cutaways with the same presenter identity; do not force one physical scene across segments."
+        : "FORMAT: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Face-to-camera with short product-relevant cutaways, not copied reference montage."
+      : null,
     `CHARACTER: ${input.characterContract.identityLine}.`,
     referenceBrief.wardrobeLine,
     `PRODUCT: ${input.productName}. ${renderProductRole(input.plan.productRole)}`,
@@ -89,7 +97,7 @@ export function renderCompactSegmentPrompt(input: {
     "SPEECH:",
     "Start speaking on frame 0. Use simple natural conversational Russian. Say only the current part once. Do not repeat, skip, restart, paraphrase, continue a neighbor part, or add subtitles.",
     `The avatar says: ${input.plan.voiceoverText}`,
-    `CONTINUITY: same identity, adapted outfit, location, light, product appearance, and physical prop positions unless the reference location timeline changes for this part. ${continuity}`,
+    `CONTINUITY: ${montageReference ? "same identity and exact product appearance; each independent cut follows its corresponding reference setup" : "same identity, adapted outfit, location, light, product appearance, and physical prop positions unless the reference location timeline changes for this part"}. ${continuity}`,
     "CLEAN FRAME: no on-screen text, subtitles, captions, progress bars, overlay icons, buttons, watermarks, logos, or app interface.",
     OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
   ].filter(Boolean).join("\n");

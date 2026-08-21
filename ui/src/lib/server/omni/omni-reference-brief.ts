@@ -9,6 +9,7 @@ import {
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 import { sanitizeReferenceActionDna, sanitizeReferenceWorldText } from "./omni-scene-world-sanitizer";
 import { shouldUseAvatarWardrobe } from "./omni-wardrobe-contract";
+import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
 export type CompactReferenceBriefInput = {
   brief: DirectorBrief | null;
@@ -30,10 +31,14 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
   const wardrobeSource = normalizeOmniWardrobeSource(input.wardrobeSource);
   const policy = resolveReferenceTransferPolicy(input.referencePolicy);
   const location = selectDirectorLocationForSegment(input);
+  const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.brief));
   return {
     referenceLine: [
-      `REFERENCE: part ${input.segmentIndex}/${input.segmentCount}; continue the same avatar identity and product story.`,
+      montageReference
+        ? `REFERENCE: independent montage part ${input.segmentIndex}/${input.segmentCount}; preserve the same avatar identity and product story, but use the matching reference cut for this part.`
+        : `REFERENCE: part ${input.segmentIndex}/${input.segmentCount}; continue the same avatar identity and product story.`,
       "Use the reference video for location, environment, lighting, camera framing, and adapted outfit style only.",
+      montageReference ? "Do not force wardrobe, location, prop position, or physical action continuity between independent cuts." : "",
       policy.mode === "style_only"
         ? "Use only the main presenter setup, visual feel, and light quality; omit unrelated reference-world objects, workflows, uniforms, and product category details."
         : "",
@@ -42,7 +47,7 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
     cameraLine: renderCameraLine(input.brief),
     wardrobeLine: shouldUseAvatarWardrobe(wardrobeSource)
       ? `Wardrobe: use the avatar outfit only; ${input.characterContract?.clothingLine || "keep the avatar reference outfit unchanged"}; ignore clothing from the reference video.`
-      : renderAdaptedWardrobeLine(input.brief, policy),
+      : renderAdaptedWardrobeLine(input.brief, policy, montageReference),
     actionLine: renderActionLine(input.brief, policy),
   };
 }
@@ -106,7 +111,7 @@ function renderLocationLine(brief: DirectorBrief, location: DirectorLocationRang
   return `LOCATION NOW: ${setting}; environment: ${environment}; light: ${lighting}.`;
 }
 
-function renderAdaptedWardrobeLine(brief: DirectorBrief, policy: ReferenceTransferPolicy) {
+function renderAdaptedWardrobeLine(brief: DirectorBrief, policy: ReferenceTransferPolicy, montageReference = false) {
   const colors = brief.clothing.color_palette.length
     ? `colors ${brief.clothing.color_palette.join(", ")}`
     : "same color mood";
@@ -122,6 +127,9 @@ function renderAdaptedWardrobeLine(brief: DirectorBrief, policy: ReferenceTransf
     brief.clothing.fit_details,
     colors,
     adaptation,
+    montageReference
+      ? "for each independent cut match the visible outfit in its corresponding reference frame; keep the same face, hair, age, body type, and identity"
+      : "keep the same outfit across all parts",
   ].filter(Boolean).join("; ") + ".";
 }
 

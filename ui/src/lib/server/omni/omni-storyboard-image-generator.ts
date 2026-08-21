@@ -21,6 +21,8 @@ import {
   isStoryboardVisionValidationInconclusive,
 } from "./storyboard-vision-contract";
 import { resolveStoryboardRepairMode } from "./storyboard-qa-contract";
+import { isFacelessReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
+import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import {
   canAttemptStoryboardImageGeneration,
   normalizeStoryboardImageGenerationAttemptCount,
@@ -57,6 +59,7 @@ type StoryboardImageInput = {
   previousRepairInstructions?: readonly string[];
   previousGenerationAttemptCount?: number;
   directorBrief?: DirectorBrief | null;
+  referenceSceneMode?: ReferenceSceneMode;
   generationProvider?: OmniGenerationProvider;
   pendingKieStoryboardTaskId?: string | null;
   referenceSafetyInstructions?: readonly string[];
@@ -81,8 +84,10 @@ export function isStoryboardImageRepairExhaustedError(error: unknown): error is 
 
 export async function generateStoryboardImage(input: StoryboardImageInput) {
   if (process.env.OMNI_STORYBOARD_IMAGE_GENERATION === "false") return null;
+  const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(input.directorBrief);
+  const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
   const avatarReferenceUrl = cleanUrl(input.avatarReferenceUrl);
-  if (!avatarReferenceUrl) {
+  if (!avatarReferenceUrl && !facelessReferenceScene) {
     throw new Error("Storyboard image generation requires the avatar reference image used for Omni character_id");
   }
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
@@ -101,6 +106,7 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     canonicalStoryboardReferenceUrl,
     previousStoryboardReferenceUrl,
     directorBrief: input.directorBrief,
+    referenceSceneMode,
   };
   const referenceSafetyInstructions = uniqueStrings(input.referenceSafetyInstructions || []);
   let repairInstructions = uniqueStrings([
@@ -155,10 +161,12 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     const validationInput = {
       imageUrl: toDataUrl(generated.body, generated.contentType),
       avatarReferenceUrl,
+      referenceSceneMode,
       storyboard: input.storyboard,
       productName: input.productName,
       canonicalStoryboardReferenceUrl,
       directorReferenceImageUrls,
+      referenceFormatMode: resolveReferenceFormatMode(input.directorBrief),
     };
     let validation: StoryboardVisionValidation;
     try {
@@ -185,7 +193,9 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     }
     const retryInstructions = getStoryboardVisionRepairInstructions(validation);
     const automaticRetryInstructions = isStoryboardVisionValidationInconclusive(validation)
-      ? ["Re-render the same storyboard plan with every panel clear, readable, and the avatar fully visible for continuity QA."]
+      ? [facelessReferenceScene
+        ? "Re-render the same storyboard plan with every panel clear, readable, and only the approved hands, crop, and physical props visible; do not introduce a face or head."
+        : "Re-render the same storyboard plan with every panel clear, readable, and the avatar fully visible for continuity QA."]
       : retryInstructions;
     if (!automaticRetryInstructions.length || !canAttemptStoryboardImageGeneration(generationAttemptCount)) {
       throw new StoryboardImageRepairExhaustedError({ validation: lastValidation, generationAttemptCount });
@@ -224,17 +234,18 @@ async function generateKieStoryboardImageBytes(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
   productPhysicalContract?: string | null;
-  avatarReferenceUrl: string;
+  avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
   canonicalStoryboardReferenceUrl: string | null;
   previousStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
+  referenceSceneMode: ReferenceSceneMode;
   pendingKieStoryboardTaskId?: string | null;
   repairInstructions: readonly string[];
 }): Promise<GeneratedStoryboardImage> {
   const inputUrls = [
-    input.avatarReferenceUrl,
+    ...(input.avatarReferenceUrl && !isFacelessReferenceScene(input.referenceSceneMode) ? [input.avatarReferenceUrl] : []),
     ...(input.canonicalStoryboardReferenceUrl ? [input.canonicalStoryboardReferenceUrl] : []),
     ...(input.previousStoryboardReferenceUrl ? [input.previousStoryboardReferenceUrl] : []),
     ...input.productReferenceUrls,
@@ -273,12 +284,13 @@ async function generateCometStoryboardImageBytes(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
   productPhysicalContract?: string | null;
-  avatarReferenceUrl: string;
+  avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
   canonicalStoryboardReferenceUrl: string | null;
   previousStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
+  referenceSceneMode: ReferenceSceneMode;
   repairInstructions: readonly string[];
 }): Promise<GeneratedStoryboardImage> {
   const response = await createStoryboardImage(input);
@@ -303,12 +315,13 @@ async function createStoryboardImage(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
   productPhysicalContract?: string | null;
-  avatarReferenceUrl: string;
+  avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
   canonicalStoryboardReferenceUrl: string | null;
   previousStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
+  referenceSceneMode: ReferenceSceneMode;
   repairInstructions: readonly string[];
 }) {
   const references = buildReferenceFiles(input).slice(0, 16);
@@ -362,14 +375,17 @@ function toDataUrl(body: Buffer, contentType: string) {
 }
 
 function buildReferenceFiles(input: {
-  avatarReferenceUrl: string;
+  avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
   canonicalStoryboardReferenceUrl: string | null;
   previousStoryboardReferenceUrl: string | null;
+  referenceSceneMode: ReferenceSceneMode;
 }): StoryboardReferenceFile[] {
   return [
-    { url: input.avatarReferenceUrl, required: true, kind: "avatar" },
+    input.avatarReferenceUrl && !isFacelessReferenceScene(input.referenceSceneMode)
+      ? { url: input.avatarReferenceUrl, required: true, kind: "avatar" as const }
+      : null,
     input.canonicalStoryboardReferenceUrl
       ? { url: input.canonicalStoryboardReferenceUrl, required: true, kind: "canonical" as const }
       : null,

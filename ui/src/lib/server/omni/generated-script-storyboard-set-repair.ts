@@ -15,6 +15,7 @@ import {
   type StoryboardSetRepairProgress,
   type StoryboardSetRepairState,
 } from "./storyboard-set-repair-state";
+import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 
 const MAX_STORYBOARD_SET_QA_ROUNDS = 2;
 
@@ -36,6 +37,7 @@ export async function ensureGeneratedScriptStoryboardSetApproval(input: {
   urls: Map<number, string>;
   productName: string;
   productReferenceUrls: readonly string[];
+  referenceFormatMode?: ReferenceFormatMode;
   regenerateTarget: (input: {
     segmentIndex: number;
     validation: StoryboardSetVisionValidation;
@@ -147,6 +149,7 @@ async function validateStoryboardSetRound(
     attemptCount: qaRound,
     productName: input.productName,
     productReferenceUrls: input.productReferenceUrls,
+    referenceFormatMode: input.referenceFormatMode,
   });
 }
 

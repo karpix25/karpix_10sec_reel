@@ -17,6 +17,7 @@ import {
   resolveReferenceTransferPolicy,
   type ReferenceTransferPolicy,
 } from "../omni-reference-transfer-policy";
+import { isVoiceoverMontageReference, type ReferenceFormatMode } from "../omni-reference-format-mode";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -29,6 +30,7 @@ export function buildStoredStoryboardFrame(input: {
   productDemoFrame?: { frameIndex: number; frameCount: number };
   referenceProfile?: DirectorSegmentProfile | null;
   referenceTransferPolicy?: ReferenceTransferPolicy;
+  referenceFormatMode?: ReferenceFormatMode;
 }): OmniStoryboardFrame {
   const spokenText = input.frame.spokenWords;
   const productVisible = input.productVisible;
@@ -98,12 +100,16 @@ export function buildStoredStoryboardFrame(input: {
         productPlacement,
       });
 
+  const wardrobe = isVoiceoverMontageReference(input.referenceFormatMode)
+    ? "одежда соответствует текущему независимому reference-кадру; лицо, волосы, возраст и телосложение героя сохраняются между сегментами"
+    : `одежда из avatar или reference contract, без смены между кадрами; ${EXACT_FABRIC_LOCK}`;
+
   return {
     spokenText,
     visualAction: repairedVisualAction,
     camera,
     environment,
-    wardrobe: `одежда из avatar или reference contract, без смены между кадрами; ${EXACT_FABRIC_LOCK}`,
+    wardrobe,
     productPlacement,
     sfxNotes,
     effectNotes: null,

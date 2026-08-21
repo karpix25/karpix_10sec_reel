@@ -1,7 +1,9 @@
 import type { DirectorBrief } from "./director-analysis-types";
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
+import { renderReferenceSceneModeForDirectorPrompt, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
+import { renderReferenceFormatContract, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v6";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v7";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
@@ -18,7 +20,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
   return [
     "Analyze the attached video and transcript.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
+    "reference_subject_mode, reference_format_mode, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -30,6 +32,8 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
     "",
     "Important constraints:",
     "- Values must be descriptive but compact.",
+    "- reference_subject_mode MUST be classified from visible frames, not transcript: presenter, faceless_hands, body_crop, or object_only. Use faceless_hands when the reference has off-camera narration and only hands/props are visible; never invent a face or avatar.",
+    "- reference_format_mode MUST be classified from the visible edit and narration: continuous_story when one scene and physical state continue between segments; voiceover_montage when one narrator carries the meaning across independent cutaways where location, action, camera setup, or outfit can change while the main presenter remains the same.",
     "- location_timeline must describe any location/environment changes by seconds. If the location never changes, return one item for the whole video.",
     "- camera_timeline must cover the whole source video with 2-8 chronological intervals. For each interval record exact seconds, shot type, angle, movement, stabilization, setting, environment, lighting, visible action, and gesture. Preserve raw smartphone texture, handheld shake, focus/exposure changes, and vehicle sway when visible. A moving car is allowed; the presenter is a passenger, never the driver.",
     "- clothing.source names whose outfit style is being described, usually the main presenter.",
@@ -52,6 +56,8 @@ export function renderDirectorBriefForScriptPrompt(brief: DirectorBrief | null) 
   const motionContinuity = brief.motion_continuity || [];
   return [
     "Режиссерский анализ оригинального видео:",
+    `- ${renderReferenceSceneModeForDirectorPrompt(resolveReferenceSceneMode(brief))}`,
+    `- ${renderReferenceFormatContract(resolveReferenceFormatMode(brief))}`,
     `- Визуальный хук: ${brief.visual_hook.action}; удержание: ${brief.visual_hook.retention_trigger}.`,
     `- Атмосфера: ${brief.atmosphere.mood}; место: ${brief.atmosphere.setting}; свет: ${brief.atmosphere.lighting}.`,
     `- Одежда: ${brief.clothing.style}; палитра: ${brief.clothing.color_palette.join(", ") || "не указана"}.`,
@@ -78,6 +84,8 @@ export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
     .map((beat) => `${beat.timestamp_sec}s: ${beat.action_description}; ${beat.actor_gesture}`)
     .join(" | ");
   return [
+    renderReferenceSceneModeForDirectorPrompt(resolveReferenceSceneMode(brief)),
+    renderReferenceFormatContract(resolveReferenceFormatMode(brief)),
     `REFERENCE DIRECTION: visual hook - ${brief.visual_hook.action}; retention trigger - ${brief.visual_hook.retention_trigger}.`,
     `ATMOSPHERE: ${brief.atmosphere.mood}; ${brief.atmosphere.setting}; ${brief.atmosphere.lighting}; ${brief.atmosphere.color_grading}.`,
     `WARDROBE: ${brief.clothing.style}; ${brief.clothing.fit_details}; colors: ${brief.clothing.color_palette.join(", ") || "natural neutral palette"}; source: ${brief.clothing.source}.`,
@@ -101,6 +109,8 @@ export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
 
 function buildDirectorBriefSkeleton() {
   return {
+    reference_subject_mode: "presenter|faceless_hands|body_crop|object_only",
+    reference_format_mode: "continuous_story|voiceover_montage",
     visual_hook: { action: "", retention_trigger: "" },
     atmosphere: { mood: "", lighting: "", color_grading: "", setting: "" },
     clothing: {

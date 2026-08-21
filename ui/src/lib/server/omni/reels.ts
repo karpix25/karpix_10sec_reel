@@ -30,6 +30,8 @@ import {
   normalizeDirectorBrief,
   type DirectorBrief,
 } from "./director-analysis-types";
+import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
+import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
@@ -73,6 +75,15 @@ export async function listOmniReels(projectId: number, productId?: number | null
     values
   );
   return rows.map(normalizeReel);
+}
+
+export async function getOmniReel(reelId: number) {
+  await ensureOmniSchema();
+  const { rows } = await pool.query<OmniReel>(
+    "SELECT * FROM omni_reels WHERE id = $1 LIMIT 1",
+    [reelId]
+  );
+  return rows[0] ? normalizeReel(rows[0]) : null;
 }
 
 export async function listOmniReelSegments(reelIds: number[]) {
@@ -170,6 +181,7 @@ export async function createOmniReel(input: {
         director_analysis_id: sourceScenarioAnalysis?.id || null,
         director_analysis_status: sourceScenarioAnalysis?.director_analysis_status || "not_requested",
         director_analysis: sourceScenarioDirectorBrief,
+        reference_format_mode: resolveReferenceFormatMode(directorBrief),
         director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
         director_reference_image_urls: directorReferenceImageUrls,
         reference_transfer_plan: referenceTransferPlan,
@@ -191,6 +203,7 @@ export async function createOmniReel(input: {
         director_analysis_id: sourceScenarioAnalysis?.id || null,
         director_analysis_status: sourceScenarioAnalysis?.director_analysis_status || "not_requested",
         director_analysis: sourceScenarioDirectorBrief,
+        reference_format_mode: resolveReferenceFormatMode(directorBrief),
         reference_transfer_plan: referenceTransferPlan,
         director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
         director_reference_image_urls: directorReferenceImageUrls,
@@ -253,6 +266,7 @@ export async function createOmniReel(input: {
     productPhysicalContract: product.product_physical_contract,
     segmentCount,
     directorBrief,
+    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
   });
   const promptPlan = normalizeOmniPromptPlanWithPhysicalRules({
     promptPlan: repairedPromptPlan,
@@ -260,10 +274,12 @@ export async function createOmniReel(input: {
     productPhysicalContract: product.product_physical_contract,
     segmentCount,
     directorBrief,
+    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
   });
   assertPhysicalPromptPlan(promptPlan);
-  assertStoryboardPromptContracts(promptPlan, product.name);
+  assertStoryboardPromptContracts(promptPlan, product.name, resolveReferenceFormatMode(directorBrief));
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
+  const referenceSceneMode = resolveReferenceSceneMode(creativeStrategy);
   const reservedReelId = await reserveOmniReelId();
   const storyboardDirectorReferenceImageUrlsBySegment = await prepareSegmentStoryboardDirectorReferenceUrls({
     directorAnalysis: sourceScenarioAnalysis,
@@ -295,6 +311,8 @@ export async function createOmniReel(input: {
       directorReferenceImageUrls,
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
       directorBrief,
+      referenceSceneMode,
+      referenceFormatMode: resolveReferenceFormatMode(directorBrief),
       promptPlan: promptPlan.map((segment) => ({
         index: segment.index,
         storyboardPlan: segment.storyboardPlan,
@@ -316,6 +334,7 @@ export async function createOmniReel(input: {
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
       directorBrief,
       avatarReferenceUrl: latestAvatar?.reference_url || null,
+      referenceSceneMode,
       promptPlan,
       generationProvider: input.generationProvider,
     });
@@ -440,6 +459,7 @@ async function generateStoryboardReferenceUrls(input: {
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   directorBrief?: DirectorBrief | null;
   avatarReferenceUrl: string | null;
+  referenceSceneMode: import("./omni-reference-scene-mode").ReferenceSceneMode;
   promptPlan: readonly ReturnType<typeof buildOmniSegmentPrompts>[number][];
   generationProvider?: OmniGenerationProvider;
 }): Promise<(string | null)[]> {
@@ -466,6 +486,7 @@ async function generateStoryboardReferenceUrls(input: {
         avatarReferenceUrl: input.avatarReferenceUrl,
         canonicalStoryboardReferenceUrl,
         directorBrief: input.directorBrief,
+        referenceSceneMode: input.referenceSceneMode,
         generationProvider: input.generationProvider,
       })
       : null;

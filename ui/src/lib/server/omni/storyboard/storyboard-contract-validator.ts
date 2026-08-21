@@ -4,6 +4,7 @@ import {
   mentionsNamedOmniProduct,
   mentionsOmniProduct,
 } from "../omni-intro-product-contract";
+import type { ReferenceFormatMode } from "../omni-reference-format-mode";
 
 export type StoryboardSegmentContract = {
   productName: string;
@@ -101,13 +102,17 @@ function tokenSet(value: string) {
 
 export function assertStoryboardPromptContracts(
   promptPlan: readonly StoryboardPromptContractInput[],
-  productName: string
+  productName: string,
+  referenceFormatMode: ReferenceFormatMode = "continuous_story"
 ) {
-  const fixedWardrobe = promptPlan.find((segment) => segment.storyboardPlan?.frames[0])
+  const globalFixedWardrobe = promptPlan.find((segment) => segment.storyboardPlan?.frames[0])
     ?.storyboardPlan?.frames[0]?.wardrobe || "";
   const errors = promptPlan.flatMap((segment) => {
     if (!segment.storyboardPlan) return [`segment_${segment.index}_storyboard_required`];
     const voiceoverMismatch = normalize(segment.storyboardPlan.voiceoverText) !== normalize(segment.voiceoverText);
+    const fixedWardrobe = referenceFormatMode === "voiceover_montage"
+      ? segment.storyboardPlan.frames[0]?.wardrobe || ""
+      : globalFixedWardrobe;
     const result = validateStoryboardSegmentContract({
       storyboard: segment.storyboardPlan,
       contract: {

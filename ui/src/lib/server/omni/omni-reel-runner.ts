@@ -9,11 +9,8 @@ import { resolveProductReferenceImageUrls } from "./omni-product-reference-image
 import { createOmniCompositeReference } from "./omni-composite-reference";
 import { appendContinuityPromptContract, appendKieReferenceOrderPrompt } from "./omni-continuity-prompt";
 import { isOmniContinuityChainEnabled, isSegmentBlockedByContinuityChain, resolveContinuityReference } from "./omni-continuity-reference";
-import {
-  createProviderVideoTask,
-  getProviderDuration,
-  type ProviderTask,
-} from "./omni-provider-tasks";
+import { getProviderDuration, type ProviderTask } from "./omni-provider-tasks";
+import { createOmniVideoTask } from "./omni-video-task-dispatch";
 import { processOmniReelSubtitlesIfNeeded } from "./omni-reel-subtitles";
 import { stitchAndStoreReel } from "./omni-segment-completion";
 import { detectKieOmniVoiceGender, resolveKieOmniAudioIds, type KieOmniVoiceGender } from "./kie-omni-audio";
@@ -24,11 +21,13 @@ import { syncOmniReelSegments } from "./omni-segment-sync";
 import { assertOmniPhysicalPreflight } from "./omni-physical-preflight";
 import { recordKieGenerationCost } from "./omni-generation-costs";
 import { withOmniReelExecutionLock } from "./omni-reel-execution-lock";
+import { isFacelessReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
+import { extractDirectorBriefFromSnapshot } from "./director-analysis-types";
+import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 type ReelBundle = {
   reel: OmniReel;
   segments: OmniReelSegment[];
 };
-
 const RUNNING_STATUSES = new Set(["queued", "submitted", "processing"]);
 
 async function getReelBundle(reelId: number): Promise<ReelBundle> {
@@ -109,8 +108,14 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
 async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
   const { reel, segments } = await getReelBundle(reelId);
   const provider = normalizeOmniGenerationProvider(providerInput);
+  const referenceSceneMode = resolveReferenceSceneMode(reel.creative_strategy);
+  const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
+  const referenceFormatMode = resolveReferenceFormatMode(
+    extractDirectorBriefFromSnapshot(reel.source_snapshot) || reel.source_snapshot
+  );
+  const montageReference = isVoiceoverMontageReference(referenceFormatMode);
   const continuityChainEnabled = isOmniContinuityChainEnabled();
-  const providerContinuityEnabled = continuityChainEnabled;
+  const providerContinuityEnabled = continuityChainEnabled && !montageReference;
   if (!segments.length) throw new Error("Omni reel has no segments");
   const missingStoryboardSegments = segments
     .filter((segment) => segment.status !== "completed" && !segment.storyboard_reference_url?.trim())
@@ -121,10 +126,10 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
     await markOmniReelPreflightFailure({ reelId: reel.id, provider, message });
     throw new Error(message);
   }
-  const avatarReferenceUrl = getAvatarReferenceUrl(reel);
+  const avatarReferenceUrl = facelessReferenceScene ? null : getAvatarReferenceUrl(reel);
   const productReferenceUrls = getProductReferenceUrls(reel);
   const productReferenceUrl = productReferenceUrls[0] || null;
-  const avatarCharacterId = await resolveAvatarCharacterId(reel);
+  const avatarCharacterId = facelessReferenceScene ? null : await resolveAvatarCharacterId(reel);
   let kieAudioIds: string[] = [];
   let kieVoiceGender: KieOmniVoiceGender = "unknown";
   if (provider === "kie-ai") {
@@ -162,7 +167,7 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
         role: "storyboard_canonical",
       }]
     : [];
-  if (provider === "kie-ai" && !avatarCharacterId) {
+  if (provider === "kie-ai" && !avatarCharacterId && !facelessReferenceScene) {
     await markOmniReelPreflightFailure({
       reelId: reel.id,
       provider,
@@ -245,7 +250,9 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
     const storyboardImages = segment.storyboard_reference_url
       ? [{ url: segment.storyboard_reference_url, fieldName: referenceImageField, role: "storyboard" }]
       : [];
-    const canonicalStoryboardImages = segment.segment_index > 1 ? canonicalStoryboardReference : [];
+    const canonicalStoryboardImages = !montageReference && segment.segment_index > 1
+      ? canonicalStoryboardReference
+      : [];
     const selectedReferenceImages = selectReferenceImagesForSegment({
       provider,
       continuityImages,
@@ -264,11 +271,11 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
     );
     const providerPrompt =
       provider === "kie-ai"
-        ? appendKieReferenceOrderPrompt(kieStoryboardPrompt, selectedReferenceImages.sent)
+        ? appendKieReferenceOrderPrompt(kieStoryboardPrompt, selectedReferenceImages.sent, referenceFormatMode)
         : continuityPrompt;
     const finalProviderPrompt = providerPrompt;
     const usesStoryboardReference = selectedReferenceImages.sent.some((image) => image.role === "storyboard");
-    const videoCharacterId = provider === "kie-ai" ? avatarCharacterId : null;
+    const videoCharacterId = provider === "kie-ai" && !facelessReferenceScene ? avatarCharacterId : null;
     const continuitySourceSegmentId =
       typeof continuity.metadata.sourceSegmentId === "number"
         ? continuity.metadata.sourceSegmentId
@@ -283,7 +290,7 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
       resolution: provider === "kie-ai" ? "1080p" : "720p",
       provider_prompt: finalProviderPrompt,
       image_urls: selectedReferenceImages.sent.map((image) => image.url),
-      character_ids: provider === "kie-ai" && videoCharacterId ? [videoCharacterId] : [],
+      ...(provider === "kie-ai" && videoCharacterId ? { character_ids: [videoCharacterId] } : {}),
       audio_ids: provider === "kie-ai" ? kieAudioIds : [],
       audio_voice_gender: provider === "kie-ai" ? kieVoiceGender : null,
       reference_images_sent: selectedReferenceImages.sent.length > 0,
@@ -343,12 +350,14 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
 
     let task: ProviderTask;
     try {
-      task = await createProviderVideoTask({
+      task = await createOmniVideoTask({
         provider,
+        facelessReferenceScene,
         prompt: finalProviderPrompt,
-        seconds: segment.duration_seconds || 10,
+        durationSeconds: segment.duration_seconds || 10,
         resolution: requestPayload.resolution,
         referenceImages: selectedReferenceImages.sent,
+        imageUrls: selectedReferenceImages.sent.map((image) => image.url),
         characterId: videoCharacterId,
         audioIds: kieAudioIds,
       });

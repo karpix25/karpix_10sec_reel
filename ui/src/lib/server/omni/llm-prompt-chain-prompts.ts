@@ -9,6 +9,7 @@ import type { CreativeScriptDraft, DirectorSegmentPlan } from "./llm-prompt-chai
 import { formatPromptChainRange } from "./llm-prompt-chain-number-words";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
+import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
 export type PromptChainInput = {
   projectName: string;
@@ -82,6 +83,7 @@ export function buildDirectorSegmenterPrompt(input: {
   chainInput: PromptChainInput;
   draft: CreativeScriptDraft;
 }) {
+  const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.chainInput.directorBrief));
   return `
 Ты режиссер монтажа для Gemini Omni.
 
@@ -106,7 +108,9 @@ SFX это только естественные звуки кадра. Музы
 Каждый frame описывает только физическую сцену, камеру, действие и естественный звук внутри кадра.
 Выбирай product_cutaway и удерживание продукта в руках только когда смысл spoken_words этого кадра прямо связан с продуктом, его свойствами или применением. Если фраза посвящена общей теме, проблеме или выводу без прямого контакта с продуктом, продукт должен быть вне кадра (product_state: "вне кадра"), а персонаж говорит с естественной жестикуляцией без товара в руках. В product_cutaway продукт обязан быть физически видимым и детально совпадать с product reference.
 Для непредметных кадров переноси конкретный визуальный приём из соответствующего reference-кадра, но адаптируй его под текущую реплику без чужого продукта.
-Одежда, свет, окружение и типаж героя должны быть едиными во всех frames одного ролика.
+${montageReference
+    ? "Для voiceover montage сохраняй лицо, волосы, возраст, телосложение и типаж героя, но каждый независимый cutaway может менять одежду, локацию, свет, действие и камеру по соответствующему reference-кадру. Не связывай соседние сегменты через одежду или помещение."
+    : "Одежда, свет, окружение и типаж героя должны быть едиными во всех frames одного ролика."}
 Бери камеру и переходы из соответствующих reference-кадров. Если соседние кадры reference сняты одинаково, повторяй тот же ракурс, фон и направление камеры. Не добавляй автоматическое чередование лево-право, смену крупности или движение камеры только ради динамики.
 Каждый segment обязан содержать законченную грамматическую мысль и завершаться полным предложением со знаком препинания (точка, восклицательный или вопросительный знак).
 Категорически запрещено разрывать предложение между сегментами (например, обрывать фразу на предлоге или прилагательном вроде «в вечернем», «для мягкого», «и третье»). Каждая фраза, начатая в сегменте, должна быть полностью закончена внутри этого же сегмента.
@@ -171,9 +175,15 @@ export function buildProviderPromptWriterPrompt(input: {
   directorPlan: DirectorSegmentPlan;
 }) {
   const wardrobeSource = normalizeOmniWardrobeSource(input.chainInput.wardrobeSource);
+  const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.chainInput.directorBrief));
   const wardrobeRule = wardrobeSource === "avatar_reference"
     ? "Одежда берется только из аватара. Не копируй одежду reference."
-    : "Одежду адаптируй из reference, но не меняй лицо и идентичность персонажа.";
+    : montageReference
+      ? "Для voiceover montage бери одежду из соответствующего самостоятельного reference-кадра каждого сегмента; не меняй лицо и идентичность персонажа."
+      : "Одежду адаптируй из reference, но не меняй лицо и идентичность персонажа.";
+  const continuityRule = montageReference
+    ? "Сохрани единый avatar, лицо, волосы, возраст и телосложение между frames и segment prompts. Независимые cutaways могут менять outfit, свет, окружение, действие и камеру по reference."
+    : "Сохрани единый avatar, outfit, свет и окружение между frames и segment prompts. Материал одежды, плетение ткани, плотность, фактура, крой и детали должны быть в точности одинаковыми во всех частях.";
 
   return `
 Ты prompt режиссер для Gemini Omni.
@@ -199,7 +209,7 @@ Product cutaway используй только когда смысл текущ
 Character_id аватара передается отдельно. Product reference передается отдельно. Не вставляй ссылки или идентификаторы в prompt.
 В финальном prompt не упоминай названия платформ и интерфейсы приложений.
 ${wardrobeRule}
-Сохрани единый avatar, outfit, свет и окружение между frames и segment prompts. Материал одежды, плетение ткани, плотность, фактура, крой и детали должны быть в точности одинаковыми во всех частях.
+${continuityRule}
 Момент первого появления продукта совпадает с reference. Если продукт нужен в первом segment, бери его только из product reference; если в reference продукт появляется позже, первый segment показывает героя без продукта.
 Речь каждого segment это одна непрерывная реплика. Каждый следующий кадр продолжает ее со следующего еще не произнесенного слова. После последнего слова персонаж замолкает.
 Сохрани естественную динамику UGC из reference: живые жесты, реакции и конкретные смысловые действия. Визуальный переход используй только там, где он есть в reference; при отсутствии перехода оставь стабильный непрерывный ракурс без рекламной постановки.
