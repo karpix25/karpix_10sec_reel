@@ -15,13 +15,15 @@ export function renderStoryboardFrameCamera(input: {
   productRole?: string;
   cameraComposition?: string | null;
   facelessReferenceScene?: boolean;
+  voiceoverBrollReference?: boolean;
   objectOnlyReferenceScene?: boolean;
 }) {
   if (input.directorCamera) {
-    return `${input.directorCamera}; ${input.cameraComposition ? `КОМПОЗИЦИЯ REFERENCE: ${input.cameraComposition}; ` : ""}тот же исходный ракурс и направление камеры, что в соответствующем reference-кадре${input.isCutawayFrame || input.facelessReferenceScene ? "" : "; герой смотрит прямо в объектив"}`;
+    return `${input.directorCamera}; ${input.cameraComposition ? `КОМПОЗИЦИЯ REFERENCE: ${input.cameraComposition}; ` : ""}тот же исходный ракурс и направление камеры, что в соответствующем reference-кадре${input.isCutawayFrame || input.facelessReferenceScene || input.voiceoverBrollReference ? "" : "; герой смотрит прямо в объектив"}`;
   }
   if (input.objectOnlyReferenceScene) return "стабильный object-only макро ракурс, та же поверхность и направление камеры во всех кадрах";
   if (input.facelessReferenceScene) return "стабильный hands-only ракурс, та же поверхность и направление камеры во всех кадрах";
+  if (input.voiceoverBrollReference) return "независимый B-roll ракурс по соответствующему reference-кадру, без обязательного взгляда в объектив";
   if (!input.isCutawayFrame) return "стабильный talking-head ракурс, тот же фон и направление камеры во всех кадрах, герой смотрит прямо в объектив";
   if (!input.productVisible) return "смысловая перебивка: предметный или атмосферный кадр по текущей реплике";
   return input.productRole === "background_prop"
@@ -39,6 +41,9 @@ export function renderStoryboardWardrobe(input: {
   const montageReference = isVoiceoverMontageReference(input.referenceFormatMode);
   if (isObjectOnlyReferenceScene(input.referenceSceneMode)) {
     return "WARDROBE: not applicable; no person or hands are visible";
+  }
+  if (input.referenceSceneMode === "voiceover_broll") {
+    return "WARDROBE: use only the visible clothing from the corresponding independent B-roll frame; keep the saved avatar face, hair, age, body type, and identity fixed";
   }
   if (normalizeOmniWardrobeSource(input.wardrobeSource) === "avatar_reference") {
     return `${input.characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;

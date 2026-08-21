@@ -28,6 +28,7 @@ export function buildOmniGenerationContinuityDirection(
   input: BuildContinuityDirectionInput
 ): OmniGenerationContinuityDirection {
   const montageReference = input.referenceFormatMode === "voiceover_montage";
+  const voiceoverBrollReference = input.plan.referenceSceneMode === "voiceover_broll";
   const productAction = buildProductAction({
     productName: input.productName,
     role: input.plan.productRole,
@@ -35,6 +36,7 @@ export function buildOmniGenerationContinuityDirection(
     segmentCount: input.segmentCount,
     previousProductState: montageReference ? null : input.previousState?.productState || null,
     talkingHead: input.talkingHead,
+    voiceoverBroll: voiceoverBrollReference,
   });
   const sceneStart = montageReference
     ? `Start this independent montage cut with its own approved reference setting and action: ${describeInitialScene(input.plan)}.`
@@ -51,7 +53,7 @@ export function buildOmniGenerationContinuityDirection(
   return {
     promptLines: montageReference
       ? [
-        `MONTAGE SEGMENT: ${sceneStart} Do not continue the previous segment's room, outfit, camera, or prop positions. Keep the same presenter identity and exact product appearance only.`,
+        `MONTAGE SEGMENT: ${sceneStart} Do not continue the previous segment's room, outfit, camera, or prop positions. ${voiceoverBrollReference ? "Keep the saved avatar identity as the silent visual protagonist; preserve only the approved product appearance." : "Keep the same presenter identity and exact product appearance only."}`,
         `PRODUCT ACTION: ${productAction.actionLine}`,
         `PHYSICAL CAUSALITY: ${productAction.causalityLine}`,
       ]
@@ -72,12 +74,15 @@ function buildProductAction(input: {
   segmentCount: number;
   previousProductState: string | null;
   talkingHead: boolean;
+  voiceoverBroll: boolean;
 }) {
   const product = input.productName || "the product";
   if (input.role === "hidden") {
     return {
       actionLine: `${product} stays outside the frame; do not introduce it as an image or overlay.`,
-      causalityLine: "Only the presenter and established scene props move; no new object appears without contact.",
+      causalityLine: input.voiceoverBroll
+        ? "The saved avatar and established scene props move only as shown by the matching B-roll reference; no random recurring person or new object appears without a reference cue."
+        : "Only the presenter and established scene props move; no new object appears without contact.",
       endState: "product remains off camera",
     };
   }
@@ -102,6 +107,14 @@ function buildProductAction(input: {
       actionLine: `${startState}; the presenter picks it up, turns the real package toward camera once, then places it back without a hard advertising close-up.`,
       causalityLine: "Every movement follows hand contact: lift, small rotation, placement. Keep size, label layout, material, and shadows consistent.",
       endState: `${product} rests back on the surface near the presenter, label orientation preserved`,
+    };
+  }
+
+  if (input.role === "digital_demo") {
+    return {
+      actionLine: `${product} appears only as the approved product screen on a smartphone when the matching B-roll cut calls for it; never turn it into a plastic card or package.`,
+      causalityLine: "The smartphone enters or leaves through visible hand or camera movement; the approved screen remains unchanged.",
+      endState: `${product} remains off camera or on the approved smartphone screen`,
     };
   }
 

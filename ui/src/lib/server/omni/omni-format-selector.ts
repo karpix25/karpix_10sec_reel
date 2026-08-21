@@ -11,6 +11,7 @@ import {
 import { OMNI_LIFE_FORMATS } from "./omni-life-formats";
 import { writeOmniVisualStyle } from "./omni-visual-style-writer";
 import { type ReferenceSceneMode, type OmniCreativeStrategyWithReferenceSceneMode, withReferenceSceneMode } from "./omni-reference-scene-mode";
+import { isDigitalProductText } from "./product-visual-profile";
 
 export interface SelectOmniFormatInput {
   script: string;
@@ -31,7 +32,7 @@ type ScoredFormat = {
 };
 
 const COMPLEX_ACTION_PATTERN = /одновременно|на ходу.*откр|за рулем|за рулём|беж|прыга|танцу|несколько предмет/i;
-const INTANGIBLE_PRODUCT_PATTERN = /курс|сервис|услуг|приложен|страхов|банк|оплат|подписк|консультац/i;
+const INTANGIBLE_PRODUCT_PATTERN = /курс|сервис|услуг|приложен|мини[-\s]?апп|мобильн(?:ое|ого|ая|ую)\s+приложен|виртуальн(?:ая|ую|ой)\s+карт|страхов|банк|оплат|подписк|консультац/i;
 const EXPLICIT_DEMO_PATTERN = /покаж|демонстр|как выглядит|упаковк|распаков/i;
 const REPLACEMENT_PATTERN = /вместо|замени|больше не|раньше.*теперь|перестал|надоело/i;
 const RESULT_PATTERN = /результат|получил|стало|теперь|наконец|сработал|эффект/i;
@@ -68,7 +69,9 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
     version: "visual-style-writer-v1",
     scope: "reel",
     lifeFormatId: selected.format.id,
-    providerFormatDescription: selected.format.providerDescription,
+    providerFormatDescription: input.referenceSceneMode === "voiceover_broll"
+      ? "независимый B-roll с закадровым voiceover, с сохранённым молчащим аватаром, без talking-head"
+      : selected.format.providerDescription,
     setting: visualStyle.sceneArc.setting,
     continuityProps: visualStyle.sceneArc.fixedProps,
     visualStyle,
@@ -126,7 +129,8 @@ function getNoveltyPenalty(format: OmniLifeFormat, recent: readonly LifeFormatId
 }
 
 function selectProductRole(format: OmniLifeFormat, content: string, hasReference: boolean): ProductRole {
-  if (!hasReference || INTANGIBLE_PRODUCT_PATTERN.test(content)) return "hidden";
+  if (!hasReference) return "hidden";
+  if (isDigitalProductText(content) || INTANGIBLE_PRODUCT_PATTERN.test(content)) return "digital_demo";
   if (EXPLICIT_DEMO_PATTERN.test(content) && format.allowedProductRoles.includes("brief_demo")) return "brief_demo";
   return pickVisibleProductRole(format) || format.preferredProductRoles[0] || format.allowedProductRoles[0];
 }
@@ -168,6 +172,7 @@ function buildHookRule(hookType: HookType) {
 
 function buildProductActionRule(role: ProductRole) {
   if (role === "hidden") return "Продукт не появляется в кадре; любопытство создают история и результат.";
+  if (role === "digital_demo") return "Коротко показать утвержденный экран мобильного продукта на смартфоне; не изображать пластиковую карту, упаковку или физический товар.";
   if (role === "brief_demo") return "Коротко показать продукт один раз по смыслу реплики, без рекламного крупного плана.";
   if (role === "background_prop") return "Продукт может естественно лежать в сцене, но герой не позирует с ним и не выделяет логотип.";
   return "После последнего слова продукт можно один раз взять или убрать; не пытаться есть, пить или наносить его в этом сегменте.";

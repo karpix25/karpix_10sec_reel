@@ -191,7 +191,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const segmentSeconds = segmentDurationsSeconds[index] || input.segmentSeconds;
     const segmentRole = getSegmentRole(segmentIndex, input.segmentCount);
     const segmentScriptBeats = selectScriptBeatsForSegment(scriptPlan, segmentIndex, input.segmentCount);
-    const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex);
+    const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole);
     const segmentProductVisualPassport = productVisualPassport;
     const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
       segmentIndex,
@@ -202,7 +202,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentSeconds,
       scriptBeats: segmentScriptBeats,
     }), layoutContract);
-    const talkingHead = isTalkingHeadCutawayFormat(strategy.lifeFormatId);
+    const talkingHead = isTalkingHeadCutawayFormat(strategy.lifeFormatId) && referenceSceneMode === "presenter";
     const continuityDirection = buildOmniGenerationContinuityDirection({
       plan,
       productName: input.product.name,
@@ -235,7 +235,8 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const prompt = applyReferenceSceneModeToOmniPrompt(repairPhysicalScenePrompt(renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productName: input.product.name,
-      productPhysicalContract: plan.productRole !== "hidden" ? productPhysicalContract : null,
+      productPhysicalContract: plan.productRole !== "hidden" && plan.productRole !== "digital_demo" ? productPhysicalContract : null,
+      productRole: plan.productRole,
       segmentCount: input.segmentCount,
       directorBrief,
       referenceSceneMode,
@@ -279,8 +280,8 @@ function selectPhysicalProductDemoSegmentIndex(input: {
   return input.segments.find((segment) => isOmniProductVisualBeat(segment.spokenText, input.productName))?.index || null;
 }
 
-function resolvePhysicalProductDemoRole(segmentIndex: number, productDemoSegmentIndex: number | null): ProductRole {
-  return segmentIndex === productDemoSegmentIndex ? "brief_demo" : "hidden";
+function resolvePhysicalProductDemoRole(segmentIndex: number, productDemoSegmentIndex: number | null, selectedRole: ProductRole = "brief_demo"): ProductRole {
+  return segmentIndex === productDemoSegmentIndex ? selectedRole : "hidden";
 }
 
 function buildStoredProviderPromptSegments(
@@ -332,7 +333,7 @@ function buildStoredProviderPromptSegments(
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
     const segmentIntent = segmentIntents[index];
-    const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex);
+    const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole);
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,
@@ -351,6 +352,7 @@ function buildStoredProviderPromptSegments(
       directorBrief,
       segmentCount: providerPromptPlan.segmentPrompts.length,
       productVisible: productRole !== "hidden",
+      productRole,
       referenceTransferPolicy: referencePolicy,
       referenceSceneMode,
     });
@@ -362,7 +364,8 @@ function buildStoredProviderPromptSegments(
     const prompt = applyReferenceSceneModeToOmniPrompt(repairPhysicalScenePrompt(renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productName: input.product.name,
-      productPhysicalContract: productRole !== "hidden" ? productPhysicalContract : null,
+      productPhysicalContract: productRole !== "hidden" && productRole !== "digital_demo" ? productPhysicalContract : null,
+      productRole,
       segmentCount: providerPromptPlan.segmentPrompts.length,
       directorBrief,
       referenceSceneMode,
@@ -389,7 +392,7 @@ function buildStoredCreativePlan(input: {
   voiceoverText: string;
   productRole: ProductRole;
   segmentSeconds: number;
-  strategy: OmniCreativeStrategy;
+  strategy: OmniCreativeStrategy & { referenceSceneMode?: string };
 }): OmniSegmentCreativePlan {
   const middleStart = roundOne(Math.max(1, input.segmentSeconds * 0.55));
   const middleEnd = roundOne(Math.min(input.segmentSeconds - 1, input.segmentSeconds * 0.75));
@@ -400,6 +403,7 @@ function buildStoredCreativePlan(input: {
     voiceoverText: input.voiceoverText,
     productRole: input.productRole,
     continuityProps: input.strategy.continuityProps,
+    referenceSceneMode: input.strategy.referenceSceneMode,
     beats: [
       { startSeconds: 0, endSeconds: middleStart, action: "LLM provider prompt face opening" },
       { startSeconds: middleStart, endSeconds: middleEnd, action: "LLM provider prompt middle cutaway" },

@@ -35,6 +35,7 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
   const location = selectDirectorLocationForSegment(input);
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.brief));
   const facelessReferenceScene = isFacelessReferenceScene(input.referenceSceneMode);
+  const voiceoverBrollReference = input.referenceSceneMode === "voiceover_broll";
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(input.referenceSceneMode);
   return {
     referenceLine: [
@@ -42,6 +43,8 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
         ? `REFERENCE: object-only part ${input.segmentIndex}/${input.segmentCount}; preserve the approved surface, props, macro camera, light, and action order. No avatar or person is visible.`
         : facelessReferenceScene
           ? `REFERENCE: faceless part ${input.segmentIndex}/${input.segmentCount}; preserve the approved hands, body crop, props, macro camera, light, and action order. No face or avatar is visible.`
+          : voiceoverBrollReference
+            ? `REFERENCE: voiceover B-roll part ${input.segmentIndex}/${input.segmentCount}; preserve independent cutaways and off-camera narration while keeping the saved avatar as the silent visual protagonist.`
           : montageReference
         ? `REFERENCE: independent montage part ${input.segmentIndex}/${input.segmentCount}; preserve the same avatar identity and product story, but use the matching reference cut for this part.`
         : `REFERENCE: part ${input.segmentIndex}/${input.segmentCount}; continue the same avatar identity and product story.`,
@@ -49,10 +52,14 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
         ? "Use the reference video for macro surface, environment, lighting, camera framing, conceptual props, and physical action only."
         : facelessReferenceScene
           ? "Use the reference video for environment, lighting, camera framing, hands, props, and physical action only."
+          : voiceoverBrollReference
+            ? "Use the reference video for independent locations, visible B-roll actions, lighting, camera framing, and cut rhythm; use the saved avatar reference for the recurring visual identity."
           : "Use the reference video for location, environment, lighting, camera framing, and adapted outfit style only.",
       objectOnlyReferenceScene || montageReference ? "Do not force wardrobe, location, prop position, or physical action continuity between independent cuts." : "",
       policy.mode === "style_only"
-        ? "Use only the main presenter setup, visual feel, and light quality; omit unrelated reference-world objects, workflows, uniforms, and product category details."
+        ? voiceoverBrollReference
+          ? "Use only the independent B-roll visual feel, camera, and light quality; omit unrelated reference-world objects, workflows, uniforms, and product category details."
+          : "Use only the main presenter setup, visual feel, and light quality; omit unrelated reference-world objects, workflows, uniforms, and product category details."
         : "",
     ].filter(Boolean).join(" "),
     locationLine: renderLocationLine(input.brief, location),
@@ -61,11 +68,15 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
       ? "WARDROBE: not applicable; no person, hands, face, or avatar is visible."
       : facelessReferenceScene
         ? "WARDROBE: not applicable to the visible crop; do not add a face, head, or avatar reference."
+        : voiceoverBrollReference
+          ? "WARDROBE: use only what is visible in the corresponding independent B-roll frame; keep the saved avatar face, hair, age, body type, and identity across the reel."
         : shouldUseAvatarWardrobe(wardrobeSource)
       ? `Wardrobe: use the avatar outfit only; ${input.characterContract?.clothingLine || "keep the avatar reference outfit unchanged"}; ignore clothing from the reference video.`
       : renderAdaptedWardrobeLine(input.brief, policy, montageReference),
     actionLine: objectOnlyReferenceScene
       ? "REFERENCE ACTION: preserve the macro surface, conceptual props, and simple treatment beat; no human presence or hand interaction."
+      : voiceoverBrollReference
+        ? "REFERENCE ACTION: preserve independent B-roll actions and off-camera narration; the saved avatar performs the visible actions without lip-sync."
       : renderActionLine(input.brief, policy),
   };
 }
@@ -106,19 +117,24 @@ export function selectDirectorLocationForSegment(input: {
 function fallbackReferenceBrief(input: CompactReferenceBriefInput) {
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(input.referenceSceneMode);
   const facelessReferenceScene = isFacelessReferenceScene(input.referenceSceneMode);
+  const voiceoverBrollReference = input.referenceSceneMode === "voiceover_broll";
   return {
     referenceLine: objectOnlyReferenceScene
       ? `REFERENCE: object-only part ${input.segmentIndex}/${input.segmentCount}; no avatar or person is visible.`
       : facelessReferenceScene
         ? `REFERENCE: faceless part ${input.segmentIndex}/${input.segmentCount}; no face or avatar is visible.`
+        : voiceoverBrollReference
+          ? `REFERENCE: voiceover B-roll part ${input.segmentIndex}/${input.segmentCount}; the saved avatar remains visible as the silent visual protagonist.`
         : `REFERENCE: part ${input.segmentIndex}/${input.segmentCount}; continue the same avatar identity and product story.`,
     locationLine: `LOCATION: ${input.strategy?.setting || "ordinary believable real-life setting"}.`,
     cameraLine: "CAMERA/LIGHT: natural phone footage, simple framing, believable room light.",
-    wardrobeLine: objectOnlyReferenceScene || facelessReferenceScene
-      ? "WARDROBE: not applicable; do not add a person or avatar."
+    wardrobeLine: objectOnlyReferenceScene || facelessReferenceScene || voiceoverBrollReference
+      ? "WARDROBE: use the saved avatar identity with the outfit visible in the matching B-roll reference frame."
       : `WARDROBE: ${input.characterContract?.clothingLine || "consistent avatar outfit"}.`,
     actionLine: objectOnlyReferenceScene
       ? "ACTION: simple object-only movement with conceptual props, no human presence."
+      : voiceoverBrollReference
+        ? "ACTION: the saved avatar performs the independent B-roll action from the matching reference frame, with off-camera narration."
       : "ACTION: simple product-relevant movement, no filler choreography.",
   };
 }

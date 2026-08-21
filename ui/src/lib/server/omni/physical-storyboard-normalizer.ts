@@ -1,4 +1,5 @@
 import type { OmniStoryboardFrame, OmniStoryboardSegment } from "../../omni/storyboard/omni-storyboard-types";
+import type { ProductRole } from "../../omni/creative-contract";
 import {
   buildPhysicalProductDemoStep,
   buildPhysicalFramePlan,
@@ -14,6 +15,7 @@ import {
   renderRequiredReferenceSupport,
   synchronizeReferenceTransferProductVisibility,
 } from "./omni-reference-transfer-policy";
+import { buildDigitalProductDemoStep } from "./digital-product-scene";
 
 const SURFACE_PATTERN = /(?:на столе|на\s+(?:\p{L}+\s+){0,3}поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
 const HELD_PRODUCT_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|(?<!\p{L})одной рукой|в одну руку|в одной руке)/iu;
@@ -30,6 +32,7 @@ export function normalizePhysicalStoryboardSegment(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
   productVisible: boolean;
+  productRole?: ProductRole;
 }): OmniStoryboardSegment {
   return {
     ...input.storyboard,
@@ -39,6 +42,7 @@ export function normalizePhysicalStoryboardSegment(input: {
       productVisible: Boolean(input.productVisible),
       frameIndex: index + 1,
       frameCount: input.storyboard.frames.length,
+      productRole: input.productRole,
     })),
   };
 }
@@ -65,21 +69,30 @@ function normalizeFrame(input: {
   productVisible: boolean;
   frameIndex: number;
   frameCount: number;
+  productRole?: ProductRole;
 }): OmniStoryboardFrame {
   const { frame, productName, productVisible } = input;
   const product = productName.trim() || "продукт";
   const spokenText = frame.spokenText.trim();
   const sourceText = `${frame.visualAction} ${frame.productPlacement} ${frame.sfxNotes} ${frame.effectNotes || ""}`;
   const visibleInFrame = productVisible;
-  const productDemo = visibleInFrame && input.frameCount > 1
+  const productDemo = visibleInFrame && (input.productRole === undefined || input.productRole === "brief_demo") && input.frameCount > 1
     ? buildPhysicalProductDemoStep({
         productName: product,
         frameIndex: input.frameIndex,
         frameCount: input.frameCount,
       })
     : null;
+  const digitalProductDemo = visibleInFrame && input.productRole === "digital_demo"
+    ? buildDigitalProductDemoStep({
+        productName: product,
+        frameIndex: input.frameIndex,
+        frameCount: input.frameCount,
+      })
+    : null;
+  const demo = productDemo || digitalProductDemo;
   const initialAction = repairReferenceAction({
-    action: withPassengerContext(productDemo?.action || frame.visualAction, frame.visualAction),
+    action: withPassengerContext(demo?.action || frame.visualAction, frame.visualAction),
     spokenText,
     productName: product,
     productVisible: visibleInFrame,
@@ -94,8 +107,8 @@ function normalizeFrame(input: {
         productVisible: false,
         referenceSupportProps: frame.referenceTransfer?.requiredSupportProps,
       });
-  const productPlacement = productDemo
-    ? [productDemo.placement, renderRequiredReferenceSupport(frame.referenceTransfer)].filter(Boolean).join("; ")
+  const productPlacement = demo
+    ? [demo.placement, renderRequiredReferenceSupport(frame.referenceTransfer)].filter(Boolean).join("; ")
     : visibleInFrame
     ? renderSafeProductPlacement(product, frame.productPlacement, frame.referenceTransfer)
     : [

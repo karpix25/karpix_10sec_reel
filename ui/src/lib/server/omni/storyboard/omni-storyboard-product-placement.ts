@@ -18,12 +18,20 @@ export function renderStoryboardProductPlacement(
   if (plan.productRole === "hidden") return ["продукт вне кадра в этом сегменте", support].filter(Boolean).join("; ");
   if (!productVisible) return ["в кадре тематические объекты и окружение текущей реплики", support].filter(Boolean).join("; ");
 
-  if (physicalDemoPlacement) {
+  if (physicalDemoPlacement && plan.productRole !== "digital_demo") {
     return [
       physicalDemoPlacement,
       "это единственный физический показ продукта в ролике; не добавлять другой продукт или упаковку",
       support,
     ].filter(Boolean).join("; ");
+  }
+
+  if (plan.productRole === "digital_demo") {
+    return appendProductPhysicalHint([
+      physicalDemoPlacement || `${productName} показывается только на экране смартфона по product reference`,
+      "это мобильное приложение, не пластиковая карта и не упаковка",
+      support,
+    ].filter(Boolean).join("; "), productPhysicalHint);
   }
 
   const placement = plan.productRole === "background_prop"

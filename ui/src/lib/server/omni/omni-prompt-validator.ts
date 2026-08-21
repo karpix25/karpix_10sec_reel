@@ -61,6 +61,7 @@ export function validateOmniSegmentPrompt(input: {
   ) {
     errors.push("continuity_prop_passport_required");
   }
+  const voiceoverBrollReference = input.plan.referenceSceneMode === "voiceover_broll";
   if (!/(ГЛАВНЫЙ ПЕРСОНАЖ:|CHARACTER:)/iu.test(input.prompt)) {
     errors.push("main_character_contract_required");
   }
@@ -101,7 +102,7 @@ export function validateOmniSegmentPrompt(input: {
   if (input.plan.productRole !== "brief_demo" && actions.some(isAdvertisingProductDisplay)) {
     errors.push("advertising_product_display");
   }
-  if (input.plan.lifeFormatId === "talking_head_cutaways") {
+  if (input.plan.lifeFormatId === "talking_head_cutaways" && input.plan.referenceSceneMode !== "voiceover_broll") {
     if (!input.prompt.includes("ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ")) {
       errors.push("talking_head_cutaway_format_required");
     }

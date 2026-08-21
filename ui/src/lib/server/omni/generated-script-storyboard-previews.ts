@@ -15,6 +15,7 @@ import { recordKieGenerationCost } from "./omni-generation-costs";
 import { isStoryboardVisionJsonFormatError } from "./storyboard-vision-validator";
 import { ensureOmniSchema } from "./schema";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
+import type { ProductRole } from "@/lib/omni/creative-contract";
 import type { DirectorBrief } from "./director-analysis-types";
 import { buildStoryboardPlanSignature } from "./storyboard-cache-signature";
 import {
@@ -43,10 +44,19 @@ import {
 import { getStoryboardRepairMode } from "./storyboard-repair-reference";
 import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveReferenceFormatMode, type ReferenceFormatMode } from "./omni-reference-format-mode";
+import {
+  buildGeneratedScriptStoryboardReferenceSignature,
+  getSegmentDirectorReferenceUrls,
+  normalizeContract,
+  normalizeUrl,
+  rowsToUrlMap,
+  STORYBOARD_PREVIEW_GENERATOR_VERSION,
+} from "./generated-script-storyboard-helpers";
 
 type StoryboardPromptSegment = {
   index: number;
   storyboardPlan: OmniStoryboardSegment | null;
+  productRole?: ProductRole;
 };
 
 type EnsureGeneratedScriptStoryboardUrlsInput = {
@@ -66,7 +76,6 @@ type EnsureGeneratedScriptStoryboardUrlsInput = {
   generationProvider?: OmniGenerationProvider;
 };
 
-const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-physical-product-v18";
 const MAX_AUTOMATIC_JSON_FORMAT_RECOVERIES = 2;
 
 export async function ensureGeneratedScriptStoryboardUrls(input: EnsureGeneratedScriptStoryboardUrlsInput) {
@@ -77,7 +86,10 @@ export async function ensureGeneratedScriptStoryboardUrls(input: EnsureGenerated
 }
 
 async function ensureGeneratedScriptStoryboardUrlsLocked(input: EnsureGeneratedScriptStoryboardUrlsInput) {
-  const referenceSignature = buildReferenceSignature(input);
+  const referenceSignature = buildGeneratedScriptStoryboardReferenceSignature(
+    input,
+    buildStoryboardPlanSignature(input.promptPlan)
+  );
   const urls = await getStoredGeneratedScriptStoryboardUrls({ ...input, referenceSignature });
   const repairState = await getStoryboardSetRepairState(input.scriptId);
   for (const [segmentIndex, url] of getStoryboardSetRepairSnapshotUrls(repairState, referenceSignature)) {
@@ -105,6 +117,7 @@ async function ensureGeneratedScriptStoryboardUrlsLocked(input: EnsureGeneratedS
       ...input,
       referenceSignature,
       segmentIndex: segment.index,
+      productRole: segment.productRole,
       storyboardPlan: segment.storyboardPlan,
       canonicalStoryboardReferenceUrl,
       generationProvider: input.generationProvider,
@@ -183,6 +196,7 @@ async function tryGenerateStoryboardPreview(input: {
   scriptId: number;
   productName: string;
   productPhysicalContract?: string | null;
+  productRole?: ProductRole;
   avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls?: readonly string[];
@@ -234,7 +248,8 @@ async function tryGenerateStoryboardPreview(input: {
       segmentIndex: input.segmentIndex,
       storyboard: input.storyboardPlan,
       productName: input.productName,
-      productPhysicalContract: input.productPhysicalContract,
+      productPhysicalContract: input.productRole === "digital_demo" ? null : input.productPhysicalContract,
+      productRole: input.productRole,
       avatarReferenceUrl: input.avatarReferenceUrl,
       productReferenceUrls: hasProductVisibleStoryboardFrame(input.storyboardPlan, input.productName)
         ? input.productReferenceUrls
@@ -451,50 +466,4 @@ async function upsertGeneratedScriptStoryboardUrl(input: {
   } finally {
     client.release();
   }
-}
-
-function buildReferenceSignature(input: {
-  avatarReferenceUrl: string | null;
-  productPhysicalContract?: string | null;
-  productReferenceUrls: readonly string[];
-  generationProvider?: OmniGenerationProvider;
-  referenceSceneMode?: ReferenceSceneMode;
-  referenceFormatMode?: ReferenceFormatMode;
-  promptPlan: readonly StoryboardPromptSegment[];
-}) {
-  return [
-    STORYBOARD_PREVIEW_GENERATOR_VERSION,
-    buildStoryboardPlanSignature(input.promptPlan),
-    input.generationProvider || "cometapi",
-    input.referenceSceneMode || "presenter",
-    input.referenceFormatMode || "continuous_story",
-    normalizeUrl(input.avatarReferenceUrl) || "",
-    normalizeContract(input.productPhysicalContract),
-    ...input.productReferenceUrls.map((url) => normalizeUrl(url) || "").filter(Boolean).sort(),
-  ].join("|");
-}
-
-function getSegmentDirectorReferenceUrls(input: {
-  directorReferenceImageUrls?: readonly string[];
-  directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
-}, segmentIndex: number) {
-  return Array.from(
-    input.directorReferenceImageUrlsBySegment?.get(segmentIndex) || input.directorReferenceImageUrls || []
-  );
-}
-
-function rowsToUrlMap(rows: readonly { segment_index: number; storyboard_reference_url: string | null }[]) {
-  return new Map(
-    rows
-      .map((row) => [Number(row.segment_index), normalizeUrl(row.storyboard_reference_url)] as const)
-      .filter((entry): entry is readonly [number, string] => Number.isInteger(entry[0]) && Boolean(entry[1]))
-  );
-}
-
-function normalizeUrl(value: string | null) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function normalizeContract(value: string | null | undefined) {
-  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }

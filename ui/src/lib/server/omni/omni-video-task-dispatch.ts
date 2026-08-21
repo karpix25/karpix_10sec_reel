@@ -7,7 +7,7 @@ import {
 
 export async function createOmniVideoTask(input: {
   provider: "kie-ai" | "cometapi";
-  facelessReferenceScene: boolean;
+  avatarFreeReferenceScene: boolean;
   prompt: string;
   durationSeconds: number;
   resolution: string;
@@ -16,7 +16,7 @@ export async function createOmniVideoTask(input: {
   characterId: string | null;
   audioIds: string[];
 }): Promise<ProviderTask> {
-  if (input.provider === "kie-ai" && input.facelessReferenceScene) {
+  if (input.provider === "kie-ai" && input.avatarFreeReferenceScene) {
     return createKieOmniVideoTask({
       prompt: input.prompt,
       duration: getProviderDuration(input.provider, input.durationSeconds),

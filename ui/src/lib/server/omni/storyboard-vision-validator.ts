@@ -4,7 +4,7 @@ import type {
 } from "../../omni/storyboard/omni-storyboard-vision-types";
 import { JsonOutputParseError, parseAndRepairJson } from "./script-json-repair";
 import { normalizeStoryboardVisionValidation } from "./storyboard-vision-contract";
-import { isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
+import { isAvatarFreeReferenceScene, isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -44,8 +44,9 @@ export async function validateStoryboardImage(input: {
   const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(null);
   const referenceFormatMode = input.referenceFormatMode || "continuous_story";
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
+  const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
-  if (!facelessReferenceScene && !input.avatarReferenceUrl?.trim()) {
+  if (!avatarFreeReferenceScene && !input.avatarReferenceUrl?.trim()) {
     throw new Error("Storyboard vision validation requires the avatar reference for presenter mode");
   }
   const data = await requestStoryboardVisionResponse({
@@ -56,6 +57,8 @@ export async function validateStoryboardImage(input: {
         ? STORYBOARD_VISION_OBJECT_ONLY_SYSTEM_PROMPT
         : facelessReferenceScene
         ? STORYBOARD_VISION_FACELESS_SYSTEM_PROMPT
+        : referenceSceneMode === "voiceover_broll"
+          ? STORYBOARD_VISION_BROLL_SYSTEM_PROMPT
         : referenceFormatMode === "voiceover_montage"
           ? STORYBOARD_VISION_MONTAGE_SYSTEM_PROMPT
           : STORYBOARD_VISION_SYSTEM_PROMPT },
@@ -74,7 +77,7 @@ export async function validateStoryboardImage(input: {
             }),
           },
           { type: "image_url", image_url: { url: input.imageUrl } },
-          ...(facelessReferenceScene || !input.avatarReferenceUrl?.trim()
+          ...(avatarFreeReferenceScene || !input.avatarReferenceUrl?.trim()
             ? []
             : [{ type: "image_url" as const, image_url: { url: input.avatarReferenceUrl.trim() } }]),
           ...(input.canonicalStoryboardReferenceUrl?.trim()
@@ -198,6 +201,14 @@ const STORYBOARD_VISION_MONTAGE_SYSTEM_PROMPT = [
   "If a detail is ambiguous, outside the crop, or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
 
+const STORYBOARD_VISION_BROLL_SYSTEM_PROMPT = [
+  "You are a strict static visual QA auditor for storyboard contact sheets in voiceover B-roll.",
+  "Inspect only facts that are positively visible in the candidate panels. The approved format has off-camera narration over independent cutaways led by the supplied silent avatar identity reference.",
+  "Use severity error when the recurring avatar visibly changes identity, a talking-head presenter or lip-sync is introduced against the storyboard plan, or a visibly wrong client product appears. Incidental people are allowed when the matching source frame contains them.",
+  "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
+  "If a detail is ambiguous or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
+].join(" ");
+
 function buildStoryboardVisionPrompt(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
@@ -226,6 +237,23 @@ function buildStoryboardVisionPrompt(input: {
           panel_index: index + 1,
           physical_plan: frame.physicalPlan || null,
           reference_transfer: frame.referenceTransfer || null,
+          visual_action: frame.visualAction,
+        })),
+      }),
+    ].join("\n");
+  }
+  if (input.referenceSceneMode === "voiceover_broll") {
+    return [
+      "The first image is the candidate storyboard. The supplied avatar image is the identity reference for the recurring silent visual protagonist in every panel.",
+      input.hasCanonicalStoryboardReference ? "The next image is a visual-mechanics reference only; the avatar image remains the identity authority." : "",
+      input.hasDirectorReference ? "The final supplied image is a source-reference frame for B-roll location, light, camera, and action only." : "",
+      "Verify that the same avatar identity is visible where a person appears, without talking-head framing or lip-sync. Incidental people are allowed only when required by the matching reference frame and must not replace the avatar.",
+      "Expected storyboard plan:",
+      JSON.stringify({
+        product: input.productName,
+        panels: input.storyboard.frames.map((frame, index) => ({
+          panel_index: index + 1,
+          product_placement: frame.productPlacement,
           visual_action: frame.visualAction,
         })),
       }),

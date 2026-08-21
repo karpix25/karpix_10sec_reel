@@ -12,6 +12,12 @@ export type ProductVisualProfile = {
   prompt_summary: string;
 };
 
+const DIGITAL_PRODUCT_PATTERN = /мобильн(?:ое|ого|ая|ую)\s+приложен|мини[-\s]?апп|виртуальн(?:ая|ую|ой)\s+карт|mobile\s+app|digital\s+wallet/iu;
+
+export function isDigitalProductText(...values: readonly (string | null | undefined)[]) {
+  return DIGITAL_PRODUCT_PATTERN.test(values.filter(Boolean).join(" "));
+}
+
 export function normalizeProductVisualProfile(value: unknown): ProductVisualProfile | null {
   const candidate = unwrapProductVisualProfile(value);
   if (!isRecord(candidate)) return null;

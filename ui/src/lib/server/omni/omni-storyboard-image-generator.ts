@@ -14,6 +14,7 @@ import type { DirectorBrief } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
+import type { ProductRole } from "@/lib/omni/creative-contract";
 import type { StoryboardVisionValidation } from "@/lib/omni/storyboard/omni-storyboard-vision-types";
 import { validateStoryboardImage } from "./storyboard-vision-validator";
 import {
@@ -21,7 +22,7 @@ import {
   isStoryboardVisionValidationInconclusive,
 } from "./storyboard-vision-contract";
 import { resolveStoryboardRepairMode } from "./storyboard-qa-contract";
-import { isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
+import { isAvatarFreeReferenceScene, isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import {
   canAttemptStoryboardImageGeneration,
@@ -51,6 +52,7 @@ type StoryboardImageInput = {
   storyboard: OmniStoryboardSegment;
   productName: string;
   productPhysicalContract?: string | null;
+  productRole?: ProductRole;
   avatarReferenceUrl: string | null;
   productReferenceUrls?: readonly string[];
   directorReferenceImageUrls?: readonly string[];
@@ -86,9 +88,10 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
   if (process.env.OMNI_STORYBOARD_IMAGE_GENERATION === "false") return null;
   const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(input.directorBrief);
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
+  const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
   const avatarReferenceUrl = cleanUrl(input.avatarReferenceUrl);
-  if (!avatarReferenceUrl && !facelessReferenceScene) {
+  if (!avatarReferenceUrl && !avatarFreeReferenceScene) {
     throw new Error("Storyboard image generation requires the avatar reference image used for Omni character_id");
   }
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
@@ -198,6 +201,8 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
         ? "Re-render the same storyboard plan with every panel clear, readable, and only the approved surface, product, and conceptual props visible; do not introduce a person, hands, face, or head."
         : facelessReferenceScene
         ? "Re-render the same storyboard plan with every panel clear, readable, and only the approved hands, crop, and physical props visible; do not introduce a face or head."
+        : referenceSceneMode === "voiceover_broll"
+        ? "Re-render the same storyboard plan with independent B-roll panels led by the saved silent avatar and off-camera narration; do not introduce talking-head or lip-sync. Incidental visible people are allowed only when the reference frame requires them."
         : "Re-render the same storyboard plan with every panel clear, readable, and the avatar fully visible for continuity QA."]
       : retryInstructions;
     if (!automaticRetryInstructions.length || !canAttemptStoryboardImageGeneration(generationAttemptCount)) {
@@ -237,6 +242,7 @@ async function generateKieStoryboardImageBytes(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
   productPhysicalContract?: string | null;
+  productRole?: ProductRole;
   avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
@@ -248,7 +254,7 @@ async function generateKieStoryboardImageBytes(input: {
   repairInstructions: readonly string[];
 }): Promise<GeneratedStoryboardImage> {
   const inputUrls = [
-    ...(input.avatarReferenceUrl && !isFacelessReferenceScene(input.referenceSceneMode) ? [input.avatarReferenceUrl] : []),
+    ...(input.avatarReferenceUrl && !isAvatarFreeReferenceScene(input.referenceSceneMode) ? [input.avatarReferenceUrl] : []),
     ...(input.canonicalStoryboardReferenceUrl ? [input.canonicalStoryboardReferenceUrl] : []),
     ...(input.previousStoryboardReferenceUrl ? [input.previousStoryboardReferenceUrl] : []),
     ...input.productReferenceUrls,
@@ -287,6 +293,7 @@ async function generateCometStoryboardImageBytes(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
   productPhysicalContract?: string | null;
+  productRole?: ProductRole;
   avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
@@ -318,6 +325,7 @@ async function createStoryboardImage(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
   productPhysicalContract?: string | null;
+  productRole?: ProductRole;
   avatarReferenceUrl: string | null;
   productReferenceUrls: readonly string[];
   directorReferenceImageUrls: readonly string[];
@@ -386,7 +394,7 @@ function buildReferenceFiles(input: {
   referenceSceneMode: ReferenceSceneMode;
 }): StoryboardReferenceFile[] {
   return [
-    input.avatarReferenceUrl && !isFacelessReferenceScene(input.referenceSceneMode)
+    input.avatarReferenceUrl && !isAvatarFreeReferenceScene(input.referenceSceneMode)
       ? { url: input.avatarReferenceUrl, required: true, kind: "avatar" as const }
       : null,
     input.canonicalStoryboardReferenceUrl

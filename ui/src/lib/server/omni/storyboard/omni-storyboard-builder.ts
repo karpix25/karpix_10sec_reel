@@ -1,4 +1,4 @@
-import type { OmniPromptValidationResult, OmniSegmentCreativePlan } from "../../../omni/creative-contract";
+import type { OmniPromptValidationResult, OmniSegmentCreativePlan, ProductRole } from "../../../omni/creative-contract";
 import {
   OMNI_STORYBOARD_MAX_FRAME_WORDS,
   OMNI_STORYBOARD_MIN_FRAME_WORDS,
@@ -27,6 +27,7 @@ import {
 } from "../physical-scene-model";
 import { splitStoryboardSpeech } from "./omni-storyboard-speech";
 import { renderStoryboardProductPlacement } from "./omni-storyboard-product-placement";
+import { buildDigitalProductDemoStep } from "../digital-product-scene";
 import { buildStoredStoryboardFrame } from "./omni-stored-storyboard-frame-repair";
 import {
   buildReferenceTransferFramePlan,
@@ -37,7 +38,7 @@ import {
 } from "../omni-reference-transfer-policy";
 import { isFacelessReferenceScene, isObjectOnlyReferenceScene, type ReferenceSceneMode } from "../omni-reference-scene-mode";
 import { resolveReferenceFormatMode, type ReferenceFormatMode } from "../omni-reference-format-mode";
-import { sanitizeFacelessStoryboardText } from "./omni-storyboard-text-sanitizer";
+import { sanitizeFacelessStoryboardText, sanitizeVoiceoverBrollStoryboardText } from "./omni-storyboard-text-sanitizer";
 import {
   renderStoryboardFrameCamera,
   renderStoryboardWardrobe,
@@ -103,6 +104,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
   directorBrief?: DirectorBrief | null;
   segmentCount?: number;
   productVisible?: boolean;
+  productRole?: ProductRole;
   referenceTransferPolicy?: ReferenceTransferPolicy;
   referenceSceneMode?: ReferenceSceneMode;
 }): OmniStoryboardSegment {
@@ -125,6 +127,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
         productName: input.productName,
         productPhysicalHint: input.productPhysicalHint,
         productVisible,
+        productRole: input.productRole,
         productDemoFrame: productVisible
           ? { frameIndex: index + 1, frameCount: input.frames.length }
           : undefined,
@@ -176,6 +179,7 @@ function buildFrame(input: {
   referenceFormatMode?: ReferenceFormatMode;
 }): OmniStoryboardFrame {
   const facelessReferenceScene = isFacelessReferenceScene(input.referenceSceneMode);
+  const voiceoverBrollReference = input.referenceSceneMode === "voiceover_broll";
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(input.referenceSceneMode);
   const startSeconds = (input.frameIndex - 1) * 2;
   const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
@@ -223,8 +227,16 @@ function buildFrame(input: {
         frameCount: input.frameCount,
       })
     : null;
-  const visualAction = productDemo
-    ? productDemo.action
+  const digitalProductDemo = productVisible && input.plan.productRole === "digital_demo"
+    ? buildDigitalProductDemoStep({
+        productName: input.productName,
+        frameIndex: input.frameIndex,
+        frameCount: input.frameCount,
+      })
+    : null;
+  const productDemoStep = productDemo || digitalProductDemo;
+  const visualAction = productDemoStep
+    ? productDemoStep.action
     : layoutLocked
       ? visualActionSource
     : input.segmentIndex === 1 && input.plan.productRole === "hidden"
@@ -239,9 +251,9 @@ function buildFrame(input: {
     input.productPhysicalHint,
     productVisible,
     referenceTransfer,
-    productDemo?.placement
+    productDemoStep?.placement
   );
-  const finalVisualAction = layoutLocked || productDemo
+  const finalVisualAction = layoutLocked || productDemoStep
     ? visualAction
     : repairReferenceAction({
         action: visualAction,
@@ -254,7 +266,7 @@ function buildFrame(input: {
     productName: input.productName,
     spokenText: input.spokenText,
     visualAction: finalVisualAction,
-    camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene }),
+    camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference }),
     productPlacement,
   });
   const repairedVisualAction = repairPhysicalFrameAction({
@@ -262,10 +274,14 @@ function buildFrame(input: {
     visualAction: finalVisualAction,
     plan: initialPhysicalPlan,
   });
-  const storyboardVisualAction = isFacelessReferenceScene(input.referenceSceneMode)
+  const storyboardVisualAction = input.referenceSceneMode === "voiceover_broll"
+    ? sanitizeVoiceoverBrollStoryboardText(repairedVisualAction)
+    : isFacelessReferenceScene(input.referenceSceneMode)
     ? sanitizeFacelessStoryboardText(repairedVisualAction, input.referenceSceneMode)
     : repairedVisualAction;
-  const storyboardCamera = isFacelessReferenceScene(input.referenceSceneMode)
+  const storyboardCamera = input.referenceSceneMode === "voiceover_broll"
+    ? sanitizeVoiceoverBrollStoryboardText(renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference }))
+    : isFacelessReferenceScene(input.referenceSceneMode)
     ? sanitizeFacelessStoryboardText(renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene }), input.referenceSceneMode)
     : renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene });
   const physicalPlan = repairedVisualAction === finalVisualAction
@@ -274,7 +290,7 @@ function buildFrame(input: {
         productName: input.productName,
         spokenText: input.spokenText,
         visualAction: repairedVisualAction,
-        camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene }),
+        camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference }),
         productPlacement,
       });
 

@@ -41,6 +41,7 @@ import {
 } from "./omni-physical-repair-pipeline";
 import { assertStoryboardPromptContracts } from "./storyboard/storyboard-contract-validator";
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
+import { generateStoryboardReferenceUrls, reserveOmniReelId } from "./omni-reel-storyboard-generator";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -168,7 +169,12 @@ export async function createOmniReel(input: {
   const segmentCount = segmentPlan.segmentCount;
   const latestAvatar = await getLatestOmniClientAvatar(input.projectId);
   const avatarContext = resolveOmniAvatarContext({ avatar: latestAvatar, directorBrief });
-  const { avatarForPrompt, facelessReferenceScene: facelessReferenceSceneFromBrief, speechGender: avatarSpeechGender } = avatarContext;
+  const {
+    avatarForPrompt,
+    facelessReferenceScene: facelessReferenceSceneFromBrief,
+    avatarFreeReferenceScene: avatarFreeReferenceSceneFromBrief,
+    speechGender: avatarSpeechGender,
+  } = avatarContext;
   const sourceSnapshot = resolvedGeneratedScript
     ? {
         source_kind: "generated_script",
@@ -229,7 +235,7 @@ export async function createOmniReel(input: {
     cta_value: product.cta_value,
     product_refs: product.product_refs,
   };
-  const avatarSnapshot = latestAvatar && !facelessReferenceSceneFromBrief
+  const avatarSnapshot = latestAvatar && !avatarFreeReferenceSceneFromBrief
     ? {
         id: latestAvatar.id,
         display_name: latestAvatar.display_name,
@@ -307,7 +313,7 @@ export async function createOmniReel(input: {
       scriptId: resolvedGeneratedScript.id,
       productName: product.name,
       productPhysicalContract: product.product_physical_contract,
-      avatarReferenceUrl: facelessReferenceSceneFromBrief ? null : latestAvatar?.reference_url || null,
+      avatarReferenceUrl: avatarFreeReferenceSceneFromBrief ? null : latestAvatar?.reference_url || null,
       productReferenceUrls: resolveProductReferenceImageUrls(product),
       directorReferenceImageUrls,
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
@@ -334,7 +340,7 @@ export async function createOmniReel(input: {
       productReferenceUrls: resolveProductReferenceImageUrls(product),
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
       directorBrief,
-      avatarReferenceUrl: facelessReferenceSceneFromBrief ? null : latestAvatar?.reference_url || null,
+      avatarReferenceUrl: avatarFreeReferenceSceneFromBrief ? null : latestAvatar?.reference_url || null,
       referenceSceneMode,
       promptPlan,
       generationProvider: input.generationProvider,
@@ -439,60 +445,4 @@ export async function createOmniReel(input: {
   } finally {
     client.release();
   }
-}
-
-async function reserveOmniReelId() {
-  const { rows } = await pool.query<{ id: number }>(
-    "SELECT nextval(pg_get_serial_sequence('omni_reels', 'id'))::int AS id"
-  );
-  const id = Number(rows[0]?.id);
-  if (!Number.isInteger(id) || id <= 0) throw new Error("Could not reserve Omni reel id");
-  return id;
-}
-
-async function generateStoryboardReferenceUrls(input: {
-  projectId: number;
-  productId: number;
-  reelId: number;
-  productName: string;
-  productPhysicalContract?: string | null;
-  productReferenceUrls: readonly string[];
-  directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
-  directorBrief?: DirectorBrief | null;
-  avatarReferenceUrl: string | null;
-  referenceSceneMode: import("./omni-reference-scene-mode").ReferenceSceneMode;
-  promptPlan: readonly ReturnType<typeof buildOmniSegmentPrompts>[number][];
-  generationProvider?: OmniGenerationProvider;
-}): Promise<(string | null)[]> {
-  const urls: (string | null)[] = [];
-  let canonicalStoryboardReferenceUrl: string | null = null;
-  for (let index = 0; index < input.promptPlan.length; index += 1) {
-    const segmentPrompt = input.promptPlan[index];
-    if (index > 0 && !canonicalStoryboardReferenceUrl) {
-      throw new Error("Storyboard 1 must be approved before generating later storyboard segments");
-    }
-    const storyboardReferenceUrl: string | null = segmentPrompt.storyboardPlan
-      ? await generateStoryboardImage({
-        projectId: input.projectId,
-        productId: input.productId,
-        reelId: input.reelId,
-        segmentIndex: index + 1,
-        storyboard: segmentPrompt.storyboardPlan,
-        productName: input.productName,
-        productPhysicalContract: input.productPhysicalContract,
-        productReferenceUrls: hasProductVisibleStoryboardFrame(segmentPrompt.storyboardPlan, input.productName)
-          ? input.productReferenceUrls
-          : [],
-        directorReferenceImageUrls: Array.from(input.directorReferenceImageUrlsBySegment?.get(segmentPrompt.index) || []),
-        avatarReferenceUrl: input.avatarReferenceUrl,
-        canonicalStoryboardReferenceUrl,
-        directorBrief: input.directorBrief,
-        referenceSceneMode: input.referenceSceneMode,
-        generationProvider: input.generationProvider,
-      })
-      : null;
-    urls.push(storyboardReferenceUrl);
-    if (index === 0 && storyboardReferenceUrl) canonicalStoryboardReferenceUrl = storyboardReferenceUrl;
-  }
-  return urls;
 }
