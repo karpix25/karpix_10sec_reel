@@ -23,7 +23,7 @@ export type KieOmniVideoInput = {
   aspectRatio: "9:16";
   resolution: string;
   imageUrls: string[];
-  characterIds: string[];
+  characterIds?: string[];
   audioIds: string[];
 };
 

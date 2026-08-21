@@ -23,7 +23,6 @@ import { detectKieOmniVoiceGender } from "./kie-omni-audio";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
-import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import {
   extractDirectorBriefFromSnapshot,
@@ -31,6 +30,7 @@ import {
   type DirectorBrief,
 } from "./director-analysis-types";
 import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
+import { resolveOmniAvatarContext } from "./omni-avatar-context";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
@@ -167,7 +167,8 @@ export async function createOmniReel(input: {
   const targetDuration = segmentPlan.durationSeconds;
   const segmentCount = segmentPlan.segmentCount;
   const latestAvatar = await getLatestOmniClientAvatar(input.projectId);
-  const avatarSpeechGender = requireAvatarSpeechGender(latestAvatar?.speech_gender);
+  const avatarContext = resolveOmniAvatarContext({ avatar: latestAvatar, directorBrief });
+  const { avatarForPrompt, facelessReferenceScene: facelessReferenceSceneFromBrief, speechGender: avatarSpeechGender } = avatarContext;
   const sourceSnapshot = resolvedGeneratedScript
     ? {
         source_kind: "generated_script",
@@ -228,7 +229,7 @@ export async function createOmniReel(input: {
     cta_value: product.cta_value,
     product_refs: product.product_refs,
   };
-  const avatarSnapshot = latestAvatar
+  const avatarSnapshot = latestAvatar && !facelessReferenceSceneFromBrief
     ? {
         id: latestAvatar.id,
         display_name: latestAvatar.display_name,
@@ -249,7 +250,7 @@ export async function createOmniReel(input: {
       generatedScript: resolvedGeneratedScript,
       legacyTranscript: sourceScenario?.script || null,
       product,
-      avatar: latestAvatar,
+      avatar: avatarForPrompt,
       segmentCount,
       segmentSeconds: OMNI_SEGMENT_SECONDS,
       voiceSegments: segmentPlan.segments,
@@ -306,7 +307,7 @@ export async function createOmniReel(input: {
       scriptId: resolvedGeneratedScript.id,
       productName: product.name,
       productPhysicalContract: product.product_physical_contract,
-      avatarReferenceUrl: latestAvatar?.reference_url || null,
+      avatarReferenceUrl: facelessReferenceSceneFromBrief ? null : latestAvatar?.reference_url || null,
       productReferenceUrls: resolveProductReferenceImageUrls(product),
       directorReferenceImageUrls,
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
@@ -333,7 +334,7 @@ export async function createOmniReel(input: {
       productReferenceUrls: resolveProductReferenceImageUrls(product),
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
       directorBrief,
-      avatarReferenceUrl: latestAvatar?.reference_url || null,
+      avatarReferenceUrl: facelessReferenceSceneFromBrief ? null : latestAvatar?.reference_url || null,
       referenceSceneMode,
       promptPlan,
       generationProvider: input.generationProvider,

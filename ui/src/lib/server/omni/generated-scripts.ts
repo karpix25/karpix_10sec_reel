@@ -23,9 +23,9 @@ import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
-import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
+import { resolveNarratorSpeechGender } from "../../omni/avatar-speech-gender";
 import { extractDirectorBriefFromSnapshot, normalizeDirectorBrief } from "./director-analysis-types";
-import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
+import { isFacelessReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
@@ -133,11 +133,13 @@ export async function buildGeneratedScriptPromptPreview(input: {
   const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script, { durationRange });
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
   const directorBrief = extractDirectorBriefFromSnapshot(resolvedGeneratedScript.source_snapshot);
+  const referenceSceneModeFromBrief = resolveReferenceSceneMode(directorBrief);
+  const avatarForPrompt = isFacelessReferenceScene(referenceSceneModeFromBrief) ? null : avatar;
   const basePromptPlan = buildOmniSegmentPrompts({
     generatedScript: resolvedGeneratedScript,
     legacyTranscript: null,
     product,
-    avatar,
+    avatar: avatarForPrompt,
     segmentCount: segmentPlan.segmentCount,
     segmentSeconds: OMNI_SEGMENT_SECONDS,
     voiceSegments: segmentPlan.segments,
@@ -199,7 +201,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     ...input,
     productName: product.name,
     productPhysicalContract: product.product_physical_contract,
-    avatarReferenceUrl: avatar?.reference_url || null,
+    avatarReferenceUrl: isFacelessReferenceScene(referenceSceneModeFromBrief) ? null : avatar?.reference_url || null,
     productReferenceUrls: resolveProductReferenceImageUrls(product),
     directorReferenceImageUrlsBySegment,
     directorBrief,
@@ -243,7 +245,6 @@ export async function createGeneratedScriptFromLegacy(input: {
 
   const product = await requireOmniProductInProject(input.projectId, input.productId);
   const avatar = await getLatestOmniClientAvatar(input.projectId);
-  const avatarSpeechGender = requireAvatarSpeechGender(avatar?.speech_gender);
   const durationRange = await resolveOmniDurationRange({ project, product });
   const { sourceScenario, sourceMode, directorAnalysis } = await resolveReadyGeneratedScriptReference({
     ...input,
@@ -256,6 +257,10 @@ export async function createGeneratedScriptFromLegacy(input: {
     directorAnalysis?.director_analysis_status === "completed"
       ? normalizeDirectorBrief(directorAnalysis.director_analysis_json)
       : null;
+  const avatarSpeechGender = resolveNarratorSpeechGender(
+    avatar?.speech_gender,
+    isFacelessReferenceScene(resolveReferenceSceneMode(directorBrief))
+  );
   const directorReferenceImageUrls = extractDirectorReferenceImageUrls({ directorAnalysis });
   const referenceTransferPlan = buildReferenceTransferPolicy({
     hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),

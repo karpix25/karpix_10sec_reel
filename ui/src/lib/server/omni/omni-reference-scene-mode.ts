@@ -47,20 +47,29 @@ export function isFacelessReferenceScene(mode: ReferenceSceneMode | null | undef
   return mode === "faceless_hands" || mode === "body_crop" || mode === "object_only";
 }
 
+export function isObjectOnlyReferenceScene(mode: ReferenceSceneMode | null | undefined) {
+  return mode === "object_only";
+}
+
 export function withReferenceSceneMode(strategy: OmniCreativeStrategy, referenceSceneMode: ReferenceSceneMode): OmniCreativeStrategyWithReferenceSceneMode {
   return { ...strategy, referenceSceneMode };
 }
 
 export function applyReferenceSceneModeToOmniPrompt(prompt: string, referenceSceneMode: ReferenceSceneMode) {
   if (!isFacelessReferenceScene(referenceSceneMode)) return prompt;
+  const objectOnly = isObjectOnlyReferenceScene(referenceSceneMode);
   const filtered = prompt.split("\n")
     .filter((line) => !/^Лицо и личность персонажа|^Фиксируй те же волосы|^В каждом talking-head кадре персонаж смотрит/iu.test(line.trim()))
     .map((line) => line.replace(/^The avatar says:/u, "The off-camera narrator says:"))
     .join("\n");
   return [filtered,
-    "REFERENCE SUBJECT MODE: FACELESS HANDS-ONLY.",
-    "Use off-camera narration. Never show a face, head, eyes, lip-sync portrait, talking-head framing, avatar portrait, or eye contact.",
-    "Show only the hands and the exact body crop, surface, and physical props required by the approved storyboard. Preserve the reference camera, light, action order, and object continuity."]
+    objectOnly ? "REFERENCE SUBJECT MODE: OBJECT-ONLY." : "REFERENCE SUBJECT MODE: FACELESS HANDS-ONLY.",
+    objectOnly
+      ? "Use off-camera narration. Never show a person, hands, face, head, eyes, lips, lip-sync portrait, talking-head framing, avatar portrait, or eye contact."
+      : "Use off-camera narration. Never show a face, head, eyes, lip-sync portrait, talking-head framing, avatar portrait, or eye contact.",
+    objectOnly
+      ? "Show only the approved surface, product, and conceptual props. Preserve the reference camera, light, action order, and object continuity."
+      : "Show only the hands and the exact body crop, surface, and physical props required by the approved storyboard. Preserve the reference camera, light, action order, and object continuity."]
     .join("\n");
 }
 

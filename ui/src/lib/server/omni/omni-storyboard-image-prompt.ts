@@ -4,7 +4,7 @@ import { renderProductPhysicalStoryboardHint } from "./product-physical-contract
 import { OMNI_PHYSICAL_ACTION_CONTRACT } from "./omni-physical-action-contract";
 import type { DirectorBrief } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
-import { isFacelessReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
+import { isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
 export function buildStoryboardImagePrompt(input: {
@@ -24,6 +24,7 @@ export function buildStoryboardImagePrompt(input: {
   const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(input.directorBrief);
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.directorBrief));
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
+  const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
   const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || []);
   const canonicalStoryboardReferenceUrl = cleanUrl(input.canonicalStoryboardReferenceUrl);
@@ -50,17 +51,23 @@ export function buildStoryboardImagePrompt(input: {
     `UGC-storyboard: черный фон, ровно ${frameCount} вертикальных панелей в ряд, белые разделители и номер панели.`,
     "В каждой панели: живой вертикальный кадр, точная реплика на русском, короткие подписи РАКУРС и ДЕЙСТВИЕ.",
     "Без рекламного дизайна, UI, соцсетей, водяных знаков, captions, стикеров и декора.",
-    facelessReferenceScene
-      ? "FACELESS HANDS-ONLY CONTRACT: в кадре нет лица, головы, глаз, губ, портрета аватара или talking-head. Показывай только руки, допустимый фрагмент корпуса и предметы, которые нужны действию. Озвучка идёт за кадром. Не добавляй человека из avatar reference."
+    objectOnlyReferenceScene
+      ? "OBJECT-ONLY CONTRACT: в кадре нет человека, рук, лица, головы, глаз, губ, портрета аватара или talking-head. Показывай только утверждённую поверхность, предметы и концептуальные пропы. Озвучка идёт за кадром. Не добавляй человека из avatar reference."
+      : facelessReferenceScene
+        ? "FACELESS HANDS-ONLY CONTRACT: в кадре нет лица, головы, глаз, губ, портрета аватара или talking-head. Показывай только руки, допустимый фрагмент корпуса и предметы, которые нужны действию. Озвучка идёт за кадром. Не добавляй человека из avatar reference."
       : "@file1 - avatar/character reference: единственный человек во всех панелях; фиксирует лицо, пол, возраст, волосы, телосложение и личность. Не копируй их из кадров reference.",
     canonicalFile
-      ? facelessReferenceScene
-        ? `@file${canonicalFile} - эталон композиции и реквизита из первого утверждённого storyboard. Сохрани поверхность, ракурс, свет, руки и физическое положение предметов; не добавляй лицо или голову.`
+      ? objectOnlyReferenceScene
+        ? `@file${canonicalFile} - эталон композиции, поверхности и реквизита из первого утверждённого storyboard. Сохрани макро поверхность, ракурс, свет и физическое положение предметов; не добавляй человека, руки, лицо или голову.`
+        : facelessReferenceScene
+          ? `@file${canonicalFile} - эталон композиции и реквизита из первого утверждённого storyboard. Сохрани поверхность, ракурс, свет, руки и физическое положение предметов; не добавляй лицо или голову.`
         : montageReference
           ? `@file${canonicalFile} - эталон личности и базовой композиции из первого утверждённого storyboard. Сохрани того же персонажа, но не навязывай его одежду независимым монтажным сегментам; соответствующий reference-кадр определяет одежду конкретной нарезки.`
           : `@file${canonicalFile} - эталон одежды из первого утверждённого storyboard. В точности повтори видимые верх, рукава, вырез, ткань, цвет, очки, украшения и волосы. Этот эталон важнее кадров оригинала для внешнего вида героя.`
-      : facelessReferenceScene
-        ? "Первый storyboard задаёт эталон композиции, рук и реквизита для всех следующих частей ролика."
+      : objectOnlyReferenceScene
+        ? "Первый storyboard задаёт эталон макро поверхности, света, композиции и реквизита для всех следующих частей; человека и руки не добавляй."
+        : facelessReferenceScene
+          ? "Первый storyboard задаёт эталон композиции, рук и реквизита для всех следующих частей ролика."
         : montageReference
           ? "Первый storyboard задаёт эталон личности; одежда и сцена каждого независимого сегмента берутся из соответствующего reference-кадра."
           : "Первый storyboard задаёт эталон одежды для всех следующих частей ролика.",
@@ -72,18 +79,24 @@ export function buildStoryboardImagePrompt(input: {
       : "Product reference не передан: продукт не показывай.",
     directorReferenceImageUrls.length
       ? canonicalFile
-        ? facelessReferenceScene
-          ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только локации, ракурса, света, движения камеры, PIP, монтажа, рук и обязательного нейтрального реквизита из плана панели. Лицо, голову и исходный рекламный товар не копируй; не копируй текст или логотипы.`
+        ? objectOnlyReferenceScene
+          ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только макро поверхности, ракурса, света, движения камеры, монтажа и концептуальных пропов из плана панели. Человека, руки, лицо, голову, исходный рекламный товар, текст и логотипы не копируй.`
+          : facelessReferenceScene
+            ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только локации, ракурса, света, движения камеры, PIP, монтажа, рук и обязательного нейтрального реквизита из плана панели. Лицо, голову и исходный рекламный товар не копируй; не копируй текст или логотипы.`
           : `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник локации, ракурса, света, одежды, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо только из @file1; ${montageReference ? "одежда соответствующего reference-кадра действует только для этой независимой нарезки;" : `одежду не копируй, она задана эталоном @file${canonicalFile};`} не копируй исходный рекламный товар, текст или логотипы.`
-        : facelessReferenceScene
-          ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только локации, ракурса, света, рук, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо, голову и исходный рекламный товар не копируй; не копируй текст или логотипы.`
+        : objectOnlyReferenceScene
+          ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только макро поверхности, ракурса, света, движения камеры, монтажа и концептуальных пропов из плана панели. Человека, руки, лицо, голову, исходный рекламный товар, текст и логотипы не копируй.`
+          : facelessReferenceScene
+            ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только локации, ракурса, света, рук, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо, голову и исходный рекламный товар не копируй; не копируй текст или логотипы.`
           : `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник локации, ракурса, света, одежды, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо только из @file1; не копируй исходный рекламный товар, текст или логотипы.`
       : "",
     isPipLayout && !facelessReferenceScene
       ? "REFERENCE LAYOUT: оригинал целиком в PIP/collage. В каждой панели полноэкранный динамичный фон и avatar cutout в нижнем левом углу с той же позицией, размером и белой обводкой; не делай centered talking-head."
       : "",
-    facelessReferenceScene
-      ? "SCENE CONTINUITY LOCK: во всех панелях сохраняй одну и ту же поверхность, ракурс, свет, руки и физическое положение реквизита. Не создавай лицо или голову между панелями."
+    objectOnlyReferenceScene
+      ? "SCENE CONTINUITY LOCK: во всех панелях сохраняй одну и ту же макро поверхность, ракурс, свет и физическое положение реквизита. Не создавай человека, руки, лицо или голову между панелями."
+      : facelessReferenceScene
+        ? "SCENE CONTINUITY LOCK: во всех панелях сохраняй одну и ту же поверхность, ракурс, свет, руки и физическое положение реквизита. Не создавай лицо или голову между панелями."
       : montageReference
         ? "IDENTITY LOCK: во всех независимых монтажных сценах один и тот же персонаж, лицо, возраст, волосы и телосложение. Одежда, локация, свет и действие могут меняться только по соответствующему reference-кадру; внутри одной непрерывной нарезки они стабильны."
         : canonicalFile

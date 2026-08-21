@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getAudioMoodLabel, normalizeAudioMood } from "@/lib/audio-library/moods";
 import { getOmniReelSubtitleCue } from "@/lib/omni/subtitle-status-labels";
+import { getOmniReelPlaybackUrl } from "@/lib/omni/reel-playback";
 import type { OmniClientAvatar, OmniProduct, OmniProject, OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { OmniSegmentPromptDetails } from "./OmniSegmentPromptDetails";
 import { EmptyState, QueryState, ReadinessItem, SegmentDots, StatusBadge, WorkbenchPanel } from "./ui";
@@ -59,7 +60,7 @@ export function AvatarVideoPanel({
   onRunReel: (reelId: number) => void;
   onSyncReel: (reelId: number) => void;
 }) {
-  const canCreateReel = Boolean(activeProject && activeProduct && latestAvatar && selectedScenarioId);
+  const canCreateReel = Boolean(activeProject && activeProduct && selectedScenarioId);
   const referenceUrl = avatarDraft.referenceUrl.trim() || latestAvatar?.reference_url || "";
   const referenceLooksLikeVideo = /\.(mp4|webm|mov)(\?|$)/i.test(referenceUrl);
 
@@ -156,12 +157,12 @@ export function AvatarVideoPanel({
 
       <WorkbenchPanel
         title="План видео"
-        description="Сценарий превращается в production plan: сегменты по 4/6/8/10 секунд, снапшоты refs и prompt contract."
+        description="Object-only-сцены запускаются без аватара; presenter-сцены используют сохраненный avatar draft."
       >
         <div className="grid gap-2 rounded-lg bg-muted/30 p-3">
           <ReadinessItem done={Boolean(activeProject)} label="Карточка бренда выбрана" />
           <ReadinessItem done={Boolean(activeProduct)} label="Продукт выбран" />
-          <ReadinessItem done={Boolean(latestAvatar)} label="Avatar draft сохранен" />
+          <ReadinessItem done={Boolean(latestAvatar)} label="Avatar draft (для presenter)" />
           <ReadinessItem done={Boolean(selectedScenarioId)} label="Сценарий выбран" />
         </div>
         <Button
@@ -179,7 +180,9 @@ export function AvatarVideoPanel({
         <QueryState isLoading={isReelsLoading} loadingText="Загружаю draft reels" errorText="Не удалось загрузить reels" />
         <div className="space-y-2">
           {reels.map((reel) => {
-	            const displayVideoUrl = reel.subtitled_video_url || reel.final_video_url;
+            const displayVideoUrl = reel.final_video_url
+              ? getOmniReelPlaybackUrl(reel.id, Boolean(reel.subtitled_video_url))
+              : null;
 	            const subtitleCue = getOmniReelSubtitleCue(reel);
             const audioMood = normalizeAudioMood(reel.background_audio_mood);
             const audioTrackTitle = reel.background_audio_track_snapshot?.title || null;

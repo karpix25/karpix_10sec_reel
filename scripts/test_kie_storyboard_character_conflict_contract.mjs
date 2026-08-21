@@ -31,6 +31,7 @@ try {
     include: [
       join(ui, "src/lib/omni/provider.ts"),
       join(ui, "src/lib/server/omni/omni-provider-tasks.ts"),
+      join(ui, "src/lib/server/omni/omni-video-task-dispatch.ts"),
       join(ui, "src/lib/server/omni/kie-omni-client.ts"),
       join(ui, "src/lib/server/omni/comet-video-client.ts"),
       join(ui, "src/lib/server/omni/kie-file-upload-client.ts"),
@@ -44,7 +45,7 @@ try {
   mkdirSync(dirname(aliasProvider), { recursive: true });
   copyFileSync(providerOutput, aliasProvider);
 
-  const { createProviderVideoTask } = require(findFile(compiled, "omni-provider-tasks.js"));
+  const { createOmniVideoTask } = require(findFile(compiled, "omni-video-task-dispatch.js"));
   process.env.KIE_API_KEY = "test-key";
 
   let lastPayload = null;
@@ -56,30 +57,27 @@ try {
     };
   };
 
-  await createProviderVideoTask(buildKieInput({
+  await createOmniVideoTask(buildDispatchInput({
     characterId: null,
+    facelessReferenceScene: true,
     referenceImages: [{ url: "https://example.com/storyboard.jpg", role: "storyboard" }],
   }));
   assert.equal(lastPayload.input.character_ids, undefined, "storyboard reference must disable character_id to prevent wardrobe conflicts");
 
-  await createProviderVideoTask(buildKieInput({
+  await createOmniVideoTask(buildDispatchInput({
     characterId: "char_1",
+    facelessReferenceScene: true,
     referenceImages: [{ url: "https://example.com/storyboard.jpg", role: "storyboard" }],
   }));
   assert.equal(lastPayload.input.character_ids, undefined, "character_id must stay omitted when storyboard is visual authority");
 
-  await createProviderVideoTask(buildKieInput({
-    characterId: "char_1",
-    referenceImages: [{ url: "https://example.com/product.jpg", role: "product" }],
-  }));
-  assert.deepEqual(lastPayload.input.character_ids, ["char_1"]);
-
   await assert.rejects(
-    () => createProviderVideoTask(buildKieInput({
+    () => createOmniVideoTask(buildDispatchInput({
       characterId: null,
+      facelessReferenceScene: false,
       referenceImages: [{ url: "https://example.com/product.jpg", role: "product" }],
     })),
-    /requires character id or storyboard reference/
+    /requires an approved avatar character id/
   );
 
   console.log("KIE storyboard character conflict contract checks passed");
@@ -87,12 +85,16 @@ try {
   rmSync(output, { recursive: true, force: true });
 }
 
-function buildKieInput(overrides) {
+function buildDispatchInput(overrides) {
   return {
     provider: "kie-ai",
+    facelessReferenceScene: false,
     prompt: "prompt",
-    seconds: 10,
+    durationSeconds: 10,
     resolution: "1080p",
+    referenceImages: [],
+    imageUrls: [],
+    characterId: null,
     audioIds: [],
     ...overrides,
   };

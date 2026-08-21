@@ -14,6 +14,13 @@ export function requireAvatarSpeechGender(value: unknown): OmniAvatarSpeechGende
   return gender;
 }
 
+export function resolveNarratorSpeechGender(value: unknown, allowDefault = false): OmniAvatarSpeechGender {
+  const gender = normalizeAvatarSpeechGender(value);
+  if (gender) return gender;
+  if (allowDefault) return "female";
+  return requireAvatarSpeechGender(value);
+}
+
 export function getAvatarSpeechGenderLabel(gender: OmniAvatarSpeechGender | null | undefined) {
   if (!gender) return "Не выбран";
   return gender === "male" ? "Мужчина" : "Женщина";

@@ -4,7 +4,7 @@ import type {
 } from "../../omni/storyboard/omni-storyboard-vision-types";
 import { JsonOutputParseError, parseAndRepairJson } from "./script-json-repair";
 import { normalizeStoryboardVisionValidation } from "./storyboard-vision-contract";
-import { isFacelessReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
+import { isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -44,6 +44,7 @@ export async function validateStoryboardImage(input: {
   const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(null);
   const referenceFormatMode = input.referenceFormatMode || "continuous_story";
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
+  const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
   if (!facelessReferenceScene && !input.avatarReferenceUrl?.trim()) {
     throw new Error("Storyboard vision validation requires the avatar reference for presenter mode");
   }
@@ -51,7 +52,9 @@ export async function validateStoryboardImage(input: {
     apiKey,
     model,
     messages: [
-      { role: "system", content: facelessReferenceScene
+      { role: "system", content: objectOnlyReferenceScene
+        ? STORYBOARD_VISION_OBJECT_ONLY_SYSTEM_PROMPT
+        : facelessReferenceScene
         ? STORYBOARD_VISION_FACELESS_SYSTEM_PROMPT
         : referenceFormatMode === "voiceover_montage"
           ? STORYBOARD_VISION_MONTAGE_SYSTEM_PROMPT
@@ -176,6 +179,16 @@ const STORYBOARD_VISION_FACELESS_SYSTEM_PROMPT = [
   "If a detail is ambiguous or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
 
+const STORYBOARD_VISION_OBJECT_ONLY_SYSTEM_PROMPT = [
+  "You are a strict static visual QA auditor for object-only storyboard contact sheets.",
+  "Inspect only facts that are positively visible in the candidate panels.",
+  "The approved format is object-only with off-camera narration.",
+  "Use severity error when a person, hand, face, head, eyes, lips, portrait, or talking-head framing is visibly introduced. Do not require avatar identity, face, hair, or wardrobe continuity.",
+  "Only the approved surface, product, and conceptual props are allowed when required by the storyboard plan.",
+  "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
+  "If a detail is ambiguous or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
+].join(" ");
+
 const STORYBOARD_VISION_MONTAGE_SYSTEM_PROMPT = [
   "You are a strict static visual QA auditor for storyboard contact sheets in a voiceover montage.",
   "Inspect only facts that are positively visible in the candidate panels. The same presenter identity must remain, but independent cuts may use different outfits, locations, lighting, and camera setups.",
@@ -194,6 +207,7 @@ function buildStoryboardVisionPrompt(input: {
   referenceFormatMode: ReferenceFormatMode;
 }) {
   if (isFacelessReferenceScene(input.referenceSceneMode)) {
+    const objectOnlyReferenceScene = isObjectOnlyReferenceScene(input.referenceSceneMode);
     return [
       "The first image is the candidate storyboard. No avatar identity reference is supplied because this is a faceless reference format.",
       input.hasCanonicalStoryboardReference
@@ -202,7 +216,9 @@ function buildStoryboardVisionPrompt(input: {
       input.hasDirectorReference
         ? "The final supplied image is a source-reference frame for camera, light, props, and action only."
         : "",
-      "For every panel, verify that no face, head, eyes, lips, portrait, or talking-head framing is visible. Hands, arms, body crops, objects, and neutral props are allowed when present in the storyboard plan.",
+      objectOnlyReferenceScene
+        ? "For every panel, verify that no person, hand, face, head, eyes, lips, portrait, or talking-head framing is visible. Only the approved surface, product, and conceptual props are allowed."
+        : "For every panel, verify that no face, head, eyes, lips, portrait, or talking-head framing is visible. Hands, arms, body crops, objects, and neutral props are allowed when present in the storyboard plan.",
       "Expected storyboard plan:",
       JSON.stringify({
         product: input.productName,

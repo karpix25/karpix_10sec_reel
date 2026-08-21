@@ -10,6 +10,7 @@ import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contra
 import { sanitizeReferenceActionDna, sanitizeReferenceWorldText } from "./omni-scene-world-sanitizer";
 import { shouldUseAvatarWardrobe } from "./omni-wardrobe-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
+import { isFacelessReferenceScene, isObjectOnlyReferenceScene, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 
 export type CompactReferenceBriefInput = {
   brief: DirectorBrief | null;
@@ -22,6 +23,7 @@ export type CompactReferenceBriefInput = {
   segmentDurationSeconds?: number;
   wardrobeSource?: OmniWardrobeSource;
   referencePolicy?: ReferenceTransferPolicy;
+  referenceSceneMode?: ReferenceSceneMode;
 };
 
 type DirectorLocationRange = DirectorLocationTimelineItem;
@@ -32,23 +34,39 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
   const policy = resolveReferenceTransferPolicy(input.referencePolicy);
   const location = selectDirectorLocationForSegment(input);
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.brief));
+  const facelessReferenceScene = isFacelessReferenceScene(input.referenceSceneMode);
+  const objectOnlyReferenceScene = isObjectOnlyReferenceScene(input.referenceSceneMode);
   return {
     referenceLine: [
-      montageReference
+      objectOnlyReferenceScene
+        ? `REFERENCE: object-only part ${input.segmentIndex}/${input.segmentCount}; preserve the approved surface, props, macro camera, light, and action order. No avatar or person is visible.`
+        : facelessReferenceScene
+          ? `REFERENCE: faceless part ${input.segmentIndex}/${input.segmentCount}; preserve the approved hands, body crop, props, macro camera, light, and action order. No face or avatar is visible.`
+          : montageReference
         ? `REFERENCE: independent montage part ${input.segmentIndex}/${input.segmentCount}; preserve the same avatar identity and product story, but use the matching reference cut for this part.`
         : `REFERENCE: part ${input.segmentIndex}/${input.segmentCount}; continue the same avatar identity and product story.`,
-      "Use the reference video for location, environment, lighting, camera framing, and adapted outfit style only.",
-      montageReference ? "Do not force wardrobe, location, prop position, or physical action continuity between independent cuts." : "",
+      objectOnlyReferenceScene
+        ? "Use the reference video for macro surface, environment, lighting, camera framing, conceptual props, and physical action only."
+        : facelessReferenceScene
+          ? "Use the reference video for environment, lighting, camera framing, hands, props, and physical action only."
+          : "Use the reference video for location, environment, lighting, camera framing, and adapted outfit style only.",
+      objectOnlyReferenceScene || montageReference ? "Do not force wardrobe, location, prop position, or physical action continuity between independent cuts." : "",
       policy.mode === "style_only"
         ? "Use only the main presenter setup, visual feel, and light quality; omit unrelated reference-world objects, workflows, uniforms, and product category details."
         : "",
     ].filter(Boolean).join(" "),
     locationLine: renderLocationLine(input.brief, location),
     cameraLine: renderCameraLine(input.brief),
-    wardrobeLine: shouldUseAvatarWardrobe(wardrobeSource)
+    wardrobeLine: objectOnlyReferenceScene
+      ? "WARDROBE: not applicable; no person, hands, face, or avatar is visible."
+      : facelessReferenceScene
+        ? "WARDROBE: not applicable to the visible crop; do not add a face, head, or avatar reference."
+        : shouldUseAvatarWardrobe(wardrobeSource)
       ? `Wardrobe: use the avatar outfit only; ${input.characterContract?.clothingLine || "keep the avatar reference outfit unchanged"}; ignore clothing from the reference video.`
       : renderAdaptedWardrobeLine(input.brief, policy, montageReference),
-    actionLine: renderActionLine(input.brief, policy),
+    actionLine: objectOnlyReferenceScene
+      ? "REFERENCE ACTION: preserve the macro surface, conceptual props, and simple treatment beat; no human presence or hand interaction."
+      : renderActionLine(input.brief, policy),
   };
 }
 
@@ -86,12 +104,22 @@ export function selectDirectorLocationForSegment(input: {
 }
 
 function fallbackReferenceBrief(input: CompactReferenceBriefInput) {
+  const objectOnlyReferenceScene = isObjectOnlyReferenceScene(input.referenceSceneMode);
+  const facelessReferenceScene = isFacelessReferenceScene(input.referenceSceneMode);
   return {
-    referenceLine: `REFERENCE: part ${input.segmentIndex}/${input.segmentCount}; continue the same avatar identity and product story.`,
+    referenceLine: objectOnlyReferenceScene
+      ? `REFERENCE: object-only part ${input.segmentIndex}/${input.segmentCount}; no avatar or person is visible.`
+      : facelessReferenceScene
+        ? `REFERENCE: faceless part ${input.segmentIndex}/${input.segmentCount}; no face or avatar is visible.`
+        : `REFERENCE: part ${input.segmentIndex}/${input.segmentCount}; continue the same avatar identity and product story.`,
     locationLine: `LOCATION: ${input.strategy?.setting || "ordinary believable real-life setting"}.`,
     cameraLine: "CAMERA/LIGHT: natural phone footage, simple framing, believable room light.",
-    wardrobeLine: `WARDROBE: ${input.characterContract?.clothingLine || "consistent avatar outfit"}.`,
-    actionLine: "ACTION: simple product-relevant movement, no filler choreography.",
+    wardrobeLine: objectOnlyReferenceScene || facelessReferenceScene
+      ? "WARDROBE: not applicable; do not add a person or avatar."
+      : `WARDROBE: ${input.characterContract?.clothingLine || "consistent avatar outfit"}.`,
+    actionLine: objectOnlyReferenceScene
+      ? "ACTION: simple object-only movement with conceptual props, no human presence."
+      : "ACTION: simple product-relevant movement, no filler choreography.",
   };
 }
 

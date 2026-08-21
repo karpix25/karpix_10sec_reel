@@ -20,6 +20,7 @@ import {
 import { SegmentDots, StatusBadge } from "./OmniStudio/ui";
 import { ReelSubtitlesPanel } from "./ReelSubtitlesPanel";
 import { getVideoStageLabel, VideoProgressSteps } from "./VideoProgressStatus";
+import { getOmniReelPlaybackUrl } from "@/lib/omni/reel-playback";
 
 export function GeneratedScriptVideoPanel({
   reel,
@@ -55,7 +56,9 @@ export function GeneratedScriptVideoPanel({
     ) : <EmptyVideoPanel />;
   }
 
-  const displayVideoUrl = currentReel.subtitled_video_url || currentReel.final_video_url;
+  const displayVideoUrl = currentReel.final_video_url
+    ? getOmniReelPlaybackUrl(currentReel.id, Boolean(currentReel.subtitled_video_url))
+    : null;
 
   return (
     <div className="rounded-lg border border-border bg-card p-3">
