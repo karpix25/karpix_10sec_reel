@@ -35,6 +35,9 @@ import {
   resolveReferenceTransferAction,
   type ReferenceTransferPolicy,
 } from "../omni-reference-transfer-policy";
+import { isFacelessReferenceScene, type ReferenceSceneMode } from "../omni-reference-scene-mode";
+import { isVoiceoverMontageReference, resolveReferenceFormatMode, type ReferenceFormatMode } from "../omni-reference-format-mode";
+import { sanitizeFacelessStoryboardText } from "./omni-storyboard-text-sanitizer";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -51,6 +54,7 @@ export function buildStoryboardFromCreativePlan(input: {
   directorBrief?: DirectorBrief | null;
   wardrobeSource?: OmniWardrobeSource;
   referenceTransferPolicy?: ReferenceTransferPolicy;
+  referenceSceneMode?: ReferenceSceneMode;
 }): OmniStoryboardSegment {
   const frameCount = getOmniStoryboardFrameCount(input.durationSeconds);
   if (!frameCount) throw new Error(`Storyboard segment ${input.segmentIndex} has unsupported duration ${input.durationSeconds}`);
@@ -76,6 +80,8 @@ export function buildStoryboardFromCreativePlan(input: {
         directorBrief: input.directorBrief,
         wardrobeSource: input.wardrobeSource,
         referenceTransferPolicy: input.referenceTransferPolicy,
+        referenceSceneMode: input.referenceSceneMode,
+        referenceFormatMode: resolveReferenceFormatMode(input.directorBrief),
         segmentIndex: input.segmentIndex,
         segmentCount: input.segmentCount || 1,
         spokenText,
@@ -97,6 +103,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
   segmentCount?: number;
   productVisible?: boolean;
   referenceTransferPolicy?: ReferenceTransferPolicy;
+  referenceSceneMode?: ReferenceSceneMode;
 }): OmniStoryboardSegment {
   if (!input.frames.length) throw new Error(`Storyboard segment ${input.segmentIndex} has no frames`);
   return {
@@ -112,7 +119,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
         frameIndex: index + 1,
         frameCount: input.frames.length,
       });
-      return buildStoredStoryboardFrame({
+      const storedFrame = buildStoredStoryboardFrame({
         frame,
         productName: input.productName,
         productPhysicalHint: input.productPhysicalHint,
@@ -122,7 +129,15 @@ export function buildStoryboardFromPromptChainFrames(input: {
           : undefined,
         referenceProfile,
         referenceTransferPolicy: input.referenceTransferPolicy,
+        referenceFormatMode: resolveReferenceFormatMode(input.directorBrief),
       });
+      return isFacelessReferenceScene(input.referenceSceneMode)
+        ? {
+            ...storedFrame,
+            visualAction: sanitizeFacelessStoryboardText(storedFrame.visualAction),
+            camera: sanitizeFacelessStoryboardText(storedFrame.camera),
+          }
+        : storedFrame;
     }),
   };
 }
@@ -156,7 +171,10 @@ function buildFrame(input: {
   spokenText: string;
   frameIndex: number;
   frameCount: number;
+  referenceSceneMode?: ReferenceSceneMode;
+  referenceFormatMode?: ReferenceFormatMode;
 }): OmniStoryboardFrame {
+  const facelessReferenceScene = isFacelessReferenceScene(input.referenceSceneMode);
   const startSeconds = (input.frameIndex - 1) * 2;
   const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
     input.plan.beats[0];
@@ -208,10 +226,10 @@ function buildFrame(input: {
     : layoutLocked
       ? visualActionSource
     : input.segmentIndex === 1 && input.plan.productRole === "hidden"
-      ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName, referenceTransfer)
+      ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName, referenceTransfer, facelessReferenceScene)
       : productVisible
-        ? renderProductFrameAction(visualActionSource, isCutawayFrame, input.productName)
-        : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName);
+        ? renderProductFrameAction(visualActionSource, isCutawayFrame, input.productName, facelessReferenceScene)
+        : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName, facelessReferenceScene);
   const productPlacement = renderStoryboardProductPlacement(
     input.plan,
     input.productName,
@@ -234,7 +252,7 @@ function buildFrame(input: {
     productName: input.productName,
     spokenText: input.spokenText,
     visualAction: finalVisualAction,
-    camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, input.plan.productRole, referenceTransfer.cameraComposition),
+    camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, input.plan.productRole, referenceTransfer.cameraComposition, facelessReferenceScene),
     productPlacement,
   });
   const repairedVisualAction = repairPhysicalFrameAction({
@@ -242,28 +260,40 @@ function buildFrame(input: {
     visualAction: finalVisualAction,
     plan: initialPhysicalPlan,
   });
+  const storyboardVisualAction = isFacelessReferenceScene(input.referenceSceneMode)
+    ? sanitizeFacelessStoryboardText(repairedVisualAction)
+    : repairedVisualAction;
+  const storyboardCamera = isFacelessReferenceScene(input.referenceSceneMode)
+    ? sanitizeFacelessStoryboardText(renderFrameCamera(
+        isCutawayFrame,
+        renderDirectorCamera(input.directorBrief, productVisible, referenceProfile),
+        productVisible,
+        input.plan.productRole,
+        referenceTransfer.cameraComposition
+      ))
+    : renderFrameCamera(
+        isCutawayFrame,
+        renderDirectorCamera(input.directorBrief, productVisible, referenceProfile),
+        productVisible,
+        input.plan.productRole,
+        referenceTransfer.cameraComposition
+      );
   const physicalPlan = repairedVisualAction === finalVisualAction
     ? initialPhysicalPlan
     : buildPhysicalFramePlan({
         productName: input.productName,
         spokenText: input.spokenText,
         visualAction: repairedVisualAction,
-        camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, input.plan.productRole, referenceTransfer.cameraComposition),
+        camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, input.plan.productRole, referenceTransfer.cameraComposition, facelessReferenceScene),
         productPlacement,
       });
 
   return {
     spokenText: input.spokenText,
-    visualAction: repairedVisualAction,
-    camera: renderFrameCamera(
-      isCutawayFrame,
-      renderDirectorCamera(input.directorBrief, productVisible, referenceProfile),
-      productVisible,
-      input.plan.productRole,
-      referenceTransfer.cameraComposition
-    ),
+    visualAction: storyboardVisualAction,
+    camera: storyboardCamera,
     environment: renderDirectorEnvironment(input.directorBrief, referenceProfile),
-    wardrobe: renderStoryboardWardrobe(input.characterContract, input.directorBrief, input.wardrobeSource),
+    wardrobe: renderStoryboardWardrobe(input.characterContract, input.directorBrief, input.wardrobeSource, input.referenceFormatMode),
     productPlacement,
     sfxNotes: isCutawayFrame
       ? productVisible
@@ -282,11 +312,13 @@ function renderFrameCamera(
   directorCamera: string,
   productVisible: boolean,
   productRole?: string,
-  cameraComposition?: string | null
+  cameraComposition?: string | null,
+  facelessReferenceScene = false
 ) {
   if (directorCamera) {
-    return `${directorCamera}; ${cameraComposition ? `КОМПОЗИЦИЯ REFERENCE: ${cameraComposition}; ` : ""}тот же исходный ракурс и направление камеры, что в соответствующем reference-кадре${isCutawayFrame ? "" : "; герой смотрит прямо в объектив"}`;
+    return `${directorCamera}; ${cameraComposition ? `КОМПОЗИЦИЯ REFERENCE: ${cameraComposition}; ` : ""}тот же исходный ракурс и направление камеры, что в соответствующем reference-кадре${isCutawayFrame || facelessReferenceScene ? "" : "; герой смотрит прямо в объектив"}`;
   }
+  if (facelessReferenceScene) return "стабильный hands-only ракурс, та же поверхность и направление камеры во всех кадрах";
   const base = isCutawayFrame
     ? productVisible
       ? productRole === "background_prop"
@@ -314,16 +346,33 @@ function renderDirectorEnvironment(brief?: DirectorBrief | null, profile?: Direc
 function renderStoryboardWardrobe(
   characterContract: OmniCharacterContract,
   brief?: DirectorBrief | null,
-  wardrobeSource?: OmniWardrobeSource
+  wardrobeSource?: OmniWardrobeSource,
+  referenceFormatMode?: ReferenceFormatMode
 ) {
+  const montageReference = isVoiceoverMontageReference(referenceFormatMode);
   if (normalizeOmniWardrobeSource(wardrobeSource) === "avatar_reference") {
     return `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
   }
   if (characterContract.speechGender === "male" && isClearlyFemaleWardrobe(brief)) {
-    return `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
+    return montageReference
+      ? `${characterContract.clothingLine}; match the corresponding reference frame for each independent cut; keep the same face, hair, age, body type, and identity`
+      : `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
   }
-  if (!brief?.clothing.style) return `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
+  if (!brief?.clothing.style) {
+    return montageReference
+      ? `${characterContract.clothingLine}; outfit may follow each independent reference cut while identity remains fixed`
+      : `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
+  }
   const colors = brief.clothing.color_palette.length ? `colors: ${brief.clothing.color_palette.join(", ")}` : "";
+  if (montageReference) {
+    return [
+      "REFERENCE WARDROBE STYLE:",
+      brief.clothing.style,
+      brief.clothing.fit_details,
+      colors,
+      "match the visible outfit in the corresponding reference cut; outfit may change between independent segments, while face, hair, age, body type, and presenter identity stay the same",
+    ].filter(Boolean).join("; ");
+  }
   return [
     "REFERENCE WARDROBE LOCK:",
     brief.clothing.style,
@@ -364,38 +413,45 @@ function isClearlyFemaleWardrobe(brief?: DirectorBrief | null) {
   return /halter|bra\b|bustier|corset|dress|skirt|women'?s|feminine|бюстгальтер|корсет|плать|юбк|женск|топ\s+на\s+бретел/iu.test(clothing);
 }
 
-function renderFrameAction(action: string | undefined, isCutawayFrame: boolean) {
-  const normalized = compactText(action || "персонаж естественно говорит в камеру", 220);
+function renderFrameAction(action: string | undefined, isCutawayFrame: boolean, facelessReferenceScene = false) {
+  const normalized = compactText(action || (facelessReferenceScene ? "руки выполняют действие по текущей реплике" : "персонаж естественно говорит в камеру"), 220);
   if (/REFERENCE LAYOUT|collage\/PIP/iu.test(normalized)) return normalized;
   const visualCue = extractVisualCue(normalized);
   if (visualCue) {
     return isCutawayFrame
       ? `короткая перебивка: ${visualCue}`
-      : `персонаж говорит в камеру, визуальный ориентир: ${visualCue}`;
+      : facelessReferenceScene
+        ? `руки выполняют действие по текущей реплике, визуальный ориентир: ${visualCue}`
+        : `персонаж говорит в камеру, визуальный ориентир: ${visualCue}`;
   }
   return compactText(normalized, 180);
 }
 
-function renderProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string) {
-  const rendered = renderFrameAction(action, isCutawayFrame);
+function renderProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false) {
+  const rendered = renderFrameAction(action, isCutawayFrame, facelessReferenceScene);
   if (mentionsOmniProduct(rendered, productName)) return rendered;
-  return `${rendered}; герой естественно берет ${productName} в одну руку на уровне груди, упаковка повернута лицевой стороной к камере`;
+  return facelessReferenceScene
+    ? `${rendered}; рука естественно берет ${productName} и ставит его на ту же поверхность, упаковка повернута лицевой стороной к камере`
+    : `${rendered}; герой естественно берет ${productName} в одну руку на уровне груди, упаковка повернута лицевой стороной к камере`;
 }
 
-function renderNonProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string) {
+function renderNonProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false) {
   const normalized = compactText(action || "", 220);
   const hasProductCue = mentionsOmniProduct(normalized, productName) || /(?:\bproduct\b|продукт|товар|упаков)/iu.test(normalized);
-  if (!hasProductCue) return renderFrameAction(action, isCutawayFrame);
+  if (!hasProductCue) return renderFrameAction(action, isCutawayFrame, facelessReferenceScene);
   return isCutawayFrame
     ? "смысловая перебивка по текущей реплике без товара"
-    : "персонаж говорит в камеру, спокойный жест руками, без товара в кадре";
+    : facelessReferenceScene
+      ? "руки выполняют спокойное действие по текущей реплике, без товара в кадре"
+      : "персонаж говорит в камеру, спокойный жест руками, без товара в кадре";
 }
 
 function renderIntroFrameAction(
   action: string | undefined,
   isCutawayFrame: boolean,
   productName: string,
-  referenceTransfer: ReturnType<typeof buildReferenceTransferFramePlan>
+  referenceTransfer: ReturnType<typeof buildReferenceTransferFramePlan>,
+  facelessReferenceScene = false
 ) {
   const normalized = compactText(action || "", 220);
   const visualCue = extractVisualCue(normalized) || normalized;
@@ -405,13 +461,17 @@ function renderIntroFrameAction(
       ? `смысловой предметный или атмосферный кадр по хуку: ${visualCue}`
       : support
         ? `${visualCue}; ${support}; реквизит остается видимым в нижней части кадра`
-        : `персонаж с пустыми руками, ${visualCue}`;
+        : facelessReferenceScene
+          ? `руки выполняют действие по хуку, ${visualCue}`
+          : `персонаж с пустыми руками, ${visualCue}`;
   }
   return isCutawayFrame
     ? "смысловой кадр окружения по теме хука"
-    : support
-      ? `персонаж естественно говорит в камеру; ${support}; реквизит остается видимым в нижней части кадра`
-      : "персонаж с пустыми руками естественно говорит в камеру";
+      : facelessReferenceScene
+        ? `руки выполняют действие по хуку; ${support || "реквизит остается видимым в нижней части кадра"}`
+        : support
+          ? `персонаж естественно говорит в камеру; ${support}; реквизит остается видимым в нижней части кадра`
+          : "персонаж с пустыми руками естественно говорит в камеру";
 }
 
 function renderProfileAction(profile?: DirectorSegmentProfile | null) {

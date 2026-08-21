@@ -10,13 +10,14 @@ import {
   isStoryboardQaMetadataOnly,
   normalizeStoryboardQaViolation,
 } from "./storyboard-qa-contract";
+import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "minimax/minimax-m3";
 const MIN_CONFIDENCE = 0.65;
 const MAX_JSON_REPAIR_ATTEMPTS = 2;
 const MAX_JSON_REPAIR_SOURCE_CHARS = 12_000;
-export const STORYBOARD_SET_QA_POLICY_VERSION = "storyboard-set-qa-v7";
+export const STORYBOARD_SET_QA_POLICY_VERSION = "storyboard-set-qa-v8";
 
 export class StoryboardSetVisionJsonFormatError extends Error {
   readonly rawResponse: string;
@@ -38,6 +39,7 @@ export async function validateStoryboardSet(input: {
   productName?: string;
   productReferenceUrls?: readonly string[];
   model?: string | null;
+  referenceFormatMode?: ReferenceFormatMode;
 }) {
   if (input.storyboards.length < 2) return buildSingleSegmentPass(input.storyboards[0]?.segmentIndex || 1);
   const apiKey = process.env.OPENROUTER_API_KEY || "";
@@ -57,6 +59,7 @@ export async function validateStoryboardSet(input: {
             storyboards: input.storyboards,
             productName: input.productName,
             productReferenceCount: productReferenceUrls.length,
+            referenceFormatMode: input.referenceFormatMode || "continuous_story",
           }),
         },
         ...input.storyboards.map((storyboard) => ({ type: "image_url" as const, image_url: { url: storyboard.imageUrl } })),
@@ -173,9 +176,11 @@ function buildStoryboardSetVisionPrompt(input: {
   storyboards: readonly { segmentIndex: number; storyboard: OmniStoryboardSegment }[];
   productName?: string;
   productReferenceCount: number;
+  referenceFormatMode: ReferenceFormatMode;
 }) {
   const canonical = input.storyboards[0];
   const wardrobe = canonical?.storyboard.frames[0]?.wardrobe || "the complete visible outfit in segment 1";
+  const montageReference = input.referenceFormatMode === "voiceover_montage";
   const visualContracts = input.storyboards.map((storyboard) => ({
     segment_index: storyboard.segmentIndex,
     panels: storyboard.storyboard.frames.map((frame, panelIndex) => ({
@@ -187,18 +192,28 @@ function buildStoryboardSetVisionPrompt(input: {
     })),
   }));
   return [
-    "You are a strict cross-segment continuity QA for one vertical video.",
+    montageReference
+      ? "You are a cross-segment identity and product QA for a voiceover montage. The video intentionally contains independent cutaways, not one continuous physical scene."
+      : "You are a strict cross-segment continuity QA for one vertical video.",
     `The first ${input.storyboards.length} image(s) are contact sheets in order: ${input.storyboards.map((storyboard, index) => `contact sheet ${index + 1} is segment ${storyboard.segmentIndex}`).join("; ")}.`,
     input.productReferenceCount ? `The next ${input.productReferenceCount} image(s) are product references for ${input.productName || "the client product"}. When the storyboard plan shows the product, its visible package must match these references.` : "No product reference images were supplied.",
-    "Do not use an avatar reference in this QA pass. Segment 1 contact sheet is the sole visual authority for the presenter outfit, hairstyle, lighting, environment, and camera. Compare later contact sheets only against segment 1 and never against an avatar image.",
-    "Segment 1 becomes the canonical visual identity only when it matches its own expected wardrobe. Then compare every visible presenter panel in every later segment against it.",
-    "The expected_wardrobe in the visual-mechanics contract is the complete outfit ground truth, not a requirement to show every detail in every crop. Use the segment 1 contact sheet, not the avatar reference, as the canonical source for the visible core garment and hairstyle. Block only a positively visible contradiction in face, hair, or the core garment: garment type, sleeves, neckline, fabric, color, or fit. A detail wholly outside a panel is not a mismatch: do not fail a close crop because jeans, a watch, a ring, earrings, or any other accessory are offscreen. Do not block accessories at all. A spoken subject change never permits a visible core-garment change.",
-    `Canonical wardrobe contract: ${wardrobe}.`,
+    montageReference
+      ? "Do not use an avatar reference in this QA pass. For each segment, use that segment's own expected wardrobe and corresponding reference frames. Compare every segment against its own plan; do not compare wardrobe, location, lighting, camera setup, or props between independent segments. The only cross-segment visual contract is the same presenter identity and safe client product identity."
+      : "Do not use an avatar reference in this QA pass. Segment 1 contact sheet is the sole visual authority for the presenter outfit, hairstyle, lighting, environment, and camera. Compare later contact sheets only against segment 1 and never against an avatar image.",
+    montageReference
+      ? "Within each segment, block only a positively visible contradiction in face, hair, or that segment's expected core garment. A wardrobe difference between segments is valid and must not be reported as wardrobe_mismatch."
+      : "Segment 1 becomes the canonical visual identity only when it matches its own expected wardrobe. Then compare every visible presenter panel in every later segment against it.",
+    montageReference
+      ? "The expected_wardrobe contract is local to its segment, not a whole-reel outfit lock. Do not require every detail in every crop, and do not block accessories."
+      : "The expected_wardrobe in the visual-mechanics contract is the complete outfit ground truth, not a requirement to show every detail in every crop. Use the segment 1 contact sheet, not the avatar reference, as the canonical source for the visible core garment and hairstyle. Block only a positively visible contradiction in face, hair, or the core garment: garment type, sleeves, neckline, fabric, color, or fit. A detail wholly outside a panel is not a mismatch: do not fail a close crop because jeans, a watch, a ring, earrings, or any other accessory are offscreen. Do not block accessories at all. A spoken subject change never permits a visible core-garment change.",
+    montageReference ? "Do not use a whole-reel canonical wardrobe contract." : `Canonical wardrobe contract: ${wardrobe}.`,
     "Also check only these static product facts. When the plan shows the client product, its visible package must match the supplied product references. Block a visibly wrong client package or a visible foreign advertised product, brand, package, box, bottle, jar, stick, sachet, or logo. Neutral support props are allowed only when listed in required_support_props. Do not infer a copied product from ordinary food, a bag, a table, or another neutral object without positive branded-package evidence.",
     "A contact sheet is static. Expected action, hand approach, touch, pickup timing, product motion, face gestures, reference gestures, and camera composition are video-prompt metadata, never QA blockers. Do not emit an error for any of them. Do not block because a hand movement happens between panels, because a product is cropped, or because a detail cannot be verified. Only report an error when the contradictory visual fact is positively visible.",
     `Visual-mechanics contracts: ${JSON.stringify(visualContracts)}.`,
     "Return only JSON: { status: pass|repair|block, confidence: number, canonical_identity: string, violations: [{ segment_index: integer, panels: integer[], code: string, severity: error|warning, evidence: string }], repair_instructions: string[] }.",
-    "Use severity error only for a positively visible face, hair, core-garment, client-package, or foreign-advertised-product contradiction. All other observations are warnings or omitted. If every segment matches, return pass with an empty violations array.",
+    montageReference
+      ? "Use severity error only for a positively visible identity contradiction, a contradiction with that segment's own core-garment plan, a client-package mismatch, or a foreign-advertised-product contradiction. Never use wardrobe_mismatch to describe a valid outfit change between independent segments. All other observations are warnings or omitted. If every segment matches, return pass with an empty violations array."
+      : "Use severity error only for a positively visible face, hair, core-garment, client-package, or foreign-advertised-product contradiction. All other observations are warnings or omitted. If every segment matches, return pass with an empty violations array.",
   ].join("\n");
 }
 

@@ -4,6 +4,9 @@ import {
   type OmniAvatarSpeechGender,
 } from "../../omni/avatar-speech-gender";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
+import { isFacelessReferenceScene, type ReferenceSceneMode } from "./omni-reference-scene-mode";
+import { isVoiceoverMontageReference, type ReferenceFormatMode } from "./omni-reference-format-mode";
+import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 
 export type OmniCharacterClothingSource =
   | "product_avatar_notes"
@@ -31,6 +34,9 @@ const FALLBACK_CLOTHING =
 export function buildOmniCharacterContract(input: {
   product: Pick<OmniProduct, "avatar_reference_notes">;
   avatar: Pick<OmniClientAvatar, "display_name" | "prompt" | "reference_url" | "kie_character_id" | "speech_gender"> | null;
+  referenceSceneMode?: ReferenceSceneMode;
+  referenceFormatMode?: ReferenceFormatMode;
+  wardrobeSource?: OmniWardrobeSource;
 }): OmniCharacterContract {
   const avatarName = cleanText(input.avatar?.display_name);
   const avatarPrompt = cleanText(input.avatar?.prompt);
@@ -38,13 +44,21 @@ export function buildOmniCharacterContract(input: {
   const productAvatarNotes = cleanText(input.product.avatar_reference_notes);
   const clothingFromProduct = extractClothingDescription(productAvatarNotes);
   const clothingFromAvatar = extractClothingDescription(avatarPrompt);
+  const allowsReferenceWardrobeVariation = isVoiceoverMontageReference(input.referenceFormatMode) &&
+    normalizeOmniWardrobeSource(input.wardrobeSource) !== "avatar_reference";
   const clothing = clothingFromProduct || clothingFromAvatar || FALLBACK_CLOTHING;
+  const clothingLine = allowsReferenceWardrobeVariation
+    ? removeFixedClothingLanguage(clothing).replace(/^один фиксированный/iu, "базовый")
+    : clothing;
 
   return {
-    identityLine: buildIdentityLine({ avatarName, avatarPrompt, hasAvatarReference: hasAvatarReference(input.avatar) }),
-    clothingLine: clothing,
-    sourceRuleLine:
-      "единственный источник outfit - строка ОДЕЖДА и описание главного персонажа; товарные image_urls задают продукт, а не одежду героя; одежда сохраняется одинаковой во всех частях",
+    identityLine: isFacelessReferenceScene(input.referenceSceneMode)
+      ? "в кадре только руки и необходимый body crop; лицо, голова и портрет аватара не показываются; голос за кадром"
+      : buildIdentityLine({ avatarName, avatarPrompt, hasAvatarReference: hasAvatarReference(input.avatar) }),
+    clothingLine,
+    sourceRuleLine: allowsReferenceWardrobeVariation
+      ? "источник outfit для каждой независимой сцены - соответствующий reference-кадр и строка ОДЕЖДА; товарные image_urls задают продукт, а не одежду героя; лицо, волосы и личность сохраняются у одного персонажа"
+      : "единственный источник outfit - строка ОДЕЖДА и описание главного персонажа; товарные image_urls задают продукт, а не одежду героя; одежда сохраняется одинаковой во всех частях",
     clothingSource: clothingFromProduct ? "product_avatar_notes" : clothingFromAvatar ? "avatar_prompt" : "fallback",
     speechGender,
     speechGenderLine: renderRussianSpeechGenderRule(speechGender),
@@ -81,6 +95,13 @@ function normalizeClothingLine(value: string) {
   const cleaned = limitText(cleanText(value) || "", 220);
   if (!cleaned) return null;
   return `${cleaned}; этот outfit фиксирован для всех частей`;
+}
+
+function removeFixedClothingLanguage(value: string) {
+  return value
+    .replace(/;\s*этот outfit фиксирован для всех частей/giu, "")
+    .replace(/;\s*одежда не меняется между частями/giu, "")
+    .trim();
 }
 
 function splitIntoSentences(value: string) {

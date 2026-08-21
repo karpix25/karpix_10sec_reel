@@ -41,6 +41,8 @@ import {
   StoryboardKieSubmissionStalledError,
 } from "./storyboard-kie-submission-state";
 import { getStoryboardRepairMode } from "./storyboard-repair-reference";
+import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
+import { resolveReferenceFormatMode, type ReferenceFormatMode } from "./omni-reference-format-mode";
 
 type StoryboardPromptSegment = {
   index: number;
@@ -58,6 +60,8 @@ type EnsureGeneratedScriptStoryboardUrlsInput = {
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   directorBrief?: DirectorBrief | null;
+  referenceSceneMode?: ReferenceSceneMode;
+  referenceFormatMode?: ReferenceFormatMode;
   promptPlan: readonly StoryboardPromptSegment[];
   generationProvider?: OmniGenerationProvider;
 };
@@ -184,6 +188,8 @@ async function tryGenerateStoryboardPreview(input: {
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   directorBrief?: DirectorBrief | null;
+  referenceSceneMode?: ReferenceSceneMode;
+  referenceFormatMode?: ReferenceFormatMode;
   referenceSignature: string;
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment;
@@ -236,6 +242,7 @@ async function tryGenerateStoryboardPreview(input: {
       directorReferenceImageUrls: getSegmentDirectorReferenceUrls(input, input.segmentIndex),
       canonicalStoryboardReferenceUrl: input.canonicalStoryboardReferenceUrl,
       directorBrief: input.directorBrief,
+      referenceSceneMode: input.referenceSceneMode,
       generationProvider: input.generationProvider,
       pendingKieStoryboardTaskId: kieSubmission?.kind === "poll"
         ? kieSubmission.taskId
@@ -303,6 +310,7 @@ async function ensureStoryboardSetApproval(
     urls,
     productName: input.productName,
     productReferenceUrls: input.productReferenceUrls,
+    referenceFormatMode: input.referenceFormatMode || resolveReferenceFormatMode(input.directorBrief),
     regenerateTarget: async ({ segmentIndex, validation, repairProgress }) => {
       const storyboardPlan = input.promptPlan.find((segment) => segment.index === segmentIndex)?.storyboardPlan;
       if (!storyboardPlan) throw new Error(`Storyboard ${segmentIndex} is missing from the repair plan`);
@@ -450,12 +458,16 @@ function buildReferenceSignature(input: {
   productPhysicalContract?: string | null;
   productReferenceUrls: readonly string[];
   generationProvider?: OmniGenerationProvider;
+  referenceSceneMode?: ReferenceSceneMode;
+  referenceFormatMode?: ReferenceFormatMode;
   promptPlan: readonly StoryboardPromptSegment[];
 }) {
   return [
     STORYBOARD_PREVIEW_GENERATOR_VERSION,
     buildStoryboardPlanSignature(input.promptPlan),
     input.generationProvider || "cometapi",
+    input.referenceSceneMode || "presenter",
+    input.referenceFormatMode || "continuous_story",
     normalizeUrl(input.avatarReferenceUrl) || "",
     normalizeContract(input.productPhysicalContract),
     ...input.productReferenceUrls.map((url) => normalizeUrl(url) || "").filter(Boolean).sort(),

@@ -6,6 +6,7 @@ import {
   validateStoryboardSet,
 } from "./storyboard-set-vision-validator";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
+import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 
 type StoryboardSetEntry = {
   segmentIndex: number;
@@ -50,11 +51,13 @@ export async function validateAndSaveGeneratedScriptStoryboardSet(input: {
   attemptCount: number;
   productName?: string;
   productReferenceUrls?: readonly string[];
+  referenceFormatMode?: ReferenceFormatMode;
 }) {
   const validation = await validateStoryboardSet({
     storyboards: input.storyboards,
     productName: input.productName,
     productReferenceUrls: input.productReferenceUrls,
+    referenceFormatMode: input.referenceFormatMode,
   });
   await saveGeneratedScriptStoryboardSetQuality({
     scriptId: input.scriptId,

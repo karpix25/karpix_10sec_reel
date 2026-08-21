@@ -44,6 +44,12 @@ import {
 } from "./omni-intro-product-contract";
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
+import {
+  applyReferenceSceneModeToOmniPrompt,
+  resolveReferenceSceneMode,
+  type ReferenceSceneMode,
+} from "./omni-reference-scene-mode";
+import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { applyDirectorLayoutToPlan, buildDirectorLayoutContract } from "./director-layout-contract";
 import {
   buildProductVisualProfileFromText,
@@ -142,12 +148,17 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   });
   const productPhysicalHint = renderProductPhysicalHintForStoryboard(productPhysicalContract);
   const avatarReference = input.avatar?.reference_url || null;
+  const directorBrief =
+    input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
+  const referenceSceneMode = resolveReferenceSceneMode(directorBrief);
+  const referenceFormatMode = resolveReferenceFormatMode(directorBrief);
   const characterContract = buildOmniCharacterContract({
     product: input.product,
     avatar: input.avatar,
+    referenceSceneMode,
+    referenceFormatMode,
+    wardrobeSource: input.wardrobeSource,
   });
-  const directorBrief =
-    input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
   const referencePolicy = buildReferenceTransferPolicy({
     hasProductReference: Boolean(productReference),
     directorBrief,
@@ -163,6 +174,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     ctaMode: input.ctaMode,
     ctaValue: input.ctaValue,
     recentFormatIds: input.recentFormatIds,
+    referenceSceneMode,
   });
   const productDemoSegmentIndex = selectPhysicalProductDemoSegmentIndex({
     segments: segmentIntents,
@@ -198,6 +210,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentCount: input.segmentCount,
       previousState: previousContinuityState,
       talkingHead,
+      referenceFormatMode,
     });
     const storyboardPlan = buildStoryboardFromCreativePlan({
       plan,
@@ -211,6 +224,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       directorBrief,
       wardrobeSource: input.wardrobeSource,
       referenceTransferPolicy: referencePolicy,
+      referenceSceneMode,
     });
     const physicalValidation = validatePhysicalScene({
       storyboard: storyboardPlan,
@@ -218,18 +232,19 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       productName: input.product.name,
     });
     const validation = physicalValidation;
-    const prompt = repairPhysicalScenePrompt(renderCompactRussianOmniStoryboardPrompt({
+    const prompt = applyReferenceSceneModeToOmniPrompt(repairPhysicalScenePrompt(renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productName: input.product.name,
       productPhysicalContract: plan.productRole !== "hidden" ? productPhysicalContract : null,
       segmentCount: input.segmentCount,
       directorBrief,
-    }), validation);
+      referenceSceneMode,
+    }), validation), referenceSceneMode);
     prompts.push({
       index: segmentIndex,
       role: segmentRole,
       prompt,
-      referenceUrl: selectReferenceUrl(productRole, avatarReference, productReference),
+      referenceUrl: selectReferenceUrl(productRole, avatarReference, productReference, referenceSceneMode),
       durationSeconds: segmentSeconds,
       voiceoverText: plan.voiceoverText,
       storyboardPlan,
@@ -238,7 +253,9 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       creativePlan: plan,
       validation,
     });
-    previousContinuityState = continuityDirection.nextState;
+    previousContinuityState = referenceFormatMode === "voiceover_montage"
+      ? null
+      : continuityDirection.nextState;
   }
 
   const voiceoverIsolationErrors = validatePromptVoiceoverIsolation(prompts);
@@ -284,6 +301,7 @@ function buildStoredProviderPromptSegments(
   });
   const productPhysicalHint = renderProductPhysicalHintForStoryboard(productPhysicalContract);
   const directorBrief = input.directorBrief || extractDirectorBriefFromSnapshot(input.generatedScript?.source_snapshot);
+  const referenceSceneMode = resolveReferenceSceneMode(directorBrief);
   const referencePolicy = buildReferenceTransferPolicy({
     hasProductReference: Boolean(productReference),
     directorBrief,
@@ -298,6 +316,7 @@ function buildStoredProviderPromptSegments(
     ctaMode: input.ctaMode,
     ctaValue: input.ctaValue,
     recentFormatIds: input.recentFormatIds,
+    referenceSceneMode,
   });
   assertOmniCtaContract(scriptText, strategy);
   const segmentIntents = deriveOmniSegmentIntents(
@@ -333,24 +352,26 @@ function buildStoredProviderPromptSegments(
       segmentCount: providerPromptPlan.segmentPrompts.length,
       productVisible: productRole !== "hidden",
       referenceTransferPolicy: referencePolicy,
+      referenceSceneMode,
     });
     const validation = validatePhysicalScene({
       storyboard: storyboardPlan,
       creativePlan,
       productName: input.product.name,
     });
-    const prompt = repairPhysicalScenePrompt(renderCompactRussianOmniStoryboardPrompt({
+    const prompt = applyReferenceSceneModeToOmniPrompt(repairPhysicalScenePrompt(renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productName: input.product.name,
       productPhysicalContract: productRole !== "hidden" ? productPhysicalContract : null,
       segmentCount: providerPromptPlan.segmentPrompts.length,
       directorBrief,
-    }), validation);
+      referenceSceneMode,
+    }), validation), referenceSceneMode);
     return {
       index: segmentIndex,
       role: getSegmentRole(segmentIndex, providerPromptPlan.segmentPrompts.length),
       prompt,
-      referenceUrl: selectReferenceUrl(productRole, avatarReference, productReference),
+      referenceUrl: selectReferenceUrl(productRole, avatarReference, productReference, referenceSceneMode),
       durationSeconds: segment.durationSeconds,
       voiceoverText: segment.voiceover,
       storyboardPlan,
@@ -390,10 +411,11 @@ function buildStoredCreativePlan(input: {
 function selectReferenceUrl(
   role: ProductRole,
   avatarReference: string | null,
-  productReference: OmniReferenceAsset | null
+  productReference: OmniReferenceAsset | null,
+  referenceSceneMode: ReferenceSceneMode
 ) {
-  if (role === "hidden") return avatarReference;
-  return productReference?.url || avatarReference;
+  if (role === "hidden") return referenceSceneMode === "presenter" ? avatarReference : null;
+  return productReference?.url || (referenceSceneMode === "presenter" ? avatarReference : null);
 }
 
 function getPrimaryReference(refs: OmniReferenceAsset[]) {

@@ -1,5 +1,6 @@
 import type { OmniSegmentCreativePlan, ProductRole } from "@/lib/omni/creative-contract";
 import { compactPromptPhrase } from "./omni-scene-world-sanitizer";
+import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 
 export type OmniGenerationContinuityState = {
   segmentIndex: number;
@@ -20,20 +21,24 @@ type BuildContinuityDirectionInput = {
   segmentCount: number;
   previousState: OmniGenerationContinuityState | null;
   talkingHead: boolean;
+  referenceFormatMode?: ReferenceFormatMode;
 };
 
 export function buildOmniGenerationContinuityDirection(
   input: BuildContinuityDirectionInput
 ): OmniGenerationContinuityDirection {
+  const montageReference = input.referenceFormatMode === "voiceover_montage";
   const productAction = buildProductAction({
     productName: input.productName,
     role: input.plan.productRole,
     segmentIndex: input.segmentIndex,
     segmentCount: input.segmentCount,
-    previousProductState: input.previousState?.productState || null,
+    previousProductState: montageReference ? null : input.previousState?.productState || null,
     talkingHead: input.talkingHead,
   });
-  const sceneStart = input.previousState
+  const sceneStart = montageReference
+    ? `Start this independent montage cut with its own approved reference setting and action: ${describeInitialScene(input.plan)}.`
+    : input.previousState
     ? `Start from previous final state: ${compactContinuityState(input.previousState.sceneState)}; product state: ${compactContinuityState(input.previousState.productState)}.`
     : `Start with the scene already established: ${describeInitialScene(input.plan)}.`;
   const nextState = {
@@ -44,12 +49,18 @@ export function buildOmniGenerationContinuityDirection(
   };
 
   return {
-    promptLines: [
-      `SCENE CONTINUITY: ${sceneStart}`,
-      `PRODUCT ACTION: ${productAction.actionLine}`,
-      `PHYSICAL CAUSALITY: ${productAction.causalityLine}`,
-      `END STATE FOR NEXT PART: ${nextState.sceneState}; product state: ${nextState.productState}.`,
-    ],
+    promptLines: montageReference
+      ? [
+        `MONTAGE SEGMENT: ${sceneStart} Do not continue the previous segment's room, outfit, camera, or prop positions. Keep the same presenter identity and exact product appearance only.`,
+        `PRODUCT ACTION: ${productAction.actionLine}`,
+        `PHYSICAL CAUSALITY: ${productAction.causalityLine}`,
+      ]
+      : [
+        `SCENE CONTINUITY: ${sceneStart}`,
+        `PRODUCT ACTION: ${productAction.actionLine}`,
+        `PHYSICAL CAUSALITY: ${productAction.causalityLine}`,
+        `END STATE FOR NEXT PART: ${nextState.sceneState}; product state: ${nextState.productState}.`,
+      ],
     nextState,
   };
 }

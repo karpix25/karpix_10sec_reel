@@ -25,6 +25,8 @@ import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import { extractDirectorBriefFromSnapshot, normalizeDirectorBrief } from "./director-analysis-types";
+import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
+import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
@@ -154,6 +156,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     productPhysicalContract: product.product_physical_contract,
     segmentCount: segmentPlan.segmentCount,
     directorBrief,
+    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
   });
   const repairedPromptPlan = await withTimeout(
     promptRepairPromise,
@@ -164,6 +167,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
       productPhysicalContract: product.product_physical_contract,
       segmentCount: segmentPlan.segmentCount,
       directorBrief,
+      referenceSceneMode: resolveReferenceSceneMode(directorBrief),
     })
   );
   const promptPlan = normalizeOmniPromptPlanWithPhysicalRules({
@@ -172,9 +176,10 @@ export async function buildGeneratedScriptPromptPreview(input: {
     productPhysicalContract: product.product_physical_contract,
     segmentCount: segmentPlan.segmentCount,
     directorBrief,
+    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
   });
   assertPhysicalPromptPlan(promptPlan);
-  assertStoryboardPromptContracts(promptPlan, product.name);
+  assertStoryboardPromptContracts(promptPlan, product.name, resolveReferenceFormatMode(directorBrief));
   const storyboardGeneration = prepareSegmentStoryboardDirectorReferenceUrls({
     sourceSnapshot: resolvedGeneratedScript.source_snapshot,
     storageTarget: {
@@ -198,6 +203,8 @@ export async function buildGeneratedScriptPromptPreview(input: {
     productReferenceUrls: resolveProductReferenceImageUrls(product),
     directorReferenceImageUrlsBySegment,
     directorBrief,
+    referenceSceneMode: resolveReferenceSceneMode(promptPlan[0]?.creativeStrategy),
+    referenceFormatMode: resolveReferenceFormatMode(directorBrief),
     promptPlan,
     generationProvider: input.generationProvider,
   }));
@@ -297,6 +304,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     background_audio_mood: normalizeAudioMood(generated.payload.background_audio_mood),
     director_analysis_status: directorAnalysis?.director_analysis_status || "not_requested",
     director_analysis: directorBrief,
+    reference_format_mode: resolveReferenceFormatMode(directorBrief),
     reference_transfer_plan: referenceTransferPlan,
     director_video_url: directorAnalysis?.stored_video_url || directorAnalysis?.resolved_video_url || null,
     director_reference_image_urls: directorReferenceImageUrls,
