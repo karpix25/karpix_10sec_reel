@@ -9,6 +9,7 @@ import { analyzeDirectorVideo } from "./openrouter-director-analysis-client";
 import { resolveInstagramVideoWithScrapeCreators } from "./scrapecreators-client";
 import { normalizeDirectorBrief, type OmniDirectorAnalysis } from "./director-analysis-types";
 import { verifyDirectorBriefAgainstReferenceFrames } from "./director-analysis-frame-verifier";
+import { isRetryableDirectorAnalysisError } from "./director-analysis-retry";
 
 const LEGACY_SOURCE = "old_db";
 const STORED_VIDEO_PROBE_TIMEOUT_MS = 15_000;
@@ -88,10 +89,10 @@ async function resetDirectorAnalysisForRetry(analysisId: number) {
   );
 }
 
-export async function listFailedDirectorAnalysisLegacyIds(limit = 500) {
+export async function listNonRetryableFailedDirectorAnalysisLegacyIds(limit = 500) {
   await ensureOmniSchema();
-  const { rows } = await pool.query<{ legacy_scenario_id: string | number }>(
-    `SELECT legacy_scenario_id
+  const { rows } = await pool.query<{ legacy_scenario_id: string | number; analysis_error: string | null }>(
+    `SELECT legacy_scenario_id, analysis_error
      FROM omni_legacy_video_analyses
      WHERE legacy_source = $1
        AND analysis_prompt_version = $2
@@ -100,7 +101,10 @@ export async function listFailedDirectorAnalysisLegacyIds(limit = 500) {
      LIMIT $3`,
     [LEGACY_SOURCE, DIRECTOR_ANALYSIS_PROMPT_VERSION, limit]
   );
-  return rows.map((row) => Number(row.legacy_scenario_id)).filter((id) => Number.isFinite(id) && id > 0);
+  return rows
+    .filter((row) => !isRetryableDirectorAnalysisError(row.analysis_error))
+    .map((row) => Number(row.legacy_scenario_id))
+    .filter((id) => Number.isFinite(id) && id > 0);
 }
 
 export async function listReadyDirectorAnalysisLegacyIds(limit = 500) {
