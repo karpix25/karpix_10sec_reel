@@ -1,10 +1,10 @@
 import type { OmniClientAvatar, OmniProduct } from "@/lib/omni/types";
 import {
-  requireAvatarSpeechGender,
+  resolveNarratorSpeechGender,
   type OmniAvatarSpeechGender,
 } from "../../omni/avatar-speech-gender";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
-import { isFacelessReferenceScene, type ReferenceSceneMode } from "./omni-reference-scene-mode";
+import { isFacelessReferenceScene, isObjectOnlyReferenceScene, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { isVoiceoverMontageReference, type ReferenceFormatMode } from "./omni-reference-format-mode";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 
@@ -40,7 +40,10 @@ export function buildOmniCharacterContract(input: {
 }): OmniCharacterContract {
   const avatarName = cleanText(input.avatar?.display_name);
   const avatarPrompt = cleanText(input.avatar?.prompt);
-  const speechGender = requireAvatarSpeechGender(input.avatar?.speech_gender);
+  const speechGender = resolveNarratorSpeechGender(
+    input.avatar?.speech_gender,
+    isFacelessReferenceScene(input.referenceSceneMode)
+  );
   const productAvatarNotes = cleanText(input.product.avatar_reference_notes);
   const clothingFromProduct = extractClothingDescription(productAvatarNotes);
   const clothingFromAvatar = extractClothingDescription(avatarPrompt);
@@ -52,8 +55,10 @@ export function buildOmniCharacterContract(input: {
     : clothing;
 
   return {
-    identityLine: isFacelessReferenceScene(input.referenceSceneMode)
-      ? "в кадре только руки и необходимый body crop; лицо, голова и портрет аватара не показываются; голос за кадром"
+    identityLine: isObjectOnlyReferenceScene(input.referenceSceneMode)
+      ? "в кадре только утверждённая поверхность, предметы и концептуальные пропы; человек, руки, лицо, голова и портрет аватара не показываются; голос за кадром"
+      : isFacelessReferenceScene(input.referenceSceneMode)
+        ? "в кадре только руки и необходимый body crop; лицо, голова и портрет аватара не показываются; голос за кадром"
       : buildIdentityLine({ avatarName, avatarPrompt, hasAvatarReference: hasAvatarReference(input.avatar) }),
     clothingLine,
     sourceRuleLine: allowsReferenceWardrobeVariation

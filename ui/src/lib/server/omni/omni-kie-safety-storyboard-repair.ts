@@ -5,6 +5,7 @@ import { normalizeStoryboardSource } from "./physical-scene-validator";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
+import { isFacelessReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 
 const PUBLIC_FIGURE_BLOCK_PATTERN = /prominent public figure|public figure|celebrity|politician/iu;
 
@@ -24,8 +25,11 @@ export async function regenerateKieSafetyBlockedStoryboard(input: {
     voiceoverText: input.segment.voiceover_text || "",
     productName,
   });
-  const avatarReferenceUrl = readSnapshotText(input.reel.avatar_snapshot, "reference_url");
-  if (!storyboard || !avatarReferenceUrl) {
+  const referenceSceneMode = resolveReferenceSceneMode(input.reel.creative_strategy);
+  const avatarReferenceUrl = isFacelessReferenceScene(referenceSceneMode)
+    ? null
+    : readSnapshotText(input.reel.avatar_snapshot, "reference_url");
+  if (!storyboard || (!isFacelessReferenceScene(referenceSceneMode) && !avatarReferenceUrl)) {
     throw new Error("Cannot safely redraw the blocked storyboard without its saved storyboard plan and avatar reference");
   }
 
@@ -44,6 +48,7 @@ export async function regenerateKieSafetyBlockedStoryboard(input: {
     canonicalStoryboardReferenceUrl: await getCanonicalStoryboardReferenceUrl(input.reel.id, input.segment.segment_index),
     directorReferenceImageUrls: [],
     directorBrief: null,
+    referenceSceneMode,
     generationProvider: normalizeOmniGenerationProvider(input.segment.generation_provider),
     referenceSafetyInstructions: [
       "Use only the supplied avatar as the person. Do not portray, resemble, or imitate a public figure, celebrity, politician, or other known person.",

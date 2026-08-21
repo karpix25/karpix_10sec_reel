@@ -9,7 +9,6 @@ import {
   findClientWorkspaceProject,
   getActiveProduct,
   getClientWorkspaceDescription,
-  getLatestAvatar,
   getPreferredProductId,
 } from "@/lib/omni/workspace";
 import type { OmniProject } from "@/lib/omni/types";
@@ -56,10 +55,8 @@ export function OmniStudioScreen({
   const scenarios = studio.legacyScenariosQuery.data?.data || [];
   const libraryLinks = studio.libraryLinksQuery.data || [];
   const products = useMemo(() => studio.productsQuery.data || [], [studio.productsQuery.data]);
-  const avatars = studio.avatarsQuery.data || [];
   const reelsPayload = studio.reelsQuery.data || { reels: [], segments: [] };
   const activeProduct = getActiveProduct(products, selectedProductId);
-  const latestAvatar = getLatestAvatar(avatars);
 
   useEffect(() => {
     const preferredProductId = getPreferredProductId(products, selectedProductId);
@@ -213,7 +210,6 @@ export function OmniStudioScreen({
         libraryLinks={libraryLinks}
         scenarios={scenarios}
         activeProduct={activeProduct}
-        latestAvatar={latestAvatar}
         reels={reelsPayload.reels}
         segments={reelsPayload.segments}
         activeLibraryId={activeLibraryId}

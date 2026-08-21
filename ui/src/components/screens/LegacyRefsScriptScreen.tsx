@@ -38,8 +38,6 @@ export function LegacyRefsScriptScreen({
     activeBundleIds.has(library.client_id)
   );
   const generatedScripts = scriptsQuery.data || [];
-  const avatars = studio.avatarsQuery.data || [];
-  const latestAvatar = avatars.find((avatar) => avatar.is_active && avatar.reference_url) || avatars[0] || null;
   const reelsPayload = studio.reelsQuery.data || { reels: [], segments: [] };
   const { pendingDrafts, pendingVideo, addPendingDraft, removePendingDraft, setPendingVideo } = usePersistentGenerationPending({
     projectId: selectedProjectId,
@@ -179,7 +177,7 @@ export function LegacyRefsScriptScreen({
             pendingDrafts={pendingDrafts}
             pendingVideo={pendingVideo}
             omniGenerationProvider={omniGenerationProvider}
-            canCreateVideo={Boolean(selectedProjectId && selectedProductId && activeProduct && latestAvatar)}
+            canCreateVideo={Boolean(selectedProjectId && selectedProductId && activeProduct)}
             isCreatingReel={studio.createReelMutation.isPending}
             isRunningReel={studio.runReelMutation.isPending}
             isSyncingReel={studio.syncReelMutation.isPending}

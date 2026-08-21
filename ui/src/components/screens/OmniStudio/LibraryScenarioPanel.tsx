@@ -4,7 +4,6 @@ import { Archive, CheckCircle2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type {
-  OmniClientAvatar,
   OmniLegacyLibrary,
   OmniLegacyLibraryLink,
   OmniLegacyScenario,
@@ -20,7 +19,6 @@ export function LibraryScenarioPanel({
   libraryLinks,
   scenarios,
   activeProduct,
-  latestAvatar,
   reels,
   segments,
   activeLibraryId,
@@ -51,7 +49,6 @@ export function LibraryScenarioPanel({
   libraryLinks: OmniLegacyLibraryLink[];
   scenarios: OmniLegacyScenario[];
   activeProduct: OmniProduct | null;
-  latestAvatar: OmniClientAvatar | null;
   reels: OmniReel[];
   segments: OmniReelSegment[];
   activeLibraryId: number | null;
@@ -252,7 +249,6 @@ export function LibraryScenarioPanel({
           <LibraryScenarioList
             scenarios={scenarios}
             activeProduct={activeProduct}
-            latestAvatar={latestAvatar}
             reels={reels}
             segments={segments}
             selectedScenarioId={selectedScenarioId}

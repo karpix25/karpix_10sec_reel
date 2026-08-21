@@ -18,8 +18,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getOmniReelSubtitleCue } from "@/lib/omni/subtitle-status-labels";
+import { getOmniReelPlaybackUrl } from "@/lib/omni/reel-playback";
 import type {
-  OmniClientAvatar,
   OmniLegacyScenario,
   OmniProduct,
   OmniReel,
@@ -58,7 +58,6 @@ function getScriptHook(script: string) {
 export function LibraryScenarioList({
   scenarios,
   activeProduct,
-  latestAvatar,
   reels,
   segments,
   selectedScenarioId,
@@ -75,7 +74,6 @@ export function LibraryScenarioList({
 }: {
   scenarios: OmniLegacyScenario[];
   activeProduct: OmniProduct | null;
-  latestAvatar: OmniClientAvatar | null;
   reels: OmniReel[];
   segments: OmniReelSegment[];
   selectedScenarioId: number | null;
@@ -174,7 +172,7 @@ export function LibraryScenarioList({
             isExpanded={viewMode === "detail" || expandedScenarioId === item.scenario.id}
             activeTab={activeTab}
             canCreateScript={Boolean(activeProduct)}
-            canCreateVideo={Boolean(activeProduct && latestAvatar)}
+            canCreateVideo={Boolean(activeProduct)}
             isCreatingScript={isCreatingScript}
             isCreatingReel={isCreatingReel}
             isRunningReel={isRunningReel}
@@ -354,7 +352,9 @@ function LibraryVideoPanel({
   if (!reel) {
     return <div className="rounded-lg border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">Видео по этому сценарию еще не создано.</div>;
   }
-  const displayVideoUrl = reel.subtitled_video_url || reel.final_video_url;
+  const displayVideoUrl = reel.final_video_url
+    ? getOmniReelPlaybackUrl(reel.id, Boolean(reel.subtitled_video_url))
+    : null;
   const subtitleCue = getOmniReelSubtitleCue(reel);
 
   return (

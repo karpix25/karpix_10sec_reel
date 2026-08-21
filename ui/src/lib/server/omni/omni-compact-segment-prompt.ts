@@ -18,6 +18,7 @@ import {
 import { renderScriptBeatGuidance } from "./script-beat-plan";
 import { renderOmniVerticalRhythmContract } from "./omni-vertical-rhythm-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
+import { isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 
 export function renderCompactSegmentPrompt(input: {
   plan: OmniSegmentCreativePlan;
@@ -51,6 +52,7 @@ export function renderCompactSegmentPrompt(input: {
     segmentEndSeconds,
     wardrobeSource,
     referencePolicy: input.referencePolicy,
+    referenceSceneMode: resolveReferenceSceneMode(input.directorBrief),
   });
   const layoutContract = buildDirectorLayoutContract(input.directorBrief || null, input.referencePolicy);
   const scriptBeatGuidance = renderScriptBeatGuidance(input.plan.scriptBeats, { wardrobeSource });
@@ -59,8 +61,15 @@ export function renderCompactSegmentPrompt(input: {
     .join(" | ");
   const talkingHead = input.plan.lifeFormatId === "talking_head_cutaways";
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.directorBrief));
+  const referenceSceneMode = resolveReferenceSceneMode(input.directorBrief);
+  const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
+  const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
   const continuity = montageReference
     ? "This is an independent montage segment. Do not continue the previous segment's room, outfit, camera, or prop positions; preserve the same presenter identity and exact product appearance only."
+    : objectOnlyReferenceScene
+      ? "Keep the same approved surface, macro camera, light, and conceptual props; never introduce a person, hands, face, head, or avatar."
+      : facelessReferenceScene
+        ? "Keep the same approved hands, body crop, camera, light, and props; never introduce a face, head, or avatar."
     : input.segmentIndex < input.segmentCount
     ? "End in a stable believable state that the next part can continue from."
     : "End after the last spoken word without adding a new phrase or CTA.";
@@ -82,7 +91,9 @@ export function renderCompactSegmentPrompt(input: {
         ? "FORMAT: VOICEOVER MONTAGE. Off-camera narration carries one idea across independent cutaways with the same presenter identity; do not force one physical scene across segments."
         : "FORMAT: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Face-to-camera with short product-relevant cutaways, not copied reference montage."
       : null,
-    `CHARACTER: ${input.characterContract.identityLine}.`,
+    objectOnlyReferenceScene
+      ? "VISIBLE SUBJECT: object-only macro scene; no person, hands, face, head, or avatar."
+      : `CHARACTER: ${input.characterContract.identityLine}.`,
     referenceBrief.wardrobeLine,
     `PRODUCT: ${input.productName}. ${renderProductRole(input.plan.productRole)}`,
     OMNI_REFERENCE_PRODUCT_EXCLUSION_PROMPT,
@@ -96,8 +107,8 @@ export function renderCompactSegmentPrompt(input: {
     referenceBrief.actionLine,
     "SPEECH:",
     "Start speaking on frame 0. Use simple natural conversational Russian. Say only the current part once. Do not repeat, skip, restart, paraphrase, continue a neighbor part, or add subtitles.",
-    `The avatar says: ${input.plan.voiceoverText}`,
-    `CONTINUITY: ${montageReference ? "same identity and exact product appearance; each independent cut follows its corresponding reference setup" : "same identity, adapted outfit, location, light, product appearance, and physical prop positions unless the reference location timeline changes for this part"}. ${continuity}`,
+    `${facelessReferenceScene ? "The off-camera narrator says" : "The avatar says"}: ${input.plan.voiceoverText}`,
+    `CONTINUITY: ${montageReference ? "same identity and exact product appearance; each independent cut follows its corresponding reference setup" : objectOnlyReferenceScene ? "same surface, macro light, camera, conceptual props, and physical action order" : facelessReferenceScene ? "same hands, body crop, light, camera, and physical prop positions" : "same identity, adapted outfit, location, light, product appearance, and physical prop positions unless the reference location timeline changes for this part"}. ${continuity}`,
     "CLEAN FRAME: no on-screen text, subtitles, captions, progress bars, overlay icons, buttons, watermarks, logos, or app interface.",
     OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
   ].filter(Boolean).join("\n");

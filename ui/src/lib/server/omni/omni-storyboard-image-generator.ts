@@ -21,7 +21,7 @@ import {
   isStoryboardVisionValidationInconclusive,
 } from "./storyboard-vision-contract";
 import { resolveStoryboardRepairMode } from "./storyboard-qa-contract";
-import { isFacelessReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
+import { isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import {
   canAttemptStoryboardImageGeneration,
@@ -86,6 +86,7 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
   if (process.env.OMNI_STORYBOARD_IMAGE_GENERATION === "false") return null;
   const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(input.directorBrief);
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
+  const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
   const avatarReferenceUrl = cleanUrl(input.avatarReferenceUrl);
   if (!avatarReferenceUrl && !facelessReferenceScene) {
     throw new Error("Storyboard image generation requires the avatar reference image used for Omni character_id");
@@ -193,7 +194,9 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
     }
     const retryInstructions = getStoryboardVisionRepairInstructions(validation);
     const automaticRetryInstructions = isStoryboardVisionValidationInconclusive(validation)
-      ? [facelessReferenceScene
+      ? [objectOnlyReferenceScene
+        ? "Re-render the same storyboard plan with every panel clear, readable, and only the approved surface, product, and conceptual props visible; do not introduce a person, hands, face, or head."
+        : facelessReferenceScene
         ? "Re-render the same storyboard plan with every panel clear, readable, and only the approved hands, crop, and physical props visible; do not introduce a face or head."
         : "Re-render the same storyboard plan with every panel clear, readable, and the avatar fully visible for continuity QA."]
       : retryInstructions;

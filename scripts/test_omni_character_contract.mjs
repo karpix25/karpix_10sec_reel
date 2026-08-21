@@ -28,6 +28,7 @@ try {
     },
     include: [
       join(ui, "src/lib/omni/types.ts"),
+      join(ui, "src/lib/server/omni/omni-reference-scene-mode.ts"),
       join(ui, "src/lib/server/omni/omni-character-contract.ts"),
     ],
   }));
@@ -35,6 +36,10 @@ try {
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
 
   const { buildOmniCharacterContract } = require(findFile(compiled, "omni-character-contract.js"));
+  const {
+    applyReferenceSceneModeToOmniPrompt,
+    resolveReferenceSceneMode,
+  } = require(findFile(compiled, "omni-reference-scene-mode.js"));
   const productNotesContract = buildOmniCharacterContract({
     product: { avatar_reference_notes: "Героиня в молочном худи и синих джинсах, без ярких логотипов." },
     avatar: {
@@ -96,6 +101,42 @@ try {
   });
   assert.equal(fallbackContract.clothingSource, "fallback");
   assert.ok(fallbackContract.clothingLine.includes("фиксированный бытовой outfit"));
+
+  const objectOnlyContract = buildOmniCharacterContract({
+    product: { avatar_reference_notes: null },
+    avatar: null,
+    referenceSceneMode: "object_only",
+  });
+  assert.equal(objectOnlyContract.speechGender, "female");
+  assert.ok(objectOnlyContract.identityLine.includes("только утверждённая поверхность"));
+  assert.ok(!objectOnlyContract.identityLine.includes("главный персонаж"));
+
+  assert.equal(resolveReferenceSceneMode({
+    reference_action_style: "Handwritten explainer / whiteboard-style tutorial on a refrigerator door, talking-head offscreen narration",
+    camera: { shot_types: ["close-up of hands"] },
+    action_beats: [{ action_description: "hand attaches a paper", actor_gesture: "writes with a marker" }],
+  }), "faceless_hands");
+  assert.equal(resolveReferenceSceneMode({
+    reference_action_style: "talking-head explanation",
+    camera: { shot_types: ["medium close-up"] },
+    action_beats: [{ action_description: "speaker looks into camera", actor_gesture: "nods" }],
+  }), "presenter");
+  const modePrompt = [
+    "Лицо и личность персонажа бери из avatar/character reference.",
+    "Фиксируй те же волосы, пробор, аксессуары.",
+    "В каждом talking-head кадре персонаж смотрит прямо в объектив.",
+    "The avatar says: текущая реплика",
+  ].join("\n");
+  const facelessPrompt = applyReferenceSceneModeToOmniPrompt(modePrompt, "faceless_hands");
+  assert.ok(facelessPrompt.includes("FACELESS HANDS-ONLY"));
+  assert.ok(facelessPrompt.includes("off-camera narrator"));
+  assert.ok(!facelessPrompt.includes("The avatar says"));
+  assert.ok(!facelessPrompt.includes("В каждом talking-head"));
+  const objectOnlyPrompt = applyReferenceSceneModeToOmniPrompt(modePrompt, "object_only");
+  assert.ok(objectOnlyPrompt.includes("OBJECT-ONLY"));
+  assert.ok(objectOnlyPrompt.includes("Never show a person"));
+  assert.ok(!objectOnlyPrompt.includes("FACELESS HANDS-ONLY"));
+  assert.equal(applyReferenceSceneModeToOmniPrompt(modePrompt, "presenter"), modePrompt);
 
   console.log("Omni character contract regression checks passed");
 } finally {

@@ -170,7 +170,6 @@ try {
   assert.ok(rendered.includes("MOTION CONTINUITY: object movement follows visible hand contact"));
   assert.ok(!rendered.includes("bottom captions area"), "post-production safe zones must not reach provider prompt");
   assert.ok(!/\b(?:Instagram|Reels|TikTok|Shorts)\b/u.test(rendered), "platform imprint terms must not be rendered");
-
   const closeUpBrief = normalizeDirectorBrief({
     director_brief: {
       visual_hook: { action: "speaker talks directly to camera", retention_trigger: "urgent eye contact" },

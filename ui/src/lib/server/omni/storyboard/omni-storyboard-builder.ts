@@ -15,7 +15,7 @@ import {
   type DirectorBrief,
   type DirectorSegmentProfile,
 } from "../director-analysis-types";
-import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
+import type { OmniWardrobeSource } from "../../../omni/wardrobe-source";
 import { mentionsOmniProduct } from "../omni-intro-product-contract";
 import { renderFrameTransitionNote } from "./omni-storyboard-effects";
 import {
@@ -35,12 +35,13 @@ import {
   resolveReferenceTransferAction,
   type ReferenceTransferPolicy,
 } from "../omni-reference-transfer-policy";
-import { isFacelessReferenceScene, type ReferenceSceneMode } from "../omni-reference-scene-mode";
-import { isVoiceoverMontageReference, resolveReferenceFormatMode, type ReferenceFormatMode } from "../omni-reference-format-mode";
+import { isFacelessReferenceScene, isObjectOnlyReferenceScene, type ReferenceSceneMode } from "../omni-reference-scene-mode";
+import { resolveReferenceFormatMode, type ReferenceFormatMode } from "../omni-reference-format-mode";
 import { sanitizeFacelessStoryboardText } from "./omni-storyboard-text-sanitizer";
-
-const EXACT_FABRIC_LOCK =
-  "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
+import {
+  renderStoryboardFrameCamera,
+  renderStoryboardWardrobe,
+} from "./omni-storyboard-frame-rendering";
 
 export function buildStoryboardFromCreativePlan(input: {
   plan: OmniSegmentCreativePlan;
@@ -134,8 +135,8 @@ export function buildStoryboardFromPromptChainFrames(input: {
       return isFacelessReferenceScene(input.referenceSceneMode)
         ? {
             ...storedFrame,
-            visualAction: sanitizeFacelessStoryboardText(storedFrame.visualAction),
-            camera: sanitizeFacelessStoryboardText(storedFrame.camera),
+            visualAction: sanitizeFacelessStoryboardText(storedFrame.visualAction, input.referenceSceneMode),
+            camera: sanitizeFacelessStoryboardText(storedFrame.camera, input.referenceSceneMode),
           }
         : storedFrame;
     }),
@@ -175,6 +176,7 @@ function buildFrame(input: {
   referenceFormatMode?: ReferenceFormatMode;
 }): OmniStoryboardFrame {
   const facelessReferenceScene = isFacelessReferenceScene(input.referenceSceneMode);
+  const objectOnlyReferenceScene = isObjectOnlyReferenceScene(input.referenceSceneMode);
   const startSeconds = (input.frameIndex - 1) * 2;
   const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
     input.plan.beats[0];
@@ -252,7 +254,7 @@ function buildFrame(input: {
     productName: input.productName,
     spokenText: input.spokenText,
     visualAction: finalVisualAction,
-    camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, input.plan.productRole, referenceTransfer.cameraComposition, facelessReferenceScene),
+    camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene }),
     productPlacement,
   });
   const repairedVisualAction = repairPhysicalFrameAction({
@@ -261,30 +263,18 @@ function buildFrame(input: {
     plan: initialPhysicalPlan,
   });
   const storyboardVisualAction = isFacelessReferenceScene(input.referenceSceneMode)
-    ? sanitizeFacelessStoryboardText(repairedVisualAction)
+    ? sanitizeFacelessStoryboardText(repairedVisualAction, input.referenceSceneMode)
     : repairedVisualAction;
   const storyboardCamera = isFacelessReferenceScene(input.referenceSceneMode)
-    ? sanitizeFacelessStoryboardText(renderFrameCamera(
-        isCutawayFrame,
-        renderDirectorCamera(input.directorBrief, productVisible, referenceProfile),
-        productVisible,
-        input.plan.productRole,
-        referenceTransfer.cameraComposition
-      ))
-    : renderFrameCamera(
-        isCutawayFrame,
-        renderDirectorCamera(input.directorBrief, productVisible, referenceProfile),
-        productVisible,
-        input.plan.productRole,
-        referenceTransfer.cameraComposition
-      );
+    ? sanitizeFacelessStoryboardText(renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene }), input.referenceSceneMode)
+    : renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene });
   const physicalPlan = repairedVisualAction === finalVisualAction
     ? initialPhysicalPlan
     : buildPhysicalFramePlan({
         productName: input.productName,
         spokenText: input.spokenText,
         visualAction: repairedVisualAction,
-        camera: renderFrameCamera(isCutawayFrame, renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, input.plan.productRole, referenceTransfer.cameraComposition, facelessReferenceScene),
+        camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene }),
         productPlacement,
       });
 
@@ -293,7 +283,7 @@ function buildFrame(input: {
     visualAction: storyboardVisualAction,
     camera: storyboardCamera,
     environment: renderDirectorEnvironment(input.directorBrief, referenceProfile),
-    wardrobe: renderStoryboardWardrobe(input.characterContract, input.directorBrief, input.wardrobeSource, input.referenceFormatMode),
+    wardrobe: renderStoryboardWardrobe({ characterContract: input.characterContract, brief: input.directorBrief, wardrobeSource: input.wardrobeSource, referenceFormatMode: input.referenceFormatMode, referenceSceneMode: input.referenceSceneMode }),
     productPlacement,
     sfxNotes: isCutawayFrame
       ? productVisible
@@ -305,28 +295,6 @@ function buildFrame(input: {
     physicalPlan,
     referenceTransfer,
   };
-}
-
-function renderFrameCamera(
-  isCutawayFrame: boolean,
-  directorCamera: string,
-  productVisible: boolean,
-  productRole?: string,
-  cameraComposition?: string | null,
-  facelessReferenceScene = false
-) {
-  if (directorCamera) {
-    return `${directorCamera}; ${cameraComposition ? `КОМПОЗИЦИЯ REFERENCE: ${cameraComposition}; ` : ""}тот же исходный ракурс и направление камеры, что в соответствующем reference-кадре${isCutawayFrame || facelessReferenceScene ? "" : "; герой смотрит прямо в объектив"}`;
-  }
-  if (facelessReferenceScene) return "стабильный hands-only ракурс, та же поверхность и направление камеры во всех кадрах";
-  const base = isCutawayFrame
-    ? productVisible
-      ? productRole === "background_prop"
-        ? "смысловая перебивка: блогерская сцена по реплике, продукт только как второстепенная деталь окружения"
-        : "смысловая перебивка: крупный кадр продукта в естественном окружении"
-      : "смысловая перебивка: предметный или атмосферный кадр по текущей реплике"
-    : "стабильный talking-head ракурс, тот же фон и направление камеры во всех кадрах, герой смотрит прямо в объектив";
-  return base;
 }
 
 function renderDirectorEnvironment(brief?: DirectorBrief | null, profile?: DirectorSegmentProfile | null) {
@@ -341,48 +309,6 @@ function renderDirectorEnvironment(brief?: DirectorBrief | null, profile?: Direc
   return parts.length
     ? normalizeVehicleContext(`REFERENCE SCENE LOCK: ${parts.join("; ")}`)
     : "то же окружение и свет, что заданы сценой сегмента";
-}
-
-function renderStoryboardWardrobe(
-  characterContract: OmniCharacterContract,
-  brief?: DirectorBrief | null,
-  wardrobeSource?: OmniWardrobeSource,
-  referenceFormatMode?: ReferenceFormatMode
-) {
-  const montageReference = isVoiceoverMontageReference(referenceFormatMode);
-  if (normalizeOmniWardrobeSource(wardrobeSource) === "avatar_reference") {
-    return `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
-  }
-  if (characterContract.speechGender === "male" && isClearlyFemaleWardrobe(brief)) {
-    return montageReference
-      ? `${characterContract.clothingLine}; match the corresponding reference frame for each independent cut; keep the same face, hair, age, body type, and identity`
-      : `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
-  }
-  if (!brief?.clothing.style) {
-    return montageReference
-      ? `${characterContract.clothingLine}; outfit may follow each independent reference cut while identity remains fixed`
-      : `${characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
-  }
-  const colors = brief.clothing.color_palette.length ? `colors: ${brief.clothing.color_palette.join(", ")}` : "";
-  if (montageReference) {
-    return [
-      "REFERENCE WARDROBE STYLE:",
-      brief.clothing.style,
-      brief.clothing.fit_details,
-      colors,
-      "match the visible outfit in the corresponding reference cut; outfit may change between independent segments, while face, hair, age, body type, and presenter identity stay the same",
-    ].filter(Boolean).join("; ");
-  }
-  return [
-    "REFERENCE WARDROBE LOCK:",
-    brief.clothing.style,
-    brief.clothing.fit_details,
-    colors,
-    "ONE EXACT OUTFIT FOR THE WHOLE REEL: keep the same garments, layers, neckline, sleeves, fit, accessories, and color placement in every frame and every segment",
-    "EXACT COLOR LOCK: copy the exact hue, wash, pattern scale, contrast, and color placement from the first frame; a light-wash denim stays the same light-wash denim and never becomes dark denim",
-    EXACT_FABRIC_LOCK,
-    "if a jacket, blazer, overshirt, or shirt layer is present, it stays on and is not replaced by a t-shirt or a different shirt",
-  ].filter(Boolean).join("; ");
 }
 
 function renderDirectorCamera(
@@ -402,15 +328,6 @@ function renderDirectorCamera(
     camera.movements.length ? `movement ${camera.movements.join(", ")}` : "",
     camera.stabilization,
   ].filter(Boolean).join("; "), 220));
-}
-
-function isClearlyFemaleWardrobe(brief?: DirectorBrief | null) {
-  const clothing = [
-    brief?.clothing.style,
-    brief?.clothing.fit_details,
-    ...(brief?.clothing.color_palette || []),
-  ].filter(Boolean).join(" ");
-  return /halter|bra\b|bustier|corset|dress|skirt|women'?s|feminine|бюстгальтер|корсет|плать|юбк|женск|топ\s+на\s+бретел/iu.test(clothing);
 }
 
 function renderFrameAction(action: string | undefined, isCutawayFrame: boolean, facelessReferenceScene = false) {

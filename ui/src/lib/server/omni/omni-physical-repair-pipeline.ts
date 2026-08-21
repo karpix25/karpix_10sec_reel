@@ -9,6 +9,7 @@ import {
 import { repairPhysicalScenePrompt, validatePhysicalScene } from "./physical-scene-validator";
 import { normalizePhysicalStoryboardSegment } from "./physical-storyboard-normalizer";
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
+import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
 
 const MAX_AI_REPAIR_ATTEMPTS_PER_SEGMENT = 1;
 
@@ -18,6 +19,7 @@ export function normalizeOmniPromptPlanWithPhysicalRules(input: {
   productPhysicalContract?: string | null;
   segmentCount: number;
   directorBrief?: DirectorBrief | null;
+  referenceSceneMode?: ReferenceSceneMode;
 }) {
   return input.promptPlan.map((segment) => {
     if (!segment.storyboardPlan) return segment;
@@ -43,6 +45,7 @@ export function normalizeOmniPromptPlanWithPhysicalRules(input: {
       productPhysicalContract: input.productPhysicalContract,
       segmentCount: input.segmentCount,
       directorBrief: input.directorBrief,
+      referenceSceneMode: input.referenceSceneMode,
     });
   });
 }
@@ -53,6 +56,7 @@ export async function repairOmniPromptPlanWithAi(input: {
   productPhysicalContract?: string | null;
   segmentCount: number;
   directorBrief?: DirectorBrief | null;
+  referenceSceneMode?: ReferenceSceneMode;
   model?: string | null;
 }) {
   const repairedPlan = normalizeOmniPromptPlanWithPhysicalRules(input);
@@ -95,6 +99,7 @@ export async function repairOmniPromptPlanWithAi(input: {
         productPhysicalContract: input.productPhysicalContract,
         segmentCount: input.segmentCount,
         directorBrief: input.directorBrief,
+        referenceSceneMode: input.referenceSceneMode,
       });
       repairedPlan[index] = segment;
     }
@@ -111,6 +116,7 @@ function buildRepairedSegment(input: {
   productPhysicalContract?: string | null;
   segmentCount: number;
   directorBrief?: DirectorBrief | null;
+  referenceSceneMode?: ReferenceSceneMode;
 }): OmniSegmentPrompt {
   return {
     ...input.segment,
@@ -122,6 +128,7 @@ function buildRepairedSegment(input: {
         : null,
       segmentCount: input.segmentCount,
       directorBrief: input.directorBrief,
+      referenceSceneMode: input.referenceSceneMode,
     }), input.validation),
     storyboardPlan: input.storyboard,
     validation: input.validation,

@@ -5,12 +5,12 @@ import {
   type CtaMode,
   type HookType,
   type LifeFormatId,
-  type OmniCreativeStrategy,
   type OmniLifeFormat,
   type ProductRole,
 } from "@/lib/omni/creative-contract";
 import { OMNI_LIFE_FORMATS } from "./omni-life-formats";
 import { writeOmniVisualStyle } from "./omni-visual-style-writer";
+import { type ReferenceSceneMode, type OmniCreativeStrategyWithReferenceSceneMode, withReferenceSceneMode } from "./omni-reference-scene-mode";
 
 export interface SelectOmniFormatInput {
   script: string;
@@ -22,6 +22,7 @@ export interface SelectOmniFormatInput {
   ctaMode?: CtaMode;
   ctaValue?: string | null;
   recentFormatIds?: readonly LifeFormatId[];
+  referenceSceneMode?: ReferenceSceneMode;
 }
 
 type ScoredFormat = {
@@ -38,7 +39,7 @@ const PROBLEM_PATTERN = /проблем|не мог|не могла|устал|�
 const SURPRISE_PATTERN = /не ожидал|не ожидала|оказалось|сюрприз|странн|никто не/i;
 const STABLE_TALKING_HEAD_FORMAT: LifeFormatId = "talking_head_cutaways";
 
-export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCreativeStrategy {
+export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCreativeStrategyWithReferenceSceneMode {
   const story = normalize(input.script);
   const normalized = normalize([input.script, input.productName, input.productDescription].filter(Boolean).join(" "));
   const firstLine = normalize(input.firstSpokenLine || input.script.split(/[.!?]/, 1)[0] || input.script);
@@ -63,7 +64,7 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
     lifeFormat: selected.format,
   });
 
-  return {
+  return withReferenceSceneMode({
     version: "visual-style-writer-v1",
     scope: "reel",
     lifeFormatId: selected.format.id,
@@ -81,7 +82,7 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
     score: selected.score,
     forbiddenMotifs: [...new Set([...OMNI_FORBIDDEN_MOTIFS, ...selected.format.forbiddenMotifs])],
     safetyRules: [...new Set([...OMNI_ACTION_SAFETY_RULES, ...selected.format.safetyRules])],
-  };
+  }, input.referenceSceneMode || "presenter");
 }
 
 function scoreFormat(
