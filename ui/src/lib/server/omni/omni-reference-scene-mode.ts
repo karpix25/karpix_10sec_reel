@@ -1,0 +1,71 @@
+import type { OmniCreativeStrategy } from "@/lib/omni/creative-contract";
+
+export type ReferenceSceneMode = "presenter" | "faceless_hands" | "body_crop" | "object_only";
+export type OmniCreativeStrategyWithReferenceSceneMode = OmniCreativeStrategy & { referenceSceneMode: ReferenceSceneMode };
+
+const VALID_MODES: readonly ReferenceSceneMode[] = ["presenter", "faceless_hands", "body_crop", "object_only"];
+const FACE_SIGNAL_PATTERN = /face[- ]?to[- ]?camera|direct eye contact|looks? into (?:the )?camera|лиц[оа]|смотрит в камеру|говорящ(?:ая|ий) голова|взгляд в объектив/iu;
+const OBJECT_ONLY_PATTERN = /object[- ]?only|product[- ]?only|предметн(?:ый|ая) кадр|только предмет|без человека/iu;
+const BODY_CROP_PATTERN = /body[- ]?crop|torso[- ]?only|from (?:the )?shoulders? down|только корпус|по плечи вниз|без головы/iu;
+const HANDS_ONLY_PATTERN = /hands?[- ]?only|handwritten|whiteboard|close[- ]?up of hands|off[- ]?camera narration|voice[- ]?over|faceless|no visible face|без лица|лицо не видно|рук(?:и|ами) крупно|закадров(?:ый|ая) голос|маркер|холодильник|refrigerator/iu;
+
+export function normalizeReferenceSceneMode(value: unknown): ReferenceSceneMode | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase().replace(/[ -]+/gu, "_");
+  if (normalized === "hands_only" || normalized === "hands" || normalized === "faceless") return "faceless_hands";
+  if (normalized === "body") return "body_crop";
+  if (normalized === "object") return "object_only";
+  return VALID_MODES.includes(normalized as ReferenceSceneMode) ? normalized as ReferenceSceneMode : null;
+}
+
+export function resolveReferenceSceneMode(brief: unknown): ReferenceSceneMode {
+  const candidate = isRecord(brief) ? brief : null;
+  const explicit = normalizeReferenceSceneMode(candidate?.reference_subject_mode ?? candidate?.referenceSceneMode ?? candidate?.reference_scene_mode ?? candidate?.referenceSubjectMode);
+  if (explicit) return explicit;
+  if (!candidate) return "presenter";
+  const visualHook = isRecord(candidate.visual_hook) ? candidate.visual_hook : null;
+  const camera = isRecord(candidate.camera) ? candidate.camera : null;
+  const actionBeats = Array.isArray(candidate.action_beats) ? candidate.action_beats : [];
+  const observedText = [candidate.reference_action_style, visualHook?.action,
+    ...(Array.isArray(camera?.shot_types) ? camera.shot_types : []),
+    ...(Array.isArray(camera?.angles) ? camera.angles : []),
+    ...actionBeats.flatMap((beat) => isRecord(beat) ? [beat.action_description, beat.actor_gesture] : []),
+    ...(Array.isArray(candidate.hand_object_interactions) ? candidate.hand_object_interactions : []),
+    ...(Array.isArray(candidate.prop_sources) ? candidate.prop_sources : [])]
+    .filter((value): value is string => typeof value === "string").join(" ");
+  if (OBJECT_ONLY_PATTERN.test(observedText)) return "object_only";
+  if (BODY_CROP_PATTERN.test(observedText)) return "body_crop";
+  if (HANDS_ONLY_PATTERN.test(observedText) && !FACE_SIGNAL_PATTERN.test(observedText)) return "faceless_hands";
+  return "presenter";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+export function isFacelessReferenceScene(mode: ReferenceSceneMode | null | undefined) {
+  return mode === "faceless_hands" || mode === "body_crop" || mode === "object_only";
+}
+
+export function withReferenceSceneMode(strategy: OmniCreativeStrategy, referenceSceneMode: ReferenceSceneMode): OmniCreativeStrategyWithReferenceSceneMode {
+  return { ...strategy, referenceSceneMode };
+}
+
+export function applyReferenceSceneModeToOmniPrompt(prompt: string, referenceSceneMode: ReferenceSceneMode) {
+  if (!isFacelessReferenceScene(referenceSceneMode)) return prompt;
+  const filtered = prompt.split("\n")
+    .filter((line) => !/^Лицо и личность персонажа|^Фиксируй те же волосы|^В каждом talking-head кадре персонаж смотрит/iu.test(line.trim()))
+    .map((line) => line.replace(/^The avatar says:/u, "The off-camera narrator says:"))
+    .join("\n");
+  return [filtered,
+    "REFERENCE SUBJECT MODE: FACELESS HANDS-ONLY.",
+    "Use off-camera narration. Never show a face, head, eyes, lip-sync portrait, talking-head framing, avatar portrait, or eye contact.",
+    "Show only the hands and the exact body crop, surface, and physical props required by the approved storyboard. Preserve the reference camera, light, action order, and object continuity."]
+    .join("\n");
+}
+
+export function renderReferenceSceneModeForDirectorPrompt(mode: ReferenceSceneMode) {
+  return isFacelessReferenceScene(mode)
+    ? "VISIBLE SUBJECT: faceless hands-only reference; narration is off-camera; no face, head, eyes, avatar portrait, or talking-head framing."
+    : "VISIBLE SUBJECT: presenter remains visible; preserve the existing avatar, face, wardrobe, and talking-head continuity rules.";
+}
