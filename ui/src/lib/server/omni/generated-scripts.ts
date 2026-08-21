@@ -25,7 +25,7 @@ import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 import { resolveNarratorSpeechGender } from "../../omni/avatar-speech-gender";
 import { extractDirectorBriefFromSnapshot, normalizeDirectorBrief } from "./director-analysis-types";
-import { isFacelessReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
+import { isAvatarFreeReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
@@ -134,7 +134,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
   const directorBrief = extractDirectorBriefFromSnapshot(resolvedGeneratedScript.source_snapshot);
   const referenceSceneModeFromBrief = resolveReferenceSceneMode(directorBrief);
-  const avatarForPrompt = isFacelessReferenceScene(referenceSceneModeFromBrief) ? null : avatar;
+  const avatarForPrompt = isAvatarFreeReferenceScene(referenceSceneModeFromBrief) ? null : avatar;
   const basePromptPlan = buildOmniSegmentPrompts({
     generatedScript: resolvedGeneratedScript,
     legacyTranscript: null,
@@ -201,13 +201,17 @@ export async function buildGeneratedScriptPromptPreview(input: {
     ...input,
     productName: product.name,
     productPhysicalContract: product.product_physical_contract,
-    avatarReferenceUrl: isFacelessReferenceScene(referenceSceneModeFromBrief) ? null : avatar?.reference_url || null,
+    avatarReferenceUrl: isAvatarFreeReferenceScene(referenceSceneModeFromBrief) ? null : avatar?.reference_url || null,
     productReferenceUrls: resolveProductReferenceImageUrls(product),
     directorReferenceImageUrlsBySegment,
     directorBrief,
     referenceSceneMode: resolveReferenceSceneMode(promptPlan[0]?.creativeStrategy),
     referenceFormatMode: resolveReferenceFormatMode(directorBrief),
-    promptPlan,
+    promptPlan: promptPlan.map((segment) => ({
+      index: segment.index,
+      storyboardPlan: segment.storyboardPlan,
+      productRole: segment.creativePlan.productRole,
+    })),
     generationProvider: input.generationProvider,
   }));
   void storyboardGeneration.catch((error) => {
@@ -259,7 +263,7 @@ export async function createGeneratedScriptFromLegacy(input: {
       : null;
   const avatarSpeechGender = resolveNarratorSpeechGender(
     avatar?.speech_gender,
-    isFacelessReferenceScene(resolveReferenceSceneMode(directorBrief))
+    isAvatarFreeReferenceScene(resolveReferenceSceneMode(directorBrief))
   );
   const directorReferenceImageUrls = extractDirectorReferenceImageUrls({ directorAnalysis });
   const referenceTransferPlan = buildReferenceTransferPolicy({

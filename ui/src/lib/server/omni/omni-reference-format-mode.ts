@@ -46,9 +46,11 @@ export function isVoiceoverMontageReference(mode: ReferenceFormatMode | null | u
   return mode === "voiceover_montage";
 }
 
-export function renderReferenceFormatContract(mode: ReferenceFormatMode) {
+export function renderReferenceFormatContract(mode: ReferenceFormatMode, referenceSceneMode?: string) {
   return mode === "voiceover_montage"
-    ? "REFERENCE FORMAT: voiceover montage. One narrator carries the meaning across independent cutaways. Keep the same presenter identity, but allow each independent segment to use its own matching location, action, camera setup, and outfit from the corresponding reference frames. Do not force scene or wardrobe continuity between unrelated cuts."
+    ? referenceSceneMode === "voiceover_broll"
+      ? "REFERENCE FORMAT: voiceover B-roll montage. One narrator carries the meaning across independent cutaways. Preserve the saved avatar identity as the silent visual protagonist; each cut follows its own matching location, action, camera setup, and outfit from the reference frames."
+      : "REFERENCE FORMAT: voiceover montage. One narrator carries the meaning across independent cutaways. Keep the same presenter identity, but allow each independent segment to use its own matching location, action, camera setup, and outfit from the corresponding reference frames. Do not force scene or wardrobe continuity between unrelated cuts."
     : "REFERENCE FORMAT: continuous story. Preserve the same presenter identity, outfit, scene, lighting, and physical state between segments unless a visible reference cut explicitly changes them.";
 }
 

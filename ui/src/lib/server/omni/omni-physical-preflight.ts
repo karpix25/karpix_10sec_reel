@@ -31,9 +31,10 @@ export async function assertOmniPhysicalPreflight(input: {
     });
     const storyboard = sourceStoryboard
       ? normalizePhysicalStoryboardSegment({
-          storyboard: sourceStoryboard,
-          productName: input.productName,
-          productVisible: segment.creative_plan?.productRole !== "hidden",
+      storyboard: sourceStoryboard,
+      productName: input.productName,
+      productVisible: segment.creative_plan?.productRole !== "hidden",
+      productRole: segment.creative_plan?.productRole,
         })
       : null;
     const normalizedPrompt = storyboard

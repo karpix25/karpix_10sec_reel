@@ -5,7 +5,7 @@ import { normalizeStoryboardSource } from "./physical-scene-validator";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
-import { isFacelessReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
+import { isAvatarFreeReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 
 const PUBLIC_FIGURE_BLOCK_PATTERN = /prominent public figure|public figure|celebrity|politician/iu;
 
@@ -26,10 +26,10 @@ export async function regenerateKieSafetyBlockedStoryboard(input: {
     productName,
   });
   const referenceSceneMode = resolveReferenceSceneMode(input.reel.creative_strategy);
-  const avatarReferenceUrl = isFacelessReferenceScene(referenceSceneMode)
+  const avatarReferenceUrl = isAvatarFreeReferenceScene(referenceSceneMode)
     ? null
     : readSnapshotText(input.reel.avatar_snapshot, "reference_url");
-  if (!storyboard || (!isFacelessReferenceScene(referenceSceneMode) && !avatarReferenceUrl)) {
+  if (!storyboard || (!isAvatarFreeReferenceScene(referenceSceneMode) && !avatarReferenceUrl)) {
     throw new Error("Cannot safely redraw the blocked storyboard without its saved storyboard plan and avatar reference");
   }
 
@@ -40,7 +40,10 @@ export async function regenerateKieSafetyBlockedStoryboard(input: {
     segmentIndex: input.segment.segment_index,
     storyboard,
     productName,
-    productPhysicalContract: readSnapshotText(input.reel.product_snapshot, "product_physical_contract"),
+    productPhysicalContract: input.segment.creative_plan?.productRole === "digital_demo"
+      ? null
+      : readSnapshotText(input.reel.product_snapshot, "product_physical_contract"),
+    productRole: input.segment.creative_plan?.productRole,
     avatarReferenceUrl,
     productReferenceUrls: hasProductVisibleStoryboardFrame(storyboard, productName)
       ? resolveProductReferenceImageUrls(input.reel.product_snapshot)

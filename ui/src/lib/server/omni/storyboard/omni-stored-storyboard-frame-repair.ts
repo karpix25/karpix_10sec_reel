@@ -1,4 +1,5 @@
 import type { OmniStoryboardFrame } from "../../../omni/storyboard/omni-storyboard-types";
+import type { ProductRole } from "../../../omni/creative-contract";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
 import type { DirectorSegmentProfile } from "../director-analysis-types";
 import {
@@ -17,6 +18,7 @@ import {
   resolveReferenceTransferPolicy,
   type ReferenceTransferPolicy,
 } from "../omni-reference-transfer-policy";
+import { buildDigitalProductDemoStep } from "../digital-product-scene";
 import { isVoiceoverMontageReference, type ReferenceFormatMode } from "../omni-reference-format-mode";
 
 const EXACT_FABRIC_LOCK =
@@ -27,6 +29,7 @@ export function buildStoredStoryboardFrame(input: {
   productName: string;
   productPhysicalHint?: string | null;
   productVisible: boolean;
+  productRole?: ProductRole;
   productDemoFrame?: { frameIndex: number; frameCount: number };
   referenceProfile?: DirectorSegmentProfile | null;
   referenceTransferPolicy?: ReferenceTransferPolicy;
@@ -57,11 +60,15 @@ export function buildStoredStoryboardFrame(input: {
     productVisible,
     referenceSupportProps: referenceTransfer.requiredSupportProps,
   });
-  const productDemo = productVisible && input.productDemoFrame
+  const productDemo = productVisible && input.productRole === "brief_demo" && input.productDemoFrame
     ? buildPhysicalProductDemoStep({ productName: input.productName, ...input.productDemoFrame })
     : null;
-  const visualAction = productDemo
-    ? productDemo.action
+  const digitalProductDemo = productVisible && input.productRole === "digital_demo" && input.productDemoFrame
+    ? buildDigitalProductDemoStep({ productName: input.productName, ...input.productDemoFrame })
+    : null;
+  const demo = productDemo || digitalProductDemo;
+  const visualAction = demo
+    ? demo.action
     : productVisible
       ? repairedAction
     : renderNonProductAction(repairedAction, input.productName);
@@ -71,7 +78,7 @@ export function buildStoredStoryboardFrame(input: {
     productVisible,
   });
   const productPlacement = productVisible
-    ? renderProductPlacement(productDemo?.placement || productState, input.productPhysicalHint, referenceTransfer)
+    ? renderProductPlacement(demo?.placement || productState, input.productPhysicalHint, referenceTransfer, input.productRole)
     : ["в кадре тематические объекты и окружение текущей реплики", renderRequiredReferenceSupport(referenceTransfer)]
       .filter(Boolean)
       .join("; ");
@@ -154,11 +161,14 @@ function repairProductState(input: {
 function renderProductPlacement(
   productState: string,
   productPhysicalHint: string | null | undefined,
-  referenceTransfer: ReturnType<typeof buildReferenceTransferFramePlan>
+  referenceTransfer: ReturnType<typeof buildReferenceTransferFramePlan>,
+  productRole?: ProductRole
 ) {
   const hint = productPhysicalHint?.trim();
   const support = renderRequiredReferenceSupport(referenceTransfer);
-  return [productState, hint || "продукт физически виден по product reference", support].filter(Boolean).join("; ");
+  return [productState, productRole === "digital_demo"
+    ? "утвержденный экран продукта на смартфоне; не пластиковая карта и не упаковка"
+    : hint || "продукт физически виден по product reference", support].filter(Boolean).join("; ");
 }
 
 function renderNonProductAction(action: string, productName: string) {

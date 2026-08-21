@@ -29,7 +29,7 @@ export type LifeFormatId =
   | "whats_in_my_bag"
   | "habit_replacement";
 
-export type ProductRole = "hidden" | "background_prop" | "natural_use" | "brief_demo";
+export type ProductRole = "hidden" | "background_prop" | "natural_use" | "brief_demo" | "digital_demo";
 
 export type CtaMode =
   | "article_in_description"
@@ -110,6 +110,7 @@ export interface CreativeScoreBreakdown {
 export interface OmniCreativeStrategy {
   version: "life-formats-v1" | "visual-style-writer-v1";
   scope: "reel";
+  referenceSceneMode?: string;
   lifeFormatId: LifeFormatId;
   providerFormatDescription: string;
   setting: string;
@@ -142,6 +143,7 @@ export interface OmniScriptBeatCue {
 export interface OmniSegmentCreativePlan {
   segmentIndex: number;
   lifeFormatId: LifeFormatId;
+  referenceSceneMode?: string;
   speechStartsAtSeconds: 0;
   voiceoverText: string;
   productRole: ProductRole;

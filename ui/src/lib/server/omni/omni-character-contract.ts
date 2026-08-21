@@ -4,7 +4,7 @@ import {
   type OmniAvatarSpeechGender,
 } from "../../omni/avatar-speech-gender";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
-import { isFacelessReferenceScene, isObjectOnlyReferenceScene, type ReferenceSceneMode } from "./omni-reference-scene-mode";
+import { isAvatarFreeReferenceScene, isFacelessReferenceScene, isObjectOnlyReferenceScene, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { isVoiceoverMontageReference, type ReferenceFormatMode } from "./omni-reference-format-mode";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 
@@ -42,7 +42,7 @@ export function buildOmniCharacterContract(input: {
   const avatarPrompt = cleanText(input.avatar?.prompt);
   const speechGender = resolveNarratorSpeechGender(
     input.avatar?.speech_gender,
-    isFacelessReferenceScene(input.referenceSceneMode)
+    isAvatarFreeReferenceScene(input.referenceSceneMode)
   );
   const productAvatarNotes = cleanText(input.product.avatar_reference_notes);
   const clothingFromProduct = extractClothingDescription(productAvatarNotes);
@@ -55,13 +55,19 @@ export function buildOmniCharacterContract(input: {
     : clothing;
 
   return {
-    identityLine: isObjectOnlyReferenceScene(input.referenceSceneMode)
+    identityLine: input.referenceSceneMode === "voiceover_broll"
+      ? "сохранённый аватар остаётся главным визуальным героем независимых B-roll сцен; он молчит, не синхронизирует губы и не становится talking-head, голос идёт за кадром; случайные люди не заменяют его"
+      : isObjectOnlyReferenceScene(input.referenceSceneMode)
       ? "в кадре только утверждённая поверхность, предметы и концептуальные пропы; человек, руки, лицо, голова и портрет аватара не показываются; голос за кадром"
       : isFacelessReferenceScene(input.referenceSceneMode)
         ? "в кадре только руки и необходимый body crop; лицо, голова и портрет аватара не показываются; голос за кадром"
       : buildIdentityLine({ avatarName, avatarPrompt, hasAvatarReference: hasAvatarReference(input.avatar) }),
-    clothingLine,
-    sourceRuleLine: allowsReferenceWardrobeVariation
+    clothingLine: input.referenceSceneMode === "voiceover_broll"
+      ? "лицо, волосы, возраст, телосложение и личность аватара фиксированы character_id/reference image; одежду каждой независимой B-roll сцены бери только из соответствующего reference-кадра"
+      : clothingLine,
+    sourceRuleLine: input.referenceSceneMode === "voiceover_broll"
+      ? "источник локации, света и действия - соответствующий B-roll reference-кадр; источник лица, возраста, телосложения и личности - avatar reference/character_id; голос остаётся за кадром"
+      : allowsReferenceWardrobeVariation
       ? "источник outfit для каждой независимой сцены - соответствующий reference-кадр и строка ОДЕЖДА; товарные image_urls задают продукт, а не одежду героя; лицо, волосы и личность сохраняются у одного персонажа"
       : "единственный источник outfit - строка ОДЕЖДА и описание главного персонажа; товарные image_urls задают продукт, а не одежду героя; одежда сохраняется одинаковой во всех частях",
     clothingSource: clothingFromProduct ? "product_avatar_notes" : clothingFromAvatar ? "avatar_prompt" : "fallback",

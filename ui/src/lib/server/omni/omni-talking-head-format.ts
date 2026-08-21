@@ -50,6 +50,7 @@ export function buildTalkingHeadCreativePlan(input: {
   return {
     segmentIndex: input.segmentIndex,
     lifeFormatId: input.strategy.lifeFormatId,
+    referenceSceneMode: input.strategy.referenceSceneMode,
     speechStartsAtSeconds: 0,
     voiceoverText: input.voiceoverText,
     productRole: input.productRole,

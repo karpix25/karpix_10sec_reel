@@ -21,9 +21,10 @@ import { syncOmniReelSegments } from "./omni-segment-sync";
 import { assertOmniPhysicalPreflight } from "./omni-physical-preflight";
 import { recordKieGenerationCost } from "./omni-generation-costs";
 import { withOmniReelExecutionLock } from "./omni-reel-execution-lock";
-import { isFacelessReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
+import { assertReferenceScenePromptContract, isAvatarFreeReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { extractDirectorBriefFromSnapshot } from "./director-analysis-types";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
+import { getSkippedReferenceReason, markOmniReelPreflightFailure } from "./omni-reel-preflight-failure";
 type ReelBundle = {
   reel: OmniReel;
   segments: OmniReelSegment[];
@@ -108,8 +109,10 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
 async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
   const { reel, segments } = await getReelBundle(reelId);
   const provider = normalizeOmniGenerationProvider(providerInput);
-  const referenceSceneMode = resolveReferenceSceneMode(reel.creative_strategy);
-  const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
+  const referenceSceneMode = resolveReferenceSceneMode(
+    extractDirectorBriefFromSnapshot(reel.source_snapshot) || reel.creative_strategy
+  );
+  const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const referenceFormatMode = resolveReferenceFormatMode(
     extractDirectorBriefFromSnapshot(reel.source_snapshot) || reel.source_snapshot
   );
@@ -126,10 +129,10 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
     await markOmniReelPreflightFailure({ reelId: reel.id, provider, message });
     throw new Error(message);
   }
-  const avatarReferenceUrl = facelessReferenceScene ? null : getAvatarReferenceUrl(reel);
+  const avatarReferenceUrl = avatarFreeReferenceScene ? null : getAvatarReferenceUrl(reel);
   const productReferenceUrls = getProductReferenceUrls(reel);
   const productReferenceUrl = productReferenceUrls[0] || null;
-  const avatarCharacterId = facelessReferenceScene ? null : await resolveAvatarCharacterId(reel);
+  const avatarCharacterId = avatarFreeReferenceScene ? null : await resolveAvatarCharacterId(reel);
   let kieAudioIds: string[] = [];
   let kieVoiceGender: KieOmniVoiceGender = "unknown";
   if (provider === "kie-ai") {
@@ -167,7 +170,7 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
         role: "storyboard_canonical",
       }]
     : [];
-  if (provider === "kie-ai" && !avatarCharacterId && !facelessReferenceScene) {
+  if (provider === "kie-ai" && !avatarCharacterId && !avatarFreeReferenceScene) {
     await markOmniReelPreflightFailure({
       reelId: reel.id,
       provider,
@@ -274,8 +277,9 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
         ? appendKieReferenceOrderPrompt(kieStoryboardPrompt, selectedReferenceImages.sent, referenceFormatMode)
         : continuityPrompt;
     const finalProviderPrompt = providerPrompt;
+    assertReferenceScenePromptContract(finalProviderPrompt, referenceSceneMode);
     const usesStoryboardReference = selectedReferenceImages.sent.some((image) => image.role === "storyboard");
-    const videoCharacterId = provider === "kie-ai" && !facelessReferenceScene ? avatarCharacterId : null;
+    const videoCharacterId = provider === "kie-ai" && !avatarFreeReferenceScene ? avatarCharacterId : null;
     const continuitySourceSegmentId =
       typeof continuity.metadata.sourceSegmentId === "number"
         ? continuity.metadata.sourceSegmentId
@@ -307,7 +311,6 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
         url: image.url,
         reason: getSkippedReferenceReason({
           role: image.role,
-          segmentIndex: segment.segment_index,
           hasCompositeReference: Boolean(compositeReferenceUrl),
           productIsVisible,
         }),
@@ -352,7 +355,7 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
     try {
       task = await createOmniVideoTask({
         provider,
-        facelessReferenceScene,
+        avatarFreeReferenceScene,
         prompt: finalProviderPrompt,
         durationSeconds: segment.duration_seconds || 10,
         resolution: requestPayload.resolution,
@@ -424,49 +427,6 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
 
   const updated = await getReelBundle(reelId);
   return updated.reel;
-}
-
-async function markOmniReelPreflightFailure(input: {
-  reelId: number;
-  provider: OmniGenerationProvider;
-  message: string;
-}) {
-  await pool.query(
-    `UPDATE omni_reels
-     SET status = 'failed',
-         error_message = $2,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $1`,
-    [input.reelId, input.message]
-  );
-  await pool.query(
-    `UPDATE omni_reel_segments
-     SET status = 'failed',
-         generation_provider = $2,
-         error_message = $3,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE reel_id = $1
-       AND status = 'draft'`,
-    [input.reelId, input.provider, input.message]
-  );
-}
-
-function getSkippedReferenceReason(input: {
-  role: string;
-  segmentIndex: number;
-  hasCompositeReference: boolean;
-  productIsVisible: boolean;
-}) {
-  if (
-    !input.productIsVisible &&
-    (input.role === "product" || input.role === "product_secondary" || input.role === "avatar_product_composite")
-  ) {
-    return "product_hidden_by_creative_strategy";
-  }
-  if (input.hasCompositeReference && input.role === "avatar") {
-    return "composite_reference_sent_instead";
-  }
-  return "url_transport_accepts_single_input_reference";
 }
 
 export async function syncOmniReel(reelId: number) {

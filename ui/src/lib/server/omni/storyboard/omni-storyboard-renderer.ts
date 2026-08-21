@@ -13,12 +13,15 @@ import { isCollagePictureInPictureReference } from "../director-layout-contract"
 import { renderReferenceTransitionCue } from "./omni-storyboard-effects";
 import { OMNI_PHYSICAL_ACTION_CONTRACT } from "../omni-physical-action-contract";
 import { isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "../omni-reference-scene-mode";
+import { isAvatarFreeReferenceScene } from "../omni-reference-scene-mode";
+import type { ProductRole } from "../../../omni/creative-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "../omni-reference-format-mode";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
   productName?: string;
   productPhysicalContract?: string | null;
+  productRole?: ProductRole;
   segmentCount?: number;
   directorBrief?: DirectorBrief | null;
   referenceSceneMode?: ReferenceSceneMode;
@@ -32,8 +35,10 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(input.directorBrief);
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.directorBrief));
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
+  const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
+  const voiceoverBrollReference = referenceSceneMode === "voiceover_broll";
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
-  const preservePipLayout = isCollagePictureInPictureReference(input.directorBrief || null) && !facelessReferenceScene;
+  const preservePipLayout = isCollagePictureInPictureReference(input.directorBrief || null) && !avatarFreeReferenceScene;
   const productFrameNumbers = input.storyboard.frames
     .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName || "") ? index + 1 : null)
     .filter((index): index is number => index !== null);
@@ -42,11 +47,13 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   return [
     `Динамичный разговорный ролик по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; сохрани визуал.`,
     `Ровно ${frameCount} живых эпизодов, по одному на кадр и в том же порядке.`,
-    "Оживи панели; не показывай саму раскадровку, телефон, экран, интерфейс, соцсети или карточки.",
+    "Оживи панели; не показывай саму раскадровку, телефон с раскадровкой, интерфейс соцсетей или карточки раскадровки.",
     objectOnlyReferenceScene
       ? "OBJECT-ONLY: голос за кадром; в кадре только утверждённая поверхность, предметы и концептуальные пропы; человека, рук, лица, головы и talking-head framing нет."
       : facelessReferenceScene
         ? "FACELESS HANDS-ONLY: голос за кадром; в кадре только руки, допустимый фрагмент корпуса и физический реквизит; лица, головы и talking-head framing нет."
+      : voiceoverBrollReference
+        ? "VOICEOVER B-ROLL: голос за кадром; независимые B-roll кадры ведёт сохранённый молчащий аватар, без talking-head, lip-sync и обязательного взгляда в объектив."
       : "",
     preservePipLayout
       ? "PIP: full-screen фон; avatar lower-left cutout."
@@ -57,13 +64,17 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       ? `Свет, фон, макро поверхность, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй человека, руки, лицо, голову или аватар.`
       : facelessReferenceScene
         ? `Свет, фон, ракурс, руки и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй лицо, голову или аватар.`
+      : voiceoverBrollReference
+        ? `Свет, локации, ракурсы, монтаж и независимые действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; личность и лицо бери из avatar/character reference, но не добавляй talking-head.`
       : `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
     objectOnlyReferenceScene
       ? "Фиксируй одну и ту же макро поверхность, свет, реквизит и физическое положение предметов."
       : facelessReferenceScene
         ? "Фиксируй одну и ту же поверхность, реквизит и физическое положение предметов."
-        : "Фиксируй те же волосы, пробор, аксессуары.",
-    facelessReferenceScene
+      : voiceoverBrollReference
+        ? "Сохраняй независимость B-roll сцен, но фиксируй одного и того же сохранённого аватара как визуального героя; не превращай его в talking-head."
+      : "Фиксируй те же волосы, пробор, аксессуары.",
+    avatarFreeReferenceScene
       ? ""
       : montageReference
         ? "VOICEOVER MONTAGE IDENTITY LOCK: один и тот же персонаж, лицо, волосы, возраст и телосложение во всех независимых нарезках; одежда и окружение могут меняться по соответствующим reference-кадрам."
@@ -75,18 +86,29 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       ? "Не показывай talking-head, человека, руки или взгляд в объектив; реплика звучит за кадром."
       : facelessReferenceScene
         ? "Не показывай talking-head и взгляд в объектив; реплика звучит за кадром."
+      : voiceoverBrollReference
+        ? "Не показывай talking-head и lip-sync; сохранённый аватар действует молча, а реплика звучит за кадром поверх независимых B-roll кадров."
       : montageReference
         ? "VOICEOVER MONTAGE: голос может идти за кадром поверх независимых кадров; не добавляй обязательный talking-head взгляд в объектив, если его нет в соответствующем reference-кадре."
         : "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
-      ? `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: неизменная упаковка в кадрах ${productFrameNumbers.join(", ")}; оживи утвержденную последовательность без телепортаций.`
+      ? input.productRole === "digital_demo"
+        ? `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: утвержденный экран мобильного продукта на смартфоне в кадрах ${productFrameNumbers.join(", ")}; не превращай его в пластиковую карту или упаковку.`
+        : `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: неизменная упаковка в кадрах ${productFrameNumbers.join(", ")}; оживи утвержденную последовательность без телепортаций.`
       : "В этом сегменте продукт вне кадра; не переноси его из reference-кадра.",
     productAppearsInThisSegment
-      ? "Состояние продукта держи одинаковым по утвержденной физической последовательности."
+      ? input.productRole === "digital_demo"
+        ? "Сохраняй один и тот же утвержденный экран продукта и положение смартфона в пределах действия."
+        : "Состояние продукта держи одинаковым по утвержденной физической последовательности."
       : "",
-    productAppearsInThisSegment ? renderProductPhysicalContractForOmni(input.productPhysicalContract) : "",
-    productAppearsInThisSegment ? OMNI_PHYSICAL_ACTION_CONTRACT : "",
-    "Точная реплика персонажа на русском языке (произноси только текст в кавычках, ничего кроме него):",
+    productAppearsInThisSegment && input.productRole !== "digital_demo" ? renderProductPhysicalContractForOmni(input.productPhysicalContract) : "",
+    productAppearsInThisSegment && input.productRole !== "digital_demo" ? OMNI_PHYSICAL_ACTION_CONTRACT : "",
+    productAppearsInThisSegment && input.productRole === "digital_demo"
+      ? "DIGITAL PRODUCT: показывай только утвержденный экран продукта на смартфоне; не изображай пластиковую карту, упаковку или физический рекламный товар."
+      : "",
+    voiceoverBrollReference
+      ? "Точная реплика закадрового диктора на русском языке (произноси только текст в кавычках, ничего кроме него):"
+      : "Точная реплика персонажа на русском языке (произноси только текст в кавычках, ничего кроме него):",
     `"${voiceoverText}"`,
     "Правила аудио: произнеси строго указанную реплику в кавычках один раз, плавно и без пауз. Не зачитывай технические инструкции. После завершения реплики персонаж молчит. Без фоновой музыки и субтитров.",
   ].join("\n");

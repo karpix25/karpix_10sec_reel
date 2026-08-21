@@ -25,6 +25,9 @@ export function buildSegmentCreativePlan(input: {
     format.sceneArcs.find((candidate) => candidate.setting === input.strategy.setting) ||
     format.sceneArcs[0];
   if (!sceneArc) throw new Error(`Omni life format ${format.id} has no scene arc`);
+  if (input.strategy.referenceSceneMode === "voiceover_broll") {
+    return addScriptBeatCues(buildVoiceoverBrollCreativePlan(input), input.scriptBeats);
+  }
   const stateIndexes = getSceneStateIndexes(input.segmentIndex, input.segmentCount);
   const [opening, middle, closing] = stateIndexes.map((stateIndex) => sceneArc.states[stateIndex]);
   if (isTalkingHeadCutawayFormat(input.strategy.lifeFormatId)) {
@@ -42,6 +45,7 @@ export function buildSegmentCreativePlan(input: {
     speechStartsAtSeconds: 0,
     voiceoverText: input.voiceoverText,
     productRole: input.productRole,
+    referenceSceneMode: input.strategy.referenceSceneMode,
     continuityProps: input.strategy.continuityProps,
     scriptBeats: input.scriptBeats,
     beats: [
@@ -50,6 +54,37 @@ export function buildSegmentCreativePlan(input: {
       { startSeconds: timing.middleEndSeconds, endSeconds: input.segmentSeconds, action: safeClosing },
     ],
   }, input.scriptBeats);
+}
+
+function buildVoiceoverBrollCreativePlan(input: {
+  segmentIndex: number;
+  voiceoverText: string;
+  strategy: OmniCreativeStrategy;
+  productRole: ProductRole;
+  segmentSeconds: number;
+  scriptBeats: OmniScriptBeatCue[];
+}) {
+  const timing = buildContinuousActionTiming(input.segmentSeconds);
+  const productRule = input.productRole === "digital_demo"
+    ? "экран утвержденного мобильного продукта появляется только по смыслу реплики, без пластиковой карты"
+    : input.productRole === "hidden"
+      ? "продукт остается вне кадра"
+      : "продукт появляется только по смыслу реплики и по product reference";
+  return {
+    segmentIndex: input.segmentIndex,
+    lifeFormatId: input.strategy.lifeFormatId,
+    referenceSceneMode: input.strategy.referenceSceneMode,
+    speechStartsAtSeconds: 0 as const,
+    voiceoverText: input.voiceoverText,
+    productRole: input.productRole,
+    continuityProps: input.strategy.continuityProps,
+    scriptBeats: input.scriptBeats,
+    beats: [
+      { startSeconds: 0, endSeconds: timing.openingEndSeconds, action: `независимая B-roll сцена по хуку; голос за кадром; ${productRule}` },
+      { startSeconds: timing.openingEndSeconds, endSeconds: timing.middleEndSeconds, action: `смысловая B-roll перебивка по текущей реплике; голос за кадром; ${productRule}` },
+      { startSeconds: timing.middleEndSeconds, endSeconds: input.segmentSeconds, action: `финальная независимая B-roll сцена по текущей реплике; голос за кадром; ${productRule}` },
+    ] as const,
+  } satisfies OmniSegmentCreativePlan;
 }
 
 function buildContinuousActionTiming(segmentSeconds: number) {
@@ -83,6 +118,7 @@ function buildHookOpening(strategy: OmniCreativeStrategy, baseAction: string) {
 
 function productClosingAction(action: string, role: ProductRole) {
   if (role === "hidden" || role === "background_prop") return action;
+  if (role === "digital_demo") return "только по смыслу реплики показывает утвержденный экран мобильного продукта на смартфоне; не показывает пластиковую карту или упаковку";
   if (role === "brief_demo") return "только после последнего слова берет продукт с поверхности и один раз показывает без крупного плана";
   return "только после последнего слова берет продукт с поверхности и оставляет в руке, не открывая и не употребляя";
 }
