@@ -2,7 +2,7 @@ import type { OmniLegacyScenario } from "@/lib/omni/types";
 import pool from "@/lib/db";
 import { getLegacyScenario, getNextLegacyScenarioFromClients } from "./legacy-scenarios";
 import { listLegacyLibraryLinks } from "./legacy-library-links";
-import { listFailedDirectorAnalysisLegacyIds } from "./director-analyses";
+import { listNonRetryableFailedDirectorAnalysisLegacyIds } from "./director-analyses";
 
 export type GeneratedScriptSourceMode =
   | "round_robin_active_legacy_reference"
@@ -35,7 +35,7 @@ export async function resolveGeneratedScriptSource(input: {
     return { sourceScenario, sourceMode: "selected_legacy_reference" };
   }
 
-  const failedDirectorIds = await listFailedDirectorAnalysisLegacyIds();
+  const failedDirectorIds = await listNonRetryableFailedDirectorAnalysisLegacyIds();
   const lastSelectedScenarioId = await getLastGeneratedScriptSourceId(input.projectId, input.productId);
   const sourceScenario = await getNextLegacyScenarioFromClients(
     legacyClientIds,
