@@ -20,6 +20,7 @@ import {
 } from "../omni-reference-transfer-policy";
 import { buildDigitalProductDemoStep } from "../digital-product-scene";
 import { isVoiceoverMontageReference, type ReferenceFormatMode } from "../omni-reference-format-mode";
+import type { ReferenceSceneMode } from "../omni-reference-scene-mode";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -34,9 +35,13 @@ export function buildStoredStoryboardFrame(input: {
   referenceProfile?: DirectorSegmentProfile | null;
   referenceTransferPolicy?: ReferenceTransferPolicy;
   referenceFormatMode?: ReferenceFormatMode;
+  referenceSceneMode?: ReferenceSceneMode;
 }): OmniStoryboardFrame {
   const spokenText = input.frame.spokenWords;
   const productVisible = input.productVisible;
+  const speechMode = input.referenceSceneMode === "voiceover_broll"
+    ? "voiceover_only"
+    : input.referenceProfile?.speech_mode || "on_camera";
   const sourceAction = input.frame.visualDescription || input.frame.action;
   const referenceAction = [
     input.referenceProfile?.action_description,
@@ -72,6 +77,9 @@ export function buildStoredStoryboardFrame(input: {
     : productVisible
       ? repairedAction
     : renderNonProductAction(repairedAction, input.productName);
+  const deliveryVisualAction = speechMode === "voiceover_only"
+    ? `${visualAction}; самостоятельная B-roll сцена, речь звучит за кадром`
+    : visualAction;
   const productState = repairProductState({
     state: input.frame.productState,
     productName: input.productName,
@@ -88,16 +96,17 @@ export function buildStoredStoryboardFrame(input: {
   const initialPhysicalPlan = buildPhysicalFramePlan({
     productName: input.productName,
     spokenText,
-    visualAction,
+    visualAction: deliveryVisualAction,
     camera,
     productPlacement,
+    speechMode,
   });
   const repairedVisualAction = repairPhysicalFrameAction({
     productName: input.productName,
-    visualAction,
+    visualAction: deliveryVisualAction,
     plan: initialPhysicalPlan,
   });
-  const physicalPlan = repairedVisualAction === visualAction
+  const physicalPlan = repairedVisualAction === deliveryVisualAction
     ? initialPhysicalPlan
     : buildPhysicalFramePlan({
         productName: input.productName,
@@ -105,6 +114,7 @@ export function buildStoredStoryboardFrame(input: {
         visualAction: repairedVisualAction,
         camera,
         productPlacement,
+        speechMode,
       });
 
   const wardrobe = isVoiceoverMontageReference(input.referenceFormatMode)
@@ -121,6 +131,7 @@ export function buildStoredStoryboardFrame(input: {
     sfxNotes,
     effectNotes: null,
     modelMusicNotes: null,
+    speechMode,
     physicalPlan,
     referenceTransfer,
   };

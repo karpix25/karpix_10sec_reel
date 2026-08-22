@@ -14,7 +14,7 @@ import {
 
 type PhysicalFrameState = "hidden" | "surface" | "held" | "visible" | "unknown";
 
-const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр/iu;
+const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|b[-\s]?roll|voiceover|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр|закадр/iu;
 const HOLDING_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|одной рукой|в одной руке|двумя руками|в двух руках)/iu;
 const MULTI_OBJECT_PATTERN = /(?:несколько предметов|два предмета|multiple objects|two objects|(?:держит|holding|holds|в руках)[^.;]{0,90}(?: и | and ))/iu;
 const TRANSITION_PATTERN = /(?:полож|ставит|кладет|кладёт|убирает|откладывает|берет|берёт|поднимает|замен|переклад|cut|transition|смен)/iu;
@@ -52,7 +52,8 @@ export function validatePhysicalScene(input: {
     const text = frameText(frame);
     const actionText = frameActionText(frame);
     const spoken = frame.spokenText.trim();
-    const onCamera = Boolean(spoken) && !CUTAWAY_PATTERN.test(`${frame.visualAction} ${frame.camera}`);
+    const onCamera = Boolean(spoken) && (frame.speechMode || frame.physicalPlan?.speechMode ||
+      (CUTAWAY_PATTERN.test(`${frame.visualAction} ${frame.camera}`) ? "voiceover_only" : "on_camera")) === "on_camera";
     const placementVisible = !HIDDEN_PATTERN.test(frame.productPlacement);
     const spokenObjects = objectCues(spoken);
     const visualObjects = objectCues(`${frame.visualAction} ${frame.productPlacement}`);
@@ -63,6 +64,7 @@ export function validatePhysicalScene(input: {
       visualAction: frame.visualAction,
       camera: frame.camera,
       productPlacement: frame.productPlacement,
+      speechMode: frame.speechMode || frame.physicalPlan?.speechMode,
     });
     const currentState = physicalPlan.productState;
     const productVisible = physicalPlan.visibleEntityIds.length > 0;
@@ -99,9 +101,19 @@ export function validatePhysicalScene(input: {
     const current = states[index];
     if (previous === current) continue;
     const transitionText = frameText(input.storyboard.frames[index]);
-    if (previous === "hidden" || current === "hidden") {
+    const currentFrame = input.storyboard.frames[index];
+    const currentPlan = buildPhysicalFramePlan({
+      productName: input.productName,
+      spokenText: currentFrame.spokenText,
+      visualAction: currentFrame.visualAction,
+      camera: currentFrame.camera,
+      productPlacement: currentFrame.productPlacement,
+      speechMode: currentFrame.speechMode || currentFrame.physicalPlan?.speechMode,
+    });
+    const editorialCut = currentPlan.speechMode === "voiceover_only" && CUTAWAY_PATTERN.test(frameText(currentFrame));
+    if ((previous === "hidden" || current === "hidden") && !editorialCut) {
       errors.push(`frame_${index + 1}_product_teleports_between_frames`);
-    } else if (!TRANSITION_PATTERN.test(transitionText)) {
+    } else if (previous !== "hidden" && current !== "hidden" && !TRANSITION_PATTERN.test(transitionText) && !editorialCut) {
       errors.push(`frame_${index + 1}_object_state_change_without_transition`);
     }
   }
@@ -154,6 +166,7 @@ export function normalizeStoryboardSource(input: {
         sfxNotes: readText(frame, "sfxNotes", "sfx_notes", "sfx"),
         effectNotes: readOptionalText(frame, "effectNotes", "effect_notes", "effects"),
         referenceTransfer: readReferenceTransfer(frame),
+        speechMode: readSpeechMode(frame),
       };
       return {
         ...normalizedFrame,
@@ -163,6 +176,7 @@ export function normalizeStoryboardSource(input: {
           visualAction: normalizedFrame.visualAction,
           camera: normalizedFrame.camera,
           productPlacement: normalizedFrame.productPlacement,
+          speechMode: normalizedFrame.speechMode,
         }),
       };
     }),
@@ -217,6 +231,18 @@ function readReferenceTransfer(frame: Record<string, unknown>): OmniStoryboardFr
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as OmniStoryboardFrame["referenceTransfer"]
     : null;
+}
+
+function readSpeechMode(frame: Record<string, unknown>): OmniStoryboardFrame["speechMode"] {
+  const value = frame.speechMode ?? frame.speech_mode ?? frame.deliveryMode ?? frame.delivery_mode;
+  if (value === "on_camera" || value === "voiceover_only" || value === "silent") return value;
+  if (value === "voiceover" || value === "off_camera" || value === "broll") return "voiceover_only";
+  const plan = frame.physicalPlan ?? frame.physical_plan;
+  if (plan && typeof plan === "object" && !Array.isArray(plan)) {
+    const mode = (plan as Record<string, unknown>).speechMode ?? (plan as Record<string, unknown>).speech_mode;
+    if (mode === "on_camera" || mode === "voiceover_only" || mode === "silent") return mode;
+  }
+  return undefined;
 }
 
 function result(errors: string[], warnings: string[]): OmniPromptValidationResult {

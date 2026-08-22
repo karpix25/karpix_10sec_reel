@@ -23,6 +23,10 @@ export function normalizeReferenceSceneMode(value: unknown): ReferenceSceneMode 
 export function resolveReferenceSceneMode(brief: unknown): ReferenceSceneMode {
   const candidate = isRecord(brief) ? brief : null;
   const explicit = normalizeReferenceSceneMode(candidate?.reference_subject_mode ?? candidate?.referenceSceneMode ?? candidate?.reference_scene_mode ?? candidate?.referenceSubjectMode);
+  const timelineModes = cameraTimelineModes(candidate?.camera_timeline);
+  if (timelineModes.has("on_camera") && timelineModes.has("voiceover_only")) {
+    return "presenter";
+  }
   if (explicit && explicit !== "presenter") return explicit;
   if (!candidate) return "presenter";
   const visualHook = isRecord(candidate.visual_hook) ? candidate.visual_hook : null;
@@ -45,6 +49,13 @@ export function resolveReferenceSceneMode(brief: unknown): ReferenceSceneMode {
   if (HANDS_ONLY_PATTERN.test(observedText) && !FACE_SIGNAL_PATTERN.test(observedText)) return "faceless_hands";
   if (explicit) return explicit;
   return "presenter";
+}
+
+function cameraTimelineModes(value: unknown): Set<string> {
+  if (!Array.isArray(value)) return new Set();
+  return new Set(value
+    .map((item) => isRecord(item) ? item.speech_mode ?? item.speechMode ?? item.delivery_mode : null)
+    .filter((mode): mode is string => mode === "on_camera" || mode === "voiceover_only"));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

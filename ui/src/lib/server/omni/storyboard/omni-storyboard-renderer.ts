@@ -37,6 +37,10 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
   const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const voiceoverBrollReference = referenceSceneMode === "voiceover_broll";
+  const deliveryModes = new Set(input.storyboard.frames
+    .map((frame) => frame.speechMode || frame.physicalPlan?.speechMode)
+    .filter((mode): mode is "on_camera" | "voiceover_only" => mode === "on_camera" || mode === "voiceover_only"));
+  const hybridDelivery = deliveryModes.has("on_camera") && deliveryModes.has("voiceover_only");
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
   const preservePipLayout = isCollagePictureInPictureReference(input.directorBrief || null) && !avatarFreeReferenceScene;
   const productFrameNumbers = input.storyboard.frames
@@ -54,6 +58,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
         ? "FACELESS HANDS-ONLY: голос за кадром; в кадре только руки, допустимый фрагмент корпуса и физический реквизит; лица, головы и talking-head framing нет."
       : voiceoverBrollReference
         ? "VOICEOVER B-ROLL: голос за кадром; независимые B-roll кадры ведёт сохранённый молчащий аватар, без talking-head, lip-sync и обязательного взгляда в объектив."
+      : hybridDelivery
+        ? "HYBRID DELIVERY: следуй speechMode каждого storyboard-кадра. on_camera — аватар произносит свою часть в кадре; voiceover_only — самостоятельный B-roll с закадровой речью. Не превращай B-roll в talking-head и не добавляй lip-sync там, где его нет."
       : "",
     preservePipLayout
       ? "PIP: full-screen фон; avatar lower-left cutout."
@@ -88,6 +94,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
         ? "Не показывай talking-head и взгляд в объектив; реплика звучит за кадром."
       : voiceoverBrollReference
         ? "Не показывай talking-head и lip-sync; сохранённый аватар действует молча, а реплика звучит за кадром поверх независимых B-roll кадров."
+      : hybridDelivery
+        ? "HYBRID AUDIO: в кадрах speechMode=on_camera аватар говорит в кадре; в кадрах speechMode=voiceover_only аватар молчит, а та же реплика звучит за кадром поверх самостоятельного B-roll."
       : montageReference
         ? "VOICEOVER MONTAGE: голос может идти за кадром поверх независимых кадров; не добавляй обязательный talking-head взгляд в объектив, если его нет в соответствующем reference-кадре."
         : "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
@@ -108,6 +116,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       : "",
     voiceoverBrollReference
       ? "Точная реплика закадрового диктора на русском языке (произноси только текст в кавычках, ничего кроме него):"
+      : hybridDelivery
+        ? "Точная реплика на русском языке: в кадрах on_camera говорит аватар, в кадрах voiceover_only реплика звучит за кадром; произноси только текст в кавычках, ничего кроме него:"
       : "Точная реплика персонажа на русском языке (произноси только текст в кавычках, ничего кроме него):",
     `"${voiceoverText}"`,
     "Правила аудио: произнеси строго указанную реплику в кавычках один раз, плавно и без пауз. Не зачитывай технические инструкции. После завершения реплики персонаж молчит. Без фоновой музыки и субтитров.",

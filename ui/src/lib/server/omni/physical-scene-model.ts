@@ -5,7 +5,7 @@ import type {
   PhysicalSpeechMode,
 } from "../../omni/physical-scene-types";
 
-const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр/iu;
+const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|b[-\s]?roll|voiceover|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр|закадр/iu;
 const HIDDEN_PATTERN = /(?:вне кадра|не виден|скрыт|hidden|off\s*camera|only thematic objects|только тематические объекты)/iu;
 const SURFACE_PATTERN = /(?:на столе|на\s+(?:\p{L}+\s+){0,3}поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
 const HOLDING_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|(?<!\p{L})одной рукой|в одну руку|в одной руке|(?<!\p{L})двумя руками|в двух руках)/iu;
@@ -135,11 +135,12 @@ export function buildPhysicalFramePlan(input: {
   visualAction: string;
   camera: string;
   productPlacement: string;
+  speechMode?: PhysicalSpeechMode;
 }): PhysicalFramePlan {
   const actionText = `${input.visualAction} ${input.productPlacement}`;
-  const speechMode: PhysicalSpeechMode = input.spokenText.trim()
+  const speechMode: PhysicalSpeechMode = input.speechMode || (input.spokenText.trim()
     ? CUTAWAY_PATTERN.test(`${input.visualAction} ${input.camera}`) ? "voiceover_only" : "on_camera"
-    : "silent";
+    : "silent");
   const productState = classifyProductState(actionText, input.productName);
   const productId = `product:${slug(input.productName) || "main"}`;
   const productVisible = productState !== "hidden" && productState !== "unknown";

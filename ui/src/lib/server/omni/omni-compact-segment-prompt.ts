@@ -65,6 +65,8 @@ export function renderCompactSegmentPrompt(input: {
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
   const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const voiceoverBrollReference = referenceSceneMode === "voiceover_broll";
+  const timelineModes = new Set((input.directorBrief?.camera_timeline || []).map((item) => item.speech_mode));
+  const hybridDelivery = timelineModes.has("on_camera") && timelineModes.has("voiceover_only");
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
   const continuity = montageReference
     ? "This is an independent montage segment. Do not continue the previous segment's room, outfit, camera, or prop positions; preserve the same presenter identity and exact product appearance only."
@@ -96,6 +98,8 @@ export function renderCompactSegmentPrompt(input: {
         : "FORMAT: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Face-to-camera with short product-relevant cutaways, not copied reference montage."
       : voiceoverBrollReference
         ? "FORMAT: VOICEOVER B-ROLL. Off-camera narration over independent cutaways led by the saved silent avatar; no talking-head or lip-sync."
+      : hybridDelivery
+        ? "FORMAT: HYBRID DELIVERY. Follow each reference interval's speech_mode: on_camera means the avatar speaks visibly; voiceover_only means independent B-roll with off-camera narration. Keep the distinction at every storyboard and video stage."
       : null,
     objectOnlyReferenceScene
       ? "VISIBLE SUBJECT: object-only macro scene; no person, hands, face, head, or avatar."
@@ -115,7 +119,7 @@ export function renderCompactSegmentPrompt(input: {
     referenceBrief.actionLine,
     "SPEECH:",
     "Start speaking on frame 0. Use simple natural conversational Russian. Say only the current part once. Do not repeat, skip, restart, paraphrase, continue a neighbor part, or add subtitles.",
-    `${voiceoverBrollReference || avatarFreeReferenceScene ? "The off-camera narrator says" : "The avatar says"}: ${input.plan.voiceoverText}`,
+    `${voiceoverBrollReference || avatarFreeReferenceScene ? "The off-camera narrator says" : hybridDelivery ? "The avatar or off-camera narrator says according to each storyboard frame's speech_mode" : "The avatar says"}: ${input.plan.voiceoverText}`,
     `CONTINUITY: ${montageReference ? "same identity and exact product appearance; each independent cut follows its corresponding reference setup" : objectOnlyReferenceScene ? "same surface, macro light, camera, conceptual props, and physical action order" : facelessReferenceScene ? "same hands, body crop, light, camera, and physical prop positions" : "same identity, adapted outfit, location, light, product appearance, and physical prop positions unless the reference location timeline changes for this part"}. ${continuity}`,
     "CLEAN FRAME: no on-screen text, subtitles, captions, progress bars, overlay icons, buttons, watermarks, logos, or app interface.",
     OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,

@@ -28,6 +28,10 @@ export function buildStoryboardImagePrompt(input: {
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
   const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const voiceoverBrollReference = referenceSceneMode === "voiceover_broll";
+  const deliveryModes = new Set(input.storyboard.frames
+    .map((frame) => frame.speechMode || frame.physicalPlan?.speechMode)
+    .filter((mode): mode is "on_camera" | "voiceover_only" => mode === "on_camera" || mode === "voiceover_only"));
+  const hybridDelivery = deliveryModes.has("on_camera") && deliveryModes.has("voiceover_only");
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []);
   const directorReferenceImageUrls = uniqueUrls(input.directorReferenceImageUrls || []);
@@ -61,6 +65,8 @@ export function buildStoryboardImagePrompt(input: {
         ? "FACELESS HANDS-ONLY CONTRACT: в кадре нет лица, головы, глаз, губ, портрета аватара или talking-head. Показывай только руки, допустимый фрагмент корпуса и предметы, которые нужны действию. Озвучка идёт за кадром. Не добавляй человека из avatar reference."
       : voiceoverBrollReference
         ? "VOICEOVER B-ROLL CONTRACT: голос идёт за кадром поверх независимых cutaways. Сохранённый avatar/character reference остаётся визуальным героем во всех панелях; он не говорит, не синхронизирует губы и не превращается в talking-head. Случайные люди не заменяют его."
+      : hybridDelivery
+        ? "HYBRID DELIVERY CONTRACT: в каждой панели следуй speech_mode раскадровки. on_camera — аватар говорит в кадре; voiceover_only — аватар молчит, а реплика звучит за кадром поверх самостоятельного B-roll. Не смешивай эти режимы и не добавляй lip-sync в voiceover_only."
       : "@file1 - avatar/character reference: единственный человек во всех панелях; фиксирует лицо, пол, возраст, волосы, телосложение и личность. Не копируй их из кадров reference.",
     canonicalFile
       ? objectOnlyReferenceScene
@@ -133,6 +139,8 @@ export function buildStoryboardImagePrompt(input: {
       ? "В кадре нет talking-head и взгляда в объектив: действие выполняют руки, а голос остаётся за кадром."
       : voiceoverBrollReference
         ? "В кадре нет talking-head и lip-sync; сохранённый аватар действует молча, голос остаётся за кадром, а независимые B-roll сцены следуют соответствующим reference-кадрам."
+      : hybridDelivery
+        ? "HYBRID AUDIO: speech_mode=on_camera означает речь аватара в кадре; speech_mode=voiceover_only означает молчащий визуальный B-roll и закадровую реплику."
       : montageReference
         ? "VOICEOVER MONTAGE: голос идёт за кадром или поверх независимых кадров; не добавляй обязательный talking-head взгляд в объектив, если его нет в соответствующем reference-кадре."
         : "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
@@ -156,6 +164,7 @@ export function buildStoryboardImagePrompt(input: {
       [
         `Кадр ${index + 1}, ${index * 2}-${(index + 1) * 2} сек:`,
         `РЕПЛИКА "${frame.spokenText}".`,
+        frame.speechMode ? `speech_mode: ${frame.speechMode};` : "",
         `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)};${index === 0 ? ` окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};` : ""}`,
         frame.effectNotes ? `переход: ${compactText(frame.effectNotes)};` : "",
         frame.referenceTransfer
