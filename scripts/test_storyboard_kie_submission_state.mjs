@@ -76,6 +76,9 @@ try {
   assert.equal(getStoryboardRepairMode([
     { segmentIndex: 2, code: "frame_action_mismatch" },
   ], 2), "metadata_only");
+  assert.equal(getStoryboardRepairMode([
+    { segmentIndex: 1, code: "product_packaging_mismatch" },
+  ], 2, { propagateCanonicalRepair: true }), "fresh");
   console.log("Storyboard KIE submission state checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });

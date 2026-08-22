@@ -334,7 +334,9 @@ async function ensureStoryboardSetApproval(
         throw new Error("Storyboard 1 must remain available for cross-storyboard repair");
       }
       const repairContext = await getGeneratedScriptStoryboardRepairContext({ scriptId: input.scriptId, segmentIndex });
-      const repairMode = getStoryboardRepairMode(validation.violations, segmentIndex);
+      const propagateCanonicalRepair = segmentIndex > 1
+        && validation.violations.some((violation) => violation.segmentIndex === 1);
+      const repairMode = getStoryboardRepairMode(validation.violations, segmentIndex, { propagateCanonicalRepair });
       if (repairMode === "metadata_only") {
         throw new Error(`Storyboard ${segmentIndex} has no visual repair target`);
       }
@@ -352,7 +354,13 @@ async function ensureStoryboardSetApproval(
           previousGenerationAttemptCount: repairContext.previousGenerationAttemptCount,
           repairStateProgress: repairProgress,
           deferVisualQa,
-          referenceSafetyInstructions: buildSetRepairInstructions(validation.repairInstructions, validation.violations, segmentIndex),
+          referenceSafetyInstructions: buildSetRepairInstructions(
+            validation.repairInstructions,
+            validation.violations,
+            segmentIndex,
+            repairMode,
+            propagateCanonicalRepair
+          ),
         });
       } catch (error) {
         if (error instanceof StoryboardImageRepairExhaustedError) throw new StoryboardSetQualityError(validation);
@@ -365,14 +373,17 @@ async function ensureStoryboardSetApproval(
 function buildSetRepairInstructions(
   instructions: readonly string[],
   violations: readonly { segmentIndex: number; code: string; evidence: string }[],
-  segmentIndex: number
+  segmentIndex: number,
+  repairMode: ReturnType<typeof getStoryboardRepairMode>,
+  propagateCanonicalRepair: boolean
 ) {
   const targeted = violations
     .filter((violation) => violation.segmentIndex === segmentIndex)
     .map((violation) => `${violation.code}: ${violation.evidence}`);
-  const repairMode = getStoryboardRepairMode(violations, segmentIndex);
   return [
-    repairMode === "fresh"
+    propagateCanonicalRepair
+      ? "Regenerate this dependent storyboard from the newly repaired storyboard 1. Preserve the approved avatar, wardrobe, environment, and voiceover while aligning visual continuity. Do not use the previous dependent storyboard as a source."
+      : repairMode === "fresh"
       ? "Create a fresh storyboard from the avatar, canonical frame, product references, and reference frames. Do not use the previous failed storyboard as a source."
       : "Patch only the visibly incorrect package or prop in the previous storyboard. Preserve the approved person, core garment, setting, and every unaffected panel.",
     ...instructions,
