@@ -1,5 +1,6 @@
 import { normalizeReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { normalizeReferenceFormatMode, type ReferenceFormatMode } from "./omni-reference-format-mode";
+import type { PhysicalSpeechMode } from "../../omni/physical-scene-types";
 
 export type DirectorAnalysisStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -26,6 +27,7 @@ export type DirectorCameraTimelineItem = DirectorCameraProfile & {
   lighting: string;
   action_description: string;
   actor_gesture: string;
+  speech_mode: PhysicalSpeechMode;
 };
 
 export type DirectorSegmentProfile = {
@@ -35,6 +37,7 @@ export type DirectorSegmentProfile = {
   lighting: string;
   action_description: string;
   actor_gesture: string;
+  speech_mode: PhysicalSpeechMode;
 };
 
 export type DirectorProductIntroductionPosition = "hook" | "body" | "payoff" | "never";
@@ -250,6 +253,7 @@ export function selectDirectorSegmentProfile(input: {
     lighting: camera?.lighting || location?.lighting || brief.atmosphere.lighting,
     action_description: camera?.action_description || action?.action_description || "",
     actor_gesture: camera?.actor_gesture || action?.actor_gesture || "",
+    speech_mode: camera?.speech_mode || inferSpeechMode(camera?.action_description || action?.action_description || ""),
   };
 }
 
@@ -304,10 +308,24 @@ function normalizeCameraTimelineItem(value: unknown) {
     lighting: stringValue(value.lighting),
     action_description: stringValue(value.action_description || value.action),
     actor_gesture: stringValue(value.actor_gesture || value.gesture),
+    speech_mode: normalizeSpeechMode(value.speech_mode || value.speechMode || value.delivery_mode || camera.speech_mode || camera.speechMode) ||
+      inferSpeechMode(stringValue(value.action_description || value.action)),
   };
   return item.shot_types.length || item.angles.length || item.movements.length || item.setting || item.action_description
     ? item
     : null;
+}
+
+function normalizeSpeechMode(value: unknown): PhysicalSpeechMode | null {
+  if (value === "on_camera" || value === "voiceover_only" || value === "silent") return value;
+  if (value === "voiceover" || value === "off_camera" || value === "broll") return "voiceover_only";
+  return null;
+}
+
+function inferSpeechMode(value: string): PhysicalSpeechMode {
+  return /voice[- ]?over|off[- ]?camera|b[-\s]?roll|cutaway|insert|перебив|закадр/iu.test(value)
+    ? "voiceover_only"
+    : "on_camera";
 }
 
 function selectTargetTime(input: {

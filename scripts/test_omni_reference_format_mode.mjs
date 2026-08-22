@@ -45,6 +45,10 @@ try {
   assert.equal(mode.normalizeReferenceFormatMode("voice-over montage"), "voiceover_montage");
   assert.equal(mode.resolveReferenceFormatMode({ reference_format_mode: "continuous_story" }), "continuous_story");
   assert.equal(mode.resolveReferenceFormatMode({
+    reference_format_mode: "continuous_story",
+    camera_timeline: [{ speech_mode: "on_camera" }, { speech_mode: "voiceover_only" }],
+  }), "voiceover_montage");
+  assert.equal(mode.resolveReferenceFormatMode({
     clothing: { adaptation_notes: "multiple outfits across the video" },
     location_timeline: [{}, {}],
     camera_timeline: [{}, {}, {}],

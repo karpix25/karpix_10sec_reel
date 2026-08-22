@@ -134,6 +134,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
         referenceProfile,
         referenceTransferPolicy: input.referenceTransferPolicy,
         referenceFormatMode: resolveReferenceFormatMode(input.directorBrief),
+        referenceSceneMode: input.referenceSceneMode,
       });
       return isFacelessReferenceScene(input.referenceSceneMode)
         ? {
@@ -193,6 +194,7 @@ function buildFrame(input: {
     frameIndex: input.frameIndex,
     frameCount: input.frameCount,
   });
+  const speechMode = referenceProfile?.speech_mode || "on_camera";
   const referenceAction = layoutLocked
     ? ""
     : renderProfileAction(referenceProfile);
@@ -262,16 +264,18 @@ function buildFrame(input: {
         productVisible,
         referenceSupportProps: referenceTransfer.requiredSupportProps,
       });
+  const deliveryVisualAction = applySpeechModeToAction(finalVisualAction, speechMode);
   const initialPhysicalPlan = buildPhysicalFramePlan({
     productName: input.productName,
     spokenText: input.spokenText,
-    visualAction: finalVisualAction,
-    camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference }),
+    visualAction: deliveryVisualAction,
+    camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference, speechMode }),
     productPlacement,
+    speechMode,
   });
   const repairedVisualAction = repairPhysicalFrameAction({
     productName: input.productName,
-    visualAction: finalVisualAction,
+    visualAction: deliveryVisualAction,
     plan: initialPhysicalPlan,
   });
   const storyboardVisualAction = input.referenceSceneMode === "voiceover_broll"
@@ -280,18 +284,19 @@ function buildFrame(input: {
     ? sanitizeFacelessStoryboardText(repairedVisualAction, input.referenceSceneMode)
     : repairedVisualAction;
   const storyboardCamera = input.referenceSceneMode === "voiceover_broll"
-    ? sanitizeVoiceoverBrollStoryboardText(renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference }))
+    ? sanitizeVoiceoverBrollStoryboardText(renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference, speechMode }))
     : isFacelessReferenceScene(input.referenceSceneMode)
-    ? sanitizeFacelessStoryboardText(renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene }), input.referenceSceneMode)
-    : renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene });
-  const physicalPlan = repairedVisualAction === finalVisualAction
+    ? sanitizeFacelessStoryboardText(renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, speechMode }), input.referenceSceneMode)
+    : renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, speechMode });
+  const physicalPlan = repairedVisualAction === deliveryVisualAction
     ? initialPhysicalPlan
     : buildPhysicalFramePlan({
         productName: input.productName,
         spokenText: input.spokenText,
         visualAction: repairedVisualAction,
-        camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference }),
+        camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference, speechMode }),
         productPlacement,
+        speechMode,
       });
 
   return {
@@ -308,9 +313,17 @@ function buildFrame(input: {
       : "тихие естественные звуки комнаты и живой речи",
     effectNotes: renderFrameTransitionNote(input.directorBrief, input.frameIndex),
     modelMusicNotes: null,
+    speechMode,
     physicalPlan,
     referenceTransfer,
   };
+}
+
+function applySpeechModeToAction(action: string, speechMode: DirectorSegmentProfile["speech_mode"]) {
+  if (speechMode !== "voiceover_only") return action;
+  return action && !/voiceover|закадр|b-roll|перебив/iu.test(action)
+    ? `${action}; самостоятельная B-roll сцена, речь звучит за кадром`
+    : action || "самостоятельная B-roll сцена по текущей реплике, речь звучит за кадром";
 }
 
 function renderDirectorEnvironment(brief?: DirectorBrief | null, profile?: DirectorSegmentProfile | null) {

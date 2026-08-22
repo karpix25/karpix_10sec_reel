@@ -199,6 +199,41 @@ try {
     }).valid,
     true
   );
+  const hybridStoryboard = storyboardBuilder.buildStoryboardFromCreativePlan({
+    plan: {
+      segmentIndex: 1,
+      lifeFormatId: "talking_head_cutaways",
+      speechStartsAtSeconds: 0,
+      voiceoverText: "Сначала объясняю проблему а затем показываю решение",
+      productRole: "hidden",
+      continuityProps: [],
+      beats: [
+        { startSeconds: 0, endSeconds: 2, action: "аватар говорит в камеру" },
+        { startSeconds: 2, endSeconds: 4, action: "самостоятельная B-roll сцена" },
+      ],
+    },
+    productName: "Коллаген",
+    characterContract: {
+      identityLine: "главный персонаж",
+      clothingLine: "черная куртка",
+      sourceRuleLine: "фиксированный образ",
+      clothingSource: "fallback",
+      speechGender: "female",
+      speechGenderLine: "женский род",
+    },
+    segmentIndex: 1,
+    durationSeconds: 4,
+    directorBrief: {
+      ...directorBriefWithFoodProps(),
+      camera_timeline: [
+        { start_sec: 0, end_sec: 2, shot_types: ["medium"], angles: ["front"], movements: [], stabilization: "stable", setting: "room", environment: "desk", lighting: "daylight", action_description: "speaks to camera", actor_gesture: "calm gesture", speech_mode: "on_camera" },
+        { start_sec: 2, end_sec: 4, shot_types: ["macro"], angles: ["top down"], movements: [], stabilization: "stable", setting: "desk", environment: "product surface", lighting: "daylight", action_description: "independent B-roll insert", actor_gesture: "hands arrange objects", speech_mode: "voiceover_only" },
+      ],
+    },
+    referenceTransferPolicy: foodReferencePolicy,
+  });
+  assert.deepEqual(hybridStoryboard.frames.map((item) => item.speechMode), ["on_camera", "voiceover_only"]);
+  assert.match(hybridStoryboard.frames[1].visualAction, /B-roll|за кадром/iu);
   assert.match(
     physicalModel.repairReferenceAction({
       action: "держит чужую бутылку с яркой этикеткой",
@@ -247,6 +282,19 @@ try {
     productName: "Коллаген",
   });
   assert.ok(teleportingProduct.errors.includes("frame_2_product_teleports_between_frames"));
+
+  const hybridEditorialCut = validator.validatePhysicalScene({
+    storyboard: storyboard([
+      frame("Объясняю идею", "аватар спокойно говорит в камеру", "продукт вне кадра"),
+      {
+        ...frame("Вот как это выглядит на практике", "самостоятельная B-roll сцена: смартфон лежит на столе", "Коллаген на столе", "макро B-roll"),
+        speechMode: "voiceover_only",
+      },
+    ]),
+    creativePlan: null,
+    productName: "Коллаген",
+  });
+  assert.equal(hybridEditorialCut.valid, true, JSON.stringify(hybridEditorialCut));
 
   const meaninglessFaceTouch = validator.validatePhysicalScene({
     storyboard: storyboard([

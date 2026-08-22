@@ -74,6 +74,7 @@ function normalizeFrame(input: {
   const { frame, productName, productVisible } = input;
   const product = productName.trim() || "продукт";
   const spokenText = frame.spokenText.trim();
+  const speechMode = frame.speechMode || frame.physicalPlan?.speechMode;
   const sourceText = `${frame.visualAction} ${frame.productPlacement} ${frame.sfxNotes} ${frame.effectNotes || ""}`;
   const visibleInFrame = productVisible;
   const productDemo = visibleInFrame && (input.productRole === undefined || input.productRole === "brief_demo") && input.frameCount > 1
@@ -107,6 +108,9 @@ function normalizeFrame(input: {
         productVisible: false,
         referenceSupportProps: frame.referenceTransfer?.requiredSupportProps,
       });
+  const deliveredVisualAction = speechMode === "voiceover_only"
+    ? `${visualAction}; самостоятельная B-roll сцена, речь звучит за кадром`
+    : visualAction;
   const productPlacement = demo
     ? [demo.placement, renderRequiredReferenceSupport(frame.referenceTransfer)].filter(Boolean).join("; ")
     : visibleInFrame
@@ -121,13 +125,14 @@ function normalizeFrame(input: {
   const initialPlan = buildPhysicalFramePlan({
     productName: product,
     spokenText,
-    visualAction,
+    visualAction: deliveredVisualAction,
     camera: frame.camera,
     productPlacement,
+    speechMode,
   });
   const repairedAction = repairPhysicalFrameAction({
     productName: product,
-    visualAction,
+    visualAction: deliveredVisualAction,
     plan: initialPlan,
   });
   const physicalPlan = buildPhysicalFramePlan({
@@ -136,6 +141,7 @@ function normalizeFrame(input: {
     visualAction: repairedAction,
     camera: frame.camera,
     productPlacement,
+    speechMode,
   });
   const speechDuringConsumption = Boolean(spokenText) &&
     !CUTAWAY_PATTERN.test(`${repairedAction} ${frame.camera}`) &&
@@ -149,6 +155,7 @@ function normalizeFrame(input: {
     productPlacement,
     sfxNotes,
     effectNotes: speechDuringConsumption ? null : frame.effectNotes,
+    speechMode,
     physicalPlan,
     referenceTransfer: synchronizeReferenceTransferProductVisibility(frame.referenceTransfer, visibleInFrame),
   };
