@@ -296,6 +296,7 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
       provider_prompt: finalProviderPrompt,
       image_urls: selectedReferenceImages.sent.map((image) => image.url),
       ...(provider === "kie-ai" && videoCharacterId ? { character_ids: [videoCharacterId] } : {}),
+      ...(omitCharacterForSafety ? { omni_kie_safety_fallback_without_character: true } : {}),
       audio_ids: provider === "kie-ai" ? kieAudioIds : [],
       audio_voice_gender: provider === "kie-ai" ? kieVoiceGender : null,
       reference_images_sent: selectedReferenceImages.sent.length > 0,
@@ -356,7 +357,7 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
     try {
       task = await createOmniVideoTask({
         provider,
-        avatarFreeReferenceScene,
+        avatarFreeReferenceScene: avatarFreeReferenceScene || omitCharacterForSafety,
         prompt: finalProviderPrompt,
         durationSeconds: segment.duration_seconds || 10,
         resolution: requestPayload.resolution,
