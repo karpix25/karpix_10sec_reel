@@ -5,7 +5,7 @@ export function buildDigitalProductDemoStep(input: {
 }) {
   const product = input.productName.trim() || "мобильный продукт";
   const revealFrame = input.frameCount >= 5 ? 3 : Math.max(2, Math.ceil(input.frameCount / 2));
-  const placement = "герой естественно держит смартфон вертикально одной рукой на уровне груди, экран повернут к камере, контакт только с ладонью и пальцами";
+  const placement = `${product} показывается на экране смартфона: герой естественно держит смартфон вертикально одной рукой на уровне груди, экран повернут к камере, контакт только с ладонью и пальцами`;
 
   if (input.frameIndex < revealFrame) {
     return {

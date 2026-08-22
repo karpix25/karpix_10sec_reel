@@ -52,6 +52,7 @@ try {
   const speech = require(findFile(compiled, "omni-storyboard-speech.js"));
   const storedFrameRepair = require(findFile(compiled, "omni-stored-storyboard-frame-repair.js"));
   const storyboardBuilder = require(findFile(compiled, "omni-storyboard-builder.js"));
+  const digitalProductScene = require(findFile(compiled, "digital-product-scene.js"));
   const storyboardVisionContract = require(findFile(compiled, "storyboard-vision-contract.js"));
   const storyboardRepairLimit = require(findFile(compiled, "storyboard-repair-limit.js"));
 
@@ -71,6 +72,14 @@ try {
       panels: [{ panel_index: 1, status: "repair", violations: [{ severity: "warning", code: "SOFT_LIGHT", evidence: "Minor" }] }],
     }).status,
     "pass"
+  );
+  assert.match(
+    digitalProductScene.buildDigitalProductDemoStep({
+      productName: "Плати по миру виртуальная карта",
+      frameIndex: 3,
+      frameCount: 5,
+    }).placement,
+    /Плати по миру виртуальная карта/iu
   );
 
   const handConflictPlan = physicalModel.buildPhysicalFramePlan({
