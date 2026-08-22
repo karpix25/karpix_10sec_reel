@@ -7,7 +7,7 @@ import { resolveProductReferenceImageUrls } from "./omni-product-reference-image
 import { generateStoryboardImage } from "./omni-storyboard-image-generator";
 import { isAvatarFreeReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 
-const PUBLIC_FIGURE_BLOCK_PATTERN = /prominent public figure|public figure|celebrity|politician/iu;
+const PUBLIC_FIGURE_BLOCK_PATTERN = /prominent public figure|public figure|celebrity|politician|safety review|blocked by (?:google|provider).*safety|generation was blocked.*safety/iu;
 
 export function isKiePublicFigureSafetyBlock(error: unknown) {
   return PUBLIC_FIGURE_BLOCK_PATTERN.test(String(error || ""));
