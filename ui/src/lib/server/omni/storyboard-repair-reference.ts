@@ -10,8 +10,12 @@ type StoryboardSetViolation = {
 
 export function getStoryboardRepairMode(
   violations: readonly StoryboardSetViolation[],
-  segmentIndex: number
+  segmentIndex: number,
+  options?: { propagateCanonicalRepair?: boolean }
 ): StoryboardRepairMode {
+  if (options?.propagateCanonicalRepair && segmentIndex > 1 && violations.some((violation) => violation.segmentIndex === 1)) {
+    return "fresh";
+  }
   return resolveStoryboardRepairMode(violations, segmentIndex);
 }
 
