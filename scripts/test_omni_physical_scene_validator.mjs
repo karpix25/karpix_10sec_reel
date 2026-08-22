@@ -10,9 +10,11 @@ const ui = join(root, "ui");
 const output = mkdtempSync(join(tmpdir(), "omni-physical-scene-"));
 const compiled = join(output, "compiled");
 const config = join(output, "tsconfig.json");
+const globals = join(output, "globals.d.ts");
 const require = createRequire(import.meta.url);
 
 try {
+  writeFileSync(globals, "declare const process: { env: Record<string, string | undefined> };\n");
   writeFileSync(config, JSON.stringify({
     compilerOptions: {
       target: "es2022",
@@ -27,9 +29,11 @@ try {
       skipLibCheck: true,
     },
     include: [
+      globals,
       join(ui, "src/lib/omni/**/*.ts"),
       join(ui, "src/lib/server/omni/physical-scene-validator.ts"),
       join(ui, "src/lib/server/omni/physical-storyboard-normalizer.ts"),
+      join(ui, "src/lib/server/omni/omni-physical-repair-pipeline.ts"),
       join(ui, "src/lib/server/omni/storyboard/storyboard-contract-validator.ts"),
       join(ui, "src/lib/server/omni/storyboard/omni-stored-storyboard-frame-repair.ts"),
       join(ui, "src/lib/server/omni/storyboard/omni-storyboard-builder.ts"),
@@ -42,6 +46,7 @@ try {
   const validator = require(findFile(compiled, "physical-scene-validator.js"));
   const physicalModel = require(findFile(compiled, "physical-scene-model.js"));
   const normalizer = require(findFile(compiled, "physical-storyboard-normalizer.js"));
+  const repairPipeline = require(findFile(compiled, "omni-physical-repair-pipeline.js"));
   const contractValidator = require(findFile(compiled, "storyboard-contract-validator.js"));
   const referenceTransfer = require(findFile(compiled, "omni-reference-transfer-policy.js"));
   const speech = require(findFile(compiled, "omni-storyboard-speech.js"));
@@ -376,6 +381,29 @@ try {
     productName: "Плати по миру виртуальная карта",
   });
   assert.equal(digitalValidation.valid, true, JSON.stringify(digitalValidation));
+  const repairedDigitalPlan = repairPipeline.normalizeOmniPromptPlanWithPhysicalRules({
+    promptPlan: [{
+      index: 1,
+      role: "body",
+      prompt: "",
+      referenceUrl: null,
+      durationSeconds: 10,
+      voiceoverText: digitalStoryboard.voiceoverText,
+      storyboardPlan: storyboard([1, 2].map((index) => frame(
+        "Рассказываю о приложении",
+        "герой держит смартфон в одной руке",
+        "смартфон в одной руке"
+      ))),
+      storyboardValidation: null,
+      creativeStrategy: {},
+      creativePlan: { productRole: "digital_demo", beats: [] },
+      validation: { valid: false, score: 0, errors: ["frame_3_digital_product_without_phone_screen"], warnings: [] },
+    }],
+    productName: "Плати по миру виртуальная карта",
+    segmentCount: 1,
+  });
+  assert.equal(repairedDigitalPlan[0].validation.valid, true, JSON.stringify(repairedDigitalPlan[0].validation));
+  assert.match(repairedDigitalPlan[0].storyboardPlan.frames[1].productPlacement, /экран.*камере/iu);
   assert.ok(
     validator.validatePhysicalScene({
       storyboard: storyboard([frame("Покажу приложение", "герой показывает экран смартфона", "смартфон стоит на столе")]),
