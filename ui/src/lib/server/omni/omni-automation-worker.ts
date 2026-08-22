@@ -46,6 +46,10 @@ function getRetryDelaySeconds(job: OmniAutomationJob) {
   return Math.min(max, base * 2 ** attemptPower);
 }
 
+function isDeterministicPromptContractError(message: string) {
+  return /(?:prompt contract failed|physical preflight failed|invalid omni prompt|storyboard prompt contract)/iu.test(message);
+}
+
 async function failAutomationJob(job: OmniAutomationJob, message: string) {
   const failedJob = await failOmniAutomationJob({ jobId: job.id, errorMessage: message });
   if (job.reel_id) {
@@ -126,6 +130,13 @@ async function handleJobError(job: OmniAutomationJob, error: unknown) {
         errorMessage: message,
         refundAttempt: true,
       }),
+      error: message,
+    };
+  }
+  if (isDeterministicPromptContractError(message)) {
+    return {
+      action: "failed",
+      job: await failAutomationJob(job, message),
       error: message,
     };
   }

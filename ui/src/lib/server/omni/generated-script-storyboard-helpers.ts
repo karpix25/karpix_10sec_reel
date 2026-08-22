@@ -3,7 +3,7 @@ import type { ProductRole } from "@/lib/omni/creative-contract";
 import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 
-export const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-physical-product-v18";
+export const STORYBOARD_PREVIEW_GENERATOR_VERSION = "storyboard-image-physical-product-v19";
 
 export function buildGeneratedScriptStoryboardReferenceSignature(input: {
   avatarReferenceUrl: string | null;

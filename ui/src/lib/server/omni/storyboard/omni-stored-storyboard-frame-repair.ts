@@ -20,6 +20,7 @@ import {
 } from "../omni-reference-transfer-policy";
 import { buildDigitalProductDemoStep } from "../digital-product-scene";
 import { isVoiceoverMontageReference, type ReferenceFormatMode } from "../omni-reference-format-mode";
+import { sanitizeVoiceoverBrollStoryboardText } from "./omni-storyboard-text-sanitizer";
 import type { ReferenceSceneMode } from "../omni-reference-scene-mode";
 
 const EXACT_FABRIC_LOCK =
@@ -106,12 +107,15 @@ export function buildStoredStoryboardFrame(input: {
     visualAction: deliveryVisualAction,
     plan: initialPhysicalPlan,
   });
-  const physicalPlan = repairedVisualAction === deliveryVisualAction
+  const canonicalVisualAction = speechMode === "voiceover_only"
+    ? sanitizeVoiceoverBrollStoryboardText(repairedVisualAction)
+    : repairedVisualAction;
+  const physicalPlan = canonicalVisualAction === deliveryVisualAction
     ? initialPhysicalPlan
     : buildPhysicalFramePlan({
         productName: input.productName,
         spokenText,
-        visualAction: repairedVisualAction,
+        visualAction: canonicalVisualAction,
         camera,
         productPlacement,
         speechMode,
@@ -123,7 +127,7 @@ export function buildStoredStoryboardFrame(input: {
 
   return {
     spokenText,
-    visualAction: repairedVisualAction,
+    visualAction: canonicalVisualAction,
     camera,
     environment,
     wardrobe,

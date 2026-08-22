@@ -45,6 +45,7 @@ try {
       join(ui, "src/lib/server/omni/omni-format-selector.ts"),
       join(ui, "src/lib/server/omni/digital-product-scene.ts"),
       join(ui, "src/lib/server/omni/omni-prompt-builder.ts"),
+      join(ui, "src/lib/server/omni/storyboard/omni-storyboard-text-sanitizer.ts"),
     ],
   }));
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", join(output, "tsconfig.json")], { cwd: ui, stdio: "inherit" });
@@ -58,6 +59,7 @@ try {
   const selector = require(findFile(compiled, "omni-format-selector.js"));
   const digital = require(findFile(compiled, "digital-product-scene.js"));
   const { buildOmniSegmentPrompts } = require(findFile(compiled, "omni-prompt-builder.js"));
+  const sanitizer = require(findFile(compiled, "omni-storyboard-text-sanitizer.js"));
 
   assert.equal(mode.resolveReferenceSceneMode({
     reference_subject_mode: "presenter",
@@ -91,6 +93,12 @@ try {
   assert.equal(strategy.referenceSceneMode, "voiceover_broll");
   assert.equal(strategy.productRole, "digital_demo");
   assert.match(strategy.providerFormatDescription, /B-roll/iu);
+  assert.deepEqual(strategy.continuityProps, [], "voiceover B-roll must not inherit talking-head continuity props");
+  assert.equal(strategy.visualStyle, undefined, "voiceover B-roll must not inherit talking-head visual style");
+  assert.doesNotMatch(
+    sanitizer.sanitizeVoiceoverBrollStoryboardText("персонаж живо говорит в камеру; talking-head framing"),
+    /говорит\s+в\s+камеру|talking-head\s+(?:кадр|framing)/iu
+  );
 
   const digitalStep = digital.buildDigitalProductDemoStep({ productName: "Плати по миру", frameIndex: 3, frameCount: 5 });
   assert.match(digitalStep.action, /поднимает смартфон.*одной руке/iu);

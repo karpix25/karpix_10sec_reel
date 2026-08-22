@@ -3,7 +3,7 @@ import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contra
 import { renderReferenceSceneModeForDirectorPrompt, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { renderReferenceFormatContract, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v8";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v9";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
