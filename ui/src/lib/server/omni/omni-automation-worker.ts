@@ -47,7 +47,7 @@ function getRetryDelaySeconds(job: OmniAutomationJob) {
 }
 
 function isDeterministicPromptContractError(message: string) {
-  return /(?:prompt contract failed|physical (?:storyboard )?preflight (?:failed|blocked)|invalid omni prompt|storyboard prompt contract)/iu.test(message);
+  return /(?:prompt contract failed|(?:physical|storyboard contract) (?:storyboard )?preflight (?:failed|blocked)|invalid omni prompt|storyboard prompt contract)/iu.test(message);
 }
 
 async function failAutomationJob(job: OmniAutomationJob, message: string) {

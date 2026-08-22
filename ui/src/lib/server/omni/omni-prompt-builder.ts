@@ -281,7 +281,8 @@ function selectPhysicalProductDemoSegmentIndex(input: {
 }
 
 function resolvePhysicalProductDemoRole(segmentIndex: number, productDemoSegmentIndex: number | null, selectedRole: ProductRole = "brief_demo"): ProductRole {
-  return segmentIndex === productDemoSegmentIndex ? selectedRole : "hidden";
+  if (segmentIndex !== productDemoSegmentIndex || selectedRole === "hidden") return "hidden";
+  return selectedRole === "digital_demo" ? "digital_demo" : "brief_demo";
 }
 
 function buildStoredProviderPromptSegments(
