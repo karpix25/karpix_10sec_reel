@@ -69,6 +69,14 @@ try {
   assert.match(prompt, /VOICEOVER B-ROLL/iu);
   assert.match(prompt, /CHARACTER: avatar/iu);
   assert.doesNotMatch(prompt, /The avatar says/iu);
+  assert.doesNotThrow(() => mode.assertReferenceScenePromptContract(
+    "VOICEOVER B-ROLL. Do not use talking-head framing or lip-sync; narration stays off-camera.",
+    "voiceover_broll"
+  ));
+  assert.throws(
+    () => mode.assertReferenceScenePromptContract("The avatar says: test", "voiceover_broll"),
+    /Avatar-led B-roll prompt contract failed/iu
+  );
 
   const strategy = selector.selectOmniCreativeStrategy({
     script: "Покажу мобильное приложение Плати по миру. Артикул в описании.",

@@ -28,6 +28,7 @@ import {
   StoryboardKieSubmissionInProgressError,
   StoryboardKieSubmissionStalledError,
 } from "./storyboard-kie-submission-state";
+import { markOmniReelPreflightFailure } from "./omni-reel-preflight-failure";
 
 function envInt(name: string, fallback: number, min = 1) {
   const parsed = Number.parseInt(process.env[name] || "", 10);
@@ -43,6 +44,20 @@ function getRetryDelaySeconds(job: OmniAutomationJob) {
   const max = envInt("OMNI_AUTOMATION_RETRY_MAX_SECONDS", 1800);
   const attemptPower = Math.max(0, job.attempt_count - 1);
   return Math.min(max, base * 2 ** attemptPower);
+}
+
+async function failAutomationJob(job: OmniAutomationJob, message: string) {
+  const failedJob = await failOmniAutomationJob({ jobId: job.id, errorMessage: message });
+  if (job.reel_id) {
+    await markOmniReelPreflightFailure({
+      reelId: job.reel_id,
+      provider: job.generation_provider,
+      message,
+    }).catch((failureError) => {
+      console.error("Failed to synchronize Omni reel failure status:", failureError);
+    });
+  }
+  return failedJob;
 }
 
 async function handleJobError(job: OmniAutomationJob, error: unknown) {
@@ -67,21 +82,21 @@ async function handleJobError(job: OmniAutomationJob, error: unknown) {
   if (error instanceof StoryboardKieSubmissionStalledError) {
     return {
       action: "failed",
-      job: await failOmniAutomationJob({ jobId: job.id, errorMessage: message }),
+      job: await failAutomationJob(job, message),
       error: message,
     };
   }
   if (isStoryboardImageRepairExhaustedError(error)) {
     return {
       action: "failed",
-      job: await failOmniAutomationJob({ jobId: job.id, errorMessage: message }),
+      job: await failAutomationJob(job, message),
       error: message,
     };
   }
   if (isStoryboardSetQualityError(error)) {
     return {
       action: "failed",
-      job: await failOmniAutomationJob({ jobId: job.id, errorMessage: message }),
+      job: await failAutomationJob(job, message),
       error: message,
     };
   }
@@ -117,7 +132,7 @@ async function handleJobError(job: OmniAutomationJob, error: unknown) {
   if (job.attempt_count >= job.max_attempts) {
     return {
       action: "failed",
-      job: await failOmniAutomationJob({ jobId: job.id, errorMessage: message }),
+      job: await failAutomationJob(job, message),
       error: message,
     };
   }
