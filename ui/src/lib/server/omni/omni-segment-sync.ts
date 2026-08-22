@@ -8,6 +8,7 @@ import {
   hasKieSafetyStoryboardRepair,
 } from "./omni-segment-retry";
 import { recordKieGenerationCost } from "./omni-generation-costs";
+import { isKieStoryboardImagePendingError } from "./kie-omni-client";
 import {
   isKiePublicFigureSafetyBlock,
   regenerateKieSafetyBlockedStoryboard,
@@ -18,6 +19,7 @@ export async function syncOmniReelSegments(input: {
   segments: OmniReelSegment[];
 }) {
   let retried = false;
+  let waitingForStoryboardRepair = false;
   for (const segment of input.segments) {
     if (!segment.kie_task_id || segment.status === "completed") continue;
 
@@ -51,7 +53,18 @@ export async function syncOmniReelSegments(input: {
           !hasKieSafetyStoryboardRepair(segment.request_payload);
         if (canRetryOmniSegment(segment.request_payload) || safetyStoryboardRepair) {
           if (safetyStoryboardRepair) {
-            await regenerateKieSafetyBlockedStoryboard({ reel: input.reel, segment });
+            try {
+              await regenerateKieSafetyBlockedStoryboard({
+                reel: input.reel,
+                segment,
+                pendingKieStoryboardTaskId: readPendingSafetyStoryboardTaskId(segment.request_payload),
+              });
+            } catch (error) {
+              if (!isKieStoryboardImagePendingError(error)) throw error;
+              await savePendingSafetyStoryboardTask(segment, error.task.id, error.message);
+              waitingForStoryboardRepair = true;
+              continue;
+            }
           }
           await resetSegmentForRetry(segment, task.raw, message, safetyStoryboardRepair);
           retried = true;
@@ -75,7 +88,7 @@ export async function syncOmniReelSegments(input: {
       );
     }
   }
-  return { retried };
+  return { retried, waitingForStoryboardRepair };
 }
 
 async function resetSegmentForRetry(
@@ -84,6 +97,10 @@ async function resetSegmentForRetry(
   message: string,
   safetyStoryboardRepaired = false
 ) {
+  const retryPayload = buildOmniSegmentRetryPayload(segment.request_payload, message, {
+    safetyStoryboardRepaired,
+  });
+  delete (retryPayload as Record<string, unknown>).omni_kie_safety_storyboard_task_id;
   await pool.query(
     `UPDATE omni_reel_segments
      SET status = 'draft',
@@ -97,12 +114,33 @@ async function resetSegmentForRetry(
     [
       segment.id,
       JSON.stringify(response),
-      JSON.stringify(buildOmniSegmentRetryPayload(segment.request_payload, message, {
-        safetyStoryboardRepaired,
-      })),
+      JSON.stringify(retryPayload),
       message,
     ]
   );
+}
+
+async function savePendingSafetyStoryboardTask(segment: OmniReelSegment, taskId: string, message: string) {
+  await pool.query(
+    `UPDATE omni_reel_segments
+     SET request_payload = $2::jsonb,
+         error_message = $3,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [
+      segment.id,
+      JSON.stringify({
+        ...(segment.request_payload || {}),
+        omni_kie_safety_storyboard_task_id: taskId,
+      }),
+      message,
+    ]
+  );
+}
+
+function readPendingSafetyStoryboardTaskId(payload?: Record<string, unknown> | null) {
+  const value = payload?.omni_kie_safety_storyboard_task_id;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 async function markSegmentFailed(segment: OmniReelSegment, response: unknown, message: string) {

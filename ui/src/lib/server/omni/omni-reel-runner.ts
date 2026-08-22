@@ -443,6 +443,11 @@ export async function syncOmniReel(reelId: number) {
   let stitchedNow = false;
   if (syncResult.retried) {
     await submitOmniReel(reelId, getReelGenerationProvider(updated.segments));
+  } else if (syncResult.waitingForStoryboardRepair) {
+    await pool.query(
+      "UPDATE omni_reels SET status = 'generating', stitch_status = 'not_ready', error_message = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+      [reelId]
+    );
   } else if (hasFailed) {
     await pool.query(
       "UPDATE omni_reels SET status = 'failed', error_message = 'One or more segments failed', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
