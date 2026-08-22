@@ -5,7 +5,7 @@ import { normalizeOpenRouterUsage, type OpenRouterUsageRecord } from "@/lib/omni
 import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "minimax/minimax-m3";
+const DEFAULT_MODEL = "google/gemini-3.5-flash-lite";
 const MIN_CONFIDENCE = 0.7;
 const DIRECTOR_VERIFICATION_REQUEST_TIMEOUT_MS = 90_000;
 

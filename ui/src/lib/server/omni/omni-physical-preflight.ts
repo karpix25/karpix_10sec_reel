@@ -9,6 +9,7 @@ import {
   applyCanonicalStoryboardOverrides,
   normalizePhysicalStoryboardSegment,
 } from "./physical-storyboard-normalizer";
+import { normalizeReferenceSceneMode } from "./omni-reference-scene-mode";
 
 export async function assertOmniPhysicalPreflight(input: {
   reelId: number;
@@ -33,9 +34,10 @@ export async function assertOmniPhysicalPreflight(input: {
       ? normalizePhysicalStoryboardSegment({
       storyboard: sourceStoryboard,
       productName: input.productName,
-      productVisible: segment.creative_plan?.productRole !== "hidden",
-      productRole: segment.creative_plan?.productRole,
-        })
+        productVisible: segment.creative_plan?.productRole !== "hidden",
+        productRole: segment.creative_plan?.productRole,
+        referenceSceneMode: normalizeReferenceSceneMode(segment.creative_plan?.referenceSceneMode) || undefined,
+      })
       : null;
     const normalizedPrompt = storyboard
       ? applyCanonicalStoryboardOverrides(segment.prompt || "", storyboard)

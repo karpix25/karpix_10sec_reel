@@ -28,6 +28,7 @@ export function normalizeOmniPromptPlanWithPhysicalRules(input: {
       storyboard: segment.storyboardPlan,
       productName: input.productName,
       productVisible: segment.creativePlan.productRole !== "hidden",
+      referenceSceneMode: input.referenceSceneMode,
     });
     const validation = validatePhysicalScene({
       storyboard,
@@ -82,6 +83,7 @@ export async function repairOmniPromptPlanWithAi(input: {
         storyboard: applyPatch(storyboard, result.patch.frames),
         productName: input.productName,
         productVisible: segment.creativePlan.productRole !== "hidden",
+        referenceSceneMode: input.referenceSceneMode,
       });
       validation = validatePhysicalScene({
         storyboard,

@@ -65,6 +65,7 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
     lifeFormat: selected.format,
   });
 
+  const voiceoverBrollReference = input.referenceSceneMode === "voiceover_broll";
   return withReferenceSceneMode({
     version: "visual-style-writer-v1",
     scope: "reel",
@@ -72,16 +73,16 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
     providerFormatDescription: input.referenceSceneMode === "voiceover_broll"
       ? "независимый B-roll с закадровым voiceover, с сохранённым молчащим аватаром, без talking-head"
       : selected.format.providerDescription,
-    setting: visualStyle.sceneArc.setting,
-    continuityProps: visualStyle.sceneArc.fixedProps,
-    visualStyle,
+    setting: voiceoverBrollReference ? "по соответствующим независимым reference-кадрам" : visualStyle.sceneArc.setting,
+    continuityProps: voiceoverBrollReference ? [] : visualStyle.sceneArc.fixedProps,
+    visualStyle: voiceoverBrollReference ? undefined : visualStyle,
     hookType,
     hookRule: buildHookRule(hookType),
     productRole,
     productActionRule: buildProductActionRule(productRole),
     ctaMode: input.ctaMode || "article_in_description",
     ctaValue: normalizeOptional(input.ctaValue),
-    selectionReason: `${buildSelectionReason(selected)}; ${visualStyle.selectionReason}`,
+    selectionReason: `${buildSelectionReason(selected)}; ${voiceoverBrollReference ? "reference mode=voiceover_broll" : visualStyle.selectionReason}`,
     score: selected.score,
     forbiddenMotifs: [...new Set([...OMNI_FORBIDDEN_MOTIFS, ...selected.format.forbiddenMotifs])],
     safetyRules: [...new Set([...OMNI_ACTION_SAFETY_RULES, ...selected.format.safetyRules])],

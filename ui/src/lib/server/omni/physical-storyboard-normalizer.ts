@@ -16,6 +16,8 @@ import {
   synchronizeReferenceTransferProductVisibility,
 } from "./omni-reference-transfer-policy";
 import { buildDigitalProductDemoStep } from "./digital-product-scene";
+import { sanitizeVoiceoverBrollStoryboardText } from "./storyboard/omni-storyboard-text-sanitizer";
+import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
 
 const SURFACE_PATTERN = /(?:на столе|на\s+(?:\p{L}+\s+){0,3}поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
 const HELD_PRODUCT_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|(?<!\p{L})одной рукой|в одну руку|в одной руке)/iu;
@@ -33,6 +35,7 @@ export function normalizePhysicalStoryboardSegment(input: {
   productName: string;
   productVisible: boolean;
   productRole?: ProductRole;
+  referenceSceneMode?: ReferenceSceneMode;
 }): OmniStoryboardSegment {
   return {
     ...input.storyboard,
@@ -43,6 +46,7 @@ export function normalizePhysicalStoryboardSegment(input: {
       frameIndex: index + 1,
       frameCount: input.storyboard.frames.length,
       productRole: input.productRole,
+      referenceSceneMode: input.referenceSceneMode,
     })),
   };
 }
@@ -70,11 +74,14 @@ function normalizeFrame(input: {
   frameIndex: number;
   frameCount: number;
   productRole?: ProductRole;
+  referenceSceneMode?: ReferenceSceneMode;
 }): OmniStoryboardFrame {
   const { frame, productName, productVisible } = input;
   const product = productName.trim() || "продукт";
   const spokenText = frame.spokenText.trim();
-  const speechMode = frame.speechMode || frame.physicalPlan?.speechMode;
+  const speechMode = input.referenceSceneMode === "voiceover_broll"
+    ? "voiceover_only"
+    : frame.speechMode || frame.physicalPlan?.speechMode;
   const sourceText = `${frame.visualAction} ${frame.productPlacement} ${frame.sfxNotes} ${frame.effectNotes || ""}`;
   const visibleInFrame = productVisible;
   const productDemo = visibleInFrame && (input.productRole === undefined || input.productRole === "brief_demo") && input.frameCount > 1
@@ -135,10 +142,13 @@ function normalizeFrame(input: {
     visualAction: deliveredVisualAction,
     plan: initialPlan,
   });
+  const canonicalAction = speechMode === "voiceover_only"
+    ? sanitizeVoiceoverBrollStoryboardText(repairedAction)
+    : repairedAction;
   const physicalPlan = buildPhysicalFramePlan({
     productName: product,
     spokenText,
-    visualAction: repairedAction,
+    visualAction: canonicalAction,
     camera: frame.camera,
     productPlacement,
     speechMode,
@@ -149,7 +159,7 @@ function normalizeFrame(input: {
 
   return {
     ...frame,
-    visualAction: repairedAction,
+    visualAction: canonicalAction,
     camera: normalizeVehicleContext(frame.camera),
     environment: normalizeVehicleContext(frame.environment),
     productPlacement,

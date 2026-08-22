@@ -241,11 +241,11 @@ function buildFrame(input: {
     ? productDemoStep.action
     : layoutLocked
       ? visualActionSource
-    : input.segmentIndex === 1 && input.plan.productRole === "hidden"
-      ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName, referenceTransfer, facelessReferenceScene)
+      : input.segmentIndex === 1 && input.plan.productRole === "hidden"
+      ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName, referenceTransfer, facelessReferenceScene, voiceoverBrollReference)
       : productVisible
-        ? renderProductFrameAction(visualActionSource, isCutawayFrame, input.productName, facelessReferenceScene)
-        : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName, facelessReferenceScene);
+        ? renderProductFrameAction(visualActionSource, isCutawayFrame, input.productName, facelessReferenceScene, voiceoverBrollReference)
+        : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName, facelessReferenceScene, voiceoverBrollReference);
   const productPlacement = renderStoryboardProductPlacement(
     input.plan,
     input.productName,
@@ -359,8 +359,12 @@ function renderDirectorCamera(
   ].filter(Boolean).join("; "), 220));
 }
 
-function renderFrameAction(action: string | undefined, isCutawayFrame: boolean, facelessReferenceScene = false) {
-  const normalized = compactText(action || (facelessReferenceScene ? "руки выполняют действие по текущей реплике" : "персонаж естественно говорит в камеру"), 220);
+function renderFrameAction(action: string | undefined, isCutawayFrame: boolean, facelessReferenceScene = false, voiceoverBrollReference = false) {
+  const normalized = compactText(action || (facelessReferenceScene
+    ? "руки выполняют действие по текущей реплике"
+    : voiceoverBrollReference
+      ? "видимый B-roll субъект выполняет действие по текущей реплике"
+      : "персонаж естественно говорит в камеру"), 220);
   if (/REFERENCE LAYOUT|collage\/PIP/iu.test(normalized)) return normalized;
   const visualCue = extractVisualCue(normalized);
   if (visualCue) {
@@ -368,27 +372,33 @@ function renderFrameAction(action: string | undefined, isCutawayFrame: boolean, 
       ? `короткая перебивка: ${visualCue}`
       : facelessReferenceScene
         ? `руки выполняют действие по текущей реплике, визуальный ориентир: ${visualCue}`
+        : voiceoverBrollReference
+          ? `видимый B-roll субъект выполняет действие по текущей реплике, визуальный ориентир: ${visualCue}`
         : `персонаж говорит в камеру, визуальный ориентир: ${visualCue}`;
   }
   return compactText(normalized, 180);
 }
 
-function renderProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false) {
-  const rendered = renderFrameAction(action, isCutawayFrame, facelessReferenceScene);
+function renderProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false, voiceoverBrollReference = false) {
+  const rendered = renderFrameAction(action, isCutawayFrame, facelessReferenceScene, voiceoverBrollReference);
   if (mentionsOmniProduct(rendered, productName)) return rendered;
   return facelessReferenceScene
     ? `${rendered}; рука естественно берет ${productName} и ставит его на ту же поверхность, упаковка повернута лицевой стороной к камере`
+    : voiceoverBrollReference
+      ? `${rendered}; видимый B-roll субъект естественно показывает ${productName} только по смыслу реплики`
     : `${rendered}; герой естественно берет ${productName} в одну руку на уровне груди, упаковка повернута лицевой стороной к камере`;
 }
 
-function renderNonProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false) {
+function renderNonProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false, voiceoverBrollReference = false) {
   const normalized = compactText(action || "", 220);
   const hasProductCue = mentionsOmniProduct(normalized, productName) || /(?:\bproduct\b|продукт|товар|упаков)/iu.test(normalized);
-  if (!hasProductCue) return renderFrameAction(action, isCutawayFrame, facelessReferenceScene);
+  if (!hasProductCue) return renderFrameAction(action, isCutawayFrame, facelessReferenceScene, voiceoverBrollReference);
   return isCutawayFrame
     ? "смысловая перебивка по текущей реплике без товара"
     : facelessReferenceScene
       ? "руки выполняют спокойное действие по текущей реплике, без товара в кадре"
+      : voiceoverBrollReference
+        ? "видимый B-roll субъект выполняет спокойное действие по текущей реплике, без товара в кадре"
       : "персонаж говорит в камеру, спокойный жест руками, без товара в кадре";
 }
 
@@ -397,7 +407,8 @@ function renderIntroFrameAction(
   isCutawayFrame: boolean,
   productName: string,
   referenceTransfer: ReturnType<typeof buildReferenceTransferFramePlan>,
-  facelessReferenceScene = false
+  facelessReferenceScene = false,
+  voiceoverBrollReference = false
 ) {
   const normalized = compactText(action || "", 220);
   const visualCue = extractVisualCue(normalized) || normalized;
@@ -409,12 +420,16 @@ function renderIntroFrameAction(
         ? `${visualCue}; ${support}; реквизит остается видимым в нижней части кадра`
         : facelessReferenceScene
           ? `руки выполняют действие по хуку, ${visualCue}`
+          : voiceoverBrollReference
+            ? `видимый B-roll субъект выполняет действие по хуку, ${visualCue}`
           : `персонаж с пустыми руками, ${visualCue}`;
   }
   return isCutawayFrame
     ? "смысловой кадр окружения по теме хука"
       : facelessReferenceScene
         ? `руки выполняют действие по хуку; ${support || "реквизит остается видимым в нижней части кадра"}`
+        : voiceoverBrollReference
+          ? `видимый B-roll субъект выполняет действие по хуку; ${support || "субъект остается естественно встроен в reference-сцену"}`
         : support
           ? `персонаж естественно говорит в камеру; ${support}; реквизит остается видимым в нижней части кадра`
           : "персонаж с пустыми руками естественно говорит в камеру";
