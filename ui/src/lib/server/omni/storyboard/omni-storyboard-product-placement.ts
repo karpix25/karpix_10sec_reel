@@ -27,11 +27,11 @@ export function renderStoryboardProductPlacement(
   }
 
   if (plan.productRole === "digital_demo") {
-    return appendProductPhysicalHint([
-      physicalDemoPlacement || `${productName} показывается только на экране смартфона по product reference`,
+    return [
+      physicalDemoPlacement || `${productName} показывается на экране смартфона, который герой естественно держит в руке`,
       "это мобильное приложение, не пластиковая карта и не упаковка",
       support,
-    ].filter(Boolean).join("; "), productPhysicalHint);
+    ].filter(Boolean).join("; ");
   }
 
   const placement = plan.productRole === "background_prop"

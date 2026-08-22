@@ -19,6 +19,9 @@ const HOLDING_PATTERN = /(?:держит|держать|в руках|holding|ho
 const MULTI_OBJECT_PATTERN = /(?:несколько предметов|два предмета|multiple objects|two objects|(?:держит|holding|holds|в руках)[^.;]{0,90}(?: и | and ))/iu;
 const TRANSITION_PATTERN = /(?:полож|ставит|кладет|кладёт|убирает|откладывает|берет|берёт|поднимает|замен|переклад|cut|transition|смен)/iu;
 const HIDDEN_PATTERN = /(?:вне кадра|не виден|скрыт|hidden|off\s*camera|only thematic objects|только тематические объекты)/iu;
+const DIGITAL_SCREEN_PATTERN = /(?:смартфон|телефон|экран|smartphone|phone|screen)/iu;
+const DIGITAL_SURFACE_PATTERN = /(?:смартфон|телефон|smartphone|phone)[^.;]{0,90}(?:на столе|на поверхности|лежит|стоит)|(?:на столе|на поверхности|лежит|стоит)[^.;]{0,90}(?:смартфон|телефон|smartphone|phone)/iu;
+const DIGITAL_REVEAL_PATTERN = /(?:поднимает|подносит|вносит|показывает|raises?|brings?|shows?)[^.;]{0,90}(?:смартфон|телефон|smartphone|phone)|(?:смартфон|телефон|smartphone|phone)[^.;]{0,90}(?:поднимает|подносит|вносит|показывает|raises?|brings?|shows?)/iu;
 
 const OBJECT_CUES: readonly [string, RegExp][] = [
   ["cheese", /сыр|cheese/iu],
@@ -68,6 +71,7 @@ export function validatePhysicalScene(input: {
     });
     const currentState = physicalPlan.productState;
     const productVisible = physicalPlan.visibleEntityIds.length > 0;
+    const digitalDemo = input.creativePlan?.productRole === "digital_demo";
     states.push(currentState);
 
     if (physicalPlan.requiredHands + physicalPlan.occupiedHandCount > 2) {
@@ -78,6 +82,12 @@ export function validatePhysicalScene(input: {
     }
     if ((physicalPlan.productState === "unknown" || physicalPlan.productState === "visible") && productVisible) {
       errors.push(`frame_${frameNumber}_product_support_is_ambiguous`);
+    }
+    if (digitalDemo && DIGITAL_SURFACE_PATTERN.test(frame.productPlacement)) {
+      errors.push(`frame_${frameNumber}_digital_product_on_surface`);
+    }
+    if (digitalDemo && currentState === "held" && !DIGITAL_SCREEN_PATTERN.test(text)) {
+      errors.push(`frame_${frameNumber}_digital_product_without_phone_screen`);
     }
 
     if (onCamera && hasConsumptionAction(actionText)) {
@@ -111,7 +121,11 @@ export function validatePhysicalScene(input: {
       speechMode: currentFrame.speechMode || currentFrame.physicalPlan?.speechMode,
     });
     const editorialCut = currentPlan.speechMode === "voiceover_only" && CUTAWAY_PATTERN.test(frameText(currentFrame));
-    if ((previous === "hidden" || current === "hidden") && !editorialCut) {
+    const digitalReveal = input.creativePlan?.productRole === "digital_demo"
+      && previous === "hidden"
+      && current === "held"
+      && DIGITAL_REVEAL_PATTERN.test(transitionText);
+    if ((previous === "hidden" || current === "hidden") && !editorialCut && !digitalReveal) {
       errors.push(`frame_${index + 1}_product_teleports_between_frames`);
     } else if (previous !== "hidden" && current !== "hidden" && !TRANSITION_PATTERN.test(transitionText) && !editorialCut) {
       errors.push(`frame_${index + 1}_object_state_change_without_transition`);

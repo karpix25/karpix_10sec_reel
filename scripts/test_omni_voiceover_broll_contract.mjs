@@ -93,8 +93,9 @@ try {
   assert.match(strategy.providerFormatDescription, /B-roll/iu);
 
   const digitalStep = digital.buildDigitalProductDemoStep({ productName: "Плати по миру", frameIndex: 3, frameCount: 5 });
-  assert.match(digitalStep.action, /экран|смартфон/iu);
-  assert.match(digitalStep.placement, /(?:не|без) пластиковой карты/iu);
+  assert.match(digitalStep.action, /поднимает смартфон.*одной руке/iu);
+  assert.match(digitalStep.placement, /держит смартфон.*экран повернут к камере/iu);
+  assert.doesNotMatch(digitalStep.placement, /столе|поверхности|лежит|стоит/iu);
 
   const voiceSegments = [
     "Покажу мобильное приложение Плати по миру для спокойных поездок без лишних банковских поисков и сложных переводов.",
