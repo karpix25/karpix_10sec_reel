@@ -110,6 +110,11 @@ export function buildStoryboardImagePrompt(input: {
             ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник независимых B-roll локаций, ракурсов, света, движения камеры и монтажа из плана панели. Лицо и личность бери из avatar reference @file1; не копируй исходных людей, рекламный товар, текст или логотипы.`
           : `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник локации, ракурса, света, одежды, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо только из @file1; не копируй исходный рекламный товар, текст или логотипы.`
       : "",
+    !avatarFreeReferenceScene && !objectOnlyReferenceScene && !facelessReferenceScene
+      ? montageReference || voiceoverBrollReference
+        ? "PERSON REPLACEMENT LOCK: любые люди, лица, волосы, тела и кожа в director reference — только визуальные заглушки для композиции и действия. Полностью замени их на одного сохранённого аватара из @file1; не копируй исходных мужчин, женщин или случайных людей. Сохраняй только локацию, позу, ракурс и движение."
+        : "PERSON REPLACEMENT LOCK: лицо, волосы, тело и кожа героя берутся только из @file1. Люди из director reference — только заглушки композиции; не копируй их внешность."
+      : "",
     isPipLayout && !avatarFreeReferenceScene
       ? "REFERENCE LAYOUT: оригинал целиком в PIP/collage. В каждой панели полноэкранный динамичный фон и avatar cutout в нижнем левом углу с той же позицией, размером и белой обводкой; не делай centered talking-head."
       : "",
