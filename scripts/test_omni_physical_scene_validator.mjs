@@ -342,6 +342,48 @@ try {
   assert.equal(firstDemoPlan.productState, "surface");
   assert.equal(firstDemoPlan.actionKind, "neutral_speech", "initial product position must not be parsed as put_down");
 
+  const digitalStoryboard = storyboardBuilder.buildStoryboardFromCreativePlan({
+    plan: {
+      segmentIndex: 1,
+      lifeFormatId: "talking_head_cutaways",
+      speechStartsAtSeconds: 0,
+      voiceoverText: "Покажу мобильное приложение чтобы спокойно платить за границей без лишних сложностей и заранее проверить всё перед поездкой",
+      productRole: "digital_demo",
+      continuityProps: [],
+      beats: [
+        { startSeconds: 0, endSeconds: 3, action: "герой спокойно говорит в камеру" },
+        { startSeconds: 3, endSeconds: 7, action: "герой показывает экран смартфона" },
+        { startSeconds: 7, endSeconds: 10, action: "герой продолжает объяснение" },
+      ],
+    },
+    productName: "Плати по миру виртуальная карта",
+    characterContract: {
+      identityLine: "главный персонаж",
+      clothingLine: "черная куртка",
+      sourceRuleLine: "фиксированный образ",
+      clothingSource: "fallback",
+      speechGender: "male",
+      speechGenderLine: "мужской род",
+    },
+    segmentIndex: 1,
+    durationSeconds: 10,
+  });
+  assert.ok(digitalStoryboard.frames.some((item) => /поднимает смартфон.*одной руке/iu.test(item.visualAction)));
+  assert.ok(digitalStoryboard.frames.every((item) => !/смартфон|телефон/iu.test(item.productPlacement) || !/столе|поверхности|лежит|стоит/iu.test(item.productPlacement)));
+  const digitalValidation = validator.validatePhysicalScene({
+    storyboard: digitalStoryboard,
+    creativePlan: { productRole: "digital_demo", beats: [] },
+    productName: "Плати по миру виртуальная карта",
+  });
+  assert.equal(digitalValidation.valid, true, JSON.stringify(digitalValidation));
+  assert.ok(
+    validator.validatePhysicalScene({
+      storyboard: storyboard([frame("Покажу приложение", "герой показывает экран смартфона", "смартфон стоит на столе")]),
+      creativePlan: { productRole: "digital_demo", beats: [] },
+      productName: "Плати по миру виртуальная карта",
+    }).errors.includes("frame_1_digital_product_on_surface")
+  );
+
   const biteWhileSpeaking = validator.validatePhysicalScene({
     storyboard: storyboard([
       frame("Вот мой перекус", "герой говорит в камеру и кусает морковь", "морковь в руке"),
