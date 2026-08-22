@@ -16,6 +16,7 @@ export function isKiePublicFigureSafetyBlock(error: unknown) {
 export async function regenerateKieSafetyBlockedStoryboard(input: {
   reel: OmniReel;
   segment: OmniReelSegment;
+  pendingKieStoryboardTaskId?: string | null;
 }) {
   const productName = readSnapshotText(input.reel.product_snapshot, "name", "product_name") || "product";
   const storyboard = normalizeStoryboardSource({
@@ -53,6 +54,7 @@ export async function regenerateKieSafetyBlockedStoryboard(input: {
     directorBrief: null,
     referenceSceneMode,
     generationProvider: normalizeOmniGenerationProvider(input.segment.generation_provider),
+    pendingKieStoryboardTaskId: input.pendingKieStoryboardTaskId || null,
     referenceSafetyInstructions: [
       "Use only the supplied avatar as the person. Do not portray, resemble, or imitate a public figure, celebrity, politician, or other known person.",
     ],
