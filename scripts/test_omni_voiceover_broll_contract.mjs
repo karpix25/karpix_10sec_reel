@@ -75,6 +75,10 @@ try {
     "VOICEOVER B-ROLL. Do not use talking-head framing or lip-sync; narration stays off-camera.",
     "voiceover_broll"
   ));
+  assert.doesNotThrow(() => mode.assertReferenceScenePromptContract(
+    "Не показывай talking-head и lip-sync; голос звучит за кадром.",
+    "voiceover_broll"
+  ));
   assert.throws(
     () => mode.assertReferenceScenePromptContract("The avatar says: test", "voiceover_broll"),
     /Avatar-led B-roll prompt contract failed/iu

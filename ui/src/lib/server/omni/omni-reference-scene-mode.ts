@@ -138,7 +138,7 @@ export function assertReferenceScenePromptContract(prompt: string, mode: Referen
   }
 }
 
-const PROMPT_NEGATION_PATTERN = /\b(?:do\s+not|don't|never|no|without|avoid|не|без|запрещ|не\s+показывай|не\s+добавляй|не\s+используй)\b/iu;
+const PROMPT_NEGATION_PATTERN = /(?<![\p{L}\p{N}])(?:do\s+not|don't|never|no|without|avoid|не|без|запрещ|не\s+показывай|не\s+добавляй|не\s+используй)(?![\p{L}\p{N}])/iu;
 
 function hasPositivePromptInstruction(prompt: string, pattern: RegExp) {
   return prompt
