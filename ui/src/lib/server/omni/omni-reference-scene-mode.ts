@@ -119,8 +119,8 @@ export function renderReferenceSceneModeForDirectorPrompt(mode: ReferenceSceneMo
 export function assertReferenceScenePromptContract(prompt: string, mode: ReferenceSceneMode) {
   if (mode === "voiceover_broll") {
     const violations = [
-      /The avatar says:/iu.test(prompt) ? "avatar speech instruction" : "",
-      /говорит\s+в\s+камеру|talking-head\s+(?:кадр|framing)|lip-sync/iu.test(prompt) ? "talking-head instruction" : "",
+      hasPositivePromptInstruction(prompt, /The avatar says:/iu) ? "avatar speech instruction" : "",
+      hasPositivePromptInstruction(prompt, /говорит\s+в\s+камеру|talking-head\s+(?:кадр|framing)|lip-sync/iu) ? "talking-head instruction" : "",
     ].filter(Boolean);
     if (violations.length) {
       throw new Error(`Avatar-led B-roll prompt contract failed: ${violations.join(", ")}`);
@@ -129,11 +129,19 @@ export function assertReferenceScenePromptContract(prompt: string, mode: Referen
   }
   if (!isAvatarFreeReferenceScene(mode)) return;
   const violations = [
-    /The avatar says:/iu.test(prompt) ? "avatar speech instruction" : "",
+    hasPositivePromptInstruction(prompt, /The avatar says:/iu) ? "avatar speech instruction" : "",
     /avatar\/character reference: единственный человек/iu.test(prompt) ? "avatar reference instruction" : "",
-    /говорит\s+в\s+камеру|talking-head\s+(?:кадр|framing)/iu.test(prompt) ? "talking-head instruction" : "",
+    hasPositivePromptInstruction(prompt, /говорит\s+в\s+камеру|talking-head\s+(?:кадр|framing)/iu) ? "talking-head instruction" : "",
   ].filter(Boolean);
   if (violations.length) {
     throw new Error(`Avatar-free reference prompt contract failed: ${violations.join(", ")}`);
   }
+}
+
+const PROMPT_NEGATION_PATTERN = /\b(?:do\s+not|don't|never|no|without|avoid|не|без|запрещ|не\s+показывай|не\s+добавляй|не\s+используй)\b/iu;
+
+function hasPositivePromptInstruction(prompt: string, pattern: RegExp) {
+  return prompt
+    .split(/[\n.;!?]+/u)
+    .some((fragment) => pattern.test(fragment) && !PROMPT_NEGATION_PATTERN.test(fragment));
 }
