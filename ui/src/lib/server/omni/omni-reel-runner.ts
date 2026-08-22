@@ -279,7 +279,8 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
     const finalProviderPrompt = providerPrompt;
     assertReferenceScenePromptContract(finalProviderPrompt, referenceSceneMode);
     const usesStoryboardReference = selectedReferenceImages.sent.some((image) => image.role === "storyboard");
-    const videoCharacterId = provider === "kie-ai" && !avatarFreeReferenceScene ? avatarCharacterId : null;
+    const omitCharacterForSafety = segment.request_payload?.omni_kie_safety_fallback_without_character === true;
+    const videoCharacterId = provider === "kie-ai" && !avatarFreeReferenceScene && !omitCharacterForSafety ? avatarCharacterId : null;
     const continuitySourceSegmentId =
       typeof continuity.metadata.sourceSegmentId === "number"
         ? continuity.metadata.sourceSegmentId
