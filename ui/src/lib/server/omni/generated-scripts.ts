@@ -36,6 +36,10 @@ import {
   repairOmniPromptPlanWithAi,
 } from "./omni-physical-repair-pipeline";
 import { resolveReferenceFrameCount } from "./reference-segment-plan";
+import {
+  assertStoryboardPlanSemanticReviewPassed,
+  reviewStoryboardPlanSemantics,
+} from "./storyboard-plan-semantic-reviewer";
 
 const PROMPT_REPAIR_TIMEOUT_MS = 15_000;
 
@@ -185,6 +189,25 @@ export async function buildGeneratedScriptPromptPreview(input: {
   });
   assertPhysicalPromptPlan(promptPlan);
   assertStoryboardPromptContracts(promptPlan, product.name, resolveReferenceFormatMode(directorBrief));
+  const storyboardSemanticReview = await reviewStoryboardPlanSemantics({
+    model: process.env.OMNI_STORYBOARD_SEMANTIC_REVIEW_MODEL?.trim()
+      || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL?.trim()
+      || process.env.SCENARIO_MODEL?.trim()
+      || "google/gemini-2.5-flash",
+    script: resolvedGeneratedScript.script,
+    productName: product.name,
+    productDescription: product.description,
+    directorBrief,
+    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
+    referenceFormatMode: resolveReferenceFormatMode(directorBrief),
+    segments: promptPlan.map((segment) => ({
+      index: segment.index,
+      voiceoverText: segment.voiceoverText,
+      productRole: segment.creativePlan.productRole,
+      storyboardPlan: segment.storyboardPlan,
+    })),
+  });
+  assertStoryboardPlanSemanticReviewPassed(storyboardSemanticReview);
   const storyboardReferenceFrameCountBySegment = new Map<number, number>();
   for (const segment of promptPlan) {
     const frameCount = isCollagePictureInPictureReference(directorBrief)
@@ -324,6 +347,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     duration_seconds: sourceScenario.duration_seconds,
     source_reference: sourceScenario.source_reference,
     quality_check: generated.qualityCheck,
+    semantic_review: generated.semanticReview || generated.payload.semantic_review || null,
     openrouter_usage: openRouterUsage,
     openrouter_cost: openRouterCost,
     director_analysis_id: directorAnalysis?.id || null,

@@ -20,6 +20,24 @@ export type CreativeScriptDraft = {
   creativeNotes: string | null;
 };
 
+export type ScriptSemanticReview = {
+  version: "script-semantic-review-v1";
+  passed: boolean;
+  productNamed: boolean;
+  productValueStated: boolean;
+  hookAnswered: boolean;
+  finalAnswerPresent: boolean;
+  productNaturallyIntegrated: boolean;
+  referenceMeaningPreserved: boolean;
+  evidence: {
+    product: string;
+    value: string;
+    answer: string;
+  };
+  issues: string[];
+  repairInstructions: string[];
+};
+
 export type DirectorShot = {
   role: DirectorShotRole;
   action: string;
@@ -90,6 +108,7 @@ export type LlmPromptChainSnapshot = {
   creativeScriptDraft: CreativeScriptDraft;
   directorSegmentPlan: DirectorSegmentPlan;
   providerPromptPlan: ProviderPromptPlan;
+  semanticReview: ScriptSemanticReview;
   validationIssues: PromptValidationIssue[];
 };
 

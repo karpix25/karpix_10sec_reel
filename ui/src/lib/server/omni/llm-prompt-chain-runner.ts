@@ -32,6 +32,15 @@ import {
   validateDirectorSegmentPlan,
   validateProviderPromptPlan,
 } from "./provider-prompt-contract-validator";
+import {
+  validateStoryboardDirectorPlan,
+  validateStoryboardProviderAlignment,
+  validateStoryboardProviderPlan,
+} from "./llm-prompt-chain-storyboard-validator";
+import {
+  assertScriptSemanticReviewPassed,
+  reviewScriptSemantics,
+} from "./script-semantic-reviewer";
 import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
 import { planOmniReelSegments } from "./omni-duration-planner";
 
@@ -51,7 +60,8 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   const onUsage = (usage: OpenRouterUsageRecord) => openRouterUsage.push(usage);
 
   const draft = await runCreativeCopywriter(input, onUsage);
-  const directorPlan = await runDirectorSegmenter(input, draft, onUsage);
+  const directorResult = await runDirectorSegmenter(input, draft, onUsage);
+  const directorPlan = directorResult.plan;
   const providerPlan = await runProviderPromptWriter(input, directorPlan, onUsage);
   const script = sanitizeOmniScriptText(formatScenarioScript(directorPlan.totalVoiceover));
   assertOmniScriptTextContract(script);
@@ -79,6 +89,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
         creativeScriptDraft: draft,
         directorSegmentPlan: directorPlan,
         providerPromptPlan: providerPlan,
+        semanticReview: directorResult.semanticReview,
         validationIssues: [],
       },
     },
@@ -144,11 +155,24 @@ async function runDirectorSegmenter(
       assertRussianSpeechGender(finalScript, input.avatarSpeechGender);
       const issues = [
         ...validateDirectorSegmentPlan(plan),
+        ...validateStoryboardDirectorPlan(plan),
       ].filter((issue) => issue.severity === "error");
       if (issues.length) throw new Error(formatPromptValidationIssues(issues));
       planOmniReelSegments(finalScript, { durationRange: input.durationRange });
       assertPromptChainScriptQuality(input, finalScript, plan.selectedHook);
-      return plan;
+      const semanticReview = await reviewScriptSemantics({
+        model: input.model,
+        script: finalScript,
+        referenceScript: input.sourceScenario.script,
+        productName: input.productName,
+        productDescription: input.productDescription,
+        productReferenceNotes: input.productReferenceNotes,
+        ctaMode: input.ctaMode,
+        ctaValue: input.ctaValue,
+        directorBrief: input.directorBrief,
+      }, onUsage, attempt);
+      assertScriptSemanticReviewPassed(semanticReview);
+      return { plan, semanticReview };
     } catch (error) {
       lastError = error;
       retryFeedback = buildValidationRetry("director plan", error);
@@ -182,6 +206,8 @@ async function runProviderPromptWriter(
       );
       const issues = [
         ...validateProviderPromptPlan(plan),
+        ...validateStoryboardProviderPlan(plan),
+        ...validateStoryboardProviderAlignment(directorPlan, plan),
       ].filter((issue) => issue.severity === "error");
       if (issues.length) throw new Error(formatPromptValidationIssues(issues));
       return plan;

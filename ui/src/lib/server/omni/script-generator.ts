@@ -32,6 +32,11 @@ import {
   MAX_SCRIPT_GENERATION_ATTEMPTS,
 } from "./script-generation-retry";
 import { isLlmPromptChainEnabled, runLlmPromptChain } from "./llm-prompt-chain-runner";
+import {
+  assertScriptSemanticReviewPassed,
+  reviewScriptSemantics,
+} from "./script-semantic-reviewer";
+import type { ScriptSemanticReview } from "./llm-prompt-chain-types";
 import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
 import { getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
 import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
@@ -50,6 +55,7 @@ export type GeneratedScriptResultPayload = {
   cta_keyword: string;
   lead_magnet: string;
   background_audio_mood: AudioMood;
+  semantic_review: ScriptSemanticReview | null;
 };
 
 export async function generateScript(input: {
@@ -70,6 +76,7 @@ export async function generateScript(input: {
 }): Promise<{
   payload: GeneratedScriptResultPayload;
   qualityCheck: ScriptQualityResult;
+  semanticReview: ScriptSemanticReview | null;
   openRouterUsage: OpenRouterUsageRecord[];
   llmPromptChainSnapshot?: Record<string, unknown>;
 }> {
@@ -131,6 +138,7 @@ async function requestPromptChainScript(input: Parameters<typeof generateScript>
     cta_keyword: sanitizeOmniScriptText(generated.result.ctaKeyword),
     lead_magnet: sanitizeOmniScriptText(generated.result.leadMagnet),
     background_audio_mood: generated.result.backgroundAudioMood,
+    semantic_review: generated.result.snapshot.semanticReview,
   };
   const qualityCheck = validateViralScriptContract({
     script: payload.script,
@@ -146,6 +154,7 @@ async function requestPromptChainScript(input: Parameters<typeof generateScript>
   return {
     payload,
     qualityCheck,
+    semanticReview: payload.semantic_review,
     openRouterUsage: generated.openRouterUsage,
     llmPromptChainSnapshot: generated.result.snapshot,
   };
@@ -240,6 +249,7 @@ async function requestScriptOnce(
     cta_keyword: clean(parsed.cta_keyword),
     lead_magnet: clean(parsed.lead_magnet),
     background_audio_mood: normalizeAudioMood(parsed.background_audio_mood, detectAudioMoodFromText(script)),
+    semantic_review: null,
   };
 
   const qualityCheck = validateViralScriptContract({
@@ -258,9 +268,23 @@ async function requestScriptOnce(
   } catch (error) {
     throw new Error(`Сценарий отклонен: ${error instanceof Error ? error.message : String(error)}`);
   }
+  const semanticReview = await reviewScriptSemantics({
+    model: input.model,
+    script,
+    referenceScript: input.sourceScenario.script,
+    productName: input.productName,
+    productDescription: input.productDescription,
+    productReferenceNotes: input.productReferenceNotes,
+    ctaMode: input.ctaMode,
+    ctaValue: input.ctaValue,
+    directorBrief: input.directorBrief,
+  }, onUsage, attempt);
+  assertScriptSemanticReviewPassed(semanticReview);
+  payload.semantic_review = semanticReview;
   return {
     payload,
     qualityCheck,
+    semanticReview,
   };
 }
 

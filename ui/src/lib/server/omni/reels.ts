@@ -43,6 +43,10 @@ import { assertStoryboardPromptContracts } from "./storyboard/storyboard-contrac
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { generateStoryboardReferenceUrls, reserveOmniReelId } from "./omni-reel-storyboard-generator";
 import { resolveReferenceFrameCount } from "./reference-segment-plan";
+import {
+  assertStoryboardPlanSemanticReviewPassed,
+  reviewStoryboardPlanSemantics,
+} from "./storyboard-plan-semantic-reviewer";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -289,6 +293,25 @@ export async function createOmniReel(input: {
   });
   assertPhysicalPromptPlan(promptPlan);
   assertStoryboardPromptContracts(promptPlan, product.name, resolveReferenceFormatMode(directorBrief));
+  const storyboardSemanticReview = await reviewStoryboardPlanSemantics({
+    model: process.env.OMNI_STORYBOARD_SEMANTIC_REVIEW_MODEL?.trim()
+      || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL?.trim()
+      || process.env.SCENARIO_MODEL?.trim()
+      || "google/gemini-2.5-flash",
+    script: scriptText,
+    productName: product.name,
+    productDescription: product.description,
+    directorBrief,
+    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
+    referenceFormatMode: resolveReferenceFormatMode(directorBrief),
+    segments: promptPlan.map((segment) => ({
+      index: segment.index,
+      voiceoverText: segment.voiceoverText,
+      productRole: segment.creativePlan.productRole,
+      storyboardPlan: segment.storyboardPlan,
+    })),
+  });
+  assertStoryboardPlanSemanticReviewPassed(storyboardSemanticReview);
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
   const referenceSceneMode = resolveReferenceSceneMode(creativeStrategy);
   const reservedReelId = await reserveOmniReelId();

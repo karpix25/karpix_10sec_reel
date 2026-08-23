@@ -24,6 +24,9 @@ export function buildDirectorLayoutContract(
 ): DirectorLayoutContract | null {
   if (!brief || policy.mode !== "full_reference" || !isCollagePictureInPictureReference(brief)) return null;
   const hasProductBackground = referenceUsesProductOrScienceBackground(brief);
+  const backgroundDescription = hasProductBackground
+    ? "full-frame background layer shows the new product reference and relevant product visuals instead of the original product"
+    : "full-frame background layer follows the reference location, action, and camera; replace only a source product when the director analysis marks one";
 
   return {
     id: "collage_picture_in_picture",
@@ -43,14 +46,16 @@ export function buildDirectorLayoutContract(
       "REFERENCE SCENE PASSPORT:",
       "collage/PIP layout stays fixed;",
       "lower-left presenter cutout with thick white paper outline stays fixed;",
-      "full-frame background layer shows the new product reference and relevant science/skin visuals instead of the original product;",
-      "do not replace this with a room, table, corridor, sofa, or generic studio wall.",
+      `${backgroundDescription};`,
+      "do not replace the reference background with unrelated science, skin, room, table, corridor, sofa, or generic studio visuals.",
     ].join(" "),
     actionLine: [
       "REFERENCE ACTION DNA:",
       "presenter remains a lower-left cutout speaking to camera while the background layer changes behind them.",
-      "Replace the original background product with the new product reference from the first relevant frame.",
-      "Use product/science/skin visual backgrounds tied to the spoken point; do not turn the layout into a normal centered talking-head shot.",
+      hasProductBackground
+        ? "Replace the original background product with the new product reference from the first relevant frame."
+        : "Keep the reference background subject and visual action; do not invent a product-science or skin visual layer.",
+      "Use only background visuals tied to the spoken point; do not turn the layout into a normal centered talking-head shot.",
     ].join(" "),
     continuityProps: [
       {
@@ -59,8 +64,8 @@ export function buildDirectorLayoutContract(
         initialPosition: "fixed in the lower-left safe zone for the whole segment",
       },
       {
-        name: "dynamic product-science background",
-        appearance: "full-frame background layer with the new product reference and relevant science/skin visuals",
+        name: hasProductBackground ? "dynamic product background" : "reference-matched background B-roll",
+        appearance: backgroundDescription,
         initialPosition: "behind the cutout avatar, filling the vertical frame",
       },
     ],
@@ -88,16 +93,25 @@ export function applyDirectorLayoutToPlan(
     continuityProps: layout.continuityProps,
     beats: plan.beats.map((beat, index) => ({
       ...beat,
-      action: buildCollageBeatAction(index, beat.action, showProductBackground),
+      action: buildCollageBeatAction(index, beat.action, showProductBackground, layout.requiresOpeningProductBackground),
     })) as unknown as OmniSegmentCreativePlan["beats"],
   };
 }
 
-function buildCollageBeatAction(index: number, originalAction: string, showProductBackground: boolean) {
+function buildCollageBeatAction(
+  index: number,
+  originalAction: string,
+  showProductBackground: boolean,
+  hasProductBackground: boolean,
+) {
   const cue = extractScenarioCue(originalAction);
   const productLayer = showProductBackground
-    ? "full-frame background layer uses new product reference plus science/skin visuals"
-    : "full-frame background layer uses science/skin visuals without unrelated props";
+    ? hasProductBackground
+      ? "full-frame background layer uses the new product reference and relevant product visuals"
+      : "full-frame background layer follows the reference action and location"
+    : hasProductBackground
+      ? "full-frame background layer uses relevant product visuals without unrelated props"
+      : "full-frame background layer follows the reference action and location without unrelated props";
   const base = [
     index === 0
       ? `REFERENCE LAYOUT: COLLAGE PICTURE-IN-PICTURE; lower-left corner cutout avatar with thick white paper outline; collage/PIP opening frame; ${productLayer}`

@@ -3,6 +3,8 @@ export type OpenRouterUsageLayer =
   | "director_analysis_verification"
   | "product_analysis"
   | "script_writer"
+  | "script_semantic_reviewer"
+  | "storyboard_semantic_reviewer"
   | "creative_copywriter"
   | "director_segmenter"
   | "provider_prompt_writer";
@@ -142,6 +144,8 @@ export function getOpenRouterLayerLabel(layer: OpenRouterUsageLayer) {
   if (layer === "director_analysis") return "Режиссёрский анализ";
   if (layer === "director_analysis_verification") return "Проверка режиссёрского анализа";
   if (layer === "product_analysis") return "Анализ продукта";
+  if (layer === "script_semantic_reviewer") return "Смысловая проверка сценария";
+  if (layer === "storyboard_semantic_reviewer") return "Проверка смысла раскадровки";
   if (layer === "creative_copywriter") return "Креативный сценарист";
   if (layer === "director_segmenter") return "Режиссёр сегментов";
   if (layer === "provider_prompt_writer") return "Промпт райтер";
@@ -180,6 +184,8 @@ function normalizeStoredUsageLayer(value: unknown): OpenRouterUsageLayer {
     value === "director_analysis_verification" ||
     value === "product_analysis" ||
     value === "script_writer" ||
+    value === "script_semantic_reviewer" ||
+    value === "storyboard_semantic_reviewer" ||
     value === "creative_copywriter" ||
     value === "director_segmenter" ||
     value === "provider_prompt_writer"
