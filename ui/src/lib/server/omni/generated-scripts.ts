@@ -28,13 +28,14 @@ import { extractDirectorBriefFromSnapshot, normalizeDirectorBrief } from "./dire
 import { isAvatarFreeReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
-import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
+import { readSourceDurationSeconds, STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import {
   normalizeOmniPromptPlanWithPhysicalRules,
   repairOmniPromptPlanWithAi,
 } from "./omni-physical-repair-pipeline";
+import { resolveReferenceFrameCount } from "./reference-segment-plan";
 
 const PROMPT_REPAIR_TIMEOUT_MS = 15_000;
 
@@ -131,6 +132,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
   if (!project) throw new Error("Omni client project not found");
   const durationRange = await resolveOmniDurationRange({ project, product });
   const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script, { durationRange });
+  const referenceSourceDurationSeconds = readSourceDurationSeconds(resolvedGeneratedScript.source_snapshot);
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
   const directorBrief = extractDirectorBriefFromSnapshot(resolvedGeneratedScript.source_snapshot);
   const referenceSceneModeFromBrief = resolveReferenceSceneMode(directorBrief);
@@ -151,6 +153,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     recentFormatIds,
     wardrobeSource: project.wardrobe_source,
     directorBrief,
+    referenceSourceDurationSeconds,
   });
   const promptRepairPromise = repairOmniPromptPlanWithAi({
     promptPlan: basePromptPlan,
@@ -182,6 +185,18 @@ export async function buildGeneratedScriptPromptPreview(input: {
   });
   assertPhysicalPromptPlan(promptPlan);
   assertStoryboardPromptContracts(promptPlan, product.name, resolveReferenceFormatMode(directorBrief));
+  const storyboardReferenceFrameCountBySegment = new Map<number, number>();
+  for (const segment of promptPlan) {
+    const frameCount = isCollagePictureInPictureReference(directorBrief)
+      ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
+      : segment.referenceSegmentPlan
+        ? resolveReferenceFrameCount(
+          segment.referenceSegmentPlan.renderMode,
+          segment.referenceSegmentPlan.beats.length
+        )
+        : null;
+    if (frameCount) storyboardReferenceFrameCountBySegment.set(segment.index, frameCount);
+  }
   const storyboardGeneration = prepareSegmentStoryboardDirectorReferenceUrls({
     sourceSnapshot: resolvedGeneratedScript.source_snapshot,
     storageTarget: {
@@ -192,6 +207,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     framesPerSegment: isCollagePictureInPictureReference(directorBrief)
       ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
       : undefined,
+    framesPerSegmentBySegment: storyboardReferenceFrameCountBySegment,
     segments: promptPlan.map((segment) => ({
       index: segment.index,
       durationSeconds: segment.durationSeconds,
@@ -211,6 +227,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
       index: segment.index,
       storyboardPlan: segment.storyboardPlan,
       productRole: segment.creativePlan.productRole,
+      referenceSegmentPlan: segment.referenceSegmentPlan,
     })),
     generationProvider: input.generationProvider,
   }));

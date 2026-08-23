@@ -71,8 +71,8 @@ export async function prepareSegmentStoryboardDirectorReferenceUrls(input: {
   storageTarget: StorageTarget;
   segments: readonly StoryboardReferenceSegment[];
   framesPerSegment?: number;
+  framesPerSegmentBySegment?: ReadonlyMap<number, number>;
 }) {
-  const framesPerSegment = input.framesPerSegment || STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT;
   const bySegment = new Map<number, string[]>();
   if (!input.segments.length) return bySegment;
 
@@ -90,6 +90,7 @@ export async function prepareSegmentStoryboardDirectorReferenceUrls(input: {
         });
       }
       for (const segment of input.segments) {
+        const framesPerSegment = resolveFramesPerSegment(input, segment.index);
         const transcriptSeekSeconds = transcriptWords?.length
           ? buildSegmentReferenceSeekSecondsFromWords({
               segment,
@@ -126,23 +127,35 @@ export async function prepareSegmentStoryboardDirectorReferenceUrls(input: {
     }
   }
 
-  return buildSegmentFallbackReferenceUrls({ ...input, framesPerSegment });
+  return buildSegmentFallbackReferenceUrls(input);
 }
 
 function buildSegmentFallbackReferenceUrls(input: {
   directorAnalysis?: Parameters<typeof extractDirectorReferenceImageUrls>[0]["directorAnalysis"];
   sourceSnapshot?: unknown;
   segments: readonly StoryboardReferenceSegment[];
-  framesPerSegment: number;
+  framesPerSegment?: number;
+  framesPerSegmentBySegment?: ReadonlyMap<number, number>;
 }) {
-  const fallbackUrls = extractDirectorReferenceImageUrls({
-    directorAnalysis: input.directorAnalysis,
-    sourceSnapshot: input.sourceSnapshot,
-    limit: input.framesPerSegment,
-  });
   const bySegment = new Map<number, string[]>();
-  for (const segment of input.segments) bySegment.set(segment.index, fallbackUrls);
+  for (const segment of input.segments) {
+    const fallbackUrls = extractDirectorReferenceImageUrls({
+      directorAnalysis: input.directorAnalysis,
+      sourceSnapshot: input.sourceSnapshot,
+      limit: resolveFramesPerSegment(input, segment.index),
+    });
+    bySegment.set(segment.index, fallbackUrls);
+  }
   return bySegment;
+}
+
+function resolveFramesPerSegment(input: {
+  framesPerSegment?: number;
+  framesPerSegmentBySegment?: ReadonlyMap<number, number>;
+}, segmentIndex: number) {
+  return input.framesPerSegmentBySegment?.get(segmentIndex)
+    || input.framesPerSegment
+    || STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT;
 }
 
 function formatError(error: unknown) {

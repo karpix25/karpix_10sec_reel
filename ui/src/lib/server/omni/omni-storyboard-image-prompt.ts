@@ -7,6 +7,7 @@ import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { isAvatarFreeReferenceScene, isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import type { ProductRole } from "../../omni/creative-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
+import { renderReferenceSegmentPlanForPrompt, type ReferenceSegmentPlan } from "./reference-segment-plan";
 
 export function buildStoryboardImagePrompt(input: {
   segmentIndex: number;
@@ -20,6 +21,7 @@ export function buildStoryboardImagePrompt(input: {
   canonicalStoryboardReferenceUrl?: string | null;
   previousStoryboardReferenceUrl?: string | null;
   directorBrief?: DirectorBrief | null;
+  referenceSegmentPlan?: ReferenceSegmentPlan | null;
   referenceSceneMode?: ReferenceSceneMode;
   repairInstructions?: readonly string[];
 }) {
@@ -57,6 +59,7 @@ export function buildStoryboardImagePrompt(input: {
     : "";
   return [
     `UGC-storyboard: черный фон, ровно ${frameCount} вертикальных панелей в ряд, белые разделители и номер панели.`,
+    renderReferenceSegmentPlanForPrompt(input.referenceSegmentPlan),
     "В каждой панели: живой вертикальный кадр, точная реплика на русском, короткие подписи РАКУРС и ДЕЙСТВИЕ.",
     "Без рекламного дизайна, элементов соцсетей, водяных знаков, captions, стикеров и декора; экран продукта допустим только по product reference.",
     objectOnlyReferenceScene

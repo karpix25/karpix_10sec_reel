@@ -341,6 +341,7 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
         ...(provider === "kie-ai" && usesStoryboardReference ? ["kie_storyboard_visual_authority_v1"] : []),
       ],
       creative_plan: segment.creative_plan,
+      reference_segment_plan: segment.reference_segment_plan || null,
       storyboard_plan: segment.storyboard_plan,
       storyboard_validation: segment.storyboard_validation,
       prompt_validation: segment.prompt_validation,

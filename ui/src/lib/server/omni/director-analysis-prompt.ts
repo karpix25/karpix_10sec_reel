@@ -3,7 +3,7 @@ import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contra
 import { renderReferenceSceneModeForDirectorPrompt, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { renderReferenceFormatContract, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v9";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v10";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
@@ -20,7 +20,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
   return [
     "Analyze the attached video and transcript.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "reference_subject_mode, reference_format_mode, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
+    "reference_subject_mode, reference_format_mode, reference_render_mode, reference_motion_mode, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -34,6 +34,8 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
     "- Values must be descriptive but compact.",
     "- reference_subject_mode MUST be classified from visible frames and narration, not transcript alone: presenter, voiceover_broll, faceless_hands, body_crop, or object_only. Use voiceover_broll when the meaning is carried by off-camera voiceover over independent B-roll cutaways; the saved avatar may remain the silent visual protagonist, but there is no stable talking-head performance. Use faceless_hands only when only hands/props are visible; never invent a face or avatar.",
     "- reference_format_mode MUST be classified from the visible edit and narration: continuous_story when one scene and physical state continue between segments; voiceover_montage when one narrator carries the meaning across independent cutaways where location, action, camera setup, or outfit can change while the main presenter remains the same.",
+    "- reference_render_mode MUST be classified from the actual visual production: talking_head, voiceover_broll, fast_montage, object_hands, animation, or mixed. Choose animation for cartoon, anime, illustrated, stop-motion, 2D, or 3D visual production; choose mixed when the source changes production mode between scenes.",
+    "- reference_motion_mode MUST describe how the new segment should be produced: continuous_motion, montage, or animated_still. This is a visual production classification, not a guess from the transcript.",
     "- location_timeline must describe any location/environment changes by seconds. If the location never changes, return one item for the whole video.",
     "- camera_timeline must cover the whole source video with 2-8 chronological intervals. For each interval record exact seconds, shot type, angle, movement, stabilization, setting, environment, lighting, visible action, gesture, and speech_mode. Set speech_mode to on_camera when the visible person is speaking/lip-syncing to camera, voiceover_only when narration continues over an independent B-roll/cutaway, or silent when nobody speaks. This is per interval: a hybrid reference may alternate on_camera and voiceover_only. Preserve raw smartphone texture, handheld shake, focus/exposure changes, and vehicle sway when visible. A moving car is allowed; the presenter is a passenger, never the driver.",
     "- clothing.source names whose outfit style is being described, usually the main presenter.",
@@ -58,6 +60,7 @@ export function renderDirectorBriefForScriptPrompt(brief: DirectorBrief | null) 
     "Режиссерский анализ оригинального видео:",
     `- ${renderReferenceSceneModeForDirectorPrompt(resolveReferenceSceneMode(brief))}`,
     `- ${renderReferenceFormatContract(resolveReferenceFormatMode(brief), resolveReferenceSceneMode(brief))}`,
+    brief.reference_render_mode ? `- Тип production: ${brief.reference_render_mode}; motion mode: ${brief.reference_motion_mode || "continuous_motion"}.` : "",
     `- Визуальный хук: ${brief.visual_hook.action}; удержание: ${brief.visual_hook.retention_trigger}.`,
     `- Атмосфера: ${brief.atmosphere.mood}; место: ${brief.atmosphere.setting}; свет: ${brief.atmosphere.lighting}.`,
     `- Одежда: ${brief.clothing.style}; палитра: ${brief.clothing.color_palette.join(", ") || "не указана"}.`,
@@ -86,6 +89,9 @@ export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
   return [
     renderReferenceSceneModeForDirectorPrompt(resolveReferenceSceneMode(brief)),
     renderReferenceFormatContract(resolveReferenceFormatMode(brief), resolveReferenceSceneMode(brief)),
+    brief.reference_render_mode
+      ? `REFERENCE PRODUCTION MODE: ${brief.reference_render_mode}; motion mode: ${brief.reference_motion_mode || "continuous_motion"}.`
+      : "",
     `REFERENCE DIRECTION: visual hook - ${brief.visual_hook.action}; retention trigger - ${brief.visual_hook.retention_trigger}.`,
     `ATMOSPHERE: ${brief.atmosphere.mood}; ${brief.atmosphere.setting}; ${brief.atmosphere.lighting}; ${brief.atmosphere.color_grading}.`,
     `WARDROBE: ${brief.clothing.style}; ${brief.clothing.fit_details}; colors: ${brief.clothing.color_palette.join(", ") || "natural neutral palette"}; source: ${brief.clothing.source}.`,
@@ -111,6 +117,8 @@ function buildDirectorBriefSkeleton() {
   return {
     reference_subject_mode: "presenter|voiceover_broll|faceless_hands|body_crop|object_only",
     reference_format_mode: "continuous_story|voiceover_montage",
+    reference_render_mode: "talking_head|voiceover_broll|fast_montage|object_hands|animation|mixed",
+    reference_motion_mode: "continuous_motion|montage|animated_still",
     visual_hook: { action: "", retention_trigger: "" },
     atmosphere: { mood: "", lighting: "", color_grading: "", setting: "" },
     clothing: {

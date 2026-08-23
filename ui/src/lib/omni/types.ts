@@ -302,6 +302,7 @@ export interface OmniReelSegment {
   prompt: string | null;
   voiceover_text: string | null;
   creative_plan: OmniSegmentCreativePlan | null;
+  reference_segment_plan?: Record<string, unknown> | null;
   storyboard_plan?: OmniStoryboardPlanSource | null;
   storyboard_validation?: OmniStoryboardValidationResult | null;
   storyboard_reference_url?: string | null;

@@ -33,7 +33,7 @@ import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveOmniAvatarContext } from "./omni-avatar-context";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
-import { STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
+import { readSourceDurationSeconds, STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 import {
   normalizeOmniPromptPlanWithPhysicalRules,
@@ -42,6 +42,7 @@ import {
 import { assertStoryboardPromptContracts } from "./storyboard/storyboard-contract-validator";
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { generateStoryboardReferenceUrls, reserveOmniReelId } from "./omni-reel-storyboard-generator";
+import { resolveReferenceFrameCount } from "./reference-segment-plan";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -167,6 +168,8 @@ export async function createOmniReel(input: {
   const segmentPlan = planOmniReelSegments(scriptText, { durationRange });
   const targetDuration = segmentPlan.durationSeconds;
   const segmentCount = segmentPlan.segmentCount;
+  const referenceSourceDurationSeconds = sourceScenario?.duration_seconds
+    || readSourceDurationSeconds(resolvedGeneratedScript?.source_snapshot);
   const latestAvatar = await getLatestOmniClientAvatar(input.projectId);
   const avatarContext = resolveOmniAvatarContext({ avatar: latestAvatar, directorBrief });
   const {
@@ -268,6 +271,7 @@ export async function createOmniReel(input: {
       ctaValue: product.cta_value,
       recentFormatIds,
       wardrobeSource: project.wardrobe_source,
+      referenceSourceDurationSeconds,
     }),
     productName: product.name,
     productPhysicalContract: product.product_physical_contract,
@@ -288,6 +292,18 @@ export async function createOmniReel(input: {
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
   const referenceSceneMode = resolveReferenceSceneMode(creativeStrategy);
   const reservedReelId = await reserveOmniReelId();
+  const storyboardReferenceFrameCountBySegment = new Map<number, number>();
+  for (const segment of promptPlan) {
+    const frameCount = isCollagePictureInPictureReference(directorBrief)
+      ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
+      : segment.referenceSegmentPlan
+        ? resolveReferenceFrameCount(
+          segment.referenceSegmentPlan.renderMode,
+          segment.referenceSegmentPlan.beats.length
+        )
+        : null;
+    if (frameCount) storyboardReferenceFrameCountBySegment.set(segment.index, frameCount);
+  }
   const storyboardDirectorReferenceImageUrlsBySegment = await prepareSegmentStoryboardDirectorReferenceUrls({
     directorAnalysis: sourceScenarioAnalysis,
     sourceSnapshot: resolvedGeneratedScript?.source_snapshot || sourceSnapshot,
@@ -299,6 +315,7 @@ export async function createOmniReel(input: {
     framesPerSegment: isCollagePictureInPictureReference(directorBrief)
       ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
       : undefined,
+    framesPerSegmentBySegment: storyboardReferenceFrameCountBySegment,
     segments: promptPlan.map((segment) => ({
       index: segment.index,
       durationSeconds: segment.durationSeconds,
@@ -323,6 +340,7 @@ export async function createOmniReel(input: {
       promptPlan: promptPlan.map((segment) => ({
         index: segment.index,
         storyboardPlan: segment.storyboardPlan,
+        referenceSegmentPlan: segment.referenceSegmentPlan,
       })),
       generationProvider: input.generationProvider,
     });
@@ -414,12 +432,13 @@ export async function createOmniReel(input: {
            reference_url,
            voiceover_text,
            creative_plan,
+           reference_segment_plan,
            storyboard_plan,
            storyboard_validation,
            storyboard_reference_url,
            prompt_validation
          )
-         VALUES ($1, $2, $3, $4, 'draft', $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12::jsonb)`,
+         VALUES ($1, $2, $3, $4, 'draft', $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13::jsonb)`,
         [
           reel.id,
           index + 1,
@@ -429,6 +448,7 @@ export async function createOmniReel(input: {
           segmentPrompt.referenceUrl,
           segmentPrompt.voiceoverText,
           JSON.stringify(segmentPrompt.creativePlan),
+          segmentPrompt.referenceSegmentPlan ? JSON.stringify(segmentPrompt.referenceSegmentPlan) : null,
           segmentPrompt.storyboardPlan ? JSON.stringify(segmentPrompt.storyboardPlan) : null,
           segmentPrompt.storyboardValidation ? JSON.stringify(segmentPrompt.storyboardValidation) : null,
           storyboardReferenceUrls[index] || null,

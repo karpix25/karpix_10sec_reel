@@ -30,6 +30,7 @@ import {
   resolveStoryboardImageGenerationAttempt,
   withStoryboardGenerationAttemptCount,
 } from "./storyboard-repair-limit";
+import type { ReferenceSegmentPlan } from "./reference-segment-plan";
 
 const DEFAULT_COMETAPI_BASE_URL = "https://api.cometapi.com";
 const STORYBOARD_IMAGE_MODEL = "gpt-image-2";
@@ -61,6 +62,7 @@ type StoryboardImageInput = {
   previousRepairInstructions?: readonly string[];
   previousGenerationAttemptCount?: number;
   directorBrief?: DirectorBrief | null;
+  referenceSegmentPlan?: ReferenceSegmentPlan | null;
   referenceSceneMode?: ReferenceSceneMode;
   generationProvider?: OmniGenerationProvider;
   pendingKieStoryboardTaskId?: string | null;
@@ -249,6 +251,7 @@ async function generateKieStoryboardImageBytes(input: {
   canonicalStoryboardReferenceUrl: string | null;
   previousStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
+  referenceSegmentPlan?: ReferenceSegmentPlan | null;
   referenceSceneMode: ReferenceSceneMode;
   pendingKieStoryboardTaskId?: string | null;
   repairInstructions: readonly string[];
@@ -300,6 +303,7 @@ async function generateCometStoryboardImageBytes(input: {
   canonicalStoryboardReferenceUrl: string | null;
   previousStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
+  referenceSegmentPlan?: ReferenceSegmentPlan | null;
   referenceSceneMode: ReferenceSceneMode;
   repairInstructions: readonly string[];
 }): Promise<GeneratedStoryboardImage> {
@@ -332,6 +336,7 @@ async function createStoryboardImage(input: {
   canonicalStoryboardReferenceUrl: string | null;
   previousStoryboardReferenceUrl: string | null;
   directorBrief?: DirectorBrief | null;
+  referenceSegmentPlan?: ReferenceSegmentPlan | null;
   referenceSceneMode: ReferenceSceneMode;
   repairInstructions: readonly string[];
 }) {

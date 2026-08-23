@@ -4,6 +4,16 @@ import type { PhysicalSpeechMode } from "../../omni/physical-scene-types";
 
 export type DirectorAnalysisStatus = "pending" | "processing" | "completed" | "failed";
 
+export type ReferenceRenderMode =
+  | "talking_head"
+  | "voiceover_broll"
+  | "fast_montage"
+  | "object_hands"
+  | "animation"
+  | "mixed";
+
+export type ReferenceMotionMode = "continuous_motion" | "montage" | "animated_still";
+
 export type DirectorLocationTimelineItem = {
   start_sec: number;
   end_sec: number;
@@ -68,6 +78,8 @@ export type DirectorVisualTransferContract = {
 export type DirectorBrief = {
   reference_subject_mode?: ReferenceSceneMode;
   reference_format_mode?: ReferenceFormatMode;
+  reference_render_mode?: ReferenceRenderMode;
+  reference_motion_mode?: ReferenceMotionMode;
   visual_hook: {
     action: string;
     retention_trigger: string;
@@ -163,6 +175,12 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
     ) || undefined,
     reference_format_mode: normalizeReferenceFormatMode(
       candidate.reference_format_mode ?? candidate.referenceFormatMode
+    ) || undefined,
+    reference_render_mode: normalizeReferenceRenderMode(
+      candidate.reference_render_mode ?? candidate.referenceRenderMode
+    ) || undefined,
+    reference_motion_mode: normalizeReferenceMotionMode(
+      candidate.reference_motion_mode ?? candidate.referenceMotionMode
     ) || undefined,
     visual_hook: {
       action: stringValue(visualHook.action),
@@ -385,6 +403,29 @@ function stringArray(value: unknown) {
 
 function stringValue(value: unknown) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
+
+function normalizeReferenceRenderMode(value: unknown): ReferenceRenderMode | null {
+  const modes: readonly ReferenceRenderMode[] = [
+    "talking_head",
+    "voiceover_broll",
+    "fast_montage",
+    "object_hands",
+    "animation",
+    "mixed",
+  ];
+  const normalized = stringValue(value).toLowerCase().split(" ").join("_").split("-").join("_");
+  return modes.includes(normalized as ReferenceRenderMode)
+    ? normalized as ReferenceRenderMode
+    : null;
+}
+
+function normalizeReferenceMotionMode(value: unknown): ReferenceMotionMode | null {
+  const modes: readonly ReferenceMotionMode[] = ["continuous_motion", "montage", "animated_still"];
+  const normalized = stringValue(value).toLowerCase().split(" ").join("_").split("-").join("_");
+  return modes.includes(normalized as ReferenceMotionMode)
+    ? normalized as ReferenceMotionMode
+    : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -44,6 +44,7 @@ import {
 import { getStoryboardRepairMode } from "./storyboard-repair-reference";
 import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveReferenceFormatMode, type ReferenceFormatMode } from "./omni-reference-format-mode";
+import type { ReferenceSegmentPlan } from "./reference-segment-plan";
 import {
   buildGeneratedScriptStoryboardReferenceSignature,
   getSegmentDirectorReferenceUrls,
@@ -57,6 +58,7 @@ type StoryboardPromptSegment = {
   index: number;
   storyboardPlan: OmniStoryboardSegment | null;
   productRole?: ProductRole;
+  referenceSegmentPlan?: ReferenceSegmentPlan | null;
 };
 
 type EnsureGeneratedScriptStoryboardUrlsInput = {
@@ -119,6 +121,7 @@ async function ensureGeneratedScriptStoryboardUrlsLocked(input: EnsureGeneratedS
       segmentIndex: segment.index,
       productRole: segment.productRole,
       storyboardPlan: segment.storyboardPlan,
+      referenceSegmentPlan: segment.referenceSegmentPlan,
       canonicalStoryboardReferenceUrl,
       generationProvider: input.generationProvider,
       deferVisualQa,
@@ -207,6 +210,7 @@ async function tryGenerateStoryboardPreview(input: {
   referenceSignature: string;
   segmentIndex: number;
   storyboardPlan: OmniStoryboardSegment;
+  referenceSegmentPlan?: ReferenceSegmentPlan | null;
   canonicalStoryboardReferenceUrl: string | null;
   pendingKieStoryboardTaskId?: string | null;
   generationProvider?: OmniGenerationProvider;
@@ -255,6 +259,7 @@ async function tryGenerateStoryboardPreview(input: {
         ? input.productReferenceUrls
         : [],
       directorReferenceImageUrls: getSegmentDirectorReferenceUrls(input, input.segmentIndex),
+      referenceSegmentPlan: input.referenceSegmentPlan,
       canonicalStoryboardReferenceUrl: input.canonicalStoryboardReferenceUrl,
       directorBrief: input.directorBrief,
       referenceSceneMode: input.referenceSceneMode,
@@ -346,6 +351,7 @@ async function ensureStoryboardSetApproval(
           referenceSignature,
           segmentIndex,
           storyboardPlan,
+          referenceSegmentPlan: input.promptPlan.find((segment) => segment.index === segmentIndex)?.referenceSegmentPlan,
           canonicalStoryboardReferenceUrl,
           previousStoryboardReferenceUrl: repairMode === "patch"
             ? urls.get(segmentIndex) || repairContext.previousStoryboardReferenceUrl

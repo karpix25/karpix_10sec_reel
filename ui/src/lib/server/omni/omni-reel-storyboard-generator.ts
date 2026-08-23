@@ -50,6 +50,7 @@ export async function generateStoryboardReferenceUrls(input: {
             ? input.productReferenceUrls
             : [],
           directorReferenceImageUrls: Array.from(input.directorReferenceImageUrlsBySegment?.get(segmentPrompt.index) || []),
+          referenceSegmentPlan: segmentPrompt.referenceSegmentPlan,
           avatarReferenceUrl: input.avatarReferenceUrl,
           canonicalStoryboardReferenceUrl,
           directorBrief: input.directorBrief,

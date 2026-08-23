@@ -66,6 +66,11 @@ import {
   repairPhysicalScenePrompt,
   validatePhysicalScene,
 } from "./physical-scene-validator";
+import {
+  buildReferenceSegmentPlan,
+  renderReferenceSegmentPlanForPrompt,
+  type ReferenceSegmentPlan,
+} from "./reference-segment-plan";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -78,6 +83,7 @@ export type OmniSegmentPrompt = {
   storyboardValidation: OmniStoryboardValidationResult | null;
   creativeStrategy: OmniCreativeStrategy;
   creativePlan: OmniSegmentCreativePlan;
+  referenceSegmentPlan: ReferenceSegmentPlan | null;
   validation: OmniPromptValidationResult;
 };
 
@@ -97,6 +103,7 @@ type BuildOmniPromptsInput = {
   ctaMode?: CtaMode;
   ctaValue?: string | null;
   recentFormatIds?: readonly LifeFormatId[];
+  referenceSourceDurationSeconds?: number | null;
 };
 
 export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegmentPrompt[] {
@@ -184,6 +191,8 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   assertOmniCtaContract(scriptText, strategy);
   const prompts: OmniSegmentPrompt[] = [];
   let previousContinuityState: OmniGenerationContinuityState | null = null;
+  let outputStartSeconds = 0;
+  const outputTotalDurationSeconds = segmentDurationsSeconds.reduce((sum, value) => sum + value, 0);
 
   for (let index = 0; index < voiceSegments.length; index += 1) {
     const segmentIntent = segmentIntents[index];
@@ -191,6 +200,15 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const segmentSeconds = segmentDurationsSeconds[index] || input.segmentSeconds;
     const segmentRole = getSegmentRole(segmentIndex, input.segmentCount);
     const segmentScriptBeats = selectScriptBeatsForSegment(scriptPlan, segmentIndex, input.segmentCount);
+    const referenceSegmentPlan = buildReferenceSegmentPlan({
+      brief: directorBrief,
+      segmentIndex,
+      segmentCount: input.segmentCount,
+      segmentSeconds,
+      outputStartSeconds,
+      outputTotalDurationSeconds,
+      sourceDurationSeconds: input.referenceSourceDurationSeconds,
+    });
     const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole);
     const segmentProductVisualPassport = productVisualPassport;
     const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
@@ -241,10 +259,13 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       directorBrief,
       referenceSceneMode,
     }), validation), referenceSceneMode);
+    const promptWithReferencePlan = [prompt, renderReferenceSegmentPlanForPrompt(referenceSegmentPlan)]
+      .filter(Boolean)
+      .join("\n\n");
     prompts.push({
       index: segmentIndex,
       role: segmentRole,
-      prompt,
+      prompt: promptWithReferencePlan,
       referenceUrl: selectReferenceUrl(productRole, avatarReference, productReference, referenceSceneMode),
       durationSeconds: segmentSeconds,
       voiceoverText: plan.voiceoverText,
@@ -252,11 +273,13 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       storyboardValidation: null,
       creativeStrategy: strategy,
       creativePlan: plan,
+      referenceSegmentPlan,
       validation,
     });
     previousContinuityState = referenceFormatMode === "voiceover_montage"
       ? null
       : continuityDirection.nextState;
+    outputStartSeconds += segmentSeconds;
   }
 
   const voiceoverIsolationErrors = validatePromptVoiceoverIsolation(prompts);
@@ -331,10 +354,25 @@ function buildStoredProviderPromptSegments(
     productRole: strategy.productRole,
   });
 
+  let outputStartSeconds = 0;
+  const outputTotalDurationSeconds = providerPromptPlan.segmentPrompts.reduce(
+    (sum, segment) => sum + segment.durationSeconds,
+    0
+  );
+
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
     const segmentIntent = segmentIntents[index];
     const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole);
+    const referenceSegmentPlan = buildReferenceSegmentPlan({
+      brief: directorBrief,
+      segmentIndex,
+      segmentCount: providerPromptPlan.segmentPrompts.length,
+      segmentSeconds: segment.durationSeconds,
+      outputStartSeconds,
+      outputTotalDurationSeconds,
+      sourceDurationSeconds: input.referenceSourceDurationSeconds,
+    });
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,
@@ -371,10 +409,14 @@ function buildStoredProviderPromptSegments(
       directorBrief,
       referenceSceneMode,
     }), validation), referenceSceneMode);
+    const promptWithReferencePlan = [prompt, renderReferenceSegmentPlanForPrompt(referenceSegmentPlan)]
+      .filter(Boolean)
+      .join("\n\n");
+    outputStartSeconds += segment.durationSeconds;
     return {
       index: segmentIndex,
       role: getSegmentRole(segmentIndex, providerPromptPlan.segmentPrompts.length),
-      prompt,
+      prompt: promptWithReferencePlan,
       referenceUrl: selectReferenceUrl(productRole, avatarReference, productReference, referenceSceneMode),
       durationSeconds: segment.durationSeconds,
       voiceoverText: segment.voiceover,
@@ -382,6 +424,7 @@ function buildStoredProviderPromptSegments(
       storyboardValidation: null,
       creativeStrategy: strategy,
       creativePlan,
+      referenceSegmentPlan,
       validation,
     };
   });

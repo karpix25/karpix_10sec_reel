@@ -161,6 +161,8 @@ try {
   assert.equal(laterProfile.actor_gesture, "points at the surface");
   const analysisPrompt = buildDirectorAnalysisUserPrompt({ transcript: "Тест" });
   assert.ok(analysisPrompt.includes("camera_timeline"));
+  assert.ok(analysisPrompt.includes("reference_render_mode"));
+  assert.ok(analysisPrompt.includes("reference_motion_mode"));
   assert.ok(analysisPrompt.includes("raw smartphone texture"));
   const rendered = renderDirectorBriefForOmniPrompt(brief);
   assert.ok(rendered.includes("full-body presenter"));
