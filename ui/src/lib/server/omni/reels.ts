@@ -15,7 +15,6 @@ import { listRecentLifeFormatIds } from "./omni-creative-history";
 import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
 import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
-import { generateStoryboardImage } from "./omni-storyboard-image-generator";
 import {
   ensureGeneratedScriptStoryboardUrls,
 } from "./generated-script-storyboard-previews";
@@ -23,31 +22,25 @@ import { resolveProductReferenceImageUrls } from "./omni-product-reference-image
 import { detectKieOmniVoiceGender } from "./kie-omni-audio";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
-import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import type { OmniGenerationProvider } from "@/lib/omni/provider";
 import {
   extractDirectorBriefFromSnapshot,
   normalizeDirectorBrief,
-  type DirectorBrief,
 } from "./director-analysis-types";
 import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveOmniAvatarContext } from "./omni-avatar-context";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { readSourceDurationSeconds, STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
-import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 import {
-  normalizeOmniPromptPlanWithPhysicalRules,
   repairOmniPromptPlanWithAi,
 } from "./omni-physical-repair-pipeline";
-import { assertStoryboardPromptContracts } from "./storyboard/storyboard-contract-validator";
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { generateStoryboardReferenceUrls, reserveOmniReelId } from "./omni-reel-storyboard-generator";
 import { resolveReferenceFrameCount } from "./reference-segment-plan";
 import {
-  assertStoryboardPlanSemanticReviewPassed,
-  reviewStoryboardPlanSemantics,
-} from "./storyboard-plan-semantic-reviewer";
+  prepareOmniPromptPlanWithSemanticRepair,
+} from "./omni-storyboard-semantic-repair";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -180,7 +173,6 @@ export async function createOmniReel(input: {
   const avatarContext = resolveOmniAvatarContext({ avatar: latestAvatar, directorBrief });
   const {
     avatarForPrompt,
-    facelessReferenceScene: facelessReferenceSceneFromBrief,
     avatarFreeReferenceScene: avatarFreeReferenceSceneFromBrief,
     speechGender: avatarSpeechGender,
   } = avatarContext;
@@ -287,17 +279,8 @@ export async function createOmniReel(input: {
     directorBrief,
     referenceSceneMode: resolveReferenceSceneMode(directorBrief),
   });
-  const promptPlan = normalizeOmniPromptPlanWithPhysicalRules({
+  const promptPlan = await prepareOmniPromptPlanWithSemanticRepair({
     promptPlan: repairedPromptPlan,
-    productName: product.name,
-    productPhysicalContract: product.product_physical_contract,
-    segmentCount,
-    directorBrief,
-    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
-  });
-  assertPhysicalPromptPlan(promptPlan);
-  assertStoryboardPromptContracts(promptPlan, product.name, resolveReferenceFormatMode(directorBrief));
-  const storyboardSemanticReview = await reviewStoryboardPlanSemantics({
     model: process.env.OMNI_STORYBOARD_SEMANTIC_REVIEW_MODEL?.trim()
       || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL?.trim()
       || process.env.SCENARIO_MODEL?.trim()
@@ -305,17 +288,11 @@ export async function createOmniReel(input: {
     script: scriptText,
     productName: product.name,
     productDescription: product.description,
+    productPhysicalContract: product.product_physical_contract,
     directorBrief,
     referenceSceneMode: resolveReferenceSceneMode(directorBrief),
     referenceFormatMode: resolveReferenceFormatMode(directorBrief),
-    segments: promptPlan.map((segment) => ({
-      index: segment.index,
-      voiceoverText: segment.voiceoverText,
-      productRole: segment.creativePlan.productRole,
-      storyboardPlan: segment.storyboardPlan,
-    })),
   });
-  assertStoryboardPlanSemanticReviewPassed(storyboardSemanticReview);
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
   const referenceSceneMode = resolveReferenceSceneMode(creativeStrategy);
   const reservedReelId = await reserveOmniReelId();

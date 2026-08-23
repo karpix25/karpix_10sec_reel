@@ -14,7 +14,6 @@ import { getOmniProject } from "./projects";
 import { listRecentLifeFormatIds } from "./omni-creative-history";
 import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
 import { ensureOmniScriptCta } from "./omni-cta-contract";
-import { assertStoryboardPromptContracts } from "./storyboard/storyboard-contract-validator";
 import { generateScript } from "./script-generator";
 import { resolveReadyGeneratedScriptReference } from "./generated-script-reference-selection";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
@@ -29,7 +28,6 @@ import { isAvatarFreeReferenceScene, resolveReferenceSceneMode } from "./omni-re
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { readSourceDurationSeconds, STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
-import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import {
   normalizeOmniPromptPlanWithPhysicalRules,
@@ -37,9 +35,8 @@ import {
 } from "./omni-physical-repair-pipeline";
 import { resolveReferenceFrameCount } from "./reference-segment-plan";
 import {
-  assertStoryboardPlanSemanticReviewPassed,
-  reviewStoryboardPlanSemantics,
-} from "./storyboard-plan-semantic-reviewer";
+  prepareOmniPromptPlanWithSemanticRepair,
+} from "./omni-storyboard-semantic-repair";
 
 const PROMPT_REPAIR_TIMEOUT_MS = 15_000;
 
@@ -179,17 +176,8 @@ export async function buildGeneratedScriptPromptPreview(input: {
       referenceSceneMode: resolveReferenceSceneMode(directorBrief),
     })
   );
-  const promptPlan = normalizeOmniPromptPlanWithPhysicalRules({
+  const promptPlan = await prepareOmniPromptPlanWithSemanticRepair({
     promptPlan: repairedPromptPlan,
-    productName: product.name,
-    productPhysicalContract: product.product_physical_contract,
-    segmentCount: segmentPlan.segmentCount,
-    directorBrief,
-    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
-  });
-  assertPhysicalPromptPlan(promptPlan);
-  assertStoryboardPromptContracts(promptPlan, product.name, resolveReferenceFormatMode(directorBrief));
-  const storyboardSemanticReview = await reviewStoryboardPlanSemantics({
     model: process.env.OMNI_STORYBOARD_SEMANTIC_REVIEW_MODEL?.trim()
       || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL?.trim()
       || process.env.SCENARIO_MODEL?.trim()
@@ -197,17 +185,11 @@ export async function buildGeneratedScriptPromptPreview(input: {
     script: resolvedGeneratedScript.script,
     productName: product.name,
     productDescription: product.description,
+    productPhysicalContract: product.product_physical_contract,
     directorBrief,
     referenceSceneMode: resolveReferenceSceneMode(directorBrief),
     referenceFormatMode: resolveReferenceFormatMode(directorBrief),
-    segments: promptPlan.map((segment) => ({
-      index: segment.index,
-      voiceoverText: segment.voiceoverText,
-      productRole: segment.creativePlan.productRole,
-      storyboardPlan: segment.storyboardPlan,
-    })),
   });
-  assertStoryboardPlanSemanticReviewPassed(storyboardSemanticReview);
   const storyboardReferenceFrameCountBySegment = new Map<number, number>();
   for (const segment of promptPlan) {
     const frameCount = isCollagePictureInPictureReference(directorBrief)
