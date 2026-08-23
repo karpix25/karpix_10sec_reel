@@ -3,6 +3,10 @@ import { writeFile } from "fs/promises";
 import path from "path";
 import { getAudioMoodLabel, normalizeAudioMood } from "@/lib/audio-library/moods";
 import type { AudioTrack } from "@/lib/audio-library/types";
+import {
+  shouldAddReferenceMusic,
+  type DirectorAudioProfile,
+} from "@/lib/omni/director-audio-profile";
 import { chooseAudioTrackForMood } from "@/lib/server/audio-library/tracks";
 import { runOmniFfmpeg, runOmniFfprobeDuration } from "./omni-ffmpeg";
 
@@ -26,11 +30,22 @@ export type OmniBackgroundAudioResult =
 export async function mixBackgroundAudioForReel(input: {
   reelId: number;
   mood: unknown;
+  referenceAudioProfile?: DirectorAudioProfile | null;
   sourceVideoPath: string;
   workdir: string;
 }): Promise<OmniBackgroundAudioResult> {
   const durationSeconds = await runOmniFfprobeDuration(input.sourceVideoPath);
-  const mood = normalizeAudioMood(input.mood);
+  if (!shouldAddReferenceMusic(input.referenceAudioProfile)) {
+    return {
+      status: "skipped",
+      outputPath: input.sourceVideoPath,
+      track: null,
+      durationSeconds,
+      reason: "В референсе нет подтверждённой фоновой музыки",
+    };
+  }
+
+  const mood = normalizeAudioMood(input.referenceAudioProfile?.mood, normalizeAudioMood(input.mood));
   const track = await chooseAudioTrackForMood(mood);
   if (!track) {
     return {

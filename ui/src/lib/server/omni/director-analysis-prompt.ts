@@ -3,7 +3,7 @@ import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contra
 import { renderReferenceSceneModeForDirectorPrompt, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { renderReferenceFormatContract, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v10";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v11-audio";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
@@ -11,7 +11,8 @@ export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "Treat visible frames as the factual source of truth: verify the opening, middle, and ending setup before using the transcript. A vehicle cabin, handheld phone shake, visible food, or a passenger seat must never be rewritten as a home or studio.",
   "Return only valid JSON. Do not include markdown, prose, comments, or extra keys.",
   "Do not describe or request application interfaces, social app overlays, buttons, like/share icons, comments, subtitles, captions, progress bars, brand logos, or UI elements.",
-  "Focus only on raw footage: subject actions, visual hook, location timeline, atmosphere, clothing style, camera language, lighting, and reusable scene mechanics.",
+  "Focus only on raw footage: subject actions, visual hook, location timeline, atmosphere, clothing style, camera language, lighting, reusable scene mechanics, and the audible music layer.",
+  "Listen to the attached video's audio when supported. Distinguish spoken voice, background music, natural production sound, and sound effects. Do not confuse speech or ambient noise with music.",
   "Do not turn the reference speaker's speech tempo or pauses into generation instructions. Do extract visible camera changes, cuts, and transitions exactly as observed, including film burn, light leak, exposure flash, lens flare, blur, wipe, fade, or other edit treatment.",
   "Extract reusable direction without copying the creator identity, face, brand, exact location, logos, protected marks, or platform interface.",
 ].join("\n");
@@ -20,7 +21,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
   return [
     "Analyze the attached video and transcript.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "reference_subject_mode, reference_format_mode, reference_render_mode, reference_motion_mode, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
+    "reference_subject_mode, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -36,6 +37,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
     "- reference_format_mode MUST be classified from the visible edit and narration: continuous_story when one scene and physical state continue between segments; voiceover_montage when one narrator carries the meaning across independent cutaways where location, action, camera setup, or outfit can change while the main presenter remains the same.",
     "- reference_render_mode MUST be classified from the actual visual production: talking_head, voiceover_broll, fast_montage, object_hands, animation, or mixed. Choose animation for cartoon, anime, illustrated, stop-motion, 2D, or 3D visual production; choose mixed when the source changes production mode between scenes.",
     "- reference_motion_mode MUST describe how the new segment should be produced: continuous_motion, montage, or animated_still. This is a visual production classification, not a guess from the transcript.",
+    "- audio_profile MUST classify the actual reference audio. Set music_present to true only when a non-diegetic or clearly musical layer is audible; set it to false for speech, silence, room tone, traffic, handling noise, and isolated natural SFX. Return music_role as none, background_bed, rhythmic_edit_driver, emotional_accent, or unknown; mood as energetic, calm, dramatic, inspiring, playful, or serious; energy as low, medium, high, or unknown; tempo as slow, medium, fast, or unknown; voice_priority as low, medium, high, or unknown; confidence as a number from 0 to 1; and evidence as one short factual sentence. If the audio is unclear, lower confidence and do not claim music is present.",
     "- location_timeline must describe any location/environment changes by seconds. If the location never changes, return one item for the whole video.",
     "- camera_timeline must cover the whole source video with 2-8 chronological intervals. For each interval record exact seconds, shot type, angle, movement, stabilization, setting, environment, lighting, visible action, gesture, and speech_mode. Set speech_mode to on_camera when the visible person is speaking/lip-syncing to camera, voiceover_only when narration continues over an independent B-roll/cutaway, or silent when nobody speaks. This is per interval: a hybrid reference may alternate on_camera and voiceover_only. Preserve raw smartphone texture, handheld shake, focus/exposure changes, and vehicle sway when visible. A moving car is allowed; the presenter is a passenger, never the driver.",
     "- clothing.source names whose outfit style is being described, usually the main presenter.",
@@ -119,6 +121,16 @@ function buildDirectorBriefSkeleton() {
     reference_format_mode: "continuous_story|voiceover_montage",
     reference_render_mode: "talking_head|voiceover_broll|fast_montage|object_hands|animation|mixed",
     reference_motion_mode: "continuous_motion|montage|animated_still",
+    audio_profile: {
+      music_present: false,
+      music_role: "none|background_bed|rhythmic_edit_driver|emotional_accent|unknown",
+      mood: "energetic|calm|dramatic|inspiring|playful|serious",
+      energy: "low|medium|high|unknown",
+      tempo: "slow|medium|fast|unknown",
+      voice_priority: "low|medium|high|unknown",
+      confidence: 0,
+      evidence: "",
+    },
     visual_hook: { action: "", retention_trigger: "" },
     atmosphere: { mood: "", lighting: "", color_grading: "", setting: "" },
     clothing: {

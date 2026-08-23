@@ -4,6 +4,7 @@ import { Bot, ExternalLink, Film, ImageUp, Play, RefreshCw, Video, WandSparkles 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getAudioMoodLabel, normalizeAudioMood } from "@/lib/audio-library/moods";
+import { shouldAddReferenceMusic } from "@/lib/omni/director-audio-profile";
 import { getOmniReelSubtitleCue } from "@/lib/omni/subtitle-status-labels";
 import { getOmniReelPlaybackUrl } from "@/lib/omni/reel-playback";
 import type { OmniClientAvatar, OmniProduct, OmniProject, OmniReel, OmniReelSegment } from "@/lib/omni/types";
@@ -184,7 +185,15 @@ export function AvatarVideoPanel({
               ? getOmniReelPlaybackUrl(reel.id, Boolean(reel.subtitled_video_url))
               : null;
 	            const subtitleCue = getOmniReelSubtitleCue(reel);
-            const audioMood = normalizeAudioMood(reel.background_audio_mood);
+            const referenceAudioProfile = reel.reference_audio_profile;
+            const referenceMusicEnabled = shouldAddReferenceMusic(referenceAudioProfile);
+            const referenceAudioLabel = !referenceAudioProfile
+              ? "не проанализирована"
+              : referenceMusicEnabled
+                ? `музыка: ${getAudioMoodLabel(normalizeAudioMood(referenceAudioProfile.mood))}`
+                : referenceAudioProfile.music_present
+                  ? "не подтверждена"
+                  : "нет музыки";
             const audioTrackTitle = reel.background_audio_track_snapshot?.title || null;
 	            return (
               <div key={reel.id} className="rounded-lg border border-border bg-background p-3">
@@ -195,7 +204,7 @@ export function AvatarVideoPanel({
 	                      {reel.target_duration_seconds} сек / {reel.segment_count} сегмента / stitch: {reel.stitch_status}
 	                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Аудио: {getAudioMoodLabel(audioMood)} / {reel.background_audio_status || "not_selected"}
+                      Аудио референса: {referenceAudioLabel} / финал: {reel.background_audio_status || "not_selected"}
                       {audioTrackTitle ? ` / ${audioTrackTitle}` : ""}
                     </p>
 	                  </div>

@@ -1,5 +1,6 @@
 import pool from "@/lib/db";
-import { detectAudioMoodFromText, normalizeAudioMood } from "@/lib/audio-library/moods";
+import { normalizeAudioMood } from "@/lib/audio-library/moods";
+import { normalizeDirectorAudioProfile } from "@/lib/omni/director-audio-profile";
 import { OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
@@ -55,7 +56,8 @@ function normalizeReel(row: OmniReel): OmniReel {
       row.source_generated_script_id === null ? null : Number(row.source_generated_script_id),
     source_legacy_scenario_id:
       row.source_legacy_scenario_id === null ? null : Number(row.source_legacy_scenario_id),
-    background_audio_mood: normalizeAudioMood(row.background_audio_mood),
+    reference_audio_profile: normalizeDirectorAudioProfile(row.reference_audio_profile) || null,
+    background_audio_mood: row.background_audio_mood ? normalizeAudioMood(row.background_audio_mood) : null,
     background_audio_track_id:
       row.background_audio_track_id === null || row.background_audio_track_id === undefined
         ? null
@@ -152,6 +154,7 @@ export async function createOmniReel(input: {
       : null;
   const directorBrief = sourceScenarioDirectorBrief ||
     extractDirectorBriefFromSnapshot(resolvedGeneratedScript?.source_snapshot);
+  const referenceAudioProfile = normalizeDirectorAudioProfile(directorBrief?.audio_profile) || null;
   const referenceTransferPlan = buildReferenceTransferPolicy({
     hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),
     directorBrief,
@@ -160,10 +163,9 @@ export async function createOmniReel(input: {
     ? extractDirectorReferenceImageUrls({ directorAnalysis: sourceScenarioAnalysis })
     : extractDirectorReferenceImageUrls({ sourceSnapshot: resolvedGeneratedScript?.source_snapshot });
   const scriptText = resolvedGeneratedScript?.script || sourceScenario?.script || brief || "";
-  const backgroundAudioMood = normalizeAudioMood(
-    resolvedGeneratedScript?.background_audio_mood,
-    detectAudioMoodFromText(scriptText)
-  );
+  const backgroundAudioMood = referenceAudioProfile?.music_present
+    ? normalizeAudioMood(referenceAudioProfile.mood)
+    : null;
   const durationRange = await resolveOmniDurationRange({
     project,
     product,
@@ -195,6 +197,7 @@ export async function createOmniReel(input: {
         director_analysis_id: sourceScenarioAnalysis?.id || null,
         director_analysis_status: sourceScenarioAnalysis?.director_analysis_status || "not_requested",
         director_analysis: sourceScenarioDirectorBrief,
+        reference_audio_profile: referenceAudioProfile,
         reference_format_mode: resolveReferenceFormatMode(directorBrief),
         director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
         director_reference_image_urls: directorReferenceImageUrls,
@@ -217,6 +220,7 @@ export async function createOmniReel(input: {
         director_analysis_id: sourceScenarioAnalysis?.id || null,
         director_analysis_status: sourceScenarioAnalysis?.director_analysis_status || "not_requested",
         director_analysis: sourceScenarioDirectorBrief,
+        reference_audio_profile: referenceAudioProfile,
         reference_format_mode: resolveReferenceFormatMode(directorBrief),
         reference_transfer_plan: referenceTransferPlan,
         director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
@@ -416,12 +420,13 @@ export async function createOmniReel(input: {
          avatar_snapshot,
          creative_strategy,
          prompt_contract_version,
+         reference_audio_profile,
          background_audio_mood,
          background_audio_status,
          stitch_status,
          updated_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, 'not_selected', 'not_ready', CURRENT_TIMESTAMP)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13, $14::jsonb, $15, 'not_selected', 'not_ready', CURRENT_TIMESTAMP)
        RETURNING *`,
       [
         reservedReelId,
@@ -437,6 +442,7 @@ export async function createOmniReel(input: {
         JSON.stringify(avatarSnapshot),
         JSON.stringify(creativeStrategy),
         creativeStrategy?.version || null,
+        JSON.stringify(referenceAudioProfile),
         backgroundAudioMood,
       ]
     );

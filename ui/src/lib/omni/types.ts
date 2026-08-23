@@ -8,6 +8,7 @@ import type { OmniStoryboardSegment, OmniStoryboardValidationResult } from "./st
 import type { PhysicalFramePlan } from "./physical-scene-types";
 import type { OmniGenerationCostSummary } from "./generation-cost";
 import type { StoryboardSetQualityRecord } from "./storyboard/omni-storyboard-set-vision-types";
+import type { DirectorAudioProfile } from "./director-audio-profile";
 
 export type OmniProjectStatus = "active" | "archived";
 export type OmniReelStatus = "draft" | "queued" | "generating" | "stitching" | "completed" | "failed";
@@ -263,6 +264,7 @@ export interface OmniReel {
   avatar_snapshot: Record<string, unknown> | null;
   creative_strategy: OmniCreativeStrategy | null;
   prompt_contract_version: string | null;
+  reference_audio_profile: DirectorAudioProfile | null;
   background_audio_mood: AudioMood | null;
   background_audio_track_id?: number | null;
   background_audio_status?: "not_selected" | "selected" | "mixing" | "completed" | "skipped" | "failed" | null;

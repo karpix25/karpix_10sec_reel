@@ -72,10 +72,14 @@ export async function verifyDirectorBriefAgainstReferenceFrames(input: {
   if (!result) throw new Error("Director analysis frame verifier returned invalid JSON");
   const status = result.status === "repair" ? "repair" : result.status === "pass" ? "pass" : null;
   const confidence = Number(result.confidence);
-  const brief = normalizeDirectorBrief(result.director_brief);
-  if (!status || !brief || !Number.isFinite(confidence) || confidence < MIN_CONFIDENCE) {
+  const verifiedBrief = normalizeDirectorBrief(result.director_brief);
+  if (!status || !verifiedBrief || !Number.isFinite(confidence) || confidence < MIN_CONFIDENCE) {
     throw new Error("Director analysis frame verifier could not confirm the source setup");
   }
+  const brief: DirectorBrief = {
+    ...verifiedBrief,
+    audio_profile: input.brief.audio_profile,
+  };
 
   const responseModel = String(data.model || model);
   const pricing = await getOpenRouterPricingSnapshot(responseModel);
@@ -102,7 +106,7 @@ const VERIFICATION_SYSTEM_PROMPT = [
   "Compare the supplied director brief with the attached source frames.",
   "Correct every factual mismatch in location, camera position, movement, lighting, wardrobe and visible actions.",
   "Frames are evidence. Never infer a home or studio when a vehicle cabin is visible.",
-  "Return only JSON: status (pass or repair), confidence (0-1), reasons (short array), director_brief (full corrected object).",
+  "Return only JSON: status (pass or repair), confidence (0-1), reasons (short array), director_brief (full corrected object). Preserve audio_profile exactly; this field was determined from the full video's audio and is not verifiable from still frames.",
 ].join(" ");
 
 function buildVerificationPrompt(brief: DirectorBrief) {

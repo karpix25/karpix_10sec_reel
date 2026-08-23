@@ -1,6 +1,10 @@
 import { normalizeReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { normalizeReferenceFormatMode, type ReferenceFormatMode } from "./omni-reference-format-mode";
 import type { PhysicalSpeechMode } from "../../omni/physical-scene-types";
+import {
+  normalizeDirectorAudioProfile,
+  type DirectorAudioProfile,
+} from "../../omni/director-audio-profile";
 
 export type DirectorAnalysisStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -80,6 +84,7 @@ export type DirectorBrief = {
   reference_format_mode?: ReferenceFormatMode;
   reference_render_mode?: ReferenceRenderMode;
   reference_motion_mode?: ReferenceMotionMode;
+  audio_profile?: DirectorAudioProfile;
   visual_hook: {
     action: string;
     retention_trigger: string;
@@ -182,6 +187,7 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
     reference_motion_mode: normalizeReferenceMotionMode(
       candidate.reference_motion_mode ?? candidate.referenceMotionMode
     ) || undefined,
+    audio_profile: normalizeDirectorAudioProfile(candidate.audio_profile ?? candidate.audioProfile),
     visual_hook: {
       action: stringValue(visualHook.action),
       retention_trigger: stringValue(visualHook.retention_trigger),

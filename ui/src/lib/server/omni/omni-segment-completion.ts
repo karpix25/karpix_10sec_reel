@@ -156,6 +156,7 @@ async function tryMixBackgroundAudio(input: {
     const result = await mixBackgroundAudioForReel({
       reelId: input.reel.id,
       mood: input.reel.background_audio_mood,
+      referenceAudioProfile: input.reel.reference_audio_profile,
       sourceVideoPath: input.sourceVideoPath,
       workdir: input.workdir,
     });
