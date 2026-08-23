@@ -5,6 +5,7 @@ import { isObjectOnlyReferenceScene, type ReferenceSceneMode } from "../omni-ref
 import { isVoiceoverMontageReference } from "../omni-reference-format-mode";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
 import type { PhysicalSpeechMode } from "../../../omni/physical-scene-types";
+import { resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -18,11 +19,13 @@ export function renderStoryboardFrameCamera(input: {
   facelessReferenceScene?: boolean;
   voiceoverBrollReference?: boolean;
   objectOnlyReferenceScene?: boolean;
+  noPeopleReference?: boolean;
   speechMode?: PhysicalSpeechMode;
 }) {
   if (input.directorCamera) {
-    return `${input.directorCamera}; ${input.cameraComposition ? `КОМПОЗИЦИЯ REFERENCE: ${input.cameraComposition}; ` : ""}тот же исходный ракурс и направление камеры, что в соответствующем reference-кадре${input.isCutawayFrame || input.facelessReferenceScene || input.voiceoverBrollReference || input.speechMode === "voiceover_only" ? "" : "; герой смотрит прямо в объектив"}`;
+    return `${input.directorCamera}; ${input.cameraComposition ? `КОМПОЗИЦИЯ REFERENCE: ${input.cameraComposition}; ` : ""}тот же исходный ракурс и направление камеры, что в соответствующем reference-кадре${input.noPeopleReference ? "; в кадре нет людей и рук" : input.isCutawayFrame || input.facelessReferenceScene || input.voiceoverBrollReference || input.speechMode === "voiceover_only" ? "" : "; герой смотрит прямо в объектив"}`;
   }
+  if (input.noPeopleReference) return "независимый атмосферный B-roll ракурс по соответствующему reference-кадру, без людей и рук";
   if (input.objectOnlyReferenceScene) return "стабильный object-only макро ракурс, та же поверхность и направление камеры во всех кадрах";
   if (input.facelessReferenceScene) return "стабильный hands-only ракурс, та же поверхность и направление камеры во всех кадрах";
   if (input.voiceoverBrollReference || input.speechMode === "voiceover_only") return "независимый B-roll ракурс по соответствующему reference-кадру, без обязательного взгляда в объектив";
@@ -42,6 +45,9 @@ export function renderStoryboardWardrobe(input: {
 }) {
   const montageReference = isVoiceoverMontageReference(input.referenceFormatMode);
   if (isObjectOnlyReferenceScene(input.referenceSceneMode)) {
+    return "WARDROBE: not applicable; no person or hands are visible";
+  }
+  if (resolveDirectorVisibleSubjectPolicy(input.brief) === "no_people") {
     return "WARDROBE: not applicable; no person or hands are visible";
   }
   if (input.referenceSceneMode === "voiceover_broll") {

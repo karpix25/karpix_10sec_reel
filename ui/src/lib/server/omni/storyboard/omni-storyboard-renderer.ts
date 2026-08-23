@@ -16,6 +16,7 @@ import { isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceS
 import { isAvatarFreeReferenceScene } from "../omni-reference-scene-mode";
 import type { ProductRole } from "../../../omni/creative-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "../omni-reference-format-mode";
+import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
@@ -37,12 +38,14 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
   const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const voiceoverBrollReference = referenceSceneMode === "voiceover_broll";
+  const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(input.directorBrief);
+  const noPeopleReference = visibleSubjectPolicy === "no_people";
   const deliveryModes = new Set(input.storyboard.frames
     .map((frame) => frame.speechMode || frame.physicalPlan?.speechMode)
     .filter((mode): mode is "on_camera" | "voiceover_only" => mode === "on_camera" || mode === "voiceover_only"));
   const hybridDelivery = deliveryModes.has("on_camera") && deliveryModes.has("voiceover_only");
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
-  const preservePipLayout = isCollagePictureInPictureReference(input.directorBrief || null) && !avatarFreeReferenceScene;
+  const preservePipLayout = isCollagePictureInPictureReference(input.directorBrief || null) && !avatarFreeReferenceScene && !noPeopleReference;
   const productFrameNumbers = input.storyboard.frames
     .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName || "") ? index + 1 : null)
     .filter((index): index is number => index !== null);
@@ -57,10 +60,13 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       : facelessReferenceScene
         ? "FACELESS HANDS-ONLY: голос за кадром; в кадре только руки, допустимый фрагмент корпуса и физический реквизит; лица, головы и talking-head framing нет."
       : voiceoverBrollReference
-        ? "VOICEOVER B-ROLL: голос за кадром; независимые B-roll кадры ведёт сохранённый молчащий аватар, без talking-head, lip-sync и обязательного взгляда в объектив."
+        ? noPeopleReference
+          ? "VOICEOVER B-ROLL: голос за кадром; независимые B-roll кадры не содержат людей, рук, аватара, talking-head или lip-sync."
+          : "VOICEOVER B-ROLL: голос за кадром; независимые B-roll кадры ведёт сохранённый молчащий аватар, без talking-head, lip-sync и обязательного взгляда в объектив."
       : hybridDelivery
         ? "HYBRID DELIVERY: следуй speechMode каждого storyboard-кадра. on_camera — аватар произносит свою часть в кадре; voiceover_only — самостоятельный B-roll с закадровой речью. Не превращай B-roll в talking-head и не добавляй lip-sync там, где его нет."
       : "",
+    renderVisibleSubjectPolicy(visibleSubjectPolicy),
     preservePipLayout
       ? "PIP: full-screen фон; avatar lower-left cutout."
       : "",
@@ -71,14 +77,18 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       : facelessReferenceScene
         ? `Свет, фон, ракурс, руки и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй лицо, голову или аватар.`
       : voiceoverBrollReference
-        ? `Свет, локации, ракурсы, монтаж и независимые действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; личность и лицо бери из avatar/character reference, но не добавляй talking-head.`
+        ? noPeopleReference
+          ? `Свет, локации, ракурсы, монтаж и независимые действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй людей, рук или avatar/character reference.`
+          : `Свет, локации, ракурсы, монтаж и независимые действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; личность и лицо бери из avatar/character reference, но не добавляй talking-head.`
       : `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
     objectOnlyReferenceScene
       ? "Фиксируй одну и ту же макро поверхность, свет, реквизит и физическое положение предметов."
       : facelessReferenceScene
         ? "Фиксируй одну и ту же поверхность, реквизит и физическое положение предметов."
       : voiceoverBrollReference
-        ? "Сохраняй независимость B-roll сцен, но фиксируй одного и того же сохранённого аватара как визуального героя; не превращай его в talking-head."
+        ? noPeopleReference
+          ? "Сохраняй независимость B-roll сцен; не добавляй людей, руки или аватар."
+          : "Сохраняй независимость B-roll сцен, но фиксируй одного и того же сохранённого аватара как визуального героя; не превращай его в talking-head."
       : "Фиксируй те же волосы, пробор, аксессуары.",
     avatarFreeReferenceScene
       ? ""
@@ -93,7 +103,9 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       : facelessReferenceScene
         ? "Не показывай talking-head и взгляд в объектив; реплика звучит за кадром."
       : voiceoverBrollReference
-        ? "Не показывай talking-head и lip-sync; сохранённый аватар действует молча, а реплика звучит за кадром поверх независимых B-roll кадров."
+        ? noPeopleReference
+          ? "Не показывай людей, руки, talking-head или lip-sync; реплика звучит за кадром поверх независимых B-roll кадров."
+          : "Не показывай talking-head и lip-sync; сохранённый аватар действует молча, а реплика звучит за кадром поверх независимых B-roll кадров."
       : hybridDelivery
         ? "HYBRID AUDIO: в кадрах speechMode=on_camera аватар говорит в кадре; в кадрах speechMode=voiceover_only аватар молчит, а та же реплика звучит за кадром поверх самостоятельного B-roll."
       : montageReference

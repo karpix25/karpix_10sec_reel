@@ -10,6 +10,7 @@ import { formatPromptChainRange } from "./llm-prompt-chain-number-words";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
+import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 
 export type PromptChainInput = {
   projectName: string;
@@ -53,7 +54,7 @@ ${buildProductTimingContract(input.directorBrief || null)}
 - Либо сделай так, чтобы наш продукт являлся главным практическим решением всей проблемы ролика.
 Категорически запрещено после представления нашего продукта переходить к детальному разбору посторонних тем или категорий товаров (например, давать советы про SPF и ретинол, пока ролик рекламирует пенку для умывания).
 Сделай минимальную редактуру. Меняй слова синонимами только там, где это нужно для нашего продукта, грамматики или безопасности. Не добавляй новые рекламные аргументы и не перестраивай повестку reference.
-Если нужно сократить текст до четырех частей, убирай только повторы, вводные слова и лишнюю многословность. Объединяй близкие предложения, но не выбрасывай механизм, конкретный пример, доказательство или вывод и не заменяй их общей рекламной фразой.
+Если нужно сократить текст до пяти частей, убирай только повторы, вводные слова и лишнюю многословность. Объединяй близкие предложения, но не выбрасывай механизм, конкретный пример, доказательство или вывод и не заменяй их общей рекламной фразой.
 Если в reference уже есть чужой продукт, не копируй его название, бренд, упаковку и свойства. Сохрани его сценарную роль: предмет в списке, пример, демонстрация, доказательство или главный объект, и замени эту роль нашим продуктом.
 Если автор reference говорит, что он врач, косметолог, нутрициолог, эксперт, специалист или другой профессионал, не переноси эту роль на аватара. Убери такую фразу или замени ее на нейтральную бытовую подачу от первого лица.
 Не превращай полезный reference в отдельный сухой рекламный питч продукта.
@@ -61,7 +62,7 @@ ${buildProductTimingContract(input.directorBrief || null)}
 Не выдумывай ссылки, артикулы, скидки или факты, которых нет во входных данных.
 ${renderRussianSpeechGenderRule(input.avatarSpeechGender)}
 ${buildDurationLine(input.durationRange)}
-Не делай больше четырех частей. Если исходный reference длиннее, сожми текст, сохранив его хук, смысл продукта, ключевой аргумент и CTA.
+Не делай больше пяти частей. Если исходный reference длиннее, сожми текст, сохранив его хук, смысл продукта, ключевой аргумент и CTA.
 CTA: ${buildCtaLine(input.ctaMode, input.ctaValue)}
 
 Бренд: ${input.projectName}
@@ -86,24 +87,42 @@ export function buildDirectorSegmenterPrompt(input: {
   draft: CreativeScriptDraft;
 }) {
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.chainInput.directorBrief));
+  const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(input.chainInput.directorBrief);
+  const noPeopleReference = visibleSubjectPolicy === "no_people";
+  const silentAvatarReference = visibleSubjectPolicy === "silent_avatar";
+  const segmentFormat = noPeopleReference || silentAvatarReference ? "voiceover_broll" : "talking_head_cutaways";
+  const frameRoleRule = noPeopleReference
+    ? "Для no_people роли storyboard_frames только environment_cutaway или product_cutaway; face_open, face_return, avatar и персонаж запрещены."
+    : silentAvatarReference
+      ? "Для silent_avatar роли storyboard_frames только environment_cutaway или product_cutaway; аватар может быть видимым, но не говорит и не lip-sync."
+      : "Первый frame обычно face_open. Последний frame обычно face_return.";
+  const subjectRule = noPeopleReference
+    ? "В reference нет людей или рук: каждый визуальный кадр содержит только наблюдаемые локации, предметы, утвержденные product screens и атмосферный B-roll; речь всегда за кадром."
+    : silentAvatarReference
+      ? "В reference аватар видим молча: narration остается за кадром, аватар не говорит и не lip-sync."
+      : "Сохраняй наблюдаемого presenter и его on-camera delivery там, где он есть в reference.";
+  const exampleFrameRole = noPeopleReference ? "environment_cutaway" : "face_open";
+  const exampleReferenceRole = noPeopleReference ? "none" : "avatar";
+  const exampleFrameAction = noPeopleReference ? "наблюдаемое действие предмета или среды" : "действие лица в камеру";
   return `
 Ты режиссер монтажа для Gemini Omni.
 
-Возьми готовый сценарий и раздели его на Omni segments для формата talking_head_cutaways.
+Возьми готовый сценарий и раздели его на Omni segments для формата ${segmentFormat}.
 Верни только валидный JSON без markdown.
 
 Правила режиссуры:
 Каждый segment строится storyboard first и может длиться четыре, шесть, восемь или десять секунд.
-Итоговый план содержит не больше четырех segments. Если готовый сценарий длиннее, сожми его до четырех segments, не выбрасывая хук, смысл продукта и CTA.
+Итоговый план содержит не больше пяти segments. Если готовый сценарий длиннее доступного лимита, сожми его только сохраняя хук, смысл продукта, ответ и CTA.
 Количество storyboard frames зависит от duration_seconds: четыре секунды это два кадра, шесть секунд это три кадра, восемь секунд это четыре кадра, десять секунд это пять кадров.
 Каждый frame содержит ровно три, четыре или пять слов финальной русской речи в spoken_words.
 Склейка spoken_words всех frames должна дословно совпадать с voiceover segment.
-Первый frame обычно face_open. Последний frame обычно face_return. Product_cutaway или environment_cutaway добавляй только в тот frame, где смысл spoken_words и соответствующий момент reference действительно получают от этого визуальную пользу; позиция кадра сама по себе не является причиной для перебивки.
-Первый segment повторяет механику reference: если original hook был с продуктом, наш продукт виден и произносится в первом segment; если original hook был без продукта, герой с пустыми руками и товар вне кадра.
+${frameRoleRule} Product_cutaway или environment_cutaway добавляй только в тот frame, где смысл spoken_words и соответствующий момент reference действительно получают от этого визуальную пользу; позиция кадра сама по себе не является причиной для перебивки.
+${subjectRule}
+Первый segment повторяет механику reference: если original hook был с продуктом, наш продукт виден и произносится в первом segment; если original hook был без продукта, продукт остается вне кадра.
 В итоговом voiceover каждого плана обязательно должно прозвучать точное название «${input.chainInput.productName}» и конкретная польза продукта. Фраза «ссылка в профиле», «ссылка в описании» или другой CTA не считается упоминанием продукта.
 ${buildProductTimingContract(input.chainInput.directorBrief || null)}
-Cutaway frames не могут показывать персонажа, который смотрит в камеру. Не создавай пустой кадр одного помещения или фона: если у reference нет подходящего предметного или атмосферного действия, оставь героя в кадре и обогати его жестом, реакцией, сменой крупности или ракурса.
-Каждый talking head frame с ролью face_open или face_return показывает героя, который смотрит прямо в объектив при любом разрешенном ракурсе камеры.
+Cutaway frames не могут показывать персонажа, который смотрит в камеру. Не создавай пустой кадр одного помещения или фона: переноси конкретное наблюдаемое действие или визуальную механику reference.
+${noPeopleReference ? "Для no_people не добавляй героя, руки, лицо или avatar даже если это кажется удобным для динамики." : "Каждый talking head frame с ролью face_open или face_return показывает героя, который смотрит прямо в объектив при любом разрешенном ракурсе камеры."}
 В каждом frame опиши visual_description, camera, action, product_state, sfx и reference_role. Visual_description должен быть конкретной видимой сценой, которая прямо раскрывает смысл spoken_words этого frame, а не универсальной демонстрацией продукта.
 SFX это только естественные звуки кадра. Музыку для Omni не планируй: без фоновой музыки, джинглов и музыкальных эффектов.
 Слова spoken_words будут написаны прямо на визуальном кадре storyboard image и станут единственным источником русской речи для Omni.
@@ -112,8 +131,12 @@ SFX это только естественные звуки кадра. Музы
 Выбирай product_cutaway и удерживание продукта в руках только когда смысл spoken_words этого кадра прямо связан с продуктом, его свойствами или применением. Если фраза посвящена общей теме, проблеме или выводу без прямого контакта с продуктом, продукт должен быть вне кадра (product_state: "вне кадра"), а персонаж говорит с естественной жестикуляцией без товара в руках. В product_cutaway продукт обязан быть физически видимым и детально совпадать с product reference.
 Для непредметных кадров переноси конкретный визуальный приём из соответствующего reference-кадра, но адаптируй его под текущую реплику без чужого продукта.
 ${montageReference
-    ? "Для voiceover montage сохраняй лицо, волосы, возраст, телосложение и типаж героя, но каждый независимый cutaway может менять одежду, локацию, свет, действие и камеру по соответствующему reference-кадру. Не связывай соседние сегменты через одежду или помещение."
-    : "Одежда, свет, окружение и типаж героя должны быть едиными во всех frames одного ролика."}
+    ? noPeopleReference
+      ? "Для voiceover montage не добавляй людей; каждый независимый cutaway следует соответствующему reference-кадру."
+      : "Для voiceover montage сохраняй лицо, волосы, возраст, телосложение и типаж героя, но каждый независимый cutaway может менять одежду, локацию, свет, действие и камеру по соответствующему reference-кадру. Не связывай соседние сегменты через одежду или помещение."
+    : noPeopleReference
+      ? "Людей, рук и аватара нет; свет, окружение, объекты и монтаж соответствуют reference."
+      : "Одежда, свет, окружение и типаж героя должны быть едиными во всех frames одного ролика."}
 Бери камеру и переходы из соответствующих reference-кадров. Если соседние кадры reference сняты одинаково, повторяй тот же ракурс, фон и направление камеры. Не добавляй автоматическое чередование лево-право, смену крупности или движение камеры только ради динамики.
 Каждый segment обязан содержать законченную грамматическую мысль и завершаться полным предложением со знаком препинания (точка, восклицательный или вопросительный знак).
 Категорически запрещено разрывать предложение между сегментами (например, обрывать фразу на предлоге или прилагательном вроде «в вечернем», «для мягкого», «и третье»). Каждая фраза, начатая в сегменте, должна быть полностью закончена внутри этого же сегмента.
@@ -150,20 +173,20 @@ ${input.draft.script}
       "storyboard_frames": [
         {
           "index": 1,
-          "role": "face_open",
+          "role": "${exampleFrameRole}",
           "spoken_words": "три, четыре или пять слов",
-          "visual_description": "детальное описание кадра, света, окружения и персонажа",
+          "visual_description": "детальное описание кадра, света, окружения и ${noPeopleReference ? "наблюдаемого объекта или действия" : "персонажа"}",
           "camera": "крупность, движение и ракурс камеры",
-          "action": "конкретное действие в кадре",
+          "action": "${exampleFrameAction}",
           "product_state": "физическое состояние продукта в этом кадре",
           "sfx": "естественный бытовой звук кадра",
-          "reference_role": "avatar"
+          "reference_role": "${exampleReferenceRole}"
         }
       ],
       "shots": [
-        { "role": "face_open", "action": "действие лица в камеру" },
+        { "role": "${exampleFrameRole}", "action": "${exampleFrameAction}" },
         { "role": "cutaway", "action": "перебивка на продукт, предмет или среду" },
-        { "role": "face_return", "action": "возврат к лицу для завершения мысли" }
+        { "role": "${noPeopleReference ? "environment_cutaway" : "face_return"}", "action": "${noPeopleReference ? "финальный наблюдаемый B-roll по выводу" : "возврат к лицу для завершения мысли"}" }
       ],
       "end_state": "как заканчивается сегмент для следующей части"
     }
@@ -266,7 +289,7 @@ function buildDurationLine(durationRange?: OmniDurationRange) {
   return [
     `Цель по ролику: ${secondsRange} секунд.`,
     `Текст: ${wordsRange} слов.`,
-    "Не делай сценарий короче нижней границы. Не превышай сто слов и не создавай больше четырех частей.",
+    "Не делай сценарий короче нижней границы. Не превышай доступный лимит слов и не создавай больше пяти частей.",
   ].join(" ");
 }
 

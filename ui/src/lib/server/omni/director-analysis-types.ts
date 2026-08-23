@@ -5,6 +5,10 @@ import {
   normalizeDirectorAudioProfile,
   type DirectorAudioProfile,
 } from "../../omni/director-audio-profile";
+import {
+  normalizeDirectorVisibleSubjectPolicy,
+  type DirectorVisibleSubjectPolicy,
+} from "./director-visibility-policy";
 
 export type DirectorAnalysisStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -81,6 +85,7 @@ export type DirectorVisualTransferContract = {
 
 export type DirectorBrief = {
   reference_subject_mode?: ReferenceSceneMode;
+  visible_subject_policy?: DirectorVisibleSubjectPolicy;
   reference_format_mode?: ReferenceFormatMode;
   reference_render_mode?: ReferenceRenderMode;
   reference_motion_mode?: ReferenceMotionMode;
@@ -177,6 +182,9 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
   const brief: DirectorBrief = {
     reference_subject_mode: normalizeReferenceSceneMode(
       candidate.reference_subject_mode ?? candidate.referenceSceneMode ?? candidate.reference_scene_mode ?? candidate.referenceSubjectMode
+    ) || undefined,
+    visible_subject_policy: normalizeDirectorVisibleSubjectPolicy(
+      candidate.visible_subject_policy ?? candidate.visibleSubjectPolicy
     ) || undefined,
     reference_format_mode: normalizeReferenceFormatMode(
       candidate.reference_format_mode ?? candidate.referenceFormatMode

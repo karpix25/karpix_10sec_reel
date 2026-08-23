@@ -1,7 +1,9 @@
 import {
   OMNI_STORYBOARD_MAX_FRAME_WORDS,
   OMNI_STORYBOARD_MIN_FRAME_WORDS,
+  getOmniStoryboardFrameCount,
 } from "../../../omni/storyboard/omni-storyboard-types";
+import type { StoryboardFrame } from "../llm-prompt-chain-types";
 
 export function splitStoryboardSpeech(text: string, frameCount: number) {
   const words = text.trim().split(/\s+/u).filter(Boolean);
@@ -23,6 +25,20 @@ export function splitStoryboardSpeech(text: string, frameCount: number) {
     cursor += size;
   }
   return chunks;
+}
+
+export function alignStoryboardFramesToVoiceover(input: {
+  frames: readonly StoryboardFrame[];
+  voiceoverText: string;
+  durationSeconds: number;
+}) {
+  const frameCount = getOmniStoryboardFrameCount(input.durationSeconds);
+  if (!frameCount || input.frames.length !== frameCount) return input.frames;
+  const spokenChunks = splitStoryboardSpeech(input.voiceoverText, frameCount);
+  return input.frames.map((frame, index) => ({
+    ...frame,
+    spokenWords: spokenChunks[index] || frame.spokenWords,
+  }));
 }
 
 function boundaryScore(words: readonly string[], cursor: number, size: number) {

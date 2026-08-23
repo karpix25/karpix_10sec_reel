@@ -1,9 +1,10 @@
 import type { DirectorBrief } from "./director-analysis-types";
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 import { renderReferenceSceneModeForDirectorPrompt, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
+import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { renderReferenceFormatContract, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v11-audio";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v12-visibility-audio";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
@@ -21,7 +22,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
   return [
     "Analyze the attached video and transcript.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "reference_subject_mode, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
+    "reference_subject_mode, visible_subject_policy, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -34,6 +35,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
     "Important constraints:",
     "- Values must be descriptive but compact.",
     "- reference_subject_mode MUST be classified from visible frames and narration, not transcript alone: presenter, voiceover_broll, faceless_hands, body_crop, or object_only. Use voiceover_broll when the meaning is carried by off-camera voiceover over independent B-roll cutaways; the saved avatar may remain the silent visual protagonist, but there is no stable talking-head performance. Use faceless_hands only when only hands/props are visible; never invent a face or avatar.",
+    "- visible_subject_policy MUST be classified from visible frames: presenter when a person speaks to camera, silent_avatar when the same person appears but narration is off-camera, no_people when no person or hands are visible, hands_only when only hands/body crop are visible, object_only when only an object or surface is visible, and animation when the source is illustrated or animated. Never choose silent_avatar for a reference that contains no person.",
     "- reference_format_mode MUST be classified from the visible edit and narration: continuous_story when one scene and physical state continue between segments; voiceover_montage when one narrator carries the meaning across independent cutaways where location, action, camera setup, or outfit can change while the main presenter remains the same.",
     "- reference_render_mode MUST be classified from the actual visual production: talking_head, voiceover_broll, fast_montage, object_hands, animation, or mixed. Choose animation for cartoon, anime, illustrated, stop-motion, 2D, or 3D visual production; choose mixed when the source changes production mode between scenes.",
     "- reference_motion_mode MUST describe how the new segment should be produced: continuous_motion, montage, or animated_still. This is a visual production classification, not a guess from the transcript.",
@@ -60,7 +62,8 @@ export function renderDirectorBriefForScriptPrompt(brief: DirectorBrief | null) 
   const motionContinuity = brief.motion_continuity || [];
   return [
     "Режиссерский анализ оригинального видео:",
-    `- ${renderReferenceSceneModeForDirectorPrompt(resolveReferenceSceneMode(brief))}`,
+    `- ${renderReferenceSceneModeForDirectorPrompt(resolveReferenceSceneMode(brief), resolveDirectorVisibleSubjectPolicy(brief))}`,
+    `- ${renderVisibleSubjectPolicy(resolveDirectorVisibleSubjectPolicy(brief))}`,
     `- ${renderReferenceFormatContract(resolveReferenceFormatMode(brief), resolveReferenceSceneMode(brief))}`,
     brief.reference_render_mode ? `- Тип production: ${brief.reference_render_mode}; motion mode: ${brief.reference_motion_mode || "continuous_motion"}.` : "",
     `- Визуальный хук: ${brief.visual_hook.action}; удержание: ${brief.visual_hook.retention_trigger}.`,
@@ -89,7 +92,8 @@ export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
     .map((beat) => `${beat.timestamp_sec}s: ${beat.action_description}; ${beat.actor_gesture}`)
     .join(" | ");
   return [
-    renderReferenceSceneModeForDirectorPrompt(resolveReferenceSceneMode(brief)),
+    renderReferenceSceneModeForDirectorPrompt(resolveReferenceSceneMode(brief), resolveDirectorVisibleSubjectPolicy(brief)),
+    renderVisibleSubjectPolicy(resolveDirectorVisibleSubjectPolicy(brief)),
     renderReferenceFormatContract(resolveReferenceFormatMode(brief), resolveReferenceSceneMode(brief)),
     brief.reference_render_mode
       ? `REFERENCE PRODUCTION MODE: ${brief.reference_render_mode}; motion mode: ${brief.reference_motion_mode || "continuous_motion"}.`
@@ -118,6 +122,7 @@ export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
 function buildDirectorBriefSkeleton() {
   return {
     reference_subject_mode: "presenter|voiceover_broll|faceless_hands|body_crop|object_only",
+    visible_subject_policy: "presenter|silent_avatar|no_people|hands_only|object_only|animation",
     reference_format_mode: "continuous_story|voiceover_montage",
     reference_render_mode: "talking_head|voiceover_broll|fast_montage|object_hands|animation|mixed",
     reference_motion_mode: "continuous_motion|montage|animated_still",

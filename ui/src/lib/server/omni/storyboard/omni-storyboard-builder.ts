@@ -43,6 +43,7 @@ import {
   renderStoryboardFrameCamera,
   renderStoryboardWardrobe,
 } from "./omni-storyboard-frame-rendering";
+import { resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
 
 export function buildStoryboardFromCreativePlan(input: {
   plan: OmniSegmentCreativePlan;
@@ -132,6 +133,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
           ? { frameIndex: index + 1, frameCount: input.frames.length }
           : undefined,
         referenceProfile,
+        directorBrief: input.directorBrief,
         referenceTransferPolicy: input.referenceTransferPolicy,
         referenceFormatMode: resolveReferenceFormatMode(input.directorBrief),
         referenceSceneMode: input.referenceSceneMode,
@@ -181,11 +183,12 @@ function buildFrame(input: {
 }): OmniStoryboardFrame {
   const facelessReferenceScene = isFacelessReferenceScene(input.referenceSceneMode);
   const voiceoverBrollReference = input.referenceSceneMode === "voiceover_broll";
+  const noPeopleReference = resolveDirectorVisibleSubjectPolicy(input.directorBrief) === "no_people";
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(input.referenceSceneMode);
   const startSeconds = (input.frameIndex - 1) * 2;
   const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
     input.plan.beats[0];
-  const layoutLocked = /REFERENCE LAYOUT|collage\/PIP/iu.test(beat?.action || "");
+  const layoutLocked = !noPeopleReference && /REFERENCE LAYOUT|collage\/PIP/iu.test(beat?.action || "");
   const productVisible = input.plan.productRole !== "hidden";
   const referenceProfile = selectDirectorSegmentProfile({
     brief: input.directorBrief,
@@ -194,11 +197,11 @@ function buildFrame(input: {
     frameIndex: input.frameIndex,
     frameCount: input.frameCount,
   });
-  const speechMode = referenceProfile?.speech_mode || "on_camera";
+  const speechMode = noPeopleReference ? "voiceover_only" : referenceProfile?.speech_mode || "on_camera";
   const referenceAction = layoutLocked
     ? ""
     : renderProfileAction(referenceProfile);
-  const fallbackAction = normalizeDefaultFrameAction(beat?.action);
+  const fallbackAction = normalizeDefaultFrameAction(beat?.action, noPeopleReference);
   const referenceTransfer = buildReferenceTransferFramePlan({
     policy: resolveReferenceTransferPolicy(input.referenceTransferPolicy),
     spokenText: input.spokenText,
@@ -222,7 +225,7 @@ function buildFrame(input: {
         referenceSupportProps: referenceTransfer.requiredSupportProps,
       });
   const isCutawayFrame = Boolean(referenceAction && isReferenceCutawayAction(referenceAction));
-  const productDemo = productVisible && input.plan.productRole === "brief_demo"
+  const productDemo = productVisible && !noPeopleReference && input.plan.productRole === "brief_demo"
     ? buildPhysicalProductDemoStep({
         productName: input.productName,
         frameIndex: input.frameIndex,
@@ -234,6 +237,7 @@ function buildFrame(input: {
         productName: input.productName,
         frameIndex: input.frameIndex,
         frameCount: input.frameCount,
+        noPeopleReference,
       })
     : null;
   const productDemoStep = productDemo || digitalProductDemo;
@@ -242,10 +246,10 @@ function buildFrame(input: {
     : layoutLocked
       ? visualActionSource
       : input.segmentIndex === 1 && input.plan.productRole === "hidden"
-      ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName, referenceTransfer, facelessReferenceScene, voiceoverBrollReference)
-      : productVisible
-        ? renderProductFrameAction(visualActionSource, isCutawayFrame, input.productName, facelessReferenceScene, voiceoverBrollReference)
-        : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName, facelessReferenceScene, voiceoverBrollReference);
+      ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName, referenceTransfer, facelessReferenceScene, voiceoverBrollReference, noPeopleReference)
+        : productVisible
+        ? renderProductFrameAction(visualActionSource, isCutawayFrame, input.productName, facelessReferenceScene, voiceoverBrollReference, noPeopleReference)
+        : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName, facelessReferenceScene, voiceoverBrollReference, noPeopleReference);
   const productPlacement = renderStoryboardProductPlacement(
     input.plan,
     input.productName,
@@ -269,7 +273,7 @@ function buildFrame(input: {
     productName: input.productName,
     spokenText: input.spokenText,
     visualAction: deliveryVisualAction,
-    camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference, speechMode }),
+    camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference, noPeopleReference, speechMode }),
     productPlacement,
     speechMode,
   });
@@ -284,7 +288,7 @@ function buildFrame(input: {
     ? sanitizeFacelessStoryboardText(repairedVisualAction, input.referenceSceneMode)
     : repairedVisualAction;
   const storyboardCamera = input.referenceSceneMode === "voiceover_broll"
-    ? sanitizeVoiceoverBrollStoryboardText(renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference, speechMode }))
+    ? sanitizeVoiceoverBrollStoryboardText(renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference, noPeopleReference, speechMode }))
     : isFacelessReferenceScene(input.referenceSceneMode)
     ? sanitizeFacelessStoryboardText(renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, speechMode }), input.referenceSceneMode)
     : renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, speechMode });
@@ -294,7 +298,7 @@ function buildFrame(input: {
         productName: input.productName,
         spokenText: input.spokenText,
         visualAction: repairedVisualAction,
-        camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference, speechMode }),
+        camera: renderStoryboardFrameCamera({ isCutawayFrame, directorCamera: renderDirectorCamera(input.directorBrief, productVisible, referenceProfile), productVisible, productRole: input.plan.productRole, cameraComposition: referenceTransfer.cameraComposition, facelessReferenceScene, objectOnlyReferenceScene, voiceoverBrollReference, noPeopleReference, speechMode }),
         productPlacement,
         speechMode,
       });
@@ -359,9 +363,11 @@ function renderDirectorCamera(
   ].filter(Boolean).join("; "), 220));
 }
 
-function renderFrameAction(action: string | undefined, isCutawayFrame: boolean, facelessReferenceScene = false, voiceoverBrollReference = false) {
+function renderFrameAction(action: string | undefined, isCutawayFrame: boolean, facelessReferenceScene = false, voiceoverBrollReference = false, noPeopleReference = false) {
   const normalized = compactText(action || (facelessReferenceScene
     ? "руки выполняют действие по текущей реплике"
+    : noPeopleReference
+      ? "самостоятельный атмосферный B-roll по текущей реплике, без людей и рук"
     : voiceoverBrollReference
       ? "видимый B-roll субъект выполняет действие по текущей реплике"
       : "персонаж естественно говорит в камеру"), 220);
@@ -372,6 +378,8 @@ function renderFrameAction(action: string | undefined, isCutawayFrame: boolean, 
       ? `короткая перебивка: ${visualCue}`
       : facelessReferenceScene
         ? `руки выполняют действие по текущей реплике, визуальный ориентир: ${visualCue}`
+        : noPeopleReference
+          ? `самостоятельный атмосферный B-roll по текущей реплике, визуальный ориентир: ${visualCue}, без людей и рук`
         : voiceoverBrollReference
           ? `видимый B-roll субъект выполняет действие по текущей реплике, визуальный ориентир: ${visualCue}`
         : `персонаж говорит в камеру, визуальный ориентир: ${visualCue}`;
@@ -379,24 +387,28 @@ function renderFrameAction(action: string | undefined, isCutawayFrame: boolean, 
   return compactText(normalized, 180);
 }
 
-function renderProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false, voiceoverBrollReference = false) {
-  const rendered = renderFrameAction(action, isCutawayFrame, facelessReferenceScene, voiceoverBrollReference);
+function renderProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false, voiceoverBrollReference = false, noPeopleReference = false) {
+  const rendered = renderFrameAction(action, isCutawayFrame, facelessReferenceScene, voiceoverBrollReference, noPeopleReference);
   if (mentionsOmniProduct(rendered, productName)) return rendered;
   return facelessReferenceScene
     ? `${rendered}; рука естественно берет ${productName} и ставит его на ту же поверхность, упаковка повернута лицевой стороной к камере`
+    : noPeopleReference
+      ? `${rendered}; утвержденный продукт ${productName} показывается крупно на устойчивой поверхности без людей и рук`
     : voiceoverBrollReference
       ? `${rendered}; видимый B-roll субъект естественно показывает ${productName} только по смыслу реплики`
     : `${rendered}; герой естественно берет ${productName} в одну руку на уровне груди, упаковка повернута лицевой стороной к камере`;
 }
 
-function renderNonProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false, voiceoverBrollReference = false) {
+function renderNonProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false, voiceoverBrollReference = false, noPeopleReference = false) {
   const normalized = compactText(action || "", 220);
   const hasProductCue = mentionsOmniProduct(normalized, productName) || /(?:\bproduct\b|продукт|товар|упаков)/iu.test(normalized);
-  if (!hasProductCue) return renderFrameAction(action, isCutawayFrame, facelessReferenceScene, voiceoverBrollReference);
+  if (!hasProductCue) return renderFrameAction(action, isCutawayFrame, facelessReferenceScene, voiceoverBrollReference, noPeopleReference);
   return isCutawayFrame
     ? "смысловая перебивка по текущей реплике без товара"
     : facelessReferenceScene
       ? "руки выполняют спокойное действие по текущей реплике, без товара в кадре"
+      : noPeopleReference
+        ? "самостоятельный атмосферный B-roll по текущей реплике, без товара, людей и рук"
       : voiceoverBrollReference
         ? "видимый B-roll субъект выполняет спокойное действие по текущей реплике, без товара в кадре"
       : "персонаж говорит в камеру, спокойный жест руками, без товара в кадре";
@@ -408,7 +420,8 @@ function renderIntroFrameAction(
   productName: string,
   referenceTransfer: ReturnType<typeof buildReferenceTransferFramePlan>,
   facelessReferenceScene = false,
-  voiceoverBrollReference = false
+  voiceoverBrollReference = false,
+  noPeopleReference = false
 ) {
   const normalized = compactText(action || "", 220);
   const visualCue = extractVisualCue(normalized) || normalized;
@@ -419,7 +432,9 @@ function renderIntroFrameAction(
       : support
         ? `${visualCue}; ${support}; реквизит остается видимым в нижней части кадра`
         : facelessReferenceScene
-          ? `руки выполняют действие по хуку, ${visualCue}`
+        ? `руки выполняют действие по хуку, ${visualCue}`
+          : noPeopleReference
+            ? `самостоятельный атмосферный B-roll по хуку, ${visualCue}, без людей и рук`
           : voiceoverBrollReference
             ? `видимый B-roll субъект выполняет действие по хуку, ${visualCue}`
           : `персонаж с пустыми руками, ${visualCue}`;
@@ -428,6 +443,8 @@ function renderIntroFrameAction(
     ? "смысловой кадр окружения по теме хука"
       : facelessReferenceScene
         ? `руки выполняют действие по хуку; ${support || "реквизит остается видимым в нижней части кадра"}`
+        : noPeopleReference
+          ? `самостоятельный атмосферный B-roll по хуку, без людей и рук; ${support || "видимые объекты соответствуют reference-сцене"}`
         : voiceoverBrollReference
           ? `видимый B-roll субъект выполняет действие по хуку; ${support || "субъект остается естественно встроен в reference-сцену"}`
         : support
@@ -455,8 +472,9 @@ function sanitizeReferenceActionDescription(value: string) {
   return normalized;
 }
 
-function normalizeDefaultFrameAction(action: string | undefined) {
+function normalizeDefaultFrameAction(action: string | undefined, noPeopleReference = false) {
   const normalized = compactText(action || "", 220);
+  if (noPeopleReference) return normalized ? `самостоятельный атмосферный B-roll по текущей реплике; ${normalized}; без людей и рук` : "самостоятельный атмосферный B-roll по текущей реплике, без людей и рук";
   if (/короткая\s+(?:спокойная\s+)?предметная|middle cutaway|смысловая перебивка/iu.test(normalized)) {
     return "персонаж продолжает говорить в камеру с осмысленным жестом по текущей реплике";
   }

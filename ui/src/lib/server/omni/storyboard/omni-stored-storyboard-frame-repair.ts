@@ -1,7 +1,7 @@
 import type { OmniStoryboardFrame } from "../../../omni/storyboard/omni-storyboard-types";
 import type { ProductRole } from "../../../omni/creative-contract";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
-import type { DirectorSegmentProfile } from "../director-analysis-types";
+import type { DirectorBrief, DirectorSegmentProfile } from "../director-analysis-types";
 import {
   buildPhysicalProductDemoStep,
   buildPhysicalFramePlan,
@@ -22,6 +22,7 @@ import { buildDigitalProductDemoStep } from "../digital-product-scene";
 import { isVoiceoverMontageReference, type ReferenceFormatMode } from "../omni-reference-format-mode";
 import { sanitizeVoiceoverBrollStoryboardText } from "./omni-storyboard-text-sanitizer";
 import type { ReferenceSceneMode } from "../omni-reference-scene-mode";
+import { resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
 
 const EXACT_FABRIC_LOCK =
   "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
@@ -34,13 +35,15 @@ export function buildStoredStoryboardFrame(input: {
   productRole?: ProductRole;
   productDemoFrame?: { frameIndex: number; frameCount: number };
   referenceProfile?: DirectorSegmentProfile | null;
+  directorBrief?: DirectorBrief | null;
   referenceTransferPolicy?: ReferenceTransferPolicy;
   referenceFormatMode?: ReferenceFormatMode;
   referenceSceneMode?: ReferenceSceneMode;
 }): OmniStoryboardFrame {
   const spokenText = input.frame.spokenWords;
   const productVisible = input.productVisible;
-  const speechMode = input.referenceSceneMode === "voiceover_broll"
+  const noPeopleReference = resolveDirectorVisibleSubjectPolicy(input.directorBrief) === "no_people";
+  const speechMode = noPeopleReference || input.referenceSceneMode === "voiceover_broll"
     ? "voiceover_only"
     : input.referenceProfile?.speech_mode || "on_camera";
   const sourceAction = input.frame.visualDescription || input.frame.action;
@@ -66,18 +69,20 @@ export function buildStoredStoryboardFrame(input: {
     productVisible,
     referenceSupportProps: referenceTransfer.requiredSupportProps,
   });
-  const productDemo = productVisible && input.productRole === "brief_demo" && input.productDemoFrame
+  const productDemo = productVisible && !noPeopleReference && input.productRole === "brief_demo" && input.productDemoFrame
     ? buildPhysicalProductDemoStep({ productName: input.productName, ...input.productDemoFrame })
     : null;
   const digitalProductDemo = productVisible && input.productRole === "digital_demo" && input.productDemoFrame
-    ? buildDigitalProductDemoStep({ productName: input.productName, ...input.productDemoFrame })
+    ? buildDigitalProductDemoStep({ productName: input.productName, ...input.productDemoFrame, noPeopleReference })
     : null;
   const demo = productDemo || digitalProductDemo;
   const visualAction = demo
     ? demo.action
     : productVisible
-      ? repairedAction
-    : renderNonProductAction(repairedAction, input.productName);
+      ? noPeopleReference
+        ? `утвержденный продукт ${input.productName} находится в самостоятельной B-roll композиции без людей и рук`
+        : repairedAction
+    : renderNonProductAction(repairedAction, input.productName, noPeopleReference);
   const deliveryVisualAction = speechMode === "voiceover_only"
     ? `${visualAction}; самостоятельная B-roll сцена, речь звучит за кадром`
     : visualAction;
@@ -91,7 +96,9 @@ export function buildStoredStoryboardFrame(input: {
     : ["в кадре тематические объекты и окружение текущей реплики", renderRequiredReferenceSupport(referenceTransfer)]
       .filter(Boolean)
       .join("; ");
-  const camera = renderReferenceCamera(input.frame.camera, input.referenceProfile);
+  const camera = noPeopleReference
+    ? "независимый атмосферный B-roll ракурс по соответствующему reference-кадру, без людей и рук"
+    : renderReferenceCamera(input.frame.camera, input.referenceProfile);
   const environment = renderReferenceEnvironment(input.referenceProfile);
   const sfxNotes = sanitizeSpeechSfx(input.frame.sfx, spokenText);
   const initialPhysicalPlan = buildPhysicalFramePlan({
@@ -121,7 +128,9 @@ export function buildStoredStoryboardFrame(input: {
         speechMode,
       });
 
-  const wardrobe = isVoiceoverMontageReference(input.referenceFormatMode)
+  const wardrobe = noPeopleReference
+    ? "одежда не применима; в кадре нет людей или рук"
+    : isVoiceoverMontageReference(input.referenceFormatMode)
     ? "одежда соответствует текущему независимому reference-кадру; лицо, волосы, возраст и телосложение героя сохраняются между сегментами"
     : `одежда из avatar или reference contract, без смены между кадрами; ${EXACT_FABRIC_LOCK}`;
 
@@ -186,7 +195,8 @@ function renderProductPlacement(
     : hint || "продукт физически виден по product reference", support].filter(Boolean).join("; ");
 }
 
-function renderNonProductAction(action: string, productName: string) {
+function renderNonProductAction(action: string, productName: string, noPeopleReference = false) {
+  if (noPeopleReference) return "самостоятельный атмосферный B-roll по текущей реплике, без товара, людей и рук";
   if (!action.toLocaleLowerCase().includes(productName.toLocaleLowerCase()) && !/(?:\bproduct\b|продукт|товар|упаков)/iu.test(action)) return action;
   return "герой спокойно говорит в камеру с нейтральным жестом, без товара в кадре";
 }

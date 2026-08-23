@@ -13,7 +13,7 @@ export type OmniAllowedSegmentSeconds = (typeof OMNI_ALLOWED_SEGMENT_SECONDS)[nu
 export type { OmniStoryboardAllowedSegmentSeconds };
 
 export const OMNI_MIN_SEGMENT_COUNT = 2;
-export const OMNI_MAX_SEGMENT_COUNT = 4;
+export const OMNI_MAX_SEGMENT_COUNT = 5;
 export const OMNI_MIN_USEFUL_SEGMENT_WORDS = OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS[0] /
   2 * OMNI_STORYBOARD_MIN_FRAME_WORDS;
 export const OMNI_TARGET_SEGMENT_WORDS_MIN = OMNI_MIN_USEFUL_SEGMENT_WORDS;

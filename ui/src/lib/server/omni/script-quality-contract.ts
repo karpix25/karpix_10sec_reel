@@ -167,7 +167,7 @@ export function validateViralScriptContract(input: {
     }
     if (totalWordCount > input.durationRange.maxWords) {
       warnings.push(
-        `Сценарий длиннее целевой настройки (${totalWordCount} слов вместо ${input.durationRange.minWords}-${input.durationRange.maxWords}); перед генерацией его нужно сжать до лимита четырех частей.`
+        `Сценарий длиннее целевой настройки (${totalWordCount} слов вместо ${input.durationRange.minWords}-${input.durationRange.maxWords}); перед генерацией его нужно сжать до лимита доступных частей.`
       );
     }
   }

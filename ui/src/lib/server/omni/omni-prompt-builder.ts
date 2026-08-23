@@ -49,6 +49,7 @@ import {
   resolveReferenceSceneMode,
   type ReferenceSceneMode,
 } from "./omni-reference-scene-mode";
+import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { applyDirectorLayoutToPlan, buildDirectorLayoutContract } from "./director-layout-contract";
 import {
@@ -62,6 +63,7 @@ import {
   resolveProductPhysicalContract,
 } from "./product-physical-contract";
 import { deriveOmniSegmentIntents } from "./omni-segment-intent";
+import { alignStoryboardFramesToVoiceover } from "./storyboard/omni-storyboard-speech";
 import {
   repairPhysicalScenePrompt,
   validatePhysicalScene,
@@ -209,7 +211,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       outputTotalDurationSeconds,
       sourceDurationSeconds: input.referenceSourceDurationSeconds,
     });
-    const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole);
+    const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole, Boolean(segmentIntent.productMentioned));
     const segmentProductVisualPassport = productVisualPassport;
     const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
       segmentIndex,
@@ -258,7 +260,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentCount: input.segmentCount,
       directorBrief,
       referenceSceneMode,
-    }), validation), referenceSceneMode);
+    }), validation), referenceSceneMode, resolveDirectorVisibleSubjectPolicy(directorBrief));
     const promptWithReferencePlan = [prompt, renderReferenceSegmentPlanForPrompt(referenceSegmentPlan)]
       .filter(Boolean)
       .join("\n\n");
@@ -303,8 +305,8 @@ function selectPhysicalProductDemoSegmentIndex(input: {
   return input.segments.find((segment) => isOmniProductVisualBeat(segment.spokenText, input.productName))?.index || null;
 }
 
-function resolvePhysicalProductDemoRole(segmentIndex: number, productDemoSegmentIndex: number | null, selectedRole: ProductRole = "brief_demo"): ProductRole {
-  if (segmentIndex !== productDemoSegmentIndex || selectedRole === "hidden") return "hidden";
+function resolvePhysicalProductDemoRole(segmentIndex: number, productDemoSegmentIndex: number | null, selectedRole: ProductRole = "brief_demo", forceVisible = false): ProductRole {
+  if ((!forceVisible && segmentIndex !== productDemoSegmentIndex) || selectedRole === "hidden") return "hidden";
   return selectedRole === "digital_demo" ? "digital_demo" : "brief_demo";
 }
 
@@ -363,7 +365,8 @@ function buildStoredProviderPromptSegments(
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
     const segmentIntent = segmentIntents[index];
-    const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole);
+    const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole, Boolean(segmentIntent?.productMentioned));
+    const voiceoverText = segmentIntent?.spokenText || segment.voiceover;
     const referenceSegmentPlan = buildReferenceSegmentPlan({
       brief: directorBrief,
       segmentIndex,
@@ -376,7 +379,7 @@ function buildStoredProviderPromptSegments(
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,
-      voiceoverText: segmentIntent?.spokenText || segment.voiceover,
+      voiceoverText,
       productRole,
       segmentSeconds: segment.durationSeconds,
       strategy,
@@ -384,8 +387,8 @@ function buildStoredProviderPromptSegments(
     const storyboardPlan = buildStoryboardFromPromptChainFrames({
       segmentIndex,
       durationSeconds: segment.durationSeconds,
-      voiceoverText: segmentIntent?.spokenText || segment.voiceover,
-      frames: segment.storyboardFrames,
+      voiceoverText,
+      frames: alignStoryboardFramesToVoiceover({ frames: segment.storyboardFrames, voiceoverText, durationSeconds: segment.durationSeconds }),
       productName: input.product.name,
       productPhysicalHint: productRole === "digital_demo" ? null : productPhysicalHint,
       directorBrief,
@@ -408,7 +411,7 @@ function buildStoredProviderPromptSegments(
       segmentCount: providerPromptPlan.segmentPrompts.length,
       directorBrief,
       referenceSceneMode,
-    }), validation), referenceSceneMode);
+    }), validation), referenceSceneMode, resolveDirectorVisibleSubjectPolicy(directorBrief));
     const promptWithReferencePlan = [prompt, renderReferenceSegmentPlanForPrompt(referenceSegmentPlan)]
       .filter(Boolean)
       .join("\n\n");
@@ -419,7 +422,7 @@ function buildStoredProviderPromptSegments(
       prompt: promptWithReferencePlan,
       referenceUrl: selectReferenceUrl(productRole, avatarReference, productReference, referenceSceneMode),
       durationSeconds: segment.durationSeconds,
-      voiceoverText: segment.voiceover,
+      voiceoverText,
       storyboardPlan,
       storyboardValidation: null,
       creativeStrategy: strategy,

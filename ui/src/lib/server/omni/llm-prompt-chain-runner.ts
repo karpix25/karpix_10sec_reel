@@ -295,7 +295,7 @@ function appendRetry(prompt: string, retryFeedback: string) {
 function buildValidationRetry(layer: string, error: unknown) {
   const message = getErrorMessage(error);
   const densityCorrection = /доступные Omni-длительности|Максимум .* слов|не помещается в доступные/iu.test(message)
-    ? "Сожми сценарий максимум до ста слов и четырех частей, сохранив хук, смысл продукта, главный аргумент и CTA."
+    ? "Сожми сценарий максимум до ста двадцати пяти слов и пяти частей, сохранив хук, смысл продукта, главный аргумент и CTA."
     : "";
   return [
     `Перепиши ${layer}.`,

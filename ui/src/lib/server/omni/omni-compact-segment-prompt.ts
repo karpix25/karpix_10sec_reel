@@ -19,6 +19,7 @@ import { renderScriptBeatGuidance } from "./script-beat-plan";
 import { renderOmniVerticalRhythmContract } from "./omni-vertical-rhythm-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isAvatarFreeReferenceScene, isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
+import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 
 export function renderCompactSegmentPrompt(input: {
   plan: OmniSegmentCreativePlan;
@@ -62,6 +63,8 @@ export function renderCompactSegmentPrompt(input: {
   const talkingHead = input.plan.lifeFormatId === "talking_head_cutaways" && input.plan.referenceSceneMode === "presenter";
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.directorBrief));
   const referenceSceneMode = resolveReferenceSceneMode(input.directorBrief);
+  const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(input.directorBrief);
+  const noPeopleReference = visibleSubjectPolicy === "no_people";
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
   const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const voiceoverBrollReference = referenceSceneMode === "voiceover_broll";
@@ -75,7 +78,9 @@ export function renderCompactSegmentPrompt(input: {
       : facelessReferenceScene
         ? "Keep the same approved hands, body crop, camera, light, and props; never introduce a face, head, or avatar."
       : voiceoverBrollReference
-        ? "Keep each independent B-roll cut tied to its reference frame; keep the saved avatar as the silent visual protagonist and never turn the cut into talking-head."
+        ? noPeopleReference
+          ? "Keep each independent B-roll cut tied to its reference frame; do not add people, hands, or an avatar."
+          : "Keep each independent B-roll cut tied to its reference frame; keep the saved avatar as the silent visual protagonist and never turn the cut into talking-head."
     : input.segmentIndex < input.segmentCount
     ? "End in a stable believable state that the next part can continue from."
     : "End after the last spoken word without adding a new phrase or CTA.";
@@ -97,12 +102,17 @@ export function renderCompactSegmentPrompt(input: {
         ? "FORMAT: VOICEOVER MONTAGE. Off-camera narration carries one idea across independent cutaways with the same presenter identity; do not force one physical scene across segments."
         : "FORMAT: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Face-to-camera with short product-relevant cutaways, not copied reference montage."
       : voiceoverBrollReference
-        ? "FORMAT: VOICEOVER B-ROLL. Off-camera narration over independent cutaways led by the saved silent avatar; no talking-head or lip-sync."
+        ? noPeopleReference
+          ? "FORMAT: VOICEOVER B-ROLL. Off-camera narration over independent cutaways; no people, hands, avatar, talking-head, or lip-sync."
+          : "FORMAT: VOICEOVER B-ROLL. Off-camera narration over independent cutaways led by the saved silent avatar; no talking-head or lip-sync."
       : hybridDelivery
         ? "FORMAT: HYBRID DELIVERY. Follow each reference interval's speech_mode: on_camera means the avatar speaks visibly; voiceover_only means independent B-roll with off-camera narration. Keep the distinction at every storyboard and video stage."
       : null,
+    renderVisibleSubjectPolicy(visibleSubjectPolicy),
     objectOnlyReferenceScene
       ? "VISIBLE SUBJECT: object-only macro scene; no person, hands, face, head, or avatar."
+      : noPeopleReference
+        ? "VISIBLE SUBJECT: only locations, objects, approved product screens, and atmospheric B-roll; no people, hands, face, head, or avatar."
       : avatarFreeReferenceScene
         ? "VISIBLE SUBJECT: no main avatar; narration is off-camera over approved independent B-roll, with incidental visible people allowed only when the reference requires them."
       : `CHARACTER: ${input.characterContract.identityLine}.`,

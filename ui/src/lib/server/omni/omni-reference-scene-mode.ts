@@ -1,4 +1,8 @@
 import type { OmniCreativeStrategy } from "@/lib/omni/creative-contract";
+import {
+  renderVisibleSubjectPolicy,
+  type DirectorVisibleSubjectPolicy,
+} from "./director-visibility-policy";
 
 export type ReferenceSceneMode = "presenter" | "voiceover_broll" | "faceless_hands" | "body_crop" | "object_only";
 export type OmniCreativeStrategyWithReferenceSceneMode = OmniCreativeStrategy & { referenceSceneMode: ReferenceSceneMode };
@@ -78,16 +82,23 @@ export function withReferenceSceneMode(strategy: OmniCreativeStrategy, reference
   return { ...strategy, referenceSceneMode };
 }
 
-export function applyReferenceSceneModeToOmniPrompt(prompt: string, referenceSceneMode: ReferenceSceneMode) {
+export function applyReferenceSceneModeToOmniPrompt(
+  prompt: string,
+  referenceSceneMode: ReferenceSceneMode,
+  visibleSubjectPolicy: DirectorVisibleSubjectPolicy = "presenter",
+) {
   if (referenceSceneMode === "voiceover_broll") {
     const filtered = prompt.split("\n")
       .map((line) => line.replace(/The avatar says:/u, "The off-camera narrator says:"))
       .join("\n");
+    const avatarLine = visibleSubjectPolicy === "silent_avatar"
+      ? "Use the saved avatar/character reference as the same silent visual subject in every panel; identity is fixed even when location, outfit, or action changes with the reference cut."
+      : "Do not add an avatar, presenter, face, head, or hands unless the approved storyboard explicitly requires them.";
     return [filtered,
       "REFERENCE SUBJECT MODE: VOICEOVER B-ROLL.",
-      "CHARACTER: use the saved avatar/character reference as the same silent visual protagonist in every panel; identity is fixed even when location, outfit, or action changes with the reference cut.",
-      "Use the saved avatar/character_id as the recurring silent visual protagonist in independent B-roll cutaways. Do not use talking-head framing, lip-sync, mouth-synced speech, or mandatory eye contact; narration stays off-camera.",
-      "Other visible people may appear only when the matching reference frame requires them; never replace the saved avatar with a random recurring person.",
+      renderVisibleSubjectPolicy(visibleSubjectPolicy),
+      avatarLine,
+      "Do not use talking-head framing, lip-sync, mouth-synced speech, or mandatory eye contact; narration stays off-camera.",
     ].join("\n");
   }
   if (!isFacelessReferenceScene(referenceSceneMode)) return prompt;
@@ -107,9 +118,12 @@ export function applyReferenceSceneModeToOmniPrompt(prompt: string, referenceSce
     .join("\n");
 }
 
-export function renderReferenceSceneModeForDirectorPrompt(mode: ReferenceSceneMode) {
+export function renderReferenceSceneModeForDirectorPrompt(
+  mode: ReferenceSceneMode,
+  visibleSubjectPolicy: DirectorVisibleSubjectPolicy = "presenter",
+) {
   if (mode === "voiceover_broll") {
-    return "VISIBLE SUBJECT: voiceover B-roll led by the saved silent avatar; narration is off-camera, there is no talking-head presenter, and independent cutaways may change location/action without replacing the avatar identity."
+    return `${renderVisibleSubjectPolicy(visibleSubjectPolicy)} Preserve independent cutaways and off-camera narration; match each visible subject to the corresponding reference frame.`
   }
   return isFacelessReferenceScene(mode)
     ? "VISIBLE SUBJECT: faceless hands-only reference; narration is off-camera; no face, head, eyes, avatar portrait, or talking-head framing."
