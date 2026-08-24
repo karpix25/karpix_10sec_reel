@@ -87,6 +87,7 @@ export const SEMANTIC_REVIEW_SYSTEM_PROMPT = [
   "finalAnswerPresent означает, что главный вопрос или тезис исходного reference получает завершенный вывод.",
   "referenceMeaningPreserved означает сохранение тезиса, причинной связи, доказательства или примера и финального вывода исходного reference без подмены смысла.",
   "productNaturallyIntegrated означает, что продукт является практическим решением мысли, а не внезапной рекламной вставкой.",
+  "Не оценивай длину, число слов, формат JSON, пунктуацию или технические ограничения. Их проверяют отдельные детерминированные валидаторы.",
   "Не требуй дословного совпадения с reference. Не придумывай факты, которых нет в описании продукта.",
   "passed разрешен только если все шесть смысловых проверок true.",
 ].join("\n");
@@ -151,7 +152,7 @@ function normalizeScriptSemanticReview(value: unknown): ScriptSemanticReview {
     review.productNaturallyIntegrated,
     review.referenceMeaningPreserved,
   ].every(Boolean);
-  return { ...review, passed: review.passed && allChecksPass };
+  return { ...review, passed: allChecksPass };
 }
 
 function readAssistantContent(data: Record<string, unknown>) {

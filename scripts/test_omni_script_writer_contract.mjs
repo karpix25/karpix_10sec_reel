@@ -181,6 +181,12 @@ try {
     scriptGeneratorSource.includes('response_format: { type: "json_object" }'),
     "script writer request must force JSON object mode"
   );
+  const semanticReviewerSource = readFileSync(
+    join(ui, "src/lib/server/omni/script-semantic-reviewer.ts"),
+    "utf8"
+  );
+  assert.ok(semanticReviewerSource.includes("passed: allChecksPass"));
+  assert.ok(semanticReviewerSource.includes("Не оценивай длину, число слов"));
 
   const avatarWardrobePrompt = buildPrompt({
     projectName: "Omni Reels",
