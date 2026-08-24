@@ -188,6 +188,8 @@ try {
   assert.ok(semanticReviewerSource.includes("passed: allChecksPass"));
   assert.ok(semanticReviewerSource.includes("Не оценивай длину, число слов"));
   assert.ok(semanticReviewerSource.includes("после последнего CTA"));
+  assert.ok(semanticReviewerSource.includes("Вопрос, приказ или новый призыв"));
+  assert.ok(semanticReviewerSource.includes("минимум два конкретных примера"));
 
   const avatarWardrobePrompt = buildPrompt({
     projectName: "Omni Reels",
