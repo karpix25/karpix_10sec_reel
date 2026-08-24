@@ -53,6 +53,7 @@ try {
   assert.throws(() => speechGender.requireAvatarSpeechGender(null), /male or female/);
 
   assert.equal(russianContract.validateRussianSpeechGender("я заметил это сразу", "male").length, 0);
+  assert.equal(russianContract.validateRussianSpeechGender("Я сначала боялся тратить деньги", "male").length, 0);
   assert.equal(russianContract.validateRussianSpeechGender("я заметила это сразу", "male")[0].matchedText, "я заметила");
   assert.equal(russianContract.validateRussianSpeechGender("я мама и мой макияж поплыл", "male")[0].matchedText, "я мама");
   assert.equal(russianContract.validateRussianSpeechGender("я заметила это сразу", "female").length, 0);
