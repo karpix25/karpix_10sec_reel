@@ -49,7 +49,7 @@ const PROMPT_CHAIN_ATTEMPTS_PER_LAYER = 2;
 const PROMPT_CHAIN_TEMPERATURE = 0.8;
 
 export function isLlmPromptChainEnabled() {
-  return process.env.OMNI_LLM_PROMPT_CHAIN === "true";
+  return process.env.OMNI_LLM_PROMPT_CHAIN !== "false";
 }
 
 export async function runLlmPromptChain(input: PromptChainInput & { model: string }): Promise<{
@@ -297,10 +297,18 @@ function buildValidationRetry(layer: string, error: unknown) {
   const densityCorrection = /доступные Omni-длительности|Максимум .* слов|не помещается в доступные/iu.test(message)
     ? "Сожми сценарий максимум до ста двадцати пяти слов и пяти частей, сохранив хук, смысл продукта, главный аргумент и CTA."
     : "";
+  const ctaCorrection = /CTA|ссылк[аи].*профил/iu.test(message)
+    ? "Для режима ссылки в профиле добавь в voiceover точную фразу «ссылка в профиле» и не используй ссылку в описании, комментарии или кодовое слово."
+    : "";
+  const storyboardCorrection = /storyboard|кадр|shots/iu.test(message)
+    ? "Верни storyboard_frames как массив внутри каждого segment. Для четырех секунд нужны два кадра, для шести три, для восьми четыре, для десяти пять. Не возвращай shots, если они не нужны."
+    : "";
   return [
     `Перепиши ${layer}.`,
     `Исправь только найденные нарушения: ${message}`,
     densityCorrection,
+    ctaCorrection,
+    storyboardCorrection,
     "Если ошибка касается грамматического рода, исправь только род говорящего от первого лица и сохрани смысл.",
     "Не используй emoji, дефисы, тире, минусы и цифры в текстовых значениях.",
     "Сохрани живую речь и цельный режиссерский замысел.",

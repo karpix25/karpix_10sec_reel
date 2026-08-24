@@ -10,6 +10,10 @@ import {
   type StoryboardFrameRole,
   type StoryboardReferenceRole,
 } from "./llm-prompt-chain-types";
+import {
+  getOmniStoryboardDurationForWordCount,
+  getOmniStoryboardFrameCount,
+} from "../../omni/storyboard/omni-storyboard-timing";
 
 export function normalizeCreativeScriptDraft(raw: unknown): CreativeScriptDraft | null {
   const script = typeof raw === "string" ? clean(raw) : clean(asRecord(raw)?.script);
@@ -75,11 +79,13 @@ function normalizeDirectorSegment(raw: unknown): DirectorSegment | null {
   const data = asRecord(raw);
   if (!data) return null;
   const index = positiveInteger(data.index);
-  const durationSeconds = positiveInteger(data.duration_seconds || data.durationSeconds);
-  const storyboardFrames = arrayOf(data.storyboard_frames || data.storyboardFrames || data.frames, normalizeStoryboardFrame);
-  const voiceover = clean(data.voiceover) || joinStoryboardSpeech(storyboardFrames);
-  const shots = arrayOf(data.shots, normalizeDirectorShot);
-  const compatibleShots = shots.length ? shots : deriveLegacyShots(storyboardFrames);
+  const rawDurationSeconds = positiveInteger(data.duration_seconds || data.durationSeconds);
+  const rawStoryboardFrames = arrayOf(data.storyboard_frames || data.storyboardFrames || data.frames, normalizeStoryboardFrame);
+  const rawVoiceover = joinStoryboardSpeech(rawStoryboardFrames) || clean(data.voiceover);
+  const durationSeconds = getOmniStoryboardDurationForWordCount(countWords(rawVoiceover)) || rawDurationSeconds;
+  const storyboardFrames = repairStoryboardFrames(rawStoryboardFrames, rawVoiceover, durationSeconds);
+  const voiceover = joinStoryboardSpeech(storyboardFrames) || rawVoiceover;
+  const compatibleShots = deriveLegacyShots(storyboardFrames);
   if (!index || !durationSeconds || !voiceover || (!storyboardFrames.length && !compatibleShots.length)) return null;
   return {
     index,
@@ -90,15 +96,6 @@ function normalizeDirectorSegment(raw: unknown): DirectorSegment | null {
     productState: clean(data.product_state || data.productState),
     endState: clean(data.end_state || data.endState),
   };
-}
-
-function normalizeDirectorShot(raw: unknown): DirectorShot | null {
-  const data = asRecord(raw);
-  if (!data) return null;
-  const role = clean(data.role);
-  if (role !== "face_open" && role !== "cutaway" && role !== "face_return") return null;
-  const action = clean(data.action);
-  return action ? { role, action } : null;
 }
 
 function normalizeProviderPromptSegment(raw: unknown): ProviderPromptSegment | null {
@@ -172,6 +169,64 @@ function deriveLegacyShots(frames: readonly StoryboardFrame[]): DirectorShot[] {
   ];
 }
 
+function repairStoryboardFrames(
+  frames: readonly StoryboardFrame[],
+  voiceover: string,
+  durationSeconds: number
+): StoryboardFrame[] {
+  const expectedFrameCount = getOmniStoryboardFrameCount(durationSeconds);
+  if (!expectedFrameCount || !voiceover) return [...frames];
+  const words = voiceover.split(/\s+/u).filter(Boolean);
+  const chunks = splitWords(words, expectedFrameCount);
+  if (!chunks.length) return [...frames];
+  const fallback: StoryboardFrame = frames[0] || {
+    index: 1,
+    role: "face_open" as const,
+    spokenWords: "",
+    visualDescription: "Герой в спокойной комнате при мягком свете",
+    camera: "средний статичный план",
+    action: "естественно смотрит в объектив",
+    productState: "продукт вне кадра",
+    sfx: null,
+    referenceRole: "avatar" as const,
+  };
+  return chunks.map((spokenWords, index) => {
+    const source = frames[Math.min(index, frames.length - 1)] || fallback;
+    const role: StoryboardFrame["role"] = index === 0
+      ? "face_open"
+      : index === chunks.length - 1
+        ? "face_return"
+        : source.role === "product_cutaway" || source.role === "environment_cutaway"
+          ? source.role
+          : "environment_cutaway";
+    return {
+      ...source,
+      index: index + 1,
+      role,
+      spokenWords,
+      productState: source.productState || "продукт вне кадра",
+    };
+  });
+}
+
+function splitWords(words: readonly string[], frameCount: number) {
+  if (!words.length || frameCount < 1) return [] as string[];
+  const chunks: string[] = [];
+  let offset = 0;
+  for (let index = 0; index < frameCount; index += 1) {
+    const remainingWords = words.length - offset;
+    const remainingFrames = frameCount - index;
+    const count = Math.ceil(remainingWords / remainingFrames);
+    chunks.push(words.slice(offset, offset + count).join(" "));
+    offset += count;
+  }
+  return chunks;
+}
+
+function countWords(text: string) {
+  return text.split(/\s+/u).filter(Boolean).length;
+}
+
 function joinStoryboardSpeech(frames: readonly StoryboardFrame[]) {
   return frames.map((frame) => frame.spokenWords).filter(Boolean).join(" ");
 }
@@ -198,7 +253,9 @@ function positiveInteger(value: unknown) {
 }
 
 function clean(value: unknown) {
-  return typeof value === "string" ? value.replace(/\s+/gu, " ").trim() : "";
+  return typeof value === "string"
+    ? value.replace(/[\-‐‑‒–—―−]/gu, " ").replace(/\s+/gu, " ").trim()
+    : "";
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
