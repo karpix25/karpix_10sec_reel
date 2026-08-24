@@ -12,7 +12,7 @@ import { validateReferenceMeaningCoverage, type ReferenceMeaningCoverage } from 
 const FORBIDDEN_SYMBOL_ERROR = "Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.";
 const DURATION_MIN_WORD_TOLERANCE = 2;
 const CTA_SENTENCE_PATTERN = /артикул|описани|коммент|кодово.*слов|ссылк|профил/iu;
-const IMPERATIVE_CONCLUSION_PATTERN = /^(?:забудь(?:те)?|наслаждай(?:ся|тесь)|путешествуй(?:те)?|попробуй(?:те)?|используй(?:те)?|выбирай(?:те)?|плати(?:те)?|лети(?:те)?|будь(?:те)?|подпишись|подпишитесь|пиши(?:те)?|хочешь\s+так\s+же)(?=$|[^\p{L}\p{N}])/iu;
+const IMPERATIVE_CONCLUSION_PATTERN = /^(?:забудь(?:те)?|наслаждай(?:ся|тесь)|путешествуй(?:те)?|попробуй(?:те)?|используй(?:те)?|выбирай(?:те)?|плати(?:те)?|лети(?:те)?|будь(?:те)?|ознакомь(?:ся|тесь)|подпишись|подпишитесь|пиши(?:те)?|хочешь\s+так\s+же)(?=$|[^\p{L}\p{N}])/iu;
 
 export interface ScriptQualityResult {
   score: number;
@@ -352,6 +352,9 @@ export function assertCtaConclusionContract(script: string, ctaMode: string) {
       ctaIndex = index;
       break;
     }
+  }
+  if (ctaMode === "link_in_profile" && ctaIndex >= 0 && !/(?:ссылк|профил)/iu.test(sentences[ctaIndex] || "")) {
+    throw new Error("Сценарий отклонен: последний CTA должен вести по ссылке в профиле, без чужого призыва перейти в описание.");
   }
   const conclusion = ctaIndex >= 0 ? sentences[ctaIndex + 1] : null;
   if (!conclusion || conclusion.endsWith("?") || IMPERATIVE_CONCLUSION_PATTERN.test(conclusion)) {

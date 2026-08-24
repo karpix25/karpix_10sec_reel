@@ -109,6 +109,14 @@ try {
     () => qualityContract.assertCtaConclusionContract("Ссылка в профиле. Тунис подходит для бюджетного морского отдыха.", "link_in_profile"),
     "declarative conclusion after CTA must pass"
   );
+  assert.throws(
+    () => qualityContract.assertCtaConclusionContract(
+      "Плати по миру помогает платить за границей. Ссылка в профиле. Подробности о правилах я оставил в описании. Ознакомься и будь готов.",
+      "link_in_profile",
+    ),
+    /последний CTA должен вести по ссылке в профиле/u,
+    "foreign description CTA after the product CTA must fail",
+  );
   assert.ok(
     semanticReviewerSource.includes("reconcileSemanticConclusion")
       && semanticReviewerSource.includes("assertCtaConclusionContract")
