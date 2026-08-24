@@ -100,6 +100,7 @@ try {
     assert.ok(item.prompt.includes("на русском языке"), "storyboard prompt must force Russian character speech");
     assert.ok(item.prompt.includes("произнеси строго указанную реплику"), "storyboard prompt must request one complete delivery");
     assert.ok(item.prompt.includes("реплику в кавычках один раз"), "storyboard prompt must prevent speech restarts");
+    assert.ok(item.prompt.includes("одна непрерывная аудиодорожка"), "visual cuts must not restart segment speech");
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
     assert.ok(item.prompt.includes("Без фоновой музыки"), "storyboard prompt must forbid Omni music");
     assert.ok(!item.prompt.includes("субтитры примени как с референса"), "storyboard prompt must not ask to copy subtitles");

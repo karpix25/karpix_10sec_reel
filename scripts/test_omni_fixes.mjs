@@ -160,6 +160,14 @@ try {
 
   {
     const prompt = appendKieReferenceOrderPrompt("Original segment prompt.", [
+      { role: "storyboard" },
+    ]);
+    assert.match(prompt, /text-free storyboard reference/);
+    assert.doesNotMatch(prompt, /visible speech lines/);
+  }
+
+  {
+    const prompt = appendKieReferenceOrderPrompt("Original segment prompt.", [
       { role: "previous_last_frame" },
       { role: "product" },
     ]);

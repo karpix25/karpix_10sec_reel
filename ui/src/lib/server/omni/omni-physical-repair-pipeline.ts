@@ -136,8 +136,10 @@ function buildRepairedSegment(input: {
     storyboard: input.storyboard,
     productName: input.productName,
     productPhysicalContract: input.segment.creativePlan.productRole !== "hidden"
+      && input.segment.creativePlan.productRole !== "digital_demo"
       ? input.productPhysicalContract
       : null,
+    productRole: input.segment.creativePlan.productRole,
     segmentCount: input.segmentCount,
     directorBrief: input.directorBrief,
     referenceSceneMode: input.referenceSceneMode,

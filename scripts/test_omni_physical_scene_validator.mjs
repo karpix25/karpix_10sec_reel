@@ -413,6 +413,8 @@ try {
   });
   assert.equal(repairedDigitalPlan[0].validation.valid, true, JSON.stringify(repairedDigitalPlan[0].validation));
   assert.match(repairedDigitalPlan[0].storyboardPlan.frames[1].productPlacement, /экран.*камере/iu);
+  assert.match(repairedDigitalPlan[0].prompt, /DIGITAL PRODUCT/iu);
+  assert.doesNotMatch(repairedDigitalPlan[0].prompt, /PRODUCT PHYSICAL CONTRACT/iu);
   assert.ok(
     validator.validatePhysicalScene({
       storyboard: storyboard([frame("Покажу приложение", "герой показывает экран смартфона", "смартфон стоит на столе")]),
