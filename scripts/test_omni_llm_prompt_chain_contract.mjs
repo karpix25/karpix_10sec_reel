@@ -398,6 +398,7 @@ try {
   assert.ok(promptChainSource.includes("Первый segment повторяет механику reference"), "first segment must follow reference product mechanics");
   assert.ok(promptChainSource.includes("Общая фраза только о пользе продукта не считается выводом reference"), "copywriter must conclude the reference thesis, not only the product benefit");
   assert.ok(semanticReviewerSource.includes("Не предлагай вопрос, приказ, CTA или императив"), "semantic repair feedback must not suggest forbidden imperative endings");
+  assert.ok(semanticReviewerSource.includes("даже если несколько перечислены в одном предложении"), "semantic review must count distinct examples inside one list");
   assert.ok(promptChainSource.includes("десять секунд это пять кадров"), "prompt chain must preserve exact frame counts");
   assert.ok(promptChainSource.includes("Анализатор подтвердил стабильную одежду"), "director must preserve analyzed wardrobe continuity");
   assert.match(promptChainSource, /talking head frame.+смотрит прямо в объектив/iu, "talking-head frames must preserve direct gaze");
