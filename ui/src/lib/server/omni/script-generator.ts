@@ -224,6 +224,7 @@ async function requestScriptOnce(
   const scriptBudget = Math.min(input.durationRange?.maxWords || getOmniMaxScriptWords(), getOmniMaxScriptWords() - 4);
   const compactedScript = compactOmniScriptToWordBudget(script, scriptBudget, {
     referenceScript: input.sourceScenario.script,
+    productName: input.productName,
   });
   const wasCompacted = compactedScript !== script;
   script = compactedScript;

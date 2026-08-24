@@ -6,7 +6,7 @@ const CTA_PATTERN = /артикул|описани|коммент|кодово.*
 export function compactOmniScriptToWordBudget(
   script: string,
   maxWords: number,
-  options: { referenceScript?: string | null } = {}
+  options: { referenceScript?: string | null; productName?: string | null } = {}
 ) {
   if (countOmniScriptWords(script) <= maxWords) return script;
 
@@ -22,6 +22,7 @@ export function compactOmniScriptToWordBudget(
         index !== 0
         && index !== ctaIndex
         && index !== conclusionIndex
+        && !containsProductName(sentence, options.productName)
         && !containsReferenceMeaningSignal(sentence, protectedMeaningSignals)
       );
     const candidate = removable
@@ -38,6 +39,11 @@ export function compactOmniScriptToWordBudget(
 function containsReferenceMeaningSignal(sentence: string, signals: readonly string[]) {
   const normalized = sentence.toLowerCase().replace(/ё/g, "е");
   return signals.some((signal) => normalized.includes(signal));
+}
+
+function containsProductName(sentence: string, productName?: string | null) {
+  const normalizedProductName = productName?.toLowerCase().replace(/ё/g, "е").trim();
+  return Boolean(normalizedProductName && sentence.toLowerCase().replace(/ё/g, "е").includes(normalizedProductName));
 }
 
 function splitSentences(script: string) {

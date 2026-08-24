@@ -191,7 +191,7 @@ async function runCreativeCopywriter(
       const script = compactOmniScriptToWordBudget(
         sanitizeOmniScriptText(formatScenarioScript(draft.script)),
         input.durationRange?.maxWords || getOmniMaxScriptWords(),
-        { referenceScript: input.sourceScenario.script },
+        { referenceScript: input.sourceScenario.script, productName: input.productName },
       );
       previousDraft = { ...draft, script };
       lastSemanticReview = null;

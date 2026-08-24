@@ -75,8 +75,10 @@ try {
   );
   const compactedConclusion = lengthGuard.compactOmniScriptToWordBudget(
     "Хук обещает Лангкави. Лишняя вводная фраза здесь. Плати по миру виртуальная карта помогает платить за границей. Ссылка в профиле. Лангкави подходит для бюджетной зимовки.",
-    20
+    20,
+    { productName: "Плати по миру виртуальная карта" }
   );
+  assert.ok(compactedConclusion.includes("Плати по миру виртуальная карта помогает платить за границей."), "word-budget compaction must preserve the product sentence");
   assert.ok(compactedConclusion.includes("Ссылка в профиле."), "word-budget compaction must preserve the CTA");
   assert.ok(compactedConclusion.endsWith("Лангкави подходит для бюджетной зимовки."), "word-budget compaction must preserve the conclusion after CTA");
 
