@@ -28,7 +28,10 @@ export function assessOmniSpeechQuality(expected: string, actual: string): OmniS
     ? longestCommonSubsequenceLength(expectedWords, actualWords) / expectedWords.length
     : actualWords.length ? 0 : 1;
   const duplicateWords = findUnexpectedDuplicateWords(expectedWords, actualWords);
-  const repeatedPhrases = findUnexpectedRepeatedPhrases(expectedWords, actualWords);
+  const repeatedPhrases = [
+    ...findUnexpectedRepeatedPhrases(expectedWords, actualWords),
+    ...findUnexpectedAdjacentNearDuplicates(expectedWords, actualWords),
+  ];
   const missingBoundaryWords = findMissingBoundaryWords(expectedWords, actualWords);
 
   return {
@@ -70,6 +73,38 @@ function findUnexpectedRepeatedPhrases(expected: string[], actual: string[]) {
     }
   }
   return [...repeats].sort((left, right) => left.length - right.length).slice(0, 5);
+}
+
+function findUnexpectedAdjacentNearDuplicates(expected: string[], actual: string[]) {
+  const expectedCounts = countItems(findAdjacentNearDuplicates(expected));
+  return [...countItems(findAdjacentNearDuplicates(actual))]
+    .filter(([phrase, count]) => count > (expectedCounts.get(phrase) || 0))
+    .map(([phrase]) => phrase)
+    .sort();
+}
+
+function findAdjacentNearDuplicates(words: string[]) {
+  return words.slice(0, -1).flatMap((word, index) => {
+    const nextWord = words[index + 1];
+    if (word === nextWord || Math.min(word.length, nextWord.length) < 7) return [];
+    return levenshteinDistance(word, nextWord) <= 2 ? [`${word} ${nextWord}`] : [];
+  });
+}
+
+function levenshteinDistance(left: string, right: string) {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    let diagonal = previous[0];
+    previous[0] = leftIndex;
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const above = previous[rightIndex];
+      previous[rightIndex] = left[leftIndex - 1] === right[rightIndex - 1]
+        ? diagonal
+        : Math.min(diagonal, above, previous[rightIndex - 1]) + 1;
+      diagonal = above;
+    }
+  }
+  return previous[right.length];
 }
 
 function findMissingBoundaryWords(expected: string[], actual: string[]) {
