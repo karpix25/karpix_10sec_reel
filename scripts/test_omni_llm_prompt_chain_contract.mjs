@@ -117,7 +117,8 @@ try {
   assert.ok(
     semanticReviewerSource.includes("reconcileProductCapabilities")
       && semanticReviewerSource.includes("оплату по QR")
-      && semanticReviewerSource.includes("снятие или выдачу наличных"),
+      && semanticReviewerSource.includes("снятие или выдачу наличных")
+      && semanticReviewerSource.includes("гарантированную скидку, местную цену или защиту от наценки"),
     "semantic review must reject unsupported high-risk product capabilities"
   );
 
