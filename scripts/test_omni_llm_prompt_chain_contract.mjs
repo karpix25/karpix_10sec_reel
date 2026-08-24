@@ -137,6 +137,13 @@ try {
     null,
   );
   assert.equal(unsupportedSavingsReview.passed, false, "unsupported savings promise before the product name must be rejected");
+  const unsupportedCoverageReview = semanticReviewer.reconcileProductCapabilities(
+    passedSemanticReview(),
+    "Для этого есть Плати по миру виртуальная карта. С ней легко оплачивать покупки и услуги в любой стране.",
+    "Виртуальная карта помогает оплачивать покупки за границей.",
+    null,
+  );
+  assert.equal(unsupportedCoverageReview.passed, false, "unsupported worldwide coverage promise must be rejected");
 
   const directorPlan = makeDirectorPlan();
   const providerPlan = makeProviderPlan();
