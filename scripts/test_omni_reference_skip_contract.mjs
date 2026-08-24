@@ -26,7 +26,11 @@ try {
       esModuleInterop: true,
       skipLibCheck: true,
     },
-    include: [join(ui, "src/lib/omni/**/*.ts"), join(ui, "src/lib/server/omni/generated-script-reference-selection.ts")],
+    include: [
+      join(ui, "src/lib/omni/**/*.ts"),
+      join(ui, "src/lib/server/omni/generated-script-reference-selection.ts"),
+      join(ui, "src/lib/server/omni/legacy-reels-url.ts"),
+    ],
   }));
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
   const typesOutput = findFile(compiled, "types.js");
@@ -38,12 +42,23 @@ try {
     MAX_DIRECTOR_REFERENCE_ATTEMPTS,
     resolveReadyGeneratedScriptReference,
   } = require(findFile(compiled, "generated-script-reference-selection.js"));
+  const { normalizeLegacyReelsUrl } = require(findFile(compiled, "legacy-reels-url.js"));
   const sourceSelectorSource = readFileSync(join(ui, "src/lib/server/omni/generated-script-source.ts"), "utf8");
   assert.match(sourceSelectorSource, /omni_generated_script_source_cursors/u);
   assert.match(sourceSelectorSource, /omni_generated_script_source_attempts/u);
   assert.match(sourceSelectorSource, /ON CONFLICT \(project_id, product_id\)/u);
   assert.match(sourceSelectorSource, /\.\.\.attemptedIds/u);
   assert.equal(MAX_DIRECTOR_REFERENCE_ATTEMPTS, 16);
+  assert.equal(
+    normalizeLegacyReelsUrl("https://www.instagram.com/reels/DTaokiODjgF/?utm_source=test"),
+    normalizeLegacyReelsUrl("https://www.instagram.com/reel/DTaokiODjgF"),
+    "duplicate Instagram URLs must share one rotation key",
+  );
+  assert.notEqual(
+    normalizeLegacyReelsUrl("https://www.instagram.com/reel/AbC"),
+    normalizeLegacyReelsUrl("https://www.instagram.com/reel/abc"),
+    "case-sensitive reel codes must stay distinct",
+  );
   const resolveCalls = [];
   const warnings = [];
   const selected = legacyScenario(2930);

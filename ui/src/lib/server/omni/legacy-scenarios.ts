@@ -1,6 +1,7 @@
 import { OmniLegacyScenario } from "@/lib/omni/types";
 import { oldPool } from "@/lib/db";
 import { selectRoundRobinCandidate } from "./legacy-round-robin";
+import { normalizeLegacyReelsUrl } from "./legacy-reels-url";
 
 type LegacyScenarioRow = {
   id: number;
@@ -117,13 +118,6 @@ export async function getNextLegacyScenarioFromClients(
   const excludedIds = Array.from(
     new Set(excludedScenarioIds.filter((id) => Number.isFinite(id) && id > 0))
   );
-  const values: unknown[] = [clientIds];
-  let excludeClause = "";
-  if (excludedIds.length) {
-    values.push(excludedIds);
-    excludeClause = `AND NOT (pc.id = ANY($${values.length}::bigint[]))`;
-  }
-
   const legacyPool = oldPool;
   const rowsResult = await legacyPool.query<LegacyScenarioRow>(
     `SELECT
@@ -143,12 +137,21 @@ export async function getNextLegacyScenarioFromClients(
      WHERE pc.client_id = ANY($1::bigint[])
        AND COALESCE(TRIM(pc.transcript), '') <> ''
        AND pc.transcript NOT ILIKE 'Error %'
-       ${excludeClause}
      ORDER BY pc.client_id ASC, pc.id ASC`,
-    values
+    [clientIds]
   );
 
-  const selected = selectRoundRobinCandidate(rowsResult.rows, lastSelectedScenarioId, excludedIds);
+  const excludedUrls = new Set(
+    rowsResult.rows
+      .filter((row) => excludedIds.includes(Number(row.id)))
+      .map((row) => normalizeLegacyReelsUrl(row.reels_url))
+      .filter((url): url is string => Boolean(url))
+  );
+  const uniqueRows = rowsResult.rows.filter((row) => {
+    const url = normalizeLegacyReelsUrl(row.reels_url);
+    return !url || !excludedUrls.has(url);
+  });
+  const selected = selectRoundRobinCandidate(uniqueRows, lastSelectedScenarioId, excludedIds);
   return selected ? normalizeLegacyScenario(selected) : null;
 }
 
