@@ -39,8 +39,11 @@ try {
     resolveReadyGeneratedScriptReference,
   } = require(findFile(compiled, "generated-script-reference-selection.js"));
   const fitReviewerSource = readFileSync(join(ui, "src/lib/server/omni/reference-product-fit.ts"), "utf8");
+  const sourceSelectorSource = readFileSync(join(ui, "src/lib/server/omni/generated-script-source.ts"), "utf8");
   assert.match(fitReviewerSource, /hook или обещание reference не получает ответа/u);
   assert.match(fitReviewerSource, /цены, бюджет, бронирование, туры, отели, билеты, транспорт, еда, покупки/u);
+  assert.match(sourceSelectorSource, /omni_generated_script_source_cursors/u);
+  assert.match(sourceSelectorSource, /ON CONFLICT \(project_id, product_id\)/u);
   assert.equal(MAX_DIRECTOR_REFERENCE_ATTEMPTS, 16);
   const resolveCalls = [];
   const warnings = [];
@@ -119,6 +122,7 @@ try {
   const incompatible = legacyScenario(2935);
   const compatible = legacyScenario(2936);
   const analyzedIds = [];
+  const attemptedIds = [];
   const fitWarnings = [];
   const resolvedAfterProductMismatch = await resolveReadyGeneratedScriptReference({
     projectId: 7,
@@ -135,6 +139,7 @@ try {
       compatible: sourceScenario.id === compatible.id,
       reason: sourceScenario.id === compatible.id ? "travel payment need" : "unrelated travel law",
     }),
+    onSourceAttempted: async (sourceScenario) => attemptedIds.push(sourceScenario.id),
     shouldAnalyze: () => true,
     ensureAnalysis: async ({ sourceScenario }) => {
       analyzedIds.push(sourceScenario.id);
@@ -143,6 +148,7 @@ try {
     warn: (message) => fitWarnings.push(message),
   });
   assert.equal(resolvedAfterProductMismatch.sourceScenario.id, compatible.id);
+  assert.deepEqual(attemptedIds, [incompatible.id, compatible.id]);
   assert.deepEqual(analyzedIds, [compatible.id], "incompatible reference must be skipped before director analysis");
   assert.match(fitWarnings[0], /product-incompatible/);
 

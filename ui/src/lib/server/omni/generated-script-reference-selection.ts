@@ -34,6 +34,7 @@ export async function resolveReadyGeneratedScriptReference(input: {
     sourceScenario: OmniLegacyScenario;
   }) => Promise<OmniDirectorAnalysis>;
   reviewProductFit?: (sourceScenario: OmniLegacyScenario) => Promise<ReferenceProductFit>;
+  onSourceAttempted?: (sourceScenario: OmniLegacyScenario) => Promise<void>;
   requireVisibleAvatar?: boolean;
   warn?: (message: string) => void;
 }): Promise<ResolvedGeneratedScriptReference> {
@@ -48,6 +49,9 @@ export async function resolveReadyGeneratedScriptReference(input: {
       excludedLegacyScenarioIds,
       skippedFailures,
     });
+    if (source.sourceMode === "round_robin_active_legacy_reference") {
+      await input.onSourceAttempted?.(source.sourceScenario);
+    }
     const productFit = source.sourceMode === "selected_legacy_reference" || !input.reviewProductFit
       ? { compatible: true, reason: "selected_or_not_requested" }
       : await input.reviewProductFit(source.sourceScenario);

@@ -8,6 +8,23 @@ export type GeneratedScriptSourceMode =
   | "round_robin_active_legacy_reference"
   | "selected_legacy_reference";
 
+export async function advanceGeneratedScriptSourceCursor(input: {
+  projectId: number;
+  productId: number;
+  legacyScenarioId: number;
+}) {
+  await pool.query(
+    `INSERT INTO omni_generated_script_source_cursors (
+       project_id, product_id, legacy_scenario_id, updated_at
+     )
+     VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+     ON CONFLICT (project_id, product_id)
+     DO UPDATE SET legacy_scenario_id = EXCLUDED.legacy_scenario_id,
+                   updated_at = CURRENT_TIMESTAMP`,
+    [input.projectId, input.productId, input.legacyScenarioId]
+  );
+}
+
 export async function resolveGeneratedScriptSource(input: {
   projectId: number;
   productId: number;
@@ -36,7 +53,8 @@ export async function resolveGeneratedScriptSource(input: {
   }
 
   const failedDirectorIds = await listNonRetryableFailedDirectorAnalysisLegacyIds();
-  const lastSelectedScenarioId = await getLastGeneratedScriptSourceId(input.projectId, input.productId);
+  const lastSelectedScenarioId = await getGeneratedScriptSourceCursor(input.projectId, input.productId) ??
+    await getLastGeneratedScriptSourceId(input.projectId, input.productId);
   const sourceScenario = await getNextLegacyScenarioFromClients(
     legacyClientIds,
     lastSelectedScenarioId,
@@ -46,6 +64,18 @@ export async function resolveGeneratedScriptSource(input: {
     throw new Error("No reference transcripts found in active legacy bundles");
   }
   return { sourceScenario, sourceMode: "round_robin_active_legacy_reference" };
+}
+
+async function getGeneratedScriptSourceCursor(projectId: number, productId: number) {
+  const { rows } = await pool.query<{ legacy_scenario_id: number | string }>(
+    `SELECT legacy_scenario_id
+     FROM omni_generated_script_source_cursors
+     WHERE project_id = $1
+       AND product_id = $2`,
+    [projectId, productId]
+  );
+  const sourceId = rows[0]?.legacy_scenario_id;
+  return sourceId === undefined ? null : Number(sourceId);
 }
 
 async function getLastGeneratedScriptSourceId(projectId: number, productId: number) {

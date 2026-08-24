@@ -91,6 +91,13 @@ const statements = [
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(project_id, product_id, legacy_client_id)
   )`,
+  `CREATE TABLE IF NOT EXISTS omni_generated_script_source_cursors (
+    project_id INTEGER NOT NULL REFERENCES omni_projects(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES omni_products(id) ON DELETE CASCADE,
+    legacy_scenario_id BIGINT NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(project_id, product_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS omni_legacy_video_analyses (
     id SERIAL PRIMARY KEY,
     project_id INTEGER REFERENCES omni_projects(id) ON DELETE SET NULL,

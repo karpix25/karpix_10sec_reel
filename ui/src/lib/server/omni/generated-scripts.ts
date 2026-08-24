@@ -7,7 +7,7 @@ import { getGeneratedScriptCostSummaries } from "./omni-generation-costs";
 import { getLatestOmniClientAvatar } from "./avatars";
 import { shouldAnalyzeDirectorReference } from "./director-analysis-policy";
 import { ensureDirectorAnalysis } from "./director-analyses";
-import { resolveGeneratedScriptSource } from "./generated-script-source";
+import { advanceGeneratedScriptSourceCursor, resolveGeneratedScriptSource } from "./generated-script-source";
 import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
@@ -284,6 +284,11 @@ export async function createGeneratedScriptFromLegacy(input: {
   const { sourceScenario, sourceMode, directorAnalysis } = await resolveReadyGeneratedScriptReference({
     ...input,
     resolveSource: resolveGeneratedScriptSource,
+    onSourceAttempted: (sourceScenario) => advanceGeneratedScriptSourceCursor({
+      projectId: input.projectId,
+      productId: input.productId,
+      legacyScenarioId: sourceScenario.id,
+    }),
     shouldAnalyze: shouldAnalyzeDirectorReference,
     ensureAnalysis: ensureDirectorAnalysis,
     requireVisibleAvatar: Boolean(avatar),
