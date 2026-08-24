@@ -228,6 +228,7 @@ function solveBoundaries(
     const maxEnd = tokens.length - (remaining - 1) * minWords;
     for (let end = minEnd; end <= maxEnd; end += 1) {
       if (protectedBoundaries.has(end)) continue;
+      if (BAD_ENDINGS.has(normalizeBoundaryWord(tokens[end - 1].value))) continue;
       if (maxWordsPerSegment && end - start > maxWordsPerSegment) break;
       if (isSegmentWordCountAllowed && !isSegmentWordCountAllowed(end - start)) continue;
       const tail = solve(end, remaining - 1);
@@ -257,11 +258,13 @@ function segmentPenalty(tokens: Token[], start: number, end: number, target: num
 }
 
 function boundaryPenalty(value: string) {
-  const normalized = value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
-  if (BAD_ENDINGS.has(normalized)) return 120;
   if (/[.!?][»"]?$/.test(value)) return -30;
   if (/[,;:][»"]?$/.test(value)) return 24;
   return 0;
+}
+
+function normalizeBoundaryWord(value: string) {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
 function boundaryTransitionPenalty(tokens: Token[], end: number) {
