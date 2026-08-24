@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { OmniStoryboardFrame, OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import { normalizeOmniStoryboardSpeech, validateOmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-contract";
 import type { OmniSegmentPrompt } from "./omni-prompt-builder";
@@ -8,7 +9,6 @@ import { renderReferenceSegmentPlanForPrompt } from "./reference-segment-plan";
 import { repairPhysicalScenePrompt, validatePhysicalScene } from "./physical-scene-validator";
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
 import {
-  assertStoryboardPlanSemanticReviewPassed,
   reviewStoryboardPlanSemantics,
   type StoryboardPlanSemanticReview,
   type StoryboardPlanSemanticReviewInput,
@@ -26,10 +26,20 @@ import {
   renderSemanticStoryboardMemoryRules,
   type SemanticStoryboardMemoryRule,
 } from "./semantic-storyboard-memory-contract";
+import {
+  beginFinalSemanticReview,
+  beginFullSemanticRebuild,
+  consumeSemanticRepairLlmCall,
+  createStoryboardSemanticRepairState,
+  formatSemanticRepairFailure,
+  fingerprintStoryboardPlan,
+  MAX_LOCAL_SEMANTIC_REPAIR_ATTEMPTS,
+  recordLocalSemanticRepair,
+  type StoryboardSemanticRepairState,
+} from "./storyboard-semantic-repair-state";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const REQUEST_TIMEOUT_MS = 45_000;
-const MAX_SEMANTIC_REPAIR_ATTEMPTS = 2;
 
 type SemanticRepairSegment = {
   index: number;
@@ -57,50 +67,33 @@ export async function prepareOmniPromptPlanWithSemanticRepair(input: {
     referenceFormatMode: input.referenceFormatMode,
     referenceSceneMode: input.referenceSceneMode,
   });
+  const state = createStoryboardSemanticRepairState();
+  let review: StoryboardPlanSemanticReview | null = null;
 
-  for (let attempt = 0; attempt <= MAX_SEMANTIC_REPAIR_ATTEMPTS; attempt += 1) {
-    promptPlan = normalizeOmniPromptPlanWithPhysicalRules({
-      promptPlan,
-      productName: input.productName,
-      productPhysicalContract: input.productPhysicalContract,
-      segmentCount: promptPlan.length,
-      directorBrief: input.directorBrief,
-      referenceSceneMode: input.referenceSceneMode,
-    });
-    assertPhysicalPromptPlan(promptPlan);
-    assertStoryboardPromptContracts(promptPlan, input.productName, input.referenceFormatMode);
+  for (let attempt = 0; attempt <= MAX_LOCAL_SEMANTIC_REPAIR_ATTEMPTS; attempt += 1) {
+    promptPlan = validateSemanticPromptPlan(input, promptPlan);
 
-    const review = await reviewStoryboardPlanSemantics(buildReviewInput(input, promptPlan, learnedRules));
-    if (review.issues.length) {
-      void rememberSemanticStoryboardIssues({
-        scope: {
-          projectId: input.projectId,
-          productId: input.productId,
-          referenceFormatMode: input.referenceFormatMode,
-          referenceSceneMode: input.referenceSceneMode,
-        },
-        issues: review.issues,
-        repairInstructions: review.repairInstructions,
-      });
-    }
+    consumeSemanticRepairLlmCall(state);
+    review = await reviewStoryboardPlanSemantics(buildReviewInput(input, promptPlan, learnedRules));
     if (review.passed) return promptPlan;
-    if (attempt === MAX_SEMANTIC_REPAIR_ATTEMPTS) {
-      assertStoryboardPlanSemanticReviewPassed(review);
-    }
+    if (attempt === MAX_LOCAL_SEMANTIC_REPAIR_ATTEMPTS) break;
 
-    promptPlan = await repairOmniStoryboardPlanWithAi({
-      ...input,
-      promptPlan,
-      review,
-      learnedRules,
-    });
+    consumeSemanticRepairLlmCall(state);
+    try {
+      promptPlan = await repairOmniStoryboardPlanWithAi({ ...input, promptPlan, review, learnedRules });
+    } catch (error) {
+      recordLocalSemanticRepair(state);
+      return rebuildAfterLocalRepairFailure(input, promptPlan, review, state, error);
+    }
+    recordLocalSemanticRepair(state);
   }
 
-  throw new Error("Semantic storyboard repair did not return a prompt plan");
+  return rebuildAfterLocalRepairFailure(input, promptPlan, review, state, null);
 }
 
-async function repairOmniStoryboardPlanWithAi(input: {
-  promptPlan: readonly OmniSegmentPrompt[];
+type SemanticRepairContext = {
+  projectId: number;
+  productId: number;
   script: string;
   productName: string;
   productDescription: string | null;
@@ -109,8 +102,122 @@ async function repairOmniStoryboardPlanWithAi(input: {
   referenceSceneMode: ReferenceSceneMode;
   referenceFormatMode: ReferenceFormatMode;
   model: string;
-  review: StoryboardPlanSemanticReview;
   learnedRules: readonly SemanticStoryboardMemoryRule[];
+};
+
+function rememberSemanticFailure(input: SemanticRepairContext, review: StoryboardPlanSemanticReview) {
+  if (!review.issues.length) return;
+  void rememberSemanticStoryboardIssues({
+    scope: {
+      projectId: input.projectId,
+      productId: input.productId,
+      referenceFormatMode: input.referenceFormatMode,
+      referenceSceneMode: input.referenceSceneMode,
+    },
+    issues: review.issues,
+    repairInstructions: review.repairInstructions,
+  });
+}
+
+async function rebuildAfterLocalRepairFailure(
+  input: SemanticRepairContext,
+  promptPlan: readonly OmniSegmentPrompt[],
+  review: StoryboardPlanSemanticReview | null,
+  state: StoryboardSemanticRepairState,
+  localRepairError: unknown,
+) {
+  if (!review) throw new Error("Storyboard semantic self-healing stopped without a semantic review");
+
+  const rebuildInputFingerprint = fingerprintStoryboardPlan(promptPlan);
+  if (!beginFullSemanticRebuild(state, rebuildInputFingerprint)) {
+    rememberSemanticFailure(input, review);
+    throwSemanticRepairExhausted(review, state, ["storyboard_rebuild_repeated"]);
+  }
+
+  consumeSemanticRepairLlmCall(state);
+  let rebuiltPlan: readonly OmniSegmentPrompt[];
+  try {
+    rebuiltPlan = await rebuildOmniStoryboardPlanWithAi({
+      ...input,
+      promptPlan,
+      review,
+      learnedRules: input.learnedRules,
+    });
+  } catch (error) {
+    rememberSemanticFailure(input, review);
+    throw new Error(formatSemanticRepairFailure(state, [
+      "storyboard_full_rebuild_failed",
+      ...(localRepairError ? ["storyboard_local_repair_failed"] : []),
+    ], errorMessage(error)));
+  }
+
+  let validatedPlan: readonly OmniSegmentPrompt[];
+  try {
+    validatedPlan = validateSemanticPromptPlan(input, rebuiltPlan);
+  } catch (error) {
+    rememberSemanticFailure(input, review);
+    throw new Error(formatSemanticRepairFailure(state, ["storyboard_full_rebuild_invalid"], errorMessage(error)));
+  }
+  const rebuildOutputFingerprint = fingerprintStoryboardPlan(validatedPlan);
+  beginFinalSemanticReview(state);
+  consumeSemanticRepairLlmCall(state);
+  let rebuiltReview: StoryboardPlanSemanticReview;
+  try {
+    rebuiltReview = await reviewStoryboardPlanSemantics(buildReviewInput(input, validatedPlan, input.learnedRules));
+  } catch (error) {
+    rememberSemanticFailure(input, review);
+    throw new Error(formatSemanticRepairFailure(state, ["storyboard_final_semantic_review_failed"], errorMessage(error)));
+  }
+  if (rebuiltReview.passed) return validatedPlan;
+  rememberSemanticFailure(input, rebuiltReview);
+  throwSemanticRepairExhausted(
+    rebuiltReview,
+    state,
+    rebuildInputFingerprint === rebuildOutputFingerprint ? ["storyboard_rebuild_no_change"] : [],
+  );
+}
+
+type SemanticRepairInput = SemanticRepairContext & {
+  promptPlan: readonly OmniSegmentPrompt[];
+  review: StoryboardPlanSemanticReview;
+};
+
+async function repairOmniStoryboardPlanWithAi(input: SemanticRepairInput) {
+  const parsed = await requestSemanticStoryboardJson({
+    model: input.model,
+    systemPrompt: SEMANTIC_REPAIR_SYSTEM_PROMPT,
+    userPrompt: buildRepairPrompt(input),
+    title: "Omni Reels Storyboard Semantic Repair",
+  });
+  return applySemanticRepairResponse(input, parsed);
+}
+
+async function rebuildOmniStoryboardPlanWithAi(input: SemanticRepairInput) {
+  const expectedFingerprint = voiceoverFingerprint(input.promptPlan.map((segment) => segment.voiceoverText));
+  const sourceFingerprint = voiceoverFingerprint([input.script]);
+  if (expectedFingerprint !== sourceFingerprint) {
+    throw new Error("Full storyboard rebuild refused: source voiceover fingerprint does not match the local plan");
+  }
+
+  const parsed = await requestSemanticStoryboardJson({
+    model: input.model,
+    systemPrompt: SEMANTIC_REBUILD_SYSTEM_PROMPT,
+    userPrompt: buildFullRebuildPrompt(input),
+    title: "Omni Reels Storyboard Semantic Full Rebuild",
+  });
+  const segments = readFullRebuildSegments(parsed, input.promptPlan.map((segment) => segment.index));
+  const rebuiltPlan = applySemanticRepairResponse(input, { segments }, "full_rebuild");
+  if (voiceoverFingerprint(rebuiltPlan.map((segment) => segment.voiceoverText)) !== expectedFingerprint) {
+    throw new Error("Full storyboard rebuild changed the source voiceover fingerprint");
+  }
+  return rebuiltPlan;
+}
+
+async function requestSemanticStoryboardJson(input: {
+  model: string;
+  systemPrompt: string;
+  userPrompt: string;
+  title: string;
 }) {
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
@@ -118,27 +225,26 @@ async function repairOmniStoryboardPlanWithAi(input: {
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY?.trim() || ""}`,
       "Content-Type": "application/json",
       "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://n8n-omnireels.ap2dy7.easypanel.host",
-      "X-Title": "Omni Reels Storyboard Semantic Repair",
+      "X-Title": input.title,
     },
     body: JSON.stringify({
       model: input.model,
       temperature: 0,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: SEMANTIC_REPAIR_SYSTEM_PROMPT },
-        { role: "user", content: buildRepairPrompt(input) },
+        { role: "system", content: input.systemPrompt },
+        { role: "user", content: input.userPrompt },
       ],
     }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(`Storyboard semantic repair failed: ${response.status} ${text.slice(0, 240)}`);
+    throw new Error(`Storyboard semantic request failed: ${response.status} ${text.slice(0, 240)}`);
   }
 
   const data = (await response.json()) as Record<string, unknown>;
-  const parsed = parseAndRepairJson<unknown>(readAssistantContent(data));
-  return applySemanticRepairResponse(input, parsed);
+  return parseAndRepairJson<unknown>(readAssistantContent(data));
 }
 
 const SEMANTIC_REPAIR_SYSTEM_PROMPT = [
@@ -154,8 +260,17 @@ const SEMANTIC_REPAIR_SYSTEM_PROMPT = [
   "Сохрани положительный визуальный план reference и меняй только то, на что указывает semantic review.",
 ].join(" ");
 
+const SEMANTIC_REBUILD_SYSTEM_PROMPT = [
+  "Ты полностью пересобираешь раскадровку короткого видео после неудачной локальной смысловой правки.",
+  "Верни только JSON формата {segments:[{index:number,voiceoverText:string,storyboardPlan:{segmentIndex:number,durationSeconds:number,voiceoverText:string,frames:[{visualAction:string,camera:string,environment:string,wardrobe:string,productPlacement:string,sfxNotes:string,effectNotes?:string|null,speechMode?:string}]}}]}.",
+  "Верни каждый сегмент текущего плана ровно один раз, в том же порядке, с тем же segmentIndex, durationSeconds и количеством кадров.",
+  "Не меняй и не перефразируй voiceoverText. Сохрани исходную последовательность слов побуквенно после нормализации.",
+  "Пересобери визуальную режиссуру целиком с учетом semantic review, reference format и физических контрактов.",
+  "Не добавляй и не удаляй слова, сегменты или кадры. Не добавляй новые утверждения.",
+].join(" ");
+
 function buildReviewInput(
-  input: Omit<StoryboardPlanSemanticReviewInput, "segments"> & { promptPlan: readonly OmniSegmentPrompt[] },
+  input: Omit<StoryboardPlanSemanticReviewInput, "segments">,
   promptPlan: readonly OmniSegmentPrompt[],
   learnedRules: readonly SemanticStoryboardMemoryRule[],
 ): StoryboardPlanSemanticReviewInput {
@@ -212,13 +327,38 @@ function buildRepairPrompt(input: {
   ].join("\n\n");
 }
 
+function buildFullRebuildPrompt(input: SemanticRepairInput) {
+  return [
+    "РЕЖИМ: ПОЛНАЯ ПЕРЕСБОРКА. Верни все сегменты, а не только измененные.",
+    buildRepairPrompt(input),
+    "Проверка перед ответом: voiceover каждого сегмента и storyboardPlan.voiceoverText должны сохранить исходную последовательность слов; durationSeconds и число frames должны совпасть с текущим планом.",
+  ].join("\n\n");
+}
+
+function validateSemanticPromptPlan(
+  input: Pick<SemanticRepairInput, "productName" | "productPhysicalContract" | "directorBrief" | "referenceSceneMode" | "referenceFormatMode">,
+  promptPlan: readonly OmniSegmentPrompt[],
+) {
+  const normalizedPlan = normalizeOmniPromptPlanWithPhysicalRules({
+    promptPlan,
+    productName: input.productName,
+    productPhysicalContract: input.productPhysicalContract,
+    segmentCount: promptPlan.length,
+    directorBrief: input.directorBrief,
+    referenceSceneMode: input.referenceSceneMode,
+  });
+  assertPhysicalPromptPlan(normalizedPlan);
+  assertStoryboardPromptContracts(normalizedPlan, input.productName, input.referenceFormatMode);
+  return normalizedPlan;
+}
+
 function applySemanticRepairResponse(input: {
   promptPlan: readonly OmniSegmentPrompt[];
   productName: string;
   productPhysicalContract?: string | null;
   directorBrief: DirectorBrief | null;
   referenceSceneMode: ReferenceSceneMode;
-}, value: unknown) {
+}, value: unknown, mode: "local_repair" | "full_rebuild" = "local_repair") {
   const segments = readRepairSegments(value);
   const byIndex = new Map(segments.map((segment) => [segment.index, segment]));
   const repairedVoiceover = input.promptPlan
@@ -232,7 +372,10 @@ function applySemanticRepairResponse(input: {
   return input.promptPlan.map((segment) => {
     const repairedSegment = byIndex.get(segment.index);
     if (!repairedSegment || !segment.storyboardPlan) return segment;
-    const voiceoverText = repairedSegment.voiceoverText || segment.voiceoverText;
+    const voiceoverText = mode === "full_rebuild" ? segment.voiceoverText : repairedSegment.voiceoverText || segment.voiceoverText;
+    if (mode === "full_rebuild" && repairedSegment.voiceoverText && normalizeOmniStoryboardSpeech(repairedSegment.voiceoverText) !== normalizeOmniStoryboardSpeech(segment.voiceoverText)) {
+      throw new Error(`Full storyboard rebuild changed segment ${segment.index} voiceover text`);
+    }
     const storyboard = mergeRepairedStoryboard(segment.storyboardPlan, repairedSegment.storyboardPlan, voiceoverText);
     const storyboardValidation = validateOmniStoryboardSegment(storyboard);
     if (!storyboardValidation.valid) {
@@ -338,6 +481,47 @@ function readRepairSegments(value: unknown): SemanticRepairSegment[] {
       storyboardPlan: segment.storyboardPlan,
     };
   });
+}
+
+function readFullRebuildSegments(value: unknown, expectedIndexes: readonly number[]) {
+  const segments = readRepairSegments(value);
+  if (segments.length !== expectedIndexes.length) {
+    throw new Error(`Full storyboard rebuild returned ${segments.length} segments; expected ${expectedIndexes.length}`);
+  }
+  const indexes = new Set(segments.map((segment) => segment.index));
+  for (const index of expectedIndexes) {
+    if (!indexes.has(index)) throw new Error(`Full storyboard rebuild omitted segment ${index}`);
+  }
+  return segments;
+}
+
+function voiceoverFingerprint(parts: readonly string[]) {
+  return createHash("sha256")
+    .update(normalizeOmniStoryboardSpeech(parts.join(" ")))
+    .digest("hex");
+}
+
+function throwSemanticRepairExhausted(
+  review: StoryboardPlanSemanticReview,
+  state: StoryboardSemanticRepairState,
+  extraIssueCodes: readonly string[] = [],
+): never {
+  const issueCodes = [...new Set([
+    ...extraIssueCodes,
+    ...review.issues.map((issue) => issue.code),
+  ])];
+  const details = review.issues.length
+    ? review.issues.map((issue) => `segment ${issue.segmentIndex}: ${issue.explanation}`).join("; ")
+    : "semantic reviewer rejected the storyboard without structured issue details";
+  throw new Error(formatSemanticRepairFailure(
+    state,
+    issueCodes.length ? issueCodes : ["storyboard_semantic_failure"],
+    details,
+  ));
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function readAssistantContent(data: Record<string, unknown>) {
