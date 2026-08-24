@@ -238,12 +238,17 @@ function repairStoryboardFrames(
 ): StoryboardFrame[] {
   const expectedFrameCount = getOmniStoryboardFrameCount(durationSeconds);
   if (!expectedFrameCount || !voiceover || !frames.length) return [...frames];
-  if (frames.length !== expectedFrameCount) return [...frames];
+  const fittedFrames = Array.from({ length: expectedFrameCount }, (_, index) => {
+    const sourceIndex = expectedFrameCount === 1
+      ? 0
+      : Math.round(index * (frames.length - 1) / (expectedFrameCount - 1));
+    return frames[sourceIndex];
+  });
   const words = voiceover.split(/\s+/u).filter(Boolean);
   const chunks = splitWords(words, expectedFrameCount);
   if (!chunks.length) return [...frames];
   return chunks.map((spokenWords, index) => {
-    const source = frames[Math.min(index, frames.length - 1)];
+    const source = fittedFrames[index];
     return {
       ...source,
       index: index + 1,

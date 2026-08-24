@@ -10,6 +10,11 @@ export type ResolvedGeneratedScriptReference = {
   directorAnalysis: OmniDirectorAnalysis | null;
 };
 
+export type ReferenceProductFit = {
+  compatible: boolean;
+  reason: string;
+};
+
 export async function resolveReadyGeneratedScriptReference(input: {
   projectId: number;
   productId: number;
@@ -27,6 +32,7 @@ export async function resolveReadyGeneratedScriptReference(input: {
     productId: number;
     sourceScenario: OmniLegacyScenario;
   }) => Promise<OmniDirectorAnalysis>;
+  reviewProductFit?: (sourceScenario: OmniLegacyScenario) => Promise<ReferenceProductFit>;
   warn?: (message: string) => void;
 }): Promise<ResolvedGeneratedScriptReference> {
   const maxAttempts = input.maxAttempts || MAX_DIRECTOR_REFERENCE_ATTEMPTS;
@@ -40,6 +46,15 @@ export async function resolveReadyGeneratedScriptReference(input: {
       excludedLegacyScenarioIds,
       skippedFailures,
     });
+    const productFit = source.sourceMode === "selected_legacy_reference" || !input.reviewProductFit
+      ? { compatible: true, reason: "selected_or_not_requested" }
+      : await input.reviewProductFit(source.sourceScenario);
+    if (!productFit.compatible) {
+      excludedLegacyScenarioIds.push(source.sourceScenario.id);
+      skippedFailures.push(`#${source.sourceScenario.id}: product mismatch: ${productFit.reason}`);
+      input.warn?.(`Skipping product-incompatible Omni reference source #${source.sourceScenario.id}: ${productFit.reason}`);
+      continue;
+    }
     const directorAnalysis = input.shouldAnalyze(source.sourceScenario)
       ? await input.ensureAnalysis({
           projectId: input.projectId,

@@ -42,6 +42,7 @@ import { resolveReferenceFrameCount } from "./reference-segment-plan";
 import {
   prepareOmniPromptPlanWithSemanticRepair,
 } from "./omni-storyboard-semantic-repair";
+import { reviewReferenceProductFit } from "./reference-product-fit";
 
 const PROMPT_REPAIR_TIMEOUT_MS = 15_000;
 
@@ -285,6 +286,13 @@ export async function createGeneratedScriptFromLegacy(input: {
     resolveSource: resolveGeneratedScriptSource,
     shouldAnalyze: shouldAnalyzeDirectorReference,
     ensureAnalysis: ensureDirectorAnalysis,
+    reviewProductFit: (sourceScenario) => reviewReferenceProductFit({
+      model: process.env.SCENARIO_MODEL || "google/gemini-2.5-flash",
+      sourceScenario,
+      productName: product.name,
+      productDescription: product.description,
+      productReferenceNotes: product.product_reference_notes,
+    }),
     warn: (message) => console.warn(message),
   });
   const directorBrief =

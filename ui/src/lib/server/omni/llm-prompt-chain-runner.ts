@@ -190,6 +190,7 @@ async function runCreativeCopywriter(
       const script = sanitizeOmniScriptText(formatScenarioScript(draft.script));
       previousDraft = { ...draft, script };
       lastSemanticReview = null;
+      assertOmniScriptTextContract(script);
       assertPromptChainScriptQuality(input, script, null);
       assertRussianSpeechGender(script, input.avatarSpeechGender);
       planOmniReelSegments(script, { durationRange: input.durationRange });

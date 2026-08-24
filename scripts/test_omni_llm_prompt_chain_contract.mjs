@@ -105,6 +105,24 @@ try {
   assert.equal(numberWords.formatPromptChainRange(60, 72), "от шестидесяти до семидесяти двух");
   assert.ok(!/[\d-]/u.test(numberWords.formatPromptChainRange(60, 72)));
 
+  const repairedFrameCount = normalizer.lockDirectorPlanSpeech(
+    {
+      ...directorPlan,
+      segments: [{
+        ...directorPlan.segments[0],
+        storyboardFrames: directorPlan.segments[0].storyboardFrames.slice(0, 2),
+      }],
+    },
+    [{ text: directorPlan.segments[0].voiceover }],
+    [directorPlan.segments[0].durationSeconds],
+    directorPlan.format,
+  );
+  assert.equal(repairedFrameCount.segments[0].storyboardFrames.length, 4);
+  assert.equal(
+    repairedFrameCount.segments[0].storyboardFrames.map((frame) => frame.spokenWords).join(" "),
+    directorPlan.segments[0].voiceover,
+  );
+
   assertIssue(
     storyboardValidator.validateStoryboardDirectorPlan({
       ...directorPlan,

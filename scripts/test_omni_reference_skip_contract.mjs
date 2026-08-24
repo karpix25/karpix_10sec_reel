@@ -109,6 +109,36 @@ try {
   assert.equal(resolvedAfterStorageFailure.sourceScenario.id, visualReady.id);
   assert.match(storageWarnings[0], /Reference video download failed/);
 
+  const incompatible = legacyScenario(2935);
+  const compatible = legacyScenario(2936);
+  const analyzedIds = [];
+  const fitWarnings = [];
+  const resolvedAfterProductMismatch = await resolveReadyGeneratedScriptReference({
+    projectId: 7,
+    productId: 9,
+    maxAttempts: 3,
+    resolveSource: async (input) => {
+      if (!input.excludedLegacyScenarioIds?.length) {
+        return { sourceScenario: incompatible, sourceMode: "round_robin_active_legacy_reference" };
+      }
+      assert.deepEqual(input.excludedLegacyScenarioIds, [incompatible.id]);
+      return { sourceScenario: compatible, sourceMode: "round_robin_active_legacy_reference" };
+    },
+    reviewProductFit: async (sourceScenario) => ({
+      compatible: sourceScenario.id === compatible.id,
+      reason: sourceScenario.id === compatible.id ? "travel payment need" : "unrelated travel law",
+    }),
+    shouldAnalyze: () => true,
+    ensureAnalysis: async ({ sourceScenario }) => {
+      analyzedIds.push(sourceScenario.id);
+      return directorAnalysis(sourceScenario.id, "completed", null);
+    },
+    warn: (message) => fitWarnings.push(message),
+  });
+  assert.equal(resolvedAfterProductMismatch.sourceScenario.id, compatible.id);
+  assert.deepEqual(analyzedIds, [compatible.id], "incompatible reference must be skipped before director analysis");
+  assert.match(fitWarnings[0], /product-incompatible/);
+
   await assert.rejects(
     () => resolveReadyGeneratedScriptReference({
       projectId: 7,
