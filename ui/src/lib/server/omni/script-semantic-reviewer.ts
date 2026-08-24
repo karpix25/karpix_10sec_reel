@@ -10,6 +10,10 @@ import { assertCtaConclusionContract } from "./script-quality-contract";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const REQUEST_TIMEOUT_MS = 45_000;
 const REVIEW_VERSION = "script-semantic-review-v1" as const;
+const PRODUCT_CAPABILITY_RULES = [
+  { label: "оплату по QR", script: /\bqr\b|куар|сканир\w*\s+(?:qr|код)/iu, source: /\bqr\b|куар|сканир\w*\s+(?:qr|код)/iu },
+  { label: "снятие или выдачу наличных", script: /банкомат|снят\w*\s+налич|выдач\w*\s+налич/iu, source: /банкомат|снят\w*\s+налич|выдач\w*\s+налич/iu },
+] as const;
 
 export type ScriptSemanticReviewInput = {
   model: string;
@@ -66,11 +70,42 @@ export async function reviewScriptSemantics(
     pricing,
   }));
 
-  return reconcileSemanticConclusion(
+  const capabilityReview = reconcileProductCapabilities(
     normalizeScriptSemanticReview(parseAndRepairJson(readAssistantContent(data))),
+    input.script,
+    input.productDescription,
+    input.productReferenceNotes,
+  );
+  return reconcileSemanticConclusion(
+    capabilityReview,
     input.script,
     input.ctaMode,
   );
+}
+
+export function reconcileProductCapabilities(
+  review: ScriptSemanticReview,
+  script: string,
+  productDescription: string | null,
+  productReferenceNotes: string | null,
+): ScriptSemanticReview {
+  const source = [productDescription, productReferenceNotes].filter(Boolean).join(" ");
+  const unsupported = PRODUCT_CAPABILITY_RULES
+    .filter((rule) => rule.script.test(script) && !rule.source.test(source))
+    .map((rule) => rule.label);
+  if (!unsupported.length) return review;
+  const issue = `Сценарий приписывает продукту неподтвержденную возможность: ${unsupported.join(", ")}.`;
+  return {
+    ...review,
+    passed: false,
+    productValueStated: false,
+    productNaturallyIntegrated: false,
+    issues: [...review.issues, issue],
+    repairInstructions: [
+      ...review.repairInstructions,
+      "Удалите неподтвержденное действие и используйте только возможности из описания продукта.",
+    ],
+  };
 }
 
 export function reconcileSemanticConclusion(

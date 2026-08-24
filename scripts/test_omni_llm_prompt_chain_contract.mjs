@@ -114,6 +114,12 @@ try {
       && semanticReviewerSource.includes("finalAnswerPresent: true"),
     "semantic reviewer must defer declarative CTA conclusions to the deterministic contract"
   );
+  assert.ok(
+    semanticReviewerSource.includes("reconcileProductCapabilities")
+      && semanticReviewerSource.includes("оплату по QR")
+      && semanticReviewerSource.includes("снятие или выдачу наличных"),
+    "semantic review must reject unsupported high-risk product capabilities"
+  );
 
   const directorPlan = makeDirectorPlan();
   const providerPlan = makeProviderPlan();
