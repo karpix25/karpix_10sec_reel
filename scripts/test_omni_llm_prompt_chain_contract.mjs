@@ -343,6 +343,13 @@ try {
   assert.ok(promptChainSource.includes("где естественно завершается рассказ о продукте"), "LLM chain CTA must be embedded at the natural product mention");
   assert.ok(promptChainSource.includes("финальная часть ролика не состояла только из призыва"), "link CTA must be followed by a real conclusion");
   assert.ok(!promptChainSource.includes("CTA: последняя фраза должна"), "link CTA must not be forced into the last sentence");
+  assert.ok(!promptChainSource.includes("CTA может быть отдельной последней фразой"), "base prompt must not allow CTA-only endings");
+  const creativeRepairSource = readFileSync(
+    join(ui, "src/lib/server/omni/llm-prompt-chain-creative-repair.ts"),
+    "utf8"
+  );
+  assert.ok(!creativeRepairSource.includes("CTA отдельной последней фразой"), "targeted repair must not reintroduce CTA-only endings");
+  assert.ok(creativeRepairSource.includes("CTA перед полноценным финальным выводом"), "full rebuild must keep a conclusion after CTA");
   assert.ok(promptChainSource.includes("артикул или подробности можно найти в описании"), "LLM chain article CTA must identify the exact product variant");
   assert.ok(promptChainSource.includes("в описании упоминается только артикул"), "LLM chain article CTA must not speak article number");
   assert.ok(promptChainSource.includes("Не используй сухие шаблоны"), "LLM chain article CTA must avoid copy-pasted wording");
