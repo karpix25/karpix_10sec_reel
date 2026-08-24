@@ -11,7 +11,9 @@ import { formatPromptChainRange } from "./llm-prompt-chain-number-words";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
+import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
+import { requiresContinuousPresenterWardrobe } from "./director-wardrobe";
 
 export type PromptChainInput = {
   projectName: string;
@@ -91,7 +93,9 @@ export function buildDirectorSegmenterPrompt(input: {
   draft: CreativeScriptDraft;
   segmentPlan: OmniReelSegmentPlan;
 }) {
-  const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.chainInput.directorBrief));
+  const referenceFormatMode = resolveReferenceFormatMode(input.chainInput.directorBrief);
+  const referenceSceneMode = resolveReferenceSceneMode(input.chainInput.directorBrief);
+  const montageReference = isVoiceoverMontageReference(referenceFormatMode);
   const wardrobeContinuity = input.chainInput.directorBrief?.wardrobe_continuity || "unknown";
   const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(input.chainInput.directorBrief);
   const presenterReference = visibleSubjectPolicy === "presenter";
@@ -103,7 +107,10 @@ export function buildDirectorSegmenterPrompt(input: {
   const exampleFrameRole = presenterReference ? "face_open" : "environment_cutaway";
   const exampleReferenceRole = visibleSubjectPolicy === "silent_avatar" ? "avatar" : presenterReference ? "avatar" : "none";
   const exampleFrameAction = presenterReference ? "действие лица в камеру" : "наблюдаемое действие объекта, среды или визуального героя";
-  const wardrobeRule = renderPromptChainWardrobeRule(wardrobeContinuity);
+  const wardrobeRule = renderPromptChainWardrobeRule(
+    wardrobeContinuity,
+    requiresContinuousPresenterWardrobe({ referenceFormatMode, referenceSceneMode }),
+  );
   const formatRule = montageReference
     ? "Сохрани только макроформат montage и примерный темп смены планов. Сцены, действия, локации и порядок перебивок поставь заново под смысл текущего сценария."
     : presenterReference
@@ -241,7 +248,11 @@ function buildProductTimingContract(): string {
   return "Наш продукт появляется один раз короткой рекламной вставкой в середине сценария: после раскрытого начала reference и до его финального вывода. До вставки продукт вне кадра; после CTA вернись к исходной теме.";
 }
 
-function renderPromptChainWardrobeRule(continuity: DirectorBrief["wardrobe_continuity"] | "unknown") {
+function renderPromptChainWardrobeRule(
+  continuity: DirectorBrief["wardrobe_continuity"] | "unknown",
+  continuousPresenterWardrobe: boolean,
+) {
+  if (continuousPresenterWardrobe) return "Это один экранный ведущий: выбери ему один комплект одежды и не меняй тип одежды, рукава, вырез, цвет, материал или видимые аксессуары между segments.";
   if (continuity === "stable") return "Можно сохранить один простой комплект, но точный материал, крой и цвет reference не являются контрактом или причиной перегенерации.";
   if (continuity === "changes_between_cuts") return "Одежду можно менять между самостоятельными сценами, если это помогает новой режиссерской версии.";
   if (continuity === "not_visible") return "Одежда не видна в анализируемом reference: не добавляй и не проверяй детали одежды.";

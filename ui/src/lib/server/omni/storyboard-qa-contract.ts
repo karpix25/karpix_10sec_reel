@@ -8,7 +8,8 @@ export type StoryboardRepairMode = "fresh" | "patch" | "metadata_only";
 
 const METADATA_ONLY_CODES = /(?:reference_(?:action|composition|camera)|camera(?:_|$)|composition|frame_?action|gesture|motion|timing|teleportation|face_?gesture|physical_?action|wardrobe|outfit|garment|sleeve|neckline|fabric|environment|lighting|room|location|background|mouth|lip)/iu;
 const SYSTEMIC_DRIFT_CODES = /(?:featured_identity_mismatch|identity_mismatch|wrong_(?:featured_)?(?:person|avatar)|gross_visual_corruption)/iu;
-const BLOCKING_VISUAL_CODES = /(?:featured_identity_mismatch|identity_mismatch|wrong_(?:featured_)?(?:person|avatar)|product_(?:form|packaging)_mismatch|product_missing|foreign_product|gross_visual_corruption)/iu;
+const BLOCKING_VISUAL_CODES = /(?:featured_identity_mismatch|identity_mismatch|wrong_(?:featured_)?(?:person|avatar)|product_(?:form|packaging)_mismatch|product_missing|foreign_product|gross_visual_corruption|presenter_wardrobe_continuity_mismatch)/iu;
+const PRESENTER_WARDROBE_CONTINUITY_CODE = /^presenter_wardrobe_continuity_mismatch$/iu;
 const OFFSCREEN_EVIDENCE = /(?:not visible|outside (?:the )?crop|offscreen|cropped(?: out)?|cannot (?:see|verify|tell)|unclear|not enough (?:detail|evidence)|не видно|вне кадра|обрезан|не удается (?:увидеть|проверить)|недостаточно (?:деталей|данных))/iu;
 
 export function normalizeStoryboardQaViolation<T extends StoryboardQaViolation>(violation: T): T {
@@ -19,7 +20,7 @@ export function normalizeStoryboardQaViolation<T extends StoryboardQaViolation>(
 }
 
 export function isStoryboardQaMetadataOnly(violation: Pick<StoryboardQaViolation, "code">) {
-  return METADATA_ONLY_CODES.test(violation.code);
+  return !PRESENTER_WARDROBE_CONTINUITY_CODE.test(violation.code) && METADATA_ONLY_CODES.test(violation.code);
 }
 
 export function isBlockingStoryboardQaViolation(violation: StoryboardQaViolation) {

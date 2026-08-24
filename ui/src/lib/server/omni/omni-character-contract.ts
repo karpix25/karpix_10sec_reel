@@ -4,7 +4,7 @@ import {
   type OmniAvatarSpeechGender,
 } from "../../omni/avatar-speech-gender";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
-import type { DirectorWardrobeContinuity } from "./director-wardrobe";
+import { requiresContinuousPresenterWardrobe, type DirectorWardrobeContinuity } from "./director-wardrobe";
 import { isAvatarFreeReferenceScene, isFacelessReferenceScene, isObjectOnlyReferenceScene, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
@@ -49,7 +49,9 @@ export function buildOmniCharacterContract(input: {
   const productAvatarNotes = cleanText(input.product.avatar_reference_notes);
   const clothingFromProduct = extractClothingDescription(productAvatarNotes);
   const clothingFromAvatar = extractClothingDescription(avatarPrompt);
-  const wardrobeContinuity = input.wardrobeContinuity || "stable";
+  const wardrobeContinuity = requiresContinuousPresenterWardrobe(input)
+    ? "stable"
+    : input.wardrobeContinuity || "stable";
   const allowsReferenceWardrobeVariation = normalizeOmniWardrobeSource(input.wardrobeSource) !== "avatar_reference" &&
     wardrobeContinuity !== "stable";
   const clothing = clothingFromProduct || clothingFromAvatar || FALLBACK_CLOTHING;

@@ -42,6 +42,20 @@ try {
   const validator = require(findFile(compiled, "storyboard-vision-contract.js"));
   const visionValidator = require(findFile(compiled, "storyboard-vision-validator.js"));
   const setVisionValidator = require(findFile(compiled, "storyboard-set-vision-validator.js"));
+  const wardrobe = require(findFile(compiled, "director-wardrobe.js"));
+
+  assert.equal(wardrobe.requiresContinuousPresenterWardrobe({
+    referenceFormatMode: "continuous_story",
+    referenceSceneMode: "presenter",
+  }), true);
+  assert.equal(wardrobe.requiresContinuousPresenterWardrobe({
+    referenceFormatMode: "voiceover_montage",
+    referenceSceneMode: "presenter",
+  }), false);
+  assert.equal(wardrobe.requiresContinuousPresenterWardrobe({
+    referenceFormatMode: "continuous_story",
+    referenceSceneMode: "voiceover_broll",
+  }), false);
 
   const pass = validator.normalizeStoryboardVisionValidation({
     status: "pass",
@@ -173,6 +187,28 @@ try {
   assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments({
     violations: [{ segmentIndex: 1, severity: "error", code: "wardrobe_mismatch", evidence: "visible sleeve changed" }],
   }), [], "wardrobe must not trigger targeted repair");
+  const wardrobeMismatchResponse = {
+    status: "repair",
+    confidence: 0.95,
+    violations: [{
+      segment_index: 2,
+      panels: [1, 2],
+      code: "PRESENTER_WARDROBE_CONTINUITY_MISMATCH",
+      severity: "error",
+      evidence: "segment one has a black sweatshirt while segment two has a black short-sleeve T-shirt",
+    }],
+    repair_instructions: ["restore the exact outfit from contact sheet one"],
+  };
+  const continuousPresenterWardrobe = setVisionValidator.normalizeStoryboardSetVisionValidation(
+    wardrobeMismatchResponse,
+    undefined,
+    { allowPresenterWardrobeContinuity: true },
+  );
+  assert.equal(continuousPresenterWardrobe.status, "repair");
+  assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments(continuousPresenterWardrobe), [2]);
+  const montageWardrobeMismatch = setVisionValidator.normalizeStoryboardSetVisionValidation(wardrobeMismatchResponse);
+  assert.equal(montageWardrobeMismatch.status, "pass");
+  assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments(montageWardrobeMismatch), []);
   const softReferenceOnly = setVisionValidator.normalizeStoryboardSetVisionValidation({
     status: "block",
     confidence: 0.95,
@@ -212,16 +248,32 @@ try {
     avatarReferenceUrl: "https://example.com/avatar.jpg",
     productName: "Тестовый продукт",
     productReferenceUrls: ["https://example.com/product-front.jpg", "https://example.com/product-back.jpg"],
+    referenceFormatMode: "continuous_story",
+    referenceSceneMode: "presenter",
   });
   const referencedSetImages = setRequests[1].messages[0].content.filter((item) => item.type === "image_url");
   assert.equal(referencedSetImages.length, 6, "cross-storyboard QA must see contact sheets, the avatar identity reference, and product references");
   const referencedSetPrompt = setRequests[1].messages[0].content[0].text;
   assert.match(referencedSetPrompt, /saved avatar identity authority/iu);
   assert.match(referencedSetPrompt, /Ignore its clothing and background/iu);
-  assert.match(referencedSetPrompt, /Clothing, location, camera, gesture, mouth state, background people, cut order, and source-reference similarity are never blockers/u);
-  assert.match(referencedSetPrompt, /FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION/u);
+  assert.match(referencedSetPrompt, /Contact sheet one establishes the canonical outfit/u);
+  assert.match(referencedSetPrompt, /PRESENTER_WARDROBE_CONTINUITY_MISMATCH/u);
+  assert.match(referencedSetPrompt, /never compare clothing with the avatar or source reference/u);
   assert.match(referencedSetPrompt, /first 3 image\(s\) are contact sheets/u);
   assert.equal(referencedSetImages[0].image_url.url, "https://example.com/storyboard-1.jpg");
+
+  await setVisionValidator.validateStoryboardSet({
+    storyboards: [1, 2, 3].map((segmentIndex) => ({
+      segmentIndex,
+      imageUrl: `https://example.com/montage-storyboard-${segmentIndex}.jpg`,
+      storyboard: { segmentIndex, durationSeconds: 4, voiceoverText: "Тест", frames: [{ wardrobe: "scene-specific outfit" }] },
+    })),
+    referenceFormatMode: "voiceover_montage",
+    referenceSceneMode: "voiceover_broll",
+  });
+  const montageSetPrompt = setRequests[2].messages[0].content[0].text;
+  assert.match(montageSetPrompt, /Clothing, location, camera, gesture, mouth state, background people, cut order, and source-reference similarity are never blockers/u);
+  assert.doesNotMatch(montageSetPrompt, /PRESENTER_WARDROBE_CONTINUITY_MISMATCH/u);
 
   const avatarWardrobeFalsePositive = setVisionValidator.normalizeStoryboardSetVisionValidation({
     status: "block",

@@ -17,18 +17,13 @@ import {
   type StoryboardSetRepairState,
 } from "./storyboard-set-repair-state";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
+import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
 
 const MAX_STORYBOARD_SET_QA_ROUNDS = 2;
 
 type StoryboardPromptSegment = {
   index: number;
   storyboardPlan: OmniStoryboardSegment | null;
-};
-
-type StoryboardSetEntry = {
-  segmentIndex: number;
-  imageUrl: string;
-  storyboard: OmniStoryboardSegment;
 };
 
 export async function ensureGeneratedScriptStoryboardSetApproval(input: {
@@ -40,6 +35,7 @@ export async function ensureGeneratedScriptStoryboardSetApproval(input: {
   productName: string;
   productReferenceUrls: readonly string[];
   referenceFormatMode?: ReferenceFormatMode;
+  referenceSceneMode?: ReferenceSceneMode;
   wardrobeContinuity?: DirectorWardrobeContinuity;
   regenerateTarget: (input: {
     segmentIndex: number;
@@ -154,6 +150,7 @@ async function validateStoryboardSetRound(
     productName: input.productName,
     productReferenceUrls: input.productReferenceUrls,
     referenceFormatMode: input.referenceFormatMode,
+    referenceSceneMode: input.referenceSceneMode,
     wardrobeContinuity: input.wardrobeContinuity,
   });
 }

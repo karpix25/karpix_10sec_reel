@@ -330,6 +330,7 @@ async function ensureStoryboardSetApproval(
     productName: input.productName,
     productReferenceUrls: input.productReferenceUrls,
     referenceFormatMode: input.referenceFormatMode || resolveReferenceFormatMode(input.directorBrief),
+    referenceSceneMode: input.referenceSceneMode,
     wardrobeContinuity: input.directorBrief?.wardrobe_continuity,
     regenerateTarget: async ({ segmentIndex, validation, repairProgress }) => {
       const storyboardPlan = input.promptPlan.find((segment) => segment.index === segmentIndex)?.storyboardPlan;

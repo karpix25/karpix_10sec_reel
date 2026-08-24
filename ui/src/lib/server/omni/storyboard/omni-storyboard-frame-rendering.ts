@@ -5,6 +5,7 @@ import { isObjectOnlyReferenceScene, type ReferenceSceneMode } from "../omni-ref
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../omni/wardrobe-source";
 import type { PhysicalSpeechMode } from "../../../omni/physical-scene-types";
 import { resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
+import { requiresContinuousPresenterWardrobe } from "../director-wardrobe";
 
 export function renderStoryboardFrameCamera(input: {
   isCutawayFrame: boolean;
@@ -46,8 +47,11 @@ export function renderStoryboardWardrobe(input: {
   if (resolveDirectorVisibleSubjectPolicy(input.brief) === "no_people") {
     return "WARDROBE: not applicable; no person or hands are visible";
   }
+  const continuousPresenter = requiresContinuousPresenterWardrobe(input);
   if (normalizeOmniWardrobeSource(input.wardrobeSource) === "avatar_reference") {
-    return `${input.characterContract.clothingLine}; exact clothing is creative guidance, not a QA contract`;
+    return continuousPresenter
+      ? `${input.characterContract.clothingLine}; OUTFIT LOCK FOR ENTIRE REEL: keep the exact garment type, sleeve length, neckline, color, fabric, and visible accessories in every segment`
+      : `${input.characterContract.clothingLine}; exact clothing is creative guidance, not a QA contract`;
   }
   return renderReferenceWardrobe({
     brief: input.brief,
@@ -73,6 +77,16 @@ export function renderReferenceWardrobe(input: {
   const colors = brief?.clothing.color_palette.length
     ? `colors: ${brief.clothing.color_palette.join(", ")}`
     : "";
+
+  if (requiresContinuousPresenterWardrobe(input)) {
+    return [
+      "OUTFIT LOCK FOR ENTIRE REEL:",
+      brief?.clothing.style || "choose one simple scene-appropriate outfit in segment one",
+      brief?.clothing.fit_details,
+      colors,
+      "keep the exact garment type, sleeve length, neckline, color, fabric, and visible accessories in every segment",
+    ].filter(Boolean).join("; ");
+  }
 
   if (policy === "not_visible") return "WARDROBE: not visible in the analyzed reference interval; do not invent clothing details";
   if (policy === "stable") return ["WARDROBE INSPIRATION:", brief?.clothing.style, colors, "choose a simple scene-appropriate outfit; exact source clothing and cross-segment continuity are not QA requirements"].filter(Boolean).join("; ");

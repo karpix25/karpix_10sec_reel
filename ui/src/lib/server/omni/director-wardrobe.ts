@@ -1,3 +1,6 @@
+import type { ReferenceFormatMode } from "./omni-reference-format-mode";
+import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
+
 export const DIRECTOR_WARDROBE_CONTINUITIES = [
   "stable",
   "changes_between_cuts",
@@ -25,6 +28,13 @@ export type DirectorWardrobeTimelineItem = {
   change_note: string;
   confidence: number;
 };
+
+export function requiresContinuousPresenterWardrobe(input: {
+  referenceFormatMode?: ReferenceFormatMode;
+  referenceSceneMode?: ReferenceSceneMode;
+}) {
+  return input.referenceFormatMode === "continuous_story" && input.referenceSceneMode === "presenter";
+}
 
 export function normalizeDirectorWardrobeContinuity(value: unknown): DirectorWardrobeContinuity | null {
   if (typeof value !== "string") return null;

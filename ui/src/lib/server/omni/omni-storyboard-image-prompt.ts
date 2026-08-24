@@ -6,7 +6,7 @@ import type { DirectorBrief } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { isAvatarFreeReferenceScene, isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import type { ProductRole } from "../../omni/creative-contract";
-import type { DirectorWardrobeContinuity } from "./director-wardrobe";
+import { requiresContinuousPresenterWardrobe } from "./director-wardrobe";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { renderReferenceSegmentPlanForPrompt, type ReferenceSegmentPlan } from "./reference-segment-plan";
 
@@ -27,10 +27,9 @@ export function buildStoryboardImagePrompt(input: {
   repairInstructions?: readonly string[];
 }) {
   const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(input.directorBrief);
-  const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.directorBrief));
-  const wardrobeContinuity = input.directorBrief
-    ? input.directorBrief.wardrobe_continuity || "unknown"
-    : "stable";
+  const referenceFormatMode = resolveReferenceFormatMode(input.directorBrief);
+  const montageReference = isVoiceoverMontageReference(referenceFormatMode);
+  const continuousPresenterWardrobe = requiresContinuousPresenterWardrobe({ referenceFormatMode, referenceSceneMode });
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
   const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const voiceoverBrollReference = referenceSceneMode === "voiceover_broll";
@@ -82,14 +81,18 @@ export function buildStoryboardImagePrompt(input: {
           ? `@file${canonicalFile} - эталон композиции и реквизита из первого утверждённого storyboard. Сохрани поверхность, ракурс, свет, руки и физическое положение предметов; не добавляй лицо или голову.`
         : voiceoverBrollReference
           ? `@file${canonicalFile} - эталон монтажной композиции и B-roll ритма из первого утверждённого storyboard; лицо и личность всё равно бери из avatar reference @file1.`
-        : `@file${canonicalFile} - предыдущий визуальный контекст и идентичность главного аватара. Это не точный lock одежды, камеры, локации или композиции.`
+        : continuousPresenterWardrobe
+          ? `@file${canonicalFile} - эталон точной одежды главного аватара из первого утверждённого storyboard. Сохрани тот же тип одежды, длину рукавов, вырез, цвет, материал и видимые аксессуары; камеру, локацию и композицию ставь заново.`
+          : `@file${canonicalFile} - предыдущий визуальный контекст и идентичность главного аватара. Это не точный lock одежды, камеры, локации или композиции.`
       : objectOnlyReferenceScene
         ? "Первый storyboard задаёт эталон макро поверхности, света, композиции и реквизита для всех следующих частей; человека и руки не добавляй."
         : facelessReferenceScene
           ? "Первый storyboard задаёт эталон композиции, рук и реквизита для всех следующих частей ролика."
         : voiceoverBrollReference
           ? "Первый storyboard задаёт монтажный ритм и визуальную механику B-roll; avatar reference @file1 фиксирует повторяющегося визуального героя."
-        : "Первый storyboard задаёт только идентичность главного аватара и общий визуальный контекст; точная одежда, камера и локация могут меняться по новой режиссуре.",
+        : continuousPresenterWardrobe
+          ? "Первый storyboard выбирает один точный outfit главного аватара для всего ролика. Во всех следующих частях одежда остаётся той же; камера, локация и композиция могут меняться по новой режиссуре."
+          : "Первый storyboard задаёт только идентичность главного аватара и общий визуальный контекст; точная одежда, камера и локация могут меняться по новой режиссуре.",
     repairFile
       ? `@file${repairFile} - предыдущая версия этой раскадровки. Это база для точечной правки: сохрани без изменений все панели, которые не названы в PHYSICAL REPAIR FROM PRIOR CHECK. Меняй только указанные панели и детали; не создавай новый вариант всего storyboard.`
       : "",
@@ -129,7 +132,7 @@ export function buildStoryboardImagePrompt(input: {
         ? "B-ROLL CONTINUITY: панели могут быть независимыми оригинальными сценами; если есть главный человек, это аватар из @file1."
       : "",
     !avatarFreeReferenceScene && !objectOnlyReferenceScene && !facelessReferenceScene
-      ? renderStoryboardImageWardrobeContract({ wardrobeContinuity, hasCanonicalReference: Boolean(canonicalFile) })
+      ? renderStoryboardImageWardrobeContract({ continuousPresenterWardrobe, hasCanonicalReference: Boolean(canonicalFile) })
       : "",
     !avatarFreeReferenceScene && !canonicalFile && input.directorBrief?.clothing
       ? [
@@ -140,7 +143,9 @@ export function buildStoryboardImagePrompt(input: {
             ? `colors: ${input.directorBrief.clothing.color_palette.join(", ")}`
             : "",
           input.directorBrief.clothing.adaptation_notes || "",
-        ].filter(Boolean).join("; ") + ". Adapt freely to the new scene; clothing differences are not a failure."
+        ].filter(Boolean).join("; ") + (continuousPresenterWardrobe
+          ? ". Use this only to choose the first outfit, then preserve it exactly for the whole reel."
+          : ". Adapt freely to the new scene; clothing differences are not a failure.")
       : "",
     facelessReferenceScene
       ? "В кадре нет talking-head и взгляда в объектив: действие выполняют руки, а голос остаётся за кадром."
@@ -151,7 +156,9 @@ export function buildStoryboardImagePrompt(input: {
       : montageReference
         ? "VOICEOVER MONTAGE: голос идёт за кадром или поверх независимых кадров; talking-head взгляд выбирай только когда он помогает новой раскадровке."
         : "В talking-head кадрах используй ясный естественный ракурс и взгляд, подходящий текущей реплике.",
-    "Смысл реплики определяет сцену, главный предмет и действие. Ракурс, свет, одежду, жест и точные переходы поставь заново; reference задаёт только общий визуальный язык. Исходный рекламный товар не копируй.",
+    continuousPresenterWardrobe
+      ? "Смысл реплики определяет сцену, главный предмет и действие. Ракурс, свет, жест и точные переходы поставь заново; точную одежду сохраняй во всём ролике. Reference задаёт только общий визуальный язык. Исходный рекламный товар не копируй."
+      : "Смысл реплики определяет сцену, главный предмет и действие. Ракурс, свет, одежду, жест и точные переходы поставь заново; reference задаёт только общий визуальный язык. Исходный рекламный товар не копируй.",
     productAppearsInThisSegment && input.productRole !== "digital_demo" ? OMNI_PHYSICAL_ACTION_CONTRACT : "",
     productAppearsInThisSegment
       ? `Продукт впервые появляется только в панели ${productRevealFrame || "по смыслу реплики"}; точно по product reference, без смены формы, упаковки и положения.`
@@ -195,17 +202,15 @@ function compactText(value: unknown, maxLength = 45) {
   return clipped || text.slice(0, maxLength).trim();
 }
 
-function renderReferenceImageWardrobeRule(continuity: DirectorWardrobeContinuity, source: string) {
-  void continuity;
-  void source;
-  return "одежда является свободной режиссерской рекомендацией и не проверяется на совпадение";
-}
-
 function renderStoryboardImageWardrobeContract(input: {
-  wardrobeContinuity: DirectorWardrobeContinuity;
+  continuousPresenterWardrobe: boolean;
   hasCanonicalReference: boolean;
 }) {
-  void input;
+  if (input.continuousPresenterWardrobe) {
+    return input.hasCanonicalReference
+      ? "OUTFIT LOCK: copy the exact presenter outfit from the first approved storyboard. Keep garment type, sleeve length, neckline, color, fabric, and visible accessories unchanged across all panels and segments."
+      : "OUTFIT LOCK: choose one simple presenter outfit now. Keep its exact garment type, sleeve length, neckline, color, fabric, and visible accessories unchanged across all panels and later segments.";
+  }
   return "WARDROBE GUIDANCE: use a simple outfit that serves the new scene. Exact reference or cross-panel clothing continuity is not a QA requirement.";
 }
 

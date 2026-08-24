@@ -17,6 +17,7 @@ import { isAvatarFreeReferenceScene } from "../omni-reference-scene-mode";
 import type { ProductRole } from "../../../omni/creative-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "../omni-reference-format-mode";
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
+import { requiresContinuousPresenterWardrobe } from "../director-wardrobe";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
@@ -34,7 +35,9 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   const voiceoverText = renderPunctuatedVoiceover(input.storyboard, input.segmentCount);
   const frameCount = input.storyboard.frames.length;
   const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(input.directorBrief);
-  const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.directorBrief));
+  const referenceFormatMode = resolveReferenceFormatMode(input.directorBrief);
+  const montageReference = isVoiceoverMontageReference(referenceFormatMode);
+  const continuousPresenterWardrobe = requiresContinuousPresenterWardrobe({ referenceFormatMode, referenceSceneMode });
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
   const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const voiceoverBrollReference = referenceSceneMode === "voiceover_broll";
@@ -100,7 +103,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
           ? "Сохраняй независимость B-roll сцен; не добавляй людей, руки или аватар."
           : "Сохраняй личность главного аватара и форму продукта; фоновые люди, одежда и сцены могут естественно меняться."
       : "Фиксируй те же волосы, пробор, аксессуары.",
-    avatarFreeReferenceScene ? "" : renderStoryboardWardrobeContinuity(input.directorBrief),
+    avatarFreeReferenceScene ? "" : renderStoryboardWardrobeContinuity(continuousPresenterWardrobe),
     avatarFreeReferenceScene ? "" : renderStoryboardWardrobe(input.storyboard),
     renderReferenceTransitionCue(input.directorBrief),
     renderStoryboardCameraLock(montageReference),
@@ -145,8 +148,10 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   ].join("\n");
 }
 
-function renderStoryboardWardrobeContinuity(brief?: DirectorBrief | null) {
-  void brief;
+function renderStoryboardWardrobeContinuity(continuousPresenterWardrobe: boolean) {
+  if (continuousPresenterWardrobe) {
+    return "WARDROBE CONTINUITY LOCK: this is one continuous on-screen presenter. Keep the exact storyboard outfit unchanged in every panel and independently generated segment: same garment type, sleeve length, neckline, color, fabric, and visible accessories.";
+  }
   return "WARDROBE GUIDANCE: use the outfit from the new storyboard when visible. Exact reference or cross-segment clothing continuity is not required.";
 }
 
