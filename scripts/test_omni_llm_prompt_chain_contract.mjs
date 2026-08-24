@@ -80,6 +80,11 @@ try {
     /compactOmniScriptToWordBudget/u,
     "prompt chain must reuse the deterministic script word-budget compactor"
   );
+  assert.match(
+    runnerSource,
+    /creativeAttempt\.mode === "targeted_repair"[\s\S]*countOmniScriptWords\(normalizedScript\)[\s\S]*\? normalizedScript\s*: compactOmniScriptToWordBudget/u,
+    "targeted semantic repairs must be shortened by the copywriter instead of deleting repaired sentences"
+  );
   const compactedConclusion = lengthGuard.compactOmniScriptToWordBudget(
     "Хук обещает Лангкави. Лишняя вводная фраза здесь. Плати по миру виртуальная карта помогает платить за границей. Ссылка в профиле. Лангкави подходит для бюджетной зимовки.",
     20,

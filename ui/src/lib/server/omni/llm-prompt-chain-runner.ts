@@ -47,7 +47,7 @@ import {
 } from "./script-semantic-reviewer";
 import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
 import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
-import { getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
+import { countOmniScriptWords, getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
 import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
 
@@ -189,11 +189,20 @@ async function runCreativeCopywriter(
       });
       const draft = normalizeCreativeScriptDraft(content);
       if (!draft) throw new Error("Creative copywriter returned empty script");
-      const script = compactOmniScriptToWordBudget(
-        spellPromptChainNumbersInText(sanitizeOmniScriptText(formatScenarioScript(draft.script))),
-        input.durationRange?.maxWords || getOmniMaxScriptWords(),
-        { referenceScript: input.sourceScenario.script, productName: input.productName },
+      const normalizedScript = spellPromptChainNumbersInText(
+        sanitizeOmniScriptText(formatScenarioScript(draft.script))
       );
+      const maxWords = input.durationRange?.maxWords || getOmniMaxScriptWords();
+      previousDraft = { ...draft, script: normalizedScript };
+      if (creativeAttempt.mode === "targeted_repair" && countOmniScriptWords(normalizedScript) > maxWords) {
+        throw new Error(`Исправленный сценарий длиннее лимита: ${countOmniScriptWords(normalizedScript)} слов вместо ${maxWords}. Сократи второстепенные формулировки, не удаляя обязательные исправления.`);
+      }
+      const script = creativeAttempt.mode === "targeted_repair"
+        ? normalizedScript
+        : compactOmniScriptToWordBudget(normalizedScript, maxWords, {
+          referenceScript: input.sourceScenario.script,
+          productName: input.productName,
+        });
       previousDraft = { ...draft, script };
       lastSemanticReview = null;
       assertOmniScriptTextContract(script);
