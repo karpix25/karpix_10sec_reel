@@ -60,7 +60,7 @@ test("video analysis visible subject policy controls non presenter formats", () 
   assert.equal(resolveReferenceSceneMode({ visible_subject_policy: "object_only" }), "object_only");
 });
 
-test("creative semantic failures use two targeted repairs before one clean rebuild", () => {
+test("creative semantic failures keep every retry targeted", () => {
   assert.deepEqual(
     [1, 2, 3, 4].map((attempt) => resolveCreativeCopywriterAttemptMode({
       attempt,
@@ -103,6 +103,8 @@ test("creative semantic failures use two targeted repairs before one clean rebui
   assert.ok(repairAttempt.prompt.includes(rejectedScript));
   assert.ok(repairAttempt.prompt.includes("ответ на хук, завершенный вывод, нативная интеграция продукта"));
   assert.ok(repairAttempt.prompt.includes("Добавьте ответ перед CTA"));
+  assert.ok(repairAttempt.prompt.includes("ровно столько различимых пунктов из reference"));
+  assert.ok(repairAttempt.prompt.includes("Не возвращай rejected script без фактического исправления"));
   assert.ok(repairAttempt.prompt.includes("сначала произнеси полноценный вывод, затем CTA"));
 
   const finalRepairAttempt = buildCreativeCopywriterAttemptPrompt({
