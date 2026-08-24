@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
@@ -35,6 +35,8 @@ try {
   copyFileSync(typesOutput, aliasTypes);
 
   const { resolveReadyGeneratedScriptReference } = require(findFile(compiled, "generated-script-reference-selection.js"));
+  const fitReviewerSource = readFileSync(join(ui, "src/lib/server/omni/reference-product-fit.ts"), "utf8");
+  assert.match(fitReviewerSource, /hook или обещание reference не получает ответа/u);
   const resolveCalls = [];
   const warnings = [];
   const selected = legacyScenario(2930);
