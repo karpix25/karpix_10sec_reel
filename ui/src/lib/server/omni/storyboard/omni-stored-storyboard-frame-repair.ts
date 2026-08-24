@@ -96,7 +96,7 @@ export function buildStoredStoryboardFrame(input: {
       .join("; ");
   const camera = noPeopleReference
     ? "независимый атмосферный B-roll ракурс по соответствующему reference-кадру, без людей и рук"
-    : renderReferenceCamera(input.frame.camera, input.referenceProfile);
+    : renderReferenceCamera(input.frame.camera, input.referenceProfile, referenceTransfer.cameraComposition);
   const environment = renderReferenceEnvironment(input.referenceProfile);
   const sfxNotes = sanitizeSpeechSfx(input.frame.sfx, spokenText);
   const initialPhysicalPlan = buildPhysicalFramePlan({
@@ -149,14 +149,20 @@ export function buildStoredStoryboardFrame(input: {
   };
 }
 
-function renderReferenceCamera(camera: string, profile?: DirectorSegmentProfile | null) {
-  if (!profile) return camera;
+function renderReferenceCamera(
+  camera: string,
+  profile?: DirectorSegmentProfile | null,
+  cameraComposition?: string | null,
+) {
+  const composition = cameraComposition ? `КОМПОЗИЦИЯ REFERENCE: ${cameraComposition}` : "";
+  if (!profile) return [camera, composition].filter(Boolean).join("; ");
   return [
     "reference camera lock",
     profile.camera.shot_types.join(", "),
     profile.camera.angles.length ? `angles ${profile.camera.angles.join(", ")}` : "",
     profile.camera.movements.length ? `movement ${profile.camera.movements.join(", ")}` : "",
     profile.camera.stabilization,
+    composition,
     camera,
   ].filter(Boolean).join("; ");
 }

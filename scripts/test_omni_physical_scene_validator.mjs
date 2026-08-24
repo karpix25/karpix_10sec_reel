@@ -500,6 +500,38 @@ try {
   });
   assert.equal(repairedStoredValidation.valid, true, repairedStoredValidation.errors.join(", "));
 
+  const composedStoredFrame = storedFrameRepair.buildStoredStoryboardFrame({
+    frame: {
+      index: 1,
+      role: "environment_cutaway",
+      spokenWords: "Это помогает выбрать маршрут",
+      visualDescription: "панорамный вид на тропический пляж",
+      camera: "широкий план",
+      action: "плавная панорама",
+      productState: "вне кадра",
+      sfx: "шум волн",
+      referenceRole: "avatar",
+    },
+    productName: "Плати по миру виртуальная карта",
+    productVisible: false,
+    referenceTransferPolicy: {
+      ...referenceTransfer.DEFAULT_REFERENCE_TRANSFER_POLICY,
+      visualContract: {
+        cameraComposition: "presenter centered over full frame travel background",
+        persistentSupportProps: [],
+        actionBeats: [],
+      },
+    },
+  });
+  assert.match(composedStoredFrame.camera, /КОМПОЗИЦИЯ REFERENCE: presenter centered over full frame travel background/u);
+  assert.equal(
+    contractValidator.validateStoryboardSegmentContract({
+      storyboard: storyboard([composedStoredFrame]),
+      contract: { productName: "Плати по миру виртуальная карта", productVisibility: "hidden" },
+    }).errors.includes("frame_1_reference_composition_missing"),
+    false,
+  );
+
   const foreignSpeechFrame = storedFrameRepair.buildStoredStoryboardFrame({
     frame: {
       index: 2,
