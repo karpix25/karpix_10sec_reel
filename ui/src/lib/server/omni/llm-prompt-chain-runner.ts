@@ -18,11 +18,13 @@ import {
   type ScriptSemanticReview,
 } from "./llm-prompt-chain-types";
 import {
-  buildCreativeCopywriterPrompt,
   buildDirectorSegmentRepairPrompt,
   buildDirectorSegmenterPrompt,
   type PromptChainInput,
 } from "./llm-prompt-chain-prompts";
+import {
+  buildCreativeCopywriterAttemptPrompt,
+} from "./llm-prompt-chain-creative-repair";
 import {
   buildProviderPromptPlanFromDirector,
   lockDirectorPlanSpeech,
@@ -90,6 +92,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   try {
     creativeResult = await runCreativeCopywriter(input, onUsage);
   } catch (error) {
+    if (error instanceof LlmPromptChainFailure) throw error;
     throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), {});
   }
   const draft = creativeResult.draft;
@@ -158,21 +161,35 @@ async function runCreativeCopywriter(
   input: PromptChainInput & { model: string },
   onUsage: (usage: OpenRouterUsageRecord) => void
 ) {
-  let retryFeedback = "";
+  let previousDraft: CreativeScriptDraft | null = null;
+  let lastSemanticReview: ScriptSemanticReview | null = null;
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= CREATIVE_COPYWRITER_ATTEMPTS; attempt += 1) {
     try {
+      const creativeAttempt = buildCreativeCopywriterAttemptPrompt({
+        chainInput: input,
+        attempt,
+        maxAttempts: CREATIVE_COPYWRITER_ATTEMPTS,
+        previousDraft,
+        semanticReview: lastSemanticReview,
+        failureReason: getErrorMessage(lastError),
+      });
       const content = await requestOpenRouter({
         input,
         layer: "creative_copywriter",
         attempt,
-        userPrompt: appendRetry(buildCreativeCopywriterPrompt(input), retryFeedback),
+        userPrompt: creativeAttempt.prompt,
         responseFormatJson: false,
+        temperature: creativeAttempt.mode === "full_rebuild"
+          ? 0.65
+          : creativeAttempt.mode === "targeted_repair" ? 0.25 : PROMPT_CHAIN_TEMPERATURE,
         onUsage,
       });
       const draft = normalizeCreativeScriptDraft(content);
       if (!draft) throw new Error("Creative copywriter returned empty script");
       const script = sanitizeOmniScriptText(formatScenarioScript(draft.script));
+      previousDraft = { ...draft, script };
+      lastSemanticReview = null;
       assertPromptChainScriptQuality(input, script, null);
       assertRussianSpeechGender(script, input.avatarSpeechGender);
       planOmniReelSegments(script, { durationRange: input.durationRange });
@@ -187,6 +204,7 @@ async function runCreativeCopywriter(
         ctaValue: input.ctaValue,
         directorBrief: input.directorBrief,
       }, onUsage, attempt);
+      lastSemanticReview = semanticReview;
       assertScriptSemanticReviewPassed(semanticReview);
       return {
         draft: { ...draft, script },
@@ -194,14 +212,16 @@ async function runCreativeCopywriter(
       };
     } catch (error) {
       lastError = error;
-      retryFeedback = [
-        "Верни только полностью исправленный текст сценария.",
-        `Ошибка прошлой попытки: ${getErrorMessage(error)}`,
-        "Сохрани смысл reference, явно назови продукт, объясни его пользу и дай обещанный хуком ответ до CTA.",
-      ].join(" ");
     }
   }
-  throw new Error(`Creative copywriter failed: ${getErrorMessage(lastError)}`);
+  throw new LlmPromptChainFailure(
+    "creative_copywriter",
+    `Creative copywriter failed: ${getErrorMessage(lastError)}`,
+    {
+      ...(previousDraft ? { creativeScriptDraft: previousDraft } : {}),
+      ...(lastSemanticReview ? { semanticReview: lastSemanticReview } : {}),
+    }
+  );
 }
 
 async function runDirectorSegmenter(
