@@ -43,7 +43,9 @@ try {
   assert.match(fitReviewerSource, /hook или обещание reference не получает ответа/u);
   assert.match(fitReviewerSource, /цены, бюджет, бронирование, туры, отели, билеты, транспорт, еда, покупки/u);
   assert.match(sourceSelectorSource, /omni_generated_script_source_cursors/u);
+  assert.match(sourceSelectorSource, /omni_generated_script_source_attempts/u);
   assert.match(sourceSelectorSource, /ON CONFLICT \(project_id, product_id\)/u);
+  assert.match(sourceSelectorSource, /\.\.\.attemptedIds/u);
   assert.equal(MAX_DIRECTOR_REFERENCE_ATTEMPTS, 16);
   const resolveCalls = [];
   const warnings = [];

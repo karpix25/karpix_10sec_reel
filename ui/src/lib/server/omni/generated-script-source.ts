@@ -14,13 +14,22 @@ export async function advanceGeneratedScriptSourceCursor(input: {
   legacyScenarioId: number;
 }) {
   await pool.query(
-    `INSERT INTO omni_generated_script_source_cursors (
+    `WITH cursor_update AS (
+       INSERT INTO omni_generated_script_source_cursors (
        project_id, product_id, legacy_scenario_id, updated_at
+       )
+       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+       ON CONFLICT (project_id, product_id)
+       DO UPDATE SET legacy_scenario_id = EXCLUDED.legacy_scenario_id,
+                     updated_at = CURRENT_TIMESTAMP
+       RETURNING 1
      )
-     VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-     ON CONFLICT (project_id, product_id)
-     DO UPDATE SET legacy_scenario_id = EXCLUDED.legacy_scenario_id,
-                   updated_at = CURRENT_TIMESTAMP`,
+     INSERT INTO omni_generated_script_source_attempts (
+       project_id, product_id, legacy_scenario_id, attempted_at
+     )
+     SELECT $1, $2, $3, CURRENT_TIMESTAMP FROM cursor_update
+     ON CONFLICT (project_id, product_id, legacy_scenario_id)
+     DO UPDATE SET attempted_at = CURRENT_TIMESTAMP`,
     [input.projectId, input.productId, input.legacyScenarioId]
   );
 }
@@ -53,17 +62,29 @@ export async function resolveGeneratedScriptSource(input: {
   }
 
   const failedDirectorIds = await listNonRetryableFailedDirectorAnalysisLegacyIds();
+  const attemptedIds = await listGeneratedScriptSourceAttemptIds(input.projectId, input.productId);
   const lastSelectedScenarioId = await getGeneratedScriptSourceCursor(input.projectId, input.productId) ??
     await getLastGeneratedScriptSourceId(input.projectId, input.productId);
   const sourceScenario = await getNextLegacyScenarioFromClients(
     legacyClientIds,
     lastSelectedScenarioId,
-    [...failedDirectorIds, ...excludedIds],
+    [...failedDirectorIds, ...attemptedIds, ...excludedIds],
   );
   if (!sourceScenario) {
     throw new Error("No reference transcripts found in active legacy bundles");
   }
   return { sourceScenario, sourceMode: "round_robin_active_legacy_reference" };
+}
+
+async function listGeneratedScriptSourceAttemptIds(projectId: number, productId: number) {
+  const { rows } = await pool.query<{ legacy_scenario_id: number | string }>(
+    `SELECT legacy_scenario_id
+     FROM omni_generated_script_source_attempts
+     WHERE project_id = $1
+       AND product_id = $2`,
+    [projectId, productId]
+  );
+  return rows.map((row) => Number(row.legacy_scenario_id)).filter(Number.isFinite);
 }
 
 async function getGeneratedScriptSourceCursor(projectId: number, productId: number) {
