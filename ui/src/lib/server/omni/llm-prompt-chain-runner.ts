@@ -52,7 +52,7 @@ import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-polic
 import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const CREATIVE_COPYWRITER_ATTEMPTS = 4;
+const CREATIVE_COPYWRITER_ATTEMPTS = 5;
 const DIRECTOR_TARGETED_REPAIR_ATTEMPTS = 2;
 const PROMPT_CHAIN_TEMPERATURE = 0.8;
 const PROMPT_CHAIN_REQUEST_TIMEOUT_MS = 90_000;

@@ -85,6 +85,11 @@ try {
     /creativeAttempt\.mode === "targeted_repair"[\s\S]*countOmniScriptWords\(normalizedScript\)[\s\S]*\? normalizedScript\s*: compactOmniScriptToWordBudget/u,
     "targeted semantic repairs must be shortened by the copywriter instead of deleting repaired sentences"
   );
+  assert.match(
+    runnerSource,
+    /CREATIVE_COPYWRITER_ATTEMPTS = 5/u,
+    "copywriter must retain one final attempt to shorten a complete semantic repair"
+  );
   const compactedConclusion = lengthGuard.compactOmniScriptToWordBudget(
     "Хук обещает Лангкави. Лишняя вводная фраза здесь. Плати по миру виртуальная карта помогает платить за границей. Ссылка в профиле. Лангкави подходит для бюджетной зимовки.",
     20,
