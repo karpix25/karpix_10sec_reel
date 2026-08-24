@@ -70,7 +70,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
           ? "VOICEOVER B-ROLL: голос за кадром; независимые B-roll кадры не содержат людей, рук, аватара, talking-head или lip-sync."
           : "VOICEOVER B-ROLL: голос за кадром; независимые B-roll кадры ведёт сохранённый молчащий аватар, без talking-head, lip-sync и обязательного взгляда в объектив."
       : hybridDelivery
-        ? "HYBRID DELIVERY: следуй speechMode каждого storyboard-кадра. on_camera — аватар произносит свою часть в кадре; voiceover_only — самостоятельный B-roll с закадровой речью. Не превращай B-roll в talking-head и не добавляй lip-sync там, где его нет."
+        ? "HYBRID DELIVERY: следуй speechMode каждого storyboard-кадра. on_camera — аватар произносит свою часть в кадре; voiceover_only — тот же аватар молча выполняет самостоятельный B-roll под закадровую речь. Любой видимый человек — сохранённый аватар; других людей не создавай."
       : "",
     renderVisibleSubjectPolicy(visibleSubjectPolicy),
     preservePipLayout
@@ -116,7 +116,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
           ? "Не показывай людей, руки, talking-head или lip-sync; реплика звучит за кадром поверх независимых B-roll кадров."
           : "Не показывай talking-head и lip-sync; сохранённый аватар действует молча, а реплика звучит за кадром поверх независимых B-roll кадров."
       : hybridDelivery
-        ? "HYBRID AUDIO: в кадрах speechMode=on_camera аватар говорит в кадре; в кадрах speechMode=voiceover_only аватар молчит, а та же реплика звучит за кадром поверх самостоятельного B-roll."
+        ? "HYBRID AUDIO: в кадрах speechMode=on_camera аватар говорит в кадре; в кадрах speechMode=voiceover_only тот же аватар молчит с сомкнутыми губами, а та же реплика звучит за кадром поверх самостоятельного B-roll. Других людей в кадре нет."
       : montageReference
         ? "VOICEOVER MONTAGE: голос может идти за кадром поверх независимых кадров; не добавляй обязательный talking-head взгляд в объектив, если его нет в соответствующем reference-кадре."
         : "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",

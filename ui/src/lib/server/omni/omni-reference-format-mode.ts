@@ -47,8 +47,8 @@ export function isVoiceoverMontageReference(mode: ReferenceFormatMode | null | u
 export function renderReferenceFormatContract(mode: ReferenceFormatMode, referenceSceneMode?: string) {
   return mode === "voiceover_montage"
     ? referenceSceneMode === "voiceover_broll"
-      ? "REFERENCE FORMAT: voiceover B-roll montage. One narrator carries the meaning across independent cutaways. Follow the director analysis for visible subjects and wardrobe per source interval; do not force one person or one outfit across unrelated cuts."
-      : "REFERENCE FORMAT: voiceover montage. One narrator carries the meaning across independent cutaways. This may be a hybrid edit: follow each reference interval's delivery mode, visible subject, wardrobe, location, action, camera setup, and edit treatment exactly as analyzed. Do not force scene, subject, or wardrobe continuity between unrelated cuts."
+      ? "REFERENCE FORMAT: voiceover B-roll montage. One narrator carries the meaning across independent cutaways. Follow the director analysis for subject role, action, crop, and wardrobe per source interval; human identity follows the visible-subject policy and is never copied from the source."
+      : "REFERENCE FORMAT: voiceover montage. One narrator carries the meaning across independent cutaways. This may be a hybrid edit: follow each reference interval's delivery mode, subject role, wardrobe, location, action, camera setup, and edit treatment exactly as analyzed. Human identity follows the visible-subject policy and is never copied from the source."
     : "REFERENCE FORMAT: continuous story. Preserve the analyzed subject, outfit, scene, lighting, and physical state between segments only when the director analysis marks them as continuous; honor any explicit analyzed change at a visible cut.";
 }
 

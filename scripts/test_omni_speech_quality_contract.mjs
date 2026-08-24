@@ -38,6 +38,24 @@ try {
     "Есть виртуальная карта. С ней легко платить за границей.",
     "Есть виртуальная карта. С ней легко платить за границей."
   ));
+  const clippedEnding = assessOmniSpeechQuality(
+    "Аль Мукаддаси отмечал что путешественники быстро понимают ценность связей и времени что помогает им добиваться материального успеха",
+    "Аль Мукаддаси отмечал что путешественники быстро понимают ценность связи и времени что помогает им добиваться материального"
+  );
+  assert.equal(clippedEnding.passed, false);
+  assert.deepEqual(clippedEnding.missingBoundaryWords, ["успеха"]);
+  const clippedOpening = assessOmniSpeechQuality(
+    "Хочешь увидеть Стамбул не как турист тогда слушай",
+    "увидеть Стамбул не как турист тогда слушай"
+  );
+  assert.equal(clippedOpening.passed, false);
+  assert.deepEqual(clippedOpening.missingBoundaryWords, ["хочешь"]);
+  const internalRecognitionError = assessOmniSpeechQuality(
+    "Бухаян ат Таухиди считал путешествия очищением разума и открытием новому",
+    "Бухаяна Таухиди считал путешествия очищением разума и открытием новому"
+  );
+  assert.equal(internalRecognitionError.passed, true);
+  assert.deepEqual(internalRecognitionError.missingBoundaryWords, []);
   console.log("Omni speech quality contract checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });

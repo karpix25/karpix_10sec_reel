@@ -56,6 +56,8 @@ try {
   copyFileSync(contract, alias);
 
   const mode = require(findFile(compiled, "omni-reference-scene-mode.js"));
+  const visibility = require(findFile(compiled, "director-visibility-policy.js"));
+  const format = require(findFile(compiled, "omni-reference-format-mode.js"));
   const selector = require(findFile(compiled, "omni-format-selector.js"));
   const digital = require(findFile(compiled, "digital-product-scene.js"));
   const { buildOmniSegmentPrompts } = require(findFile(compiled, "omni-prompt-builder.js"));
@@ -67,6 +69,11 @@ try {
     reference_action_style: "voiceover montage with independent B-roll cutaways",
   }), "voiceover_broll");
   assert.equal(mode.isAvatarFreeReferenceScene("voiceover_broll"), false);
+  assert.equal(visibility.resolveDirectorVisibleSubjectPolicy({
+    reference_subject_mode: "voiceover_broll",
+    visible_subject_policy: "presenter",
+  }), "silent_avatar");
+  assert.match(format.renderReferenceFormatContract("voiceover_montage", "presenter"), /human identity follows the visible-subject policy/iu);
   const prompt = mode.applyReferenceSceneModeToOmniPrompt("CHARACTER: avatar. The avatar says: test", "voiceover_broll");
   assert.match(prompt, /VOICEOVER B-ROLL/iu);
   assert.match(prompt, /CHARACTER: avatar/iu);
@@ -103,6 +110,12 @@ try {
     sanitizer.sanitizeVoiceoverBrollStoryboardText("персонаж живо говорит в камеру; talking-head framing"),
     /говорит\s+в\s+камеру|talking-head\s+(?:кадр|framing)/iu
   );
+  const historicalCutaway = sanitizer.sanitizeVoiceoverBrollStoryboardText(
+    "Historical painting showing person by campfire; речь звучит за кадром"
+  );
+  assert.match(historicalCutaway, /сохранённый аватар/iu);
+  assert.match(historicalCutaway, /других людей в кадре нет/iu);
+  assert.match(historicalCutaway, /сомкнутыми губами/iu);
 
   const digitalStep = digital.buildDigitalProductDemoStep({ productName: "Плати по миру", frameIndex: 3, frameCount: 5 });
   const digitalOpening = digital.buildDigitalProductDemoStep({ productName: "Плати по миру", frameIndex: 1, frameCount: 5 });

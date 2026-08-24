@@ -5,6 +5,7 @@ export type OmniSpeechQuality = {
   expectedCoverage: number;
   duplicateWords: string[];
   repeatedPhrases: string[];
+  missingBoundaryWords: string[];
 };
 
 export class OmniSpeechQualityError extends Error {
@@ -12,6 +13,7 @@ export class OmniSpeechQualityError extends Error {
     const defects = [
       quality.duplicateWords.length ? `повторы слов: ${quality.duplicateWords.join(", ")}` : "",
       quality.repeatedPhrases.length ? `повторы фраз: ${quality.repeatedPhrases.join(", ")}` : "",
+      quality.missingBoundaryWords.length ? `обрезаны слова: ${quality.missingBoundaryWords.join(", ")}` : "",
       quality.expectedCoverage < 0.78 ? `покрытие реплики: ${Math.round(quality.expectedCoverage * 100)}%` : "",
     ].filter(Boolean).join("; ");
     super(`Omni speech QA failed: ${defects || "реплика не совпала"}`);
@@ -27,14 +29,16 @@ export function assessOmniSpeechQuality(expected: string, actual: string): OmniS
     : actualWords.length ? 0 : 1;
   const duplicateWords = findUnexpectedDuplicateWords(expectedWords, actualWords);
   const repeatedPhrases = findUnexpectedRepeatedPhrases(expectedWords, actualWords);
+  const missingBoundaryWords = findMissingBoundaryWords(expectedWords, actualWords);
 
   return {
-    passed: expectedCoverage >= 0.78 && !duplicateWords.length && !repeatedPhrases.length,
+    passed: expectedCoverage >= 0.78 && !duplicateWords.length && !repeatedPhrases.length && !missingBoundaryWords.length,
     expected,
     actual,
     expectedCoverage: Number(expectedCoverage.toFixed(3)),
     duplicateWords,
     repeatedPhrases,
+    missingBoundaryWords,
   };
 }
 
@@ -66,6 +70,26 @@ function findUnexpectedRepeatedPhrases(expected: string[], actual: string[]) {
     }
   }
   return [...repeats].sort((left, right) => left.length - right.length).slice(0, 5);
+}
+
+function findMissingBoundaryWords(expected: string[], actual: string[]) {
+  if (expected.length < 3 || actual.length < 2) return [];
+  const maxMissing = Math.min(3, expected.length - 2);
+  for (let count = 1; count <= maxMissing; count += 1) {
+    if (sameWords(actual.slice(0, 2), expected.slice(count, count + 2))) {
+      return expected.slice(0, count);
+    }
+  }
+  for (let count = 1; count <= maxMissing; count += 1) {
+    if (sameWords(actual.slice(-2), expected.slice(-count - 2, -count))) {
+      return expected.slice(-count);
+    }
+  }
+  return [];
+}
+
+function sameWords(left: string[], right: string[]) {
+  return left.length === right.length && left.every((word, index) => word === right[index]);
 }
 
 function toNgrams(words: string[], size: number) {

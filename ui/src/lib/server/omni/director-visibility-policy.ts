@@ -28,11 +28,11 @@ export function resolveDirectorVisibleSubjectPolicy(brief: {
   reference_subject_mode?: string | null;
 } | null | undefined): DirectorVisibleSubjectPolicy {
   const explicit = normalizeDirectorVisibleSubjectPolicy(brief?.visible_subject_policy);
-  if (explicit) return explicit;
+  if (explicit && explicit !== "presenter") return explicit;
   if (brief?.reference_subject_mode === "faceless_hands") return "hands_only";
   if (brief?.reference_subject_mode === "object_only") return "object_only";
   if (brief?.reference_subject_mode === "voiceover_broll") return "silent_avatar";
-  return "presenter";
+  return explicit || "presenter";
 }
 
 export function isAvatarFreeVisibleSubjectPolicy(policy: DirectorVisibleSubjectPolicy) {

@@ -114,7 +114,7 @@ export function renderCompactSegmentPrompt(input: {
           ? "FORMAT: VOICEOVER B-ROLL. Off-camera narration over independent cutaways; no people, hands, avatar, talking-head, or lip-sync."
           : "FORMAT: VOICEOVER B-ROLL. Off-camera narration over independent cutaways led by the saved silent avatar; no talking-head or lip-sync."
       : hybridDelivery
-        ? "FORMAT: HYBRID DELIVERY. Follow each reference interval's speech_mode: on_camera means the avatar speaks visibly; voiceover_only means independent B-roll with off-camera narration. Keep the distinction at every storyboard and video stage."
+        ? "FORMAT: HYBRID DELIVERY. Follow each reference interval's speech_mode: on_camera means the avatar speaks visibly; voiceover_only means the same avatar performs silent independent B-roll with off-camera narration. Any visible human is the saved avatar; never generate another person."
       : null,
     renderVisibleSubjectPolicy(visibleSubjectPolicy),
     objectOnlyReferenceScene

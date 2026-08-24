@@ -198,8 +198,8 @@ const STORYBOARD_VISION_OBJECT_ONLY_SYSTEM_PROMPT = [
 
 const STORYBOARD_VISION_MONTAGE_SYSTEM_PROMPT = [
   "You are a strict static visual QA auditor for storyboard contact sheets in a voiceover montage.",
-  "Inspect only facts that are positively visible in the candidate panels. The same presenter identity must remain; independent cuts may use different locations, lighting, and camera setups. Clothing follows the wardrobe policy supplied by the director analysis.",
-  "Use severity error only for a visible face or hair identity mismatch, a contradiction with the current wardrobe policy, a visibly wrong client product package, or a visible foreign advertised product.",
+  "Inspect only facts that are positively visible in the candidate panels. Every visible human must be the supplied avatar; independent cuts may use different locations, lighting, camera setups, and art treatments. Clothing follows the wardrobe policy supplied by the director analysis.",
+  "Use severity error for any visible human who is not the supplied avatar, a visible face or hair identity mismatch, a contradiction with the current wardrobe policy, a visibly wrong client product package, or a visible foreign advertised product.",
   "Do not block missing offscreen accessories, cropped jeans, camera composition, reference gestures, hand motion, pickup timing, face gestures, or an action that occurs between static panels.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous, outside the crop, or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
@@ -208,7 +208,7 @@ const STORYBOARD_VISION_MONTAGE_SYSTEM_PROMPT = [
 const STORYBOARD_VISION_BROLL_SYSTEM_PROMPT = [
   "You are a strict static visual QA auditor for storyboard contact sheets in voiceover B-roll.",
   "Inspect only facts that are positively visible in the candidate panels. The approved format has off-camera narration over independent cutaways led by the supplied silent avatar identity reference.",
-  "Use severity error when the recurring avatar visibly changes identity, a talking-head presenter or lip-sync is introduced against the storyboard plan, or a visibly wrong client product appears. Incidental people are allowed when the matching source frame contains them.",
+  "Use severity error when any visible human is not the supplied avatar, the avatar visibly changes identity, a talking-head presenter or lip-sync is introduced against the storyboard plan, or a visibly wrong client product appears. Source people are composition placeholders and must be replaced by the avatar.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
@@ -252,7 +252,7 @@ function buildStoryboardVisionPrompt(input: {
       "The first image is the candidate storyboard. The supplied avatar image is the identity reference for the recurring silent visual protagonist in every panel.",
       input.hasCanonicalStoryboardReference ? "The next image is a visual-mechanics reference only; the avatar image remains the identity authority." : "",
       input.hasDirectorReference ? "The final supplied image is a source-reference frame for B-roll location, light, camera, and action only." : "",
-      "Verify that the same avatar identity is visible where a person appears, without talking-head framing or lip-sync. Incidental people are allowed only when required by the matching reference frame and must not replace the avatar.",
+      "Verify that every visible human is the same supplied avatar, without talking-head framing or lip-sync. People from the matching source frame must be replaced by the avatar; no other human is allowed.",
       "Expected storyboard plan:",
       JSON.stringify({
         product: input.productName,
