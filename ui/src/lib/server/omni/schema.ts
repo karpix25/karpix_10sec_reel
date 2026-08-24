@@ -418,6 +418,12 @@ const statements = [
   "ALTER TABLE omni_generated_script_storyboards ADD COLUMN IF NOT EXISTS generation_error_history JSONB NOT NULL DEFAULT '[]'::jsonb",
   "ALTER TABLE omni_generated_script_storyboards ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP",
   "ALTER TABLE omni_generated_script_storyboards ADD COLUMN IF NOT EXISTS retry_after TIMESTAMP",
+  `INSERT INTO omni_generated_script_source_attempts (project_id, product_id, legacy_scenario_id)
+   SELECT DISTINCT project_id, product_id, source_legacy_scenario_id
+   FROM omni_generated_scripts
+   WHERE product_id IS NOT NULL
+     AND source_legacy_scenario_id IS NOT NULL
+   ON CONFLICT (project_id, product_id, legacy_scenario_id) DO NOTHING`,
   `UPDATE omni_projects
    SET legacy_client_id = substring(description from 'legacy-client:([0-9]+)')::bigint
    WHERE legacy_client_id IS NULL
