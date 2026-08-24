@@ -46,8 +46,9 @@ import {
   reviewScriptSemantics,
 } from "./script-semantic-reviewer";
 import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
-import { planOmniReelSegments } from "./omni-duration-planner";
+import { getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
 import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
+import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const CREATIVE_COPYWRITER_ATTEMPTS = 4;
@@ -187,7 +188,11 @@ async function runCreativeCopywriter(
       });
       const draft = normalizeCreativeScriptDraft(content);
       if (!draft) throw new Error("Creative copywriter returned empty script");
-      const script = sanitizeOmniScriptText(formatScenarioScript(draft.script));
+      const script = compactOmniScriptToWordBudget(
+        sanitizeOmniScriptText(formatScenarioScript(draft.script)),
+        input.durationRange?.maxWords || getOmniMaxScriptWords(),
+        { referenceScript: input.sourceScenario.script },
+      );
       previousDraft = { ...draft, script };
       lastSemanticReview = null;
       assertOmniScriptTextContract(script);

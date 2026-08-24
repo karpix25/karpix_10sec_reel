@@ -124,7 +124,7 @@ function renderWordBudget(input: PromptChainInput) {
 }
 
 function renderCtaRule(input: PromptChainInput) {
-  if (input.ctaMode === "link_in_profile") return "CTA: последняя фраза должна содержать точные слова «ссылка в профиле».";
+  if (input.ctaMode === "link_in_profile") return "CTA: произнеси точные слова «ссылка в профиле» в момент завершения мысли о продукте, затем продолжи полезную мысль и закончи смысловым выводом.";
   if (input.ctaMode === "keyword_in_comments") return `CTA: после вывода попроси написать «${input.ctaValue || "кодовое слово"}» в комментариях.`;
   if (input.ctaMode === "no_explicit_cta") return "CTA: явный призыв не нужен, закончи смысловым выводом.";
   return "CTA: после вывода нативно скажи, что подробности или артикул находятся в описании.";

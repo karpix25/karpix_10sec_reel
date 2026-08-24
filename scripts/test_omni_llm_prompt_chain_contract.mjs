@@ -67,6 +67,11 @@ try {
     /validateStoryboard(?:DirectorPlan|ProviderPlan|ProviderAlignment)/u,
     "prompt chain must reject invalid storyboard plans before paid video generation"
   );
+  assert.match(
+    runnerSource,
+    /compactOmniScriptToWordBudget/u,
+    "prompt chain must reuse the deterministic script word-budget compactor"
+  );
 
   const directorPlan = makeDirectorPlan();
   const providerPlan = makeProviderPlan();
@@ -336,6 +341,8 @@ try {
   assert.ok(promptChainSource.includes("Не превращай полезный reference в отдельный сухой рекламный питч продукта"), "LLM chain must block ad-pitch rewrites");
   assert.ok(promptChainSource.includes("Продукт обязан выполнять понятную функцию"), "LLM chain must require product to serve the script idea");
   assert.ok(promptChainSource.includes("где естественно завершается рассказ о продукте"), "LLM chain CTA must be embedded at the natural product mention");
+  assert.ok(promptChainSource.includes("финальная часть ролика не состояла только из призыва"), "link CTA must be followed by a real conclusion");
+  assert.ok(!promptChainSource.includes("CTA: последняя фраза должна"), "link CTA must not be forced into the last sentence");
   assert.ok(promptChainSource.includes("артикул или подробности можно найти в описании"), "LLM chain article CTA must identify the exact product variant");
   assert.ok(promptChainSource.includes("в описании упоминается только артикул"), "LLM chain article CTA must not speak article number");
   assert.ok(promptChainSource.includes("Не используй сухие шаблоны"), "LLM chain article CTA must avoid copy-pasted wording");
