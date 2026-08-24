@@ -34,9 +34,14 @@ try {
   mkdirSync(dirname(aliasTypes), { recursive: true });
   copyFileSync(typesOutput, aliasTypes);
 
-  const { resolveReadyGeneratedScriptReference } = require(findFile(compiled, "generated-script-reference-selection.js"));
+  const {
+    MAX_DIRECTOR_REFERENCE_ATTEMPTS,
+    resolveReadyGeneratedScriptReference,
+  } = require(findFile(compiled, "generated-script-reference-selection.js"));
   const fitReviewerSource = readFileSync(join(ui, "src/lib/server/omni/reference-product-fit.ts"), "utf8");
   assert.match(fitReviewerSource, /hook или обещание reference не получает ответа/u);
+  assert.match(fitReviewerSource, /цены, бюджет, бронирование, туры, отели, билеты, транспорт, еда, покупки/u);
+  assert.equal(MAX_DIRECTOR_REFERENCE_ATTEMPTS, 16);
   const resolveCalls = [];
   const warnings = [];
   const selected = legacyScenario(2930);

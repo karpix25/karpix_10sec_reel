@@ -2,7 +2,7 @@ import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { normalizeDirectorBrief, type OmniDirectorAnalysis } from "./director-analysis-types";
 import type { GeneratedScriptSourceMode } from "./generated-script-source";
 
-export const MAX_DIRECTOR_REFERENCE_ATTEMPTS = 8;
+export const MAX_DIRECTOR_REFERENCE_ATTEMPTS = 16;
 
 export type ResolvedGeneratedScriptReference = {
   sourceScenario: OmniLegacyScenario;
