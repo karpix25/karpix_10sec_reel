@@ -126,7 +126,7 @@ export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
 }
 
 function renderWardrobeTimelineForPrompt(brief: DirectorBrief) {
-  if (!brief.wardrobe_timeline.length) return "- Временная одежда по кадрам не подтверждена анализом; не выдумывай смену или фиксацию одежды.";
+  if (!brief.wardrobe_timeline?.length) return "- Временная одежда по кадрам не подтверждена анализом; не выдумывай смену или фиксацию одежды.";
   return `- Одежда по таймлайну: ${brief.wardrobe_timeline.map((item) => `${item.start_sec}-${item.end_sec}s ${item.subject_id}: ${item.visible ? item.description || "видимая одежда без деталей" : "одежда не видна"}`).join(" | ")}.`;
 }
 

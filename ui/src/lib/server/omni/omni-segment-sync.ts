@@ -51,11 +51,7 @@ export async function syncOmniReelSegments(input: {
         const safetyStoryboardRepair = segment.generation_provider === "kie-ai" &&
           isKiePublicFigureSafetyBlock(message) &&
           !hasKieSafetyStoryboardRepair(segment.request_payload);
-        const safetyCharacterFallback = segment.generation_provider === "kie-ai" &&
-          isKiePublicFigureSafetyBlock(message) &&
-          hasKieSafetyStoryboardRepair(segment.request_payload) &&
-          segment.request_payload?.omni_kie_safety_fallback_without_character !== true;
-        if (canRetryOmniSegment(segment.request_payload) || safetyStoryboardRepair || safetyCharacterFallback) {
+        if (canRetryOmniSegment(segment.request_payload) || safetyStoryboardRepair) {
           if (safetyStoryboardRepair) {
             try {
               await regenerateKieSafetyBlockedStoryboard({
@@ -70,7 +66,7 @@ export async function syncOmniReelSegments(input: {
               continue;
             }
           }
-          await resetSegmentForRetry(segment, task.raw, message, safetyStoryboardRepair, safetyCharacterFallback);
+          await resetSegmentForRetry(segment, task.raw, message, safetyStoryboardRepair);
           retried = true;
         } else {
           await markSegmentFailed(segment, task.raw, message);
@@ -99,16 +95,12 @@ async function resetSegmentForRetry(
   segment: OmniReelSegment,
   response: unknown,
   message: string,
-  safetyStoryboardRepaired = false,
-  safetyCharacterFallback = false
+  safetyStoryboardRepaired = false
 ) {
   const retryPayload = buildOmniSegmentRetryPayload(segment.request_payload, message, {
     safetyStoryboardRepaired,
   });
   delete (retryPayload as Record<string, unknown>).omni_kie_safety_storyboard_task_id;
-  if (safetyCharacterFallback) {
-    (retryPayload as Record<string, unknown>).omni_kie_safety_fallback_without_character = true;
-  }
   await pool.query(
     `UPDATE omni_reel_segments
      SET status = 'draft',

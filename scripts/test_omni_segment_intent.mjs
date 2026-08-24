@@ -40,6 +40,7 @@ try {
     {
       index: 1,
       spokenText: "Я использую пенку Geodemika, чтобы мягко очищать кожу.",
+      productMentioned: true,
       productVisible: true,
       sourceIndex: 4,
       sourceSpan: { startSeconds: 0, endSeconds: 8 },
@@ -47,11 +48,13 @@ try {
     {
       index: 2,
       spokenText: "Это не отменяет комплексный подход к уходу и привычкам.",
+      productMentioned: false,
       productVisible: false,
     },
     {
       index: 3,
       spokenText: "Сон, питание и спорт поддерживают результат каждый день.",
+      productMentioned: false,
       productVisible: false,
     },
   ]);

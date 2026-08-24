@@ -308,7 +308,9 @@ function selectPhysicalProductDemoSegmentIndex(input: {
 }
 
 function resolvePhysicalProductDemoRole(segmentIndex: number, productDemoSegmentIndex: number | null, selectedRole: ProductRole = "brief_demo", forceVisible = false): ProductRole {
-  if ((!forceVisible && segmentIndex !== productDemoSegmentIndex) || selectedRole === "hidden") return "hidden";
+  if (selectedRole === "hidden") return "hidden";
+  if (forceVisible) return selectedRole;
+  if (segmentIndex !== productDemoSegmentIndex) return "hidden";
   return selectedRole === "digital_demo" ? "digital_demo" : "brief_demo";
 }
 

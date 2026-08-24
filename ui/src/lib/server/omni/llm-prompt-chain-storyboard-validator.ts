@@ -19,6 +19,8 @@ const PRODUCT_IN_HAND_PATTERN =
   /(?:продукт|товар|коллаген|банка|упаковк\p{L}*|флакон|тюбик|средств\p{L}*)[^.!?;\n]{0,80}(?:в\s+(?:одной|правой|левой)?\s*руке|держит|holding|holds?)|(?:в\s+(?:одной|правой|левой)?\s*руке|держит|holding|holds?)[^.!?;\n]{0,80}(?:продукт|товар|коллаген|банка|упаковк\p{L}*|флакон|тюбик|средств\p{L}*)/iu;
 const BOTH_HANDS_ON_FACE_PATTERN =
   /(?:обе(?:ими|и)?\s+рук\p{L}*|двумя\s+рук\p{L}*|both\s+hands)[^.!?\n]{0,100}(?:лиц\p{L}*|щек\p{L}*|кож\p{L}*)|(?:лиц\p{L}*|щек\p{L}*|кож\p{L}*)[^.!?\n]{0,100}(?:обе(?:ими|и)?\s+рук\p{L}*|двумя\s+рук\p{L}*|both\s+hands)/iu;
+const CUTAWAY_FACE_PATTERN =
+  /смотрит\s+в\s+камеру|говорит\s+в\s+камеру|лиц[оа]\s+в\s+камер|face\s*[- ]?to\s*[- ]?camera|look(?:s|ing)?\s+(?:straight\s+)?(?:into|at)\s+the\s+camera/iu;
 const STORYBOARD_FRAME_ROLES: ReadonlySet<string> = new Set([
   "face_open",
   "product_cutaway",
@@ -168,6 +170,14 @@ function validateStoryboardFrames(
         path: `${path}.${frameIndex}.productState`,
         code: "storyboard_product_cutaway_product_hidden",
         message: "Product cutaway frames must keep the product physically visible.",
+        severity: "error",
+      });
+    }
+    if (frame.role.endsWith("_cutaway") && CUTAWAY_FACE_PATTERN.test(`${frame.visualDescription} ${frame.camera} ${frame.action}`)) {
+      issues.push({
+        path: `${path}.${frameIndex}`,
+        code: "cutaway_faces_camera",
+        message: "Cutaway frames cannot show the presenter facing camera.",
         severity: "error",
       });
     }

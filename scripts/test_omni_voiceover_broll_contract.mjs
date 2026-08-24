@@ -105,6 +105,9 @@ try {
   );
 
   const digitalStep = digital.buildDigitalProductDemoStep({ productName: "Плати по миру", frameIndex: 3, frameCount: 5 });
+  const digitalOpening = digital.buildDigitalProductDemoStep({ productName: "Плати по миру", frameIndex: 1, frameCount: 5 });
+  assert.match(digitalOpening.action, /молча/iu);
+  assert.doesNotMatch(digitalOpening.action, /говорит/iu);
   assert.match(digitalStep.action, /поднимает смартфон.*одной руке/iu);
   assert.match(digitalStep.placement, /держит смартфон.*экран повернут к камере/iu);
   assert.doesNotMatch(digitalStep.placement, /столе|поверхности|лежит|стоит/iu);
@@ -163,7 +166,7 @@ try {
   assert.equal(prompts[0].creativeStrategy.referenceSceneMode, "voiceover_broll");
   assert.ok(prompts.every((item) => item.creativePlan.productRole === "digital_demo" || item.creativePlan.productRole === "hidden"));
   assert.ok(prompts.every((item) => !/The avatar says:|герой говорит в камеру/iu.test(item.prompt)));
-  assert.ok(prompts.every((item) => /CHARACTER:|главн(?:ый|ого) визуальн(?:ый|ого) героя/iu.test(item.prompt)));
+  assert.ok(prompts.every((item) => /CHARACTER:|сохранённ(?:ый|ого) аватар/iu.test(item.prompt)));
   assert.ok(prompts.every((item) => /закадров|off-camera narrator/iu.test(item.prompt)));
   assert.ok(prompts.some((item) => /экран|смартфон/iu.test(item.storyboardPlan?.frames.map((frame) => frame.visualAction).join(" ") || "")));
   console.log("Omni voiceover B-roll contract checks passed");

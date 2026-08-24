@@ -7,6 +7,10 @@ const runnerSource = readFileSync(
   resolve(root, "ui/src/lib/server/omni/omni-reel-runner.ts"),
   "utf8"
 );
+const syncSource = readFileSync(
+  resolve(root, "ui/src/lib/server/omni/omni-segment-sync.ts"),
+  "utf8"
+);
 
 assert.ok(
   runnerSource.includes('resolution: provider === "kie-ai" ? "1080p" : "720p"'),
@@ -16,5 +20,7 @@ assert.ok(
   runnerSource.includes("resolution: requestPayload.resolution"),
   "provider task resolution must stay aligned with stored request payload"
 );
+assert.ok(!runnerSource.includes("omni_kie_safety_fallback_without_character"));
+assert.ok(!syncSource.includes("omni_kie_safety_fallback_without_character"));
 
 console.log("KIE Omni resolution contract checks passed");

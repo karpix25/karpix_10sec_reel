@@ -71,10 +71,16 @@ export async function stitchAndStoreReel(input: {
   if (!project) throw new Error("Omni project not found");
   const product = await requireOmniProductInProject(input.reel.project_id, input.reel.product_id);
 
-  await pool.query(
-    "UPDATE omni_reels SET status = 'stitching', stitch_status = 'stitching', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+  const claim = await pool.query(
+    `UPDATE omni_reels
+     SET status = 'stitching', stitch_status = 'stitching', updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1
+       AND stitch_status <> 'completed'
+       AND (stitch_status <> 'stitching' OR updated_at < CURRENT_TIMESTAMP - INTERVAL '15 minutes')
+     RETURNING id`,
     [input.reel.id]
   );
+  if (!claim.rowCount) return;
 
   const orderedSegments = [...input.segments].sort((left, right) => left.segment_index - right.segment_index);
   const segmentBuffers = await Promise.all(orderedSegments.map(loadSegmentBuffer));

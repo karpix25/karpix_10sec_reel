@@ -294,7 +294,7 @@ try {
 	    assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2);
     assert.ok(!item.prompt.includes("PRODUCT ACTION:"), "stored LLM prompt path must not inject product action blocks");
     assert.ok(!item.prompt.includes("SCENE ACTION:"), "stored LLM prompt path must not inject scene action blocks");
-	    assert.ok(!item.prompt.includes("CONTINUITY:"), "stored LLM prompt path must not inject continuity blocks");
+	    assert.ok(!/(?:^|\n)CONTINUITY:/u.test(item.prompt), "stored LLM prompt path must not inject generic continuity blocks");
 	  });
 
 	  const legacyStoredInput = buildStoredPromptInput({ omitStoryboardFrames: true });

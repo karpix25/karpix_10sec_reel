@@ -5,6 +5,7 @@ const CONTINUITY_PROMPT_CONTRACT = [
   "Maintain the same person, camera distance, lighting, room background, and visible prop positions when the storyboard marks them as continuous.",
   "Keep products and props in the same visual relationship to the speaker unless this segment explicitly moves them.",
   "Let the speaker continue naturally with blinking, speech, and small gestures from the starting posture.",
+  "Do not create a sudden camera cut, angle change, lighting change, or background reset at the transition boundary.",
 ].join(" ");
 
 export function appendContinuityPromptContract(

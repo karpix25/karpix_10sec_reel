@@ -16,6 +16,7 @@ import {
   resolveReferenceFormatMode,
   type ReferenceFormatMode,
 } from "./omni-reference-format-mode";
+import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 
 export type ReferenceSegmentBeat = {
   startSeconds: number;
@@ -188,7 +189,7 @@ function renderCamera(profile: DirectorSegmentProfile | null) {
     profile.camera.shot_types.join(", "),
     profile.camera.angles.join(", "),
     profile.camera.movements.join(", "),
-    profile.camera.stabilization,
+    sanitizeCameraStabilizationForPrompt(profile.camera.stabilization),
   ].filter(Boolean).join("; ") || "ракурс и движение камеры из reference";
 }
 

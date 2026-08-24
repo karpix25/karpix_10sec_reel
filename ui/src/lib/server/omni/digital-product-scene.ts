@@ -22,7 +22,7 @@ export function buildDigitalProductDemoStep(input: {
 
   if (input.frameIndex < revealFrame) {
     return {
-      action: `B-roll по реплике; герой спокойно говорит и жестикулирует, смартфон с экраном ${product} пока вне кадра`,
+      action: `B-roll по реплике; герой молча и естественно жестикулирует, смартфон с экраном ${product} пока вне кадра`,
       placement: `${product} вне кадра до утвержденного момента появления`,
     };
   }

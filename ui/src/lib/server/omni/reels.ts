@@ -346,6 +346,7 @@ export async function createOmniReel(input: {
       promptPlan: promptPlan.map((segment) => ({
         index: segment.index,
         storyboardPlan: segment.storyboardPlan,
+        productRole: segment.creativePlan.productRole,
         referenceSegmentPlan: segment.referenceSegmentPlan,
       })),
       generationProvider: input.generationProvider,

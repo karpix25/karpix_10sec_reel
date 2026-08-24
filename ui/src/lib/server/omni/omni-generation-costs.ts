@@ -4,9 +4,9 @@ import {
   type OmniGenerationCostEvent,
   type OmniGenerationCostOperation,
   type OmniGenerationCostSummary,
-} from "@/lib/omni/generation-cost";
-import { extractOpenRouterCostSummaryFromSnapshot } from "@/lib/omni/openrouter-cost";
-import type { OmniGeneratedScript } from "@/lib/omni/types";
+} from "../../omni/generation-cost";
+import { extractOpenRouterCostSummaryFromSnapshot } from "../../omni/openrouter-cost";
+import type { OmniGeneratedScript } from "../../omni/types";
 import { ensureOmniSchema } from "./schema";
 
 const DEFAULT_KIE_USD_PER_CREDIT = 0.01;

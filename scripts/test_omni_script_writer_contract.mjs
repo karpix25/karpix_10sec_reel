@@ -127,8 +127,8 @@ try {
   assert.ok(prompt.includes("Продукт показывай только когда текущая реплика"), "visual cues must not default to product-only cutaways");
   assert.ok(prompt.includes("описывай только то, что физически находится и происходит внутри кадра"), "visual cues must describe only in-frame action");
   assert.doesNotMatch(prompt, technicalMontageTerms);
-  assert.ok(prompt.includes("адаптированную одежду главного персонажа"), "prompt must bind writer to adapted reference wardrobe");
-  assert.ok(prompt.includes("локацию, окружение, свет и камеру"), "prompt must bind writer to reference location and environment");
+  assert.ok(prompt.includes("одежду соответствующего reference интервала"), "prompt must bind writer to analyzed reference wardrobe");
+  assert.ok(prompt.includes("локацию, окружение, свет, камеру"), "prompt must bind writer to reference location and environment");
   assert.ok(prompt.includes("Не пиши псевдовопросы"), "prompt must ban pseudo questions");
   assert.ok(prompt.includes("Не добавляй субтитры"), "prompt must ban provider subtitles");
   assert.ok(prompt.includes("не используй дефисы, тире и минусы"), "prompt must ban hyphens and dashes in generated text values");
@@ -171,7 +171,7 @@ try {
   assert.ok(prompt.includes("Целевая длительность итогового ролика: 30-30 сек"), "prompt must include configured duration range");
   assert.ok(prompt.includes("60-72 слов"), "prompt must include computed word range");
   assert.ok(prompt.includes("66-72 слов"), "prompt must give a dense target word range for exact duration");
-  assert.ok(prompt.includes("не создавай пятую часть"), "script prompt must cap storyboards at four parts");
+  assert.ok(prompt.includes("не создавай шестую часть"), "script prompt must cap storyboards at five parts");
   assert.ok(prompt.includes("сожми формулировки"), "script prompt must compress long reference scripts");
   const scriptGeneratorSource = readFileSync(
     join(ui, "src/lib/server/omni/script-generator.ts"),

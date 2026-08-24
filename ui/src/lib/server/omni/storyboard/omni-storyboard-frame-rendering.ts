@@ -50,7 +50,7 @@ export function renderStoryboardWardrobe(input: {
     return "WARDROBE: not applicable; no person or hands are visible";
   }
   if (normalizeOmniWardrobeSource(input.wardrobeSource) === "avatar_reference") {
-    return `${input.characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}`;
+    return `${input.characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}; ignore clothing from the reference video`;
   }
   return renderReferenceWardrobe({
     brief: input.brief,

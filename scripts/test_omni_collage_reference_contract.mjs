@@ -28,6 +28,7 @@ try {
       skipLibCheck: true,
     },
     include: [
+      join(ui, "src/lib/audio-library/moods.ts"),
       join(ui, "src/lib/omni/**/*.ts"),
       join(ui, "src/lib/server/omni/**/*.ts"),
     ],
@@ -38,6 +39,10 @@ try {
   const aliasContract = join(output, "node_modules", "@", "lib", "omni", "creative-contract.js");
   mkdirSync(dirname(aliasContract), { recursive: true });
   copyFileSync(contractOutput, aliasContract);
+  const moodsOutput = findFile(compiled, "moods.js");
+  const aliasMoods = join(output, "node_modules", "@", "lib", "audio-library", "moods.js");
+  mkdirSync(dirname(aliasMoods), { recursive: true });
+  copyFileSync(moodsOutput, aliasMoods);
 
   const { buildOmniSegmentPrompts } = require(findFile(compiled, "omni-prompt-builder.js"));
   const input = buildReel50LikeInput();

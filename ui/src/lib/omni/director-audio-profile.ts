@@ -1,4 +1,4 @@
-import { normalizeAudioMood, type AudioMood } from "@/lib/audio-library/moods";
+import { normalizeAudioMood, type AudioMood } from "../audio-library/moods";
 
 export const DIRECTOR_AUDIO_MIN_CONFIDENCE = 0.65;
 

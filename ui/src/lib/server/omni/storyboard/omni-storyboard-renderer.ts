@@ -51,11 +51,14 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName || "") ? index + 1 : null)
     .filter((index): index is number => index !== null);
   const productAppearsInThisSegment = productFrameNumbers.length > 0;
+  const hiddenProductFrames = productAppearsInThisSegment && productFrameNumbers.length < frameCount
+    ? "; в остальных кадрах вне кадра"
+    : "";
 
   return [
     `Динамичный разговорный ролик по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; сохрани визуал.`,
     `Ровно ${frameCount} живых эпизодов, по одному на кадр и в том же порядке.`,
-    "Оживи панели; не показывай саму раскадровку, телефон с раскадровкой, интерфейс соцсетей или карточки раскадровки.",
+    "Оживи панели; не показывай саму раскадровку и интерфейс соцсетей",
     objectOnlyReferenceScene
       ? "OBJECT-ONLY: голос за кадром; в кадре только утверждённая поверхность, предметы и концептуальные пропы; человека, рук, лица, головы и talking-head framing нет."
       : facelessReferenceScene
@@ -74,7 +77,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       ? "PIP: full-screen фон; avatar lower-left cutout."
       : "",
     "filming gear is never seen.",
-    "VIDEO TEXTURE: keep the raw smartphone texture, exposure/focus breathing, and handheld energy from the storyboard; never make it glossy or studio-shot.",
+    "VIDEO TEXTURE: raw smartphone exposure, focus breathing, and handheld energy; never glossy or studio-shot.",
     objectOnlyReferenceScene
       ? `Свет, фон, макро поверхность, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй человека, руки, лицо, голову или аватар.`
       : facelessReferenceScene
@@ -98,6 +101,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
           : "Сохраняй независимость B-roll сцен, но фиксируй одного и того же сохранённого аватара как визуального героя; не превращай его в talking-head."
       : "Фиксируй те же волосы, пробор, аксессуары.",
     avatarFreeReferenceScene ? "" : renderStoryboardWardrobeContinuity(input.directorBrief),
+    avatarFreeReferenceScene ? "" : renderStoryboardWardrobe(input.storyboard),
     renderReferenceTransitionCue(input.directorBrief),
     renderStoryboardCameraLock(montageReference),
     renderVehicleCameraLock(input.directorBrief, montageReference),
@@ -118,8 +122,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
         : "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
       ? input.productRole === "digital_demo"
-        ? `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: утвержденный экран мобильного продукта на смартфоне в кадрах ${productFrameNumbers.join(", ")}; не превращай его в пластиковую карту или упаковку.`
-        : `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: неизменная упаковка в кадрах ${productFrameNumbers.join(", ")}; оживи утвержденную последовательность без телепортаций.`
+        ? `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: утвержденный экран мобильного продукта на смартфоне в кадрах ${productFrameNumbers.join(", ")}${hiddenProductFrames}; не превращай его в пластиковую карту или упаковку.`
+        : `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: неизменная упаковка в кадрах ${productFrameNumbers.join(", ")}${hiddenProductFrames}; оживи утвержденную последовательность без телепортаций.`
       : "В этом сегменте продукт вне кадра; не переноси его из reference-кадра.",
     productAppearsInThisSegment
       ? input.productRole === "digital_demo"
@@ -152,6 +156,11 @@ function renderStoryboardWardrobeContinuity(brief?: DirectorBrief | null) {
     default:
       return "WARDROBE CONTINUITY: the director analysis is inconclusive; follow the wardrobe written in each storyboard frame and do not infer a global outfit lock from the format.";
   }
+}
+
+function renderStoryboardWardrobe(storyboard: OmniStoryboardSegment) {
+  const wardrobe = [...new Set(storyboard.frames.map((frame) => frame.wardrobe.trim()).filter(Boolean))];
+  return wardrobe.length ? `WARDROBE FROM STORYBOARD: ${wardrobe.join(" | ")}` : "";
 }
 
 function renderStoryboardCameraLock(montageReference = false) {

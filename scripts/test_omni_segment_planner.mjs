@@ -59,11 +59,11 @@ try {
     fallbackSeconds: 50,
     source: "client_settings",
   });
-  assert.equal(overLimit.minSeconds, 40);
-  assert.equal(overLimit.maxSeconds, 40);
-  assert.equal(overLimit.wasClamped, true);
-  assert.equal(overLimit.minWords, 82);
-  assert.equal(overLimit.maxWords, 100);
+  assert.equal(overLimit.minSeconds, 50);
+  assert.equal(overLimit.maxSeconds, 50);
+  assert.equal(overLimit.wasClamped, false);
+  assert.equal(overLimit.minWords, 103);
+  assert.equal(overLimit.maxWords, 125);
 
   const allowedDurations = new Set([4, 6, 8, 10]);
   for (const [wordCount, expectedSegments] of [
@@ -79,6 +79,8 @@ try {
     [75, 3],
     [76, 4],
     [100, 4],
+    [101, 5],
+    [125, 5],
   ]) {
     const script = makeScript(wordCount);
     const plan = planOmniReelSegments(script);
@@ -176,9 +178,9 @@ try {
   assert.ok(fallbackSegments.every(seg => seg.wordCount > 0), "no segment should be empty");
 
   assert.throws(
-    () => planOmniReelSegments(makeScript(101)),
-    (error) => error instanceof Error && /Максимум 100 слов/u.test(error.message),
-    "scripts above the four-part limit must be rejected instead of creating a fifth segment"
+    () => planOmniReelSegments(makeScript(126)),
+    (error) => error instanceof Error && /Максимум 125 слов/u.test(error.message),
+    "scripts above the five-part limit must be rejected instead of creating a sixth segment"
   );
 
   assert.throws(

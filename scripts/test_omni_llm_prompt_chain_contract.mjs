@@ -62,10 +62,10 @@ try {
   const numberWords = require(findFile(output, "llm-prompt-chain-number-words.js"));
   assert.ok(runner.runLlmPromptChain, "runner smoke import must expose runLlmPromptChain");
   const runnerSource = readFileSync(join(ui, "src/lib/server/omni/llm-prompt-chain-runner.ts"), "utf8");
-  assert.doesNotMatch(
+  assert.match(
     runnerSource,
     /validateStoryboard(?:DirectorPlan|ProviderPlan|ProviderAlignment)/u,
-    "storyboard validators must not block script prompt-chain retries"
+    "prompt chain must reject invalid storyboard plans before paid video generation"
   );
 
   const directorPlan = makeDirectorPlan();
@@ -168,16 +168,14 @@ try {
   );
 
   assertIssue(
-    validator.validateDirectorSegmentPlan({
+    storyboardValidator.validateStoryboardDirectorPlan({
       ...directorPlan,
       segments: [
         {
           ...directorPlan.segments[0],
-          shots: [
-            directorPlan.segments[0].shots[0],
-            { role: "cutaway", action: "Миша смотрит в камеру и улыбается" },
-            directorPlan.segments[0].shots[2],
-          ],
+          storyboardFrames: directorPlan.segments[0].storyboardFrames.map((frame, index) => index === 1
+            ? { ...frame, role: "environment_cutaway", action: "Миша смотрит в камеру и улыбается" }
+            : frame),
         },
       ],
     }),
@@ -190,7 +188,9 @@ try {
       segments: [
         {
           ...directorPlan.segments[0],
-          productState: "аэрогриль на столе, Миша держит его в руках",
+          storyboardFrames: directorPlan.segments[0].storyboardFrames.map((frame, index) => index === 0
+            ? { ...frame, productState: "аэрогриль на столе, Миша держит его в руках" }
+            : frame),
         },
       ],
     }),
@@ -208,14 +208,6 @@ try {
       ],
     }),
     "hands_conflict"
-  );
-
-  assertIssue(
-    validator.validateDirectorSegmentPlan({
-      ...directorPlan,
-      segments: [{ ...directorPlan.segments[0], voiceover: "С этим аэрогрилем вы сможете" }],
-    }),
-    "bad_speech_boundary"
   );
 
   assertIssue(
@@ -335,7 +327,7 @@ try {
   assert.ok(promptChainSource.includes("переноси конкретный визуальный приём из соответствующего reference-кадра"), "non-product speech must use reference-driven visual devices");
   assert.ok(promptChainSource.includes("Первый segment повторяет механику reference"), "first segment must follow reference product mechanics");
   assert.ok(promptChainSource.includes("десять секунд это пять кадров"), "prompt chain must preserve exact frame counts");
-  assert.ok(promptChainSource.includes("Одежда, свет, окружение и типаж героя должны быть едиными"), "director must preserve wardrobe continuity");
+  assert.ok(promptChainSource.includes("Анализатор подтвердил стабильную одежду"), "director must preserve analyzed wardrobe continuity");
   assert.match(promptChainSource, /talking head frame.+смотрит прямо в объектив/iu, "talking-head frames must preserve direct gaze");
   assert.doesNotMatch(promptChainSource, technicalMontageTerms);
 

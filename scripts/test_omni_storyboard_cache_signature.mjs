@@ -34,8 +34,10 @@ try {
   const { buildStoryboardPlanSignature } = require(findFile(join(output, "compiled"), "storyboard-cache-signature.js"));
   const base = { index: 1, storyboardPlan: { segmentIndex: 1, durationSeconds: 4, voiceoverText: "текст", frames: [{ spokenText: "текст", visualAction: "нейтральный жест", camera: "план", environment: "комната", wardrobe: "одежда", productPlacement: "продукт на столе", sfxNotes: "речь" }] } };
   const changed = { ...base, storyboardPlan: { ...base.storyboardPlan, frames: [{ ...base.storyboardPlan.frames[0], visualAction: "держит продукт в одной руке" }] } };
+  const changedRole = { ...base, productRole: "digital_demo" };
   assert.equal(buildStoryboardPlanSignature([base]), buildStoryboardPlanSignature([base]));
   assert.notEqual(buildStoryboardPlanSignature([base]), buildStoryboardPlanSignature([changed]));
+  assert.notEqual(buildStoryboardPlanSignature([base]), buildStoryboardPlanSignature([changedRole]));
   console.log("Omni storyboard cache signature checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });

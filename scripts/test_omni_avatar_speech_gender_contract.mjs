@@ -100,6 +100,11 @@ try {
   const directorPrompt = promptChainPrompts.buildDirectorSegmenterPrompt({
     chainInput: promptInput,
     draft: { version: "llm-prompt-chain-v1", script: "я заметила разницу сразу", hookAngle: null, creativeNotes: null },
+    segmentPlan: {
+      totalDurationSeconds: 4,
+      segmentDurationsSeconds: [4],
+      segments: [{ text: "я заметила разницу сразу", wordCount: 4 }],
+    },
   });
   assert.ok(directorPrompt.includes("Грамматический род говорящего: женский"));
 

@@ -1,4 +1,4 @@
-import type { OmniCreativeStrategy } from "@/lib/omni/creative-contract";
+import type { OmniCreativeStrategy } from "../../omni/creative-contract";
 import {
   normalizeDirectorVisibleSubjectPolicy,
   renderVisibleSubjectPolicy,
