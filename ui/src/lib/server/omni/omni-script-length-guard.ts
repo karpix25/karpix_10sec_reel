@@ -15,10 +15,14 @@ export function compactOmniScriptToWordBudget(
   while (countWords(sentences) > maxWords) {
     const overflow = countWords(sentences) - maxWords;
     const ctaIndex = findLastCtaSentence(sentences);
+    const conclusionIndex = ctaIndex >= 0 && ctaIndex < sentences.length - 1 ? ctaIndex + 1 : -1;
     const removable = sentences
       .map((sentence, index) => ({ sentence, index, words: countOmniScriptWords(sentence) }))
       .filter(({ index, sentence }) =>
-        index !== 0 && index !== ctaIndex && !containsReferenceMeaningSignal(sentence, protectedMeaningSignals)
+        index !== 0
+        && index !== ctaIndex
+        && index !== conclusionIndex
+        && !containsReferenceMeaningSignal(sentence, protectedMeaningSignals)
       );
     const candidate = removable
       .filter(({ words }) => words >= overflow)

@@ -60,6 +60,7 @@ try {
   const normalizer = require(findFile(output, "llm-prompt-chain-normalizer.js"));
   const runner = requireRunnerWithStubs(findFile(output, "llm-prompt-chain-runner.js"));
   const numberWords = require(findFile(output, "llm-prompt-chain-number-words.js"));
+  const lengthGuard = require(findFile(output, "omni-script-length-guard.js"));
   assert.ok(runner.runLlmPromptChain, "runner smoke import must expose runLlmPromptChain");
   const runnerSource = readFileSync(join(ui, "src/lib/server/omni/llm-prompt-chain-runner.ts"), "utf8");
   assert.match(
@@ -72,6 +73,12 @@ try {
     /compactOmniScriptToWordBudget/u,
     "prompt chain must reuse the deterministic script word-budget compactor"
   );
+  const compactedConclusion = lengthGuard.compactOmniScriptToWordBudget(
+    "Хук обещает Лангкави. Лишняя вводная фраза здесь. Плати по миру виртуальная карта помогает платить за границей. Ссылка в профиле. Лангкави подходит для бюджетной зимовки.",
+    20
+  );
+  assert.ok(compactedConclusion.includes("Ссылка в профиле."), "word-budget compaction must preserve the CTA");
+  assert.ok(compactedConclusion.endsWith("Лангкави подходит для бюджетной зимовки."), "word-budget compaction must preserve the conclusion after CTA");
 
   const directorPlan = makeDirectorPlan();
   const providerPlan = makeProviderPlan();
@@ -344,6 +351,7 @@ try {
   assert.ok(promptChainSource.includes("финальная часть ролика не состояла только из призыва"), "link CTA must be followed by a real conclusion");
   assert.ok(promptChainSource.includes("вопросом, приказом или новым призывом"), "CTA conclusion must be declarative");
   assert.ok(promptChainSource.includes("сохрани минимум два конкретных примера"), "concrete reference lists must survive adaptation");
+  assert.ok(promptChainSource.includes("без такого действия не считаются пользой"), "product benefit must name an action from the product description");
   assert.ok(!promptChainSource.includes("CTA: последняя фраза должна"), "link CTA must not be forced into the last sentence");
   assert.ok(!promptChainSource.includes("CTA может быть отдельной последней фразой"), "base prompt must not allow CTA-only endings");
   const creativeRepairSource = readFileSync(
