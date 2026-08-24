@@ -342,6 +342,10 @@ try {
     join(ui, "src/lib/server/omni/llm-prompt-chain-prompts.ts"),
     "utf8"
   );
+  const semanticReviewerSource = readFileSync(
+    join(ui, "src/lib/server/omni/script-semantic-reviewer.ts"),
+    "utf8"
+  );
   assert.ok(promptChainSource.includes("смысловую основу"), "LLM chain copywriter must use the reference as source material");
   assert.ok(promptChainSource.includes("Не пытайся сохранить большую часть фраз дословно"), "LLM chain must prioritize meaning over phrase count");
   assert.ok(promptChainSource.includes("Меняй слова синонимами только там"), "LLM chain must only lightly synonymize reference text");
@@ -382,6 +386,8 @@ try {
   assert.ok(promptChainSource.includes("Выбирай product_cutaway и удерживание продукта в руках только когда смысл spoken_words"), "product cutaways must be meaning-driven");
   assert.ok(promptChainSource.includes("переноси конкретный визуальный приём из соответствующего reference-кадра"), "non-product speech must use reference-driven visual devices");
   assert.ok(promptChainSource.includes("Первый segment повторяет механику reference"), "first segment must follow reference product mechanics");
+  assert.ok(promptChainSource.includes("Общая фраза только о пользе продукта не считается выводом reference"), "copywriter must conclude the reference thesis, not only the product benefit");
+  assert.ok(semanticReviewerSource.includes("Не предлагай вопрос, приказ, CTA или императив"), "semantic repair feedback must not suggest forbidden imperative endings");
   assert.ok(promptChainSource.includes("десять секунд это пять кадров"), "prompt chain must preserve exact frame counts");
   assert.ok(promptChainSource.includes("Анализатор подтвердил стабильную одежду"), "director must preserve analyzed wardrobe continuity");
   assert.match(promptChainSource, /talking head frame.+смотрит прямо в объектив/iu, "talking-head frames must preserve direct gaze");
