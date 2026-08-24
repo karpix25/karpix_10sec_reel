@@ -22,11 +22,20 @@ export function normalizeOmniPromptPlanWithPhysicalRules(input: {
   directorBrief?: DirectorBrief | null;
   referenceSceneMode?: ReferenceSceneMode;
 }) {
+  const fixedWardrobe = input.directorBrief?.wardrobe_continuity === "stable"
+    ? input.promptPlan.find((segment) => segment.storyboardPlan?.frames[0]?.wardrobe)
+      ?.storyboardPlan?.frames[0]?.wardrobe || ""
+    : "";
   return input.promptPlan.map((segment) => {
     if (!segment.storyboardPlan) return segment;
 
     const storyboard = normalizePhysicalStoryboardSegment({
-      storyboard: segment.storyboardPlan,
+      storyboard: fixedWardrobe
+        ? {
+            ...segment.storyboardPlan,
+            frames: segment.storyboardPlan.frames.map((frame) => ({ ...frame, wardrobe: fixedWardrobe })),
+          }
+        : segment.storyboardPlan,
       productName: input.productName,
       productVisible: segment.creativePlan.productRole !== "hidden",
       productRole: segment.creativePlan.productRole,

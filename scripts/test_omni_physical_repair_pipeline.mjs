@@ -112,6 +112,27 @@ try {
   });
   assert.equal(missingValidValidation[0].validation.valid, true, JSON.stringify(missingValidValidation[0].validation));
 
+  const stableWardrobe = pipeline.normalizeOmniPromptPlanWithPhysicalRules({
+    promptPlan: [
+      repaired[0],
+      {
+        ...repaired[1],
+        storyboardPlan: {
+          ...repaired[1].storyboardPlan,
+          frames: repaired[1].storyboardPlan.frames.map((frame) => ({ ...frame, wardrobe: "другая одежда" })),
+        },
+      },
+    ],
+    productName: "Коллаген",
+    segmentCount: 2,
+    directorBrief: stableDirectorBrief(),
+  });
+  const canonicalWardrobe = stableWardrobe[0].storyboardPlan.frames[0].wardrobe;
+  assert.ok(canonicalWardrobe);
+  assert.ok(stableWardrobe.every((segment) =>
+    segment.storyboardPlan.frames.every((frame) => frame.wardrobe === canonicalWardrobe)
+  ));
+
   const sippingStoryboard = {
     ...segments[0].storyboardPlan,
     frames: segments[0].storyboardPlan.frames.map((frame) => ({
@@ -184,4 +205,23 @@ function findFile(directory, fileName) {
     if (entry.name === fileName) return path;
   }
   throw new Error(`Could not find ${fileName}`);
+}
+
+function stableDirectorBrief() {
+  return {
+    wardrobe_continuity: "stable",
+    subject_continuity: "same_subject",
+    wardrobe_timeline: [],
+    visual_hook: { action: "герой смотрит в камеру", retention_trigger: "прямой взгляд" },
+    atmosphere: { mood: "спокойный", lighting: "дневной", color_grading: "natural", setting: "комната" },
+    clothing: { style: "повседневный", color_palette: ["белый"], fit_details: "свободный", source: "presenter" },
+    camera: { shot_types: ["medium"], angles: ["eye level"], movements: ["static"], stabilization: "stable" },
+    montage_rhythm: { cut_pace: "slow", beat_sync: "none", transition_style: ["hard cut"] },
+    action_beats: [],
+    prop_sources: [],
+    hand_object_interactions: [],
+    motion_continuity: [],
+    reference_action_style: "talking head",
+    reusable_mechanics: { visual_mechanics: [], safe_zones_for_elements: "center", looping_pattern: "none" },
+  };
 }
