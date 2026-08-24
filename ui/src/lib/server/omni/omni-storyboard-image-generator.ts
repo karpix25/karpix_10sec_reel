@@ -173,6 +173,7 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
       canonicalStoryboardReferenceUrl,
       directorReferenceImageUrls,
       referenceFormatMode: resolveReferenceFormatMode(input.directorBrief),
+      wardrobeContinuity: input.directorBrief?.wardrobe_continuity,
     };
     let validation: StoryboardVisionValidation;
     try {

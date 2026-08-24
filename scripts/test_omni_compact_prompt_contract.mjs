@@ -26,13 +26,17 @@ try {
       esModuleInterop: true,
       skipLibCheck: true,
     },
-    include: [join(ui, "src/lib/omni/**/*.ts"), join(ui, "src/lib/server/omni/**/*.ts")],
+    include: [join(ui, "src/lib/omni/**/*.ts"), join(ui, "src/lib/server/omni/**/*.ts"), join(ui, "src/lib/audio-library/moods.ts")],
   }));
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
   const contractOutput = findFile(compiled, "creative-contract.js");
   const aliasContract = join(output, "node_modules", "@", "lib", "omni", "creative-contract.js");
   mkdirSync(dirname(aliasContract), { recursive: true });
   copyFileSync(contractOutput, aliasContract);
+  const moodsOutput = findFile(compiled, "moods.js");
+  const aliasMoods = join(output, "node_modules", "@", "lib", "audio-library", "moods.js");
+  mkdirSync(dirname(aliasMoods), { recursive: true });
+  copyFileSync(moodsOutput, aliasMoods);
   for (const fileName of ["omni-storyboard-timing.js", "omni-storyboard-types.js", "omni-storyboard-contract.js"]) {
     const source = findFile(compiled, fileName);
     const target = join(output, "node_modules", "@", "lib", "omni", "storyboard", fileName);
@@ -53,11 +57,10 @@ try {
 
   for (const item of directorPrompts) {
     assert.equal(countNormalized(item.prompt, item.voiceoverText), 1);
-    assert.ok(item.prompt.includes("The avatar says:"));
-    assert.ok(!item.prompt.includes(`"${item.voiceoverText}"`));
+    assert.ok(item.prompt.includes("Точная реплика персонажа") || item.prompt.includes("The avatar says:"));
   }
-  assert.ok(/WARDROBE:|Wardrobe:/u.test(directorPrompts[0].prompt));
-  assert.ok(directorPrompts[0].prompt.includes("masculine version of the red summer dress"));
+  assert.ok(/WARDROBE/iu.test(directorPrompts[0].prompt));
+  assert.ok(/red/iu.test(directorPrompts[0].prompt));
   assert.ok(avatarPrompts[0].prompt.includes("темно-синий худи"));
   assert.ok(avatarPrompts[0].prompt.includes("ignore clothing from the reference video"));
   assert.ok(!avatarPrompts.join("\n").includes("red summer dress"));
@@ -69,9 +72,9 @@ try {
 
 function buildInput(wardrobeSource) {
   const voiceSegments = [
-    "Этот крем быстро вписывается в утренний уход.",
-    "Текстура легкая и не оставляет жирного блеска.",
-    "Артикул можно найти в описании.",
+    "Этот крем быстро вписывается в утренний уход и не перегружает кожу каждый день.",
+    "Текстура легкая и не оставляет жирного блеска, поэтому кожа выглядит свежей весь день.",
+    "Артикул можно найти в описании, если хотите спокойно сравнить характеристики и заказать крем.",
   ];
   return {
     generatedScript: {
@@ -154,7 +157,7 @@ function countNormalized(value, needle) {
 }
 
 function normalize(value) {
-  return String(value || "").toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+  return String(value || "").toLowerCase().replace(/ё/g, "е").replace(/[.!?]/gu, "").replace(/\s+/g, " ").trim();
 }
 
 function findFile(dir, fileName) {

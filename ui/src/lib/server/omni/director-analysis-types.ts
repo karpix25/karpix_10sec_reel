@@ -9,6 +9,15 @@ import {
   normalizeDirectorVisibleSubjectPolicy,
   type DirectorVisibleSubjectPolicy,
 } from "./director-visibility-policy";
+import {
+  normalizeDirectorSubjectContinuity,
+  normalizeDirectorWardrobeContinuity,
+  normalizeDirectorWardrobeTimelineItem,
+  type DirectorSubjectContinuity,
+  type DirectorWardrobeContinuity,
+  type DirectorWardrobeTimelineItem,
+} from "./director-wardrobe";
+export { selectDirectorSegmentProfile } from "./director-analysis-timeline";
 
 export type DirectorAnalysisStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -56,6 +65,7 @@ export type DirectorSegmentProfile = {
   action_description: string;
   actor_gesture: string;
   speech_mode: PhysicalSpeechMode;
+  wardrobe: DirectorWardrobeTimelineItem | null;
 };
 
 export type DirectorProductIntroductionPosition = "hook" | "body" | "payoff" | "never";
@@ -90,6 +100,9 @@ export type DirectorBrief = {
   reference_render_mode?: ReferenceRenderMode;
   reference_motion_mode?: ReferenceMotionMode;
   audio_profile?: DirectorAudioProfile;
+  wardrobe_continuity: DirectorWardrobeContinuity;
+  subject_continuity: DirectorSubjectContinuity;
+  wardrobe_timeline: DirectorWardrobeTimelineItem[];
   visual_hook: {
     action: string;
     retention_trigger: string;
@@ -168,6 +181,7 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
   const camera = candidate.camera;
   const montage = candidate.montage_rhythm;
   const mechanics = candidate.reusable_mechanics;
+  const wardrobeTimeline = candidate.wardrobe_timeline ?? candidate.wardrobeTimeline;
   if (
     !isRecord(visualHook) ||
     !isRecord(atmosphere) ||
@@ -196,6 +210,17 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
       candidate.reference_motion_mode ?? candidate.referenceMotionMode
     ) || undefined,
     audio_profile: normalizeDirectorAudioProfile(candidate.audio_profile ?? candidate.audioProfile),
+    wardrobe_continuity: normalizeDirectorWardrobeContinuity(
+      candidate.wardrobe_continuity ?? candidate.wardrobeContinuity
+    ) || "unknown",
+    subject_continuity: normalizeDirectorSubjectContinuity(
+      candidate.subject_continuity ?? candidate.subjectContinuity
+    ) || "unknown",
+    wardrobe_timeline: Array.isArray(wardrobeTimeline)
+      ? wardrobeTimeline
+        .map(normalizeDirectorWardrobeTimelineItem)
+        .filter((item): item is DirectorWardrobeTimelineItem => Boolean(item))
+      : [],
     visual_hook: {
       action: stringValue(visualHook.action),
       retention_trigger: stringValue(visualHook.retention_trigger),
@@ -252,41 +277,6 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
 export function extractDirectorBriefFromSnapshot(snapshot: unknown): DirectorBrief | null {
   if (!isRecord(snapshot)) return null;
   return normalizeDirectorBrief(snapshot.director_analysis);
-}
-
-export function selectDirectorSegmentProfile(input: {
-  brief?: DirectorBrief | null;
-  segmentIndex: number;
-  segmentCount: number;
-  frameIndex: number;
-  frameCount: number;
-}): DirectorSegmentProfile | null {
-  const brief = input.brief;
-  if (!brief) return null;
-
-  const timeline = brief.camera_timeline || [];
-  const locationTimeline = brief.location_timeline || [];
-  const position = ((input.segmentIndex - 1) + (input.frameIndex - 0.5) / Math.max(1, input.frameCount)) /
-    Math.max(1, input.segmentCount);
-  const targetTime = selectTargetTime({ timeline, locationTimeline, actionBeats: brief.action_beats, position });
-  const camera = selectTimelineItem(timeline, targetTime);
-  const location = selectTimelineItem(locationTimeline, targetTime);
-  const action = selectActionBeat(brief.action_beats, targetTime);
-
-  return {
-    camera: {
-      shot_types: camera?.shot_types.length ? camera.shot_types : brief.camera.shot_types,
-      angles: camera?.angles.length ? camera.angles : brief.camera.angles,
-      movements: camera?.movements.length ? camera.movements : brief.camera.movements,
-      stabilization: camera?.stabilization || brief.camera.stabilization,
-    },
-    setting: camera?.setting || location?.setting || brief.atmosphere.setting,
-    environment: camera?.environment || location?.environment || "",
-    lighting: camera?.lighting || location?.lighting || brief.atmosphere.lighting,
-    action_description: camera?.action_description || action?.action_description || "",
-    actor_gesture: camera?.actor_gesture || action?.actor_gesture || "",
-    speech_mode: camera?.speech_mode || inferSpeechMode(camera?.action_description || action?.action_description || ""),
-  };
 }
 
 function unwrapDirectorBrief(value: unknown) {
@@ -358,44 +348,6 @@ function inferSpeechMode(value: string): PhysicalSpeechMode {
   return /voice[- ]?over|off[- ]?camera|b[-\s]?roll|cutaway|insert|перебив|закадр/iu.test(value)
     ? "voiceover_only"
     : "on_camera";
-}
-
-function selectTargetTime(input: {
-  timeline: readonly DirectorCameraTimelineItem[];
-  locationTimeline: readonly DirectorLocationTimelineItem[];
-  actionBeats: readonly DirectorBrief["action_beats"][number][];
-  position: number;
-}) {
-  const starts = [
-    ...input.timeline.map((item) => item.start_sec),
-    ...input.locationTimeline.map((item) => item.start_sec),
-    ...input.actionBeats.map((item) => item.timestamp_sec),
-  ].filter(Number.isFinite);
-  const ends = [
-    ...input.timeline.map((item) => item.end_sec),
-    ...input.locationTimeline.map((item) => item.end_sec),
-    ...input.actionBeats.map((item) => item.timestamp_sec),
-  ].filter(Number.isFinite);
-  const start = starts.length ? Math.min(...starts) : 0;
-  const end = ends.length ? Math.max(...ends) : start;
-  return start + Math.max(0, Math.min(1, input.position)) * Math.max(0, end - start);
-}
-
-function selectTimelineItem<T extends { start_sec: number; end_sec: number }>(items: readonly T[], targetTime: number) {
-  if (!items.length) return null;
-  return items.find((item) => item.start_sec <= targetTime && targetTime <= item.end_sec) ||
-    items.reduce((best, item) =>
-      Math.abs((item.start_sec + item.end_sec) / 2 - targetTime) < Math.abs((best.start_sec + best.end_sec) / 2 - targetTime)
-        ? item
-        : best
-    );
-}
-
-function selectActionBeat(items: readonly DirectorBrief["action_beats"][number][], targetTime: number) {
-  if (!items.length) return null;
-  return items.reduce((best, item) =>
-    Math.abs(item.timestamp_sec - targetTime) < Math.abs(best.timestamp_sec - targetTime) ? item : best
-  );
 }
 
 function hasRequiredDirectorText(brief: DirectorBrief) {

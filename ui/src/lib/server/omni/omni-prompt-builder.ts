@@ -167,6 +167,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     referenceSceneMode,
     referenceFormatMode,
     wardrobeSource: input.wardrobeSource,
+    wardrobeContinuity: directorBrief?.wardrobe_continuity,
   });
   const referencePolicy = buildReferenceTransferPolicy({
     hasProductReference: Boolean(productReference),
@@ -231,6 +232,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       previousState: previousContinuityState,
       talkingHead,
       referenceFormatMode,
+      wardrobeContinuity: directorBrief?.wardrobe_continuity,
     });
     const storyboardPlan = buildStoryboardFromCreativePlan({
       plan,

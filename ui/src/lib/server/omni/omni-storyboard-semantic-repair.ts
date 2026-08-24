@@ -311,7 +311,9 @@ function validateSemanticPromptPlan(
     referenceSceneMode: input.referenceSceneMode,
   });
   assertPhysicalPromptPlan(normalizedPlan);
-  assertStoryboardPromptContracts(normalizedPlan, input.productName, input.referenceFormatMode);
+  assertStoryboardPromptContracts(normalizedPlan, input.productName, {
+    wardrobeContinuity: input.directorBrief?.wardrobe_continuity || "unknown",
+  });
   return normalizedPlan;
 }
 

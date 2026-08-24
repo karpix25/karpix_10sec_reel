@@ -62,6 +62,15 @@ try {
   });
   assert.ok(wrongWardrobe.errors.includes("frame_1_wardrobe_contract_mismatch"));
 
+  const changingWardrobe = validator.validateStoryboardSegmentContract({
+    storyboard: storyboard([
+      frame("Эта пенка мягко очищает", "герой в белой рубашке держит пенку", "Пенка Geodemika в руке"),
+      { ...frame("кожу без ощущения стянутости", "герой в черном пиджаке показывает пенку", "Пенка Geodemika в руке"), wardrobe: "черный пиджак" },
+    ]),
+    contract: { ...contract("visible"), wardrobeContinuity: "changes_between_cuts" },
+  });
+  assert.equal(changingWardrobe.valid, true, JSON.stringify(changingWardrobe));
+
   const demoWithoutVoiceover = validator.validateStoryboardSegmentContract({
     storyboard: storyboard([
       frame("Сон и питание важны", "герой показывает пенку в камеру", "Пенка Geodemika в руке"),

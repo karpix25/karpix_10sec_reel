@@ -1,8 +1,6 @@
 export type ReferenceFormatMode = "continuous_story" | "voiceover_montage";
 
 const VALID_MODES: readonly ReferenceFormatMode[] = ["continuous_story", "voiceover_montage"];
-const OUTFIT_VARIATION_PATTERN = /(?:mix(?:ing|ed)|multiple|various|different|several|range of|outfit changes?|wardrobe changes?|разн(?:ая|ые)\s+(?:одежд|образ)|нескольк(?:о|ие)\s+(?:образ|наряд)|смен[а-яё]*\s+одежд)/iu;
-const NARRATION_PATTERN = /(?:voice[- ]?over|narrat(?:ion|ed)|off[- ]camera|закадр(?:овый|овая|ом)?\s+голос|озвучк)/iu;
 
 export function normalizeReferenceFormatMode(value: unknown): ReferenceFormatMode | null {
   if (typeof value !== "string") return null;
@@ -25,21 +23,12 @@ export function resolveReferenceFormatMode(brief: unknown): ReferenceFormatMode 
   if (explicit) return explicit;
   if (!candidate) return "continuous_story";
 
-  const clothing = isRecord(candidate.clothing) ? candidate.clothing : null;
   const montage = isRecord(candidate.montage_rhythm) ? candidate.montage_rhythm : null;
   const locationTimeline = Array.isArray(candidate.location_timeline) ? candidate.location_timeline : [];
   const cameraTimeline = Array.isArray(candidate.camera_timeline) ? candidate.camera_timeline : [];
-  const observedText = [
-    candidate.reference_action_style,
-    clothing?.style,
-    clothing?.fit_details,
-    clothing?.adaptation_notes,
-    ...(Array.isArray(montage?.transition_style) ? montage.transition_style : []),
-  ].filter((value): value is string => typeof value === "string").join(" ");
-  const hasIndependentCutSignals = locationTimeline.length >= 2 || cameraTimeline.length >= 3;
-  const hasMontageSignals = (OUTFIT_VARIATION_PATTERN.test(observedText) && hasIndependentCutSignals) ||
-    (NARRATION_PATTERN.test(observedText) && cameraTimeline.length >= 3 && locationTimeline.length >= 2) ||
-    (hasIndependentCutSignals && Array.isArray(montage?.transition_style) && montage.transition_style.length >= 2);
+  const hasIndependentCutSignals = locationTimeline.length >= 2 && cameraTimeline.length >= 3;
+  const hasMontageSignals = hasIndependentCutSignals ||
+    (Array.isArray(montage?.transition_style) && montage.transition_style.length >= 2);
   return hasMontageSignals ? "voiceover_montage" : "continuous_story";
 }
 
@@ -58,9 +47,9 @@ export function isVoiceoverMontageReference(mode: ReferenceFormatMode | null | u
 export function renderReferenceFormatContract(mode: ReferenceFormatMode, referenceSceneMode?: string) {
   return mode === "voiceover_montage"
     ? referenceSceneMode === "voiceover_broll"
-      ? "REFERENCE FORMAT: voiceover B-roll montage. One narrator carries the meaning across independent cutaways. Preserve the saved avatar identity as the silent visual protagonist; each cut follows its own matching location, action, camera setup, and outfit from the reference frames."
-      : "REFERENCE FORMAT: voiceover montage. One narrator carries the meaning across independent cutaways. This may be a hybrid edit: follow each reference interval's delivery mode, alternating on-camera speech with voiceover-only B-roll when observed. Keep the same presenter identity, but allow each independent segment to use its own matching location, action, camera setup, and outfit from the corresponding reference frames. Do not force scene or wardrobe continuity between unrelated cuts."
-    : "REFERENCE FORMAT: continuous story. Preserve the same presenter identity, outfit, scene, lighting, and physical state between segments unless a visible reference cut explicitly changes them.";
+      ? "REFERENCE FORMAT: voiceover B-roll montage. One narrator carries the meaning across independent cutaways. Follow the director analysis for visible subjects and wardrobe per source interval; do not force one person or one outfit across unrelated cuts."
+      : "REFERENCE FORMAT: voiceover montage. One narrator carries the meaning across independent cutaways. This may be a hybrid edit: follow each reference interval's delivery mode, visible subject, wardrobe, location, action, camera setup, and edit treatment exactly as analyzed. Do not force scene, subject, or wardrobe continuity between unrelated cuts."
+    : "REFERENCE FORMAT: continuous story. Preserve the analyzed subject, outfit, scene, lighting, and physical state between segments only when the director analysis marks them as continuous; honor any explicit analyzed change at a visible cut.";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

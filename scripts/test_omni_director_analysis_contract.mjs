@@ -32,6 +32,7 @@ try {
     include: [
       join(ui, "src/lib/omni/creative-contract.ts"),
       join(ui, "src/lib/omni/openrouter-cost.ts"),
+      join(ui, "src/lib/audio-library/moods.ts"),
       join(ui, "src/lib/server/omni/director-analysis-types.ts"),
       join(ui, "src/lib/server/omni/director-analysis-policy.ts"),
       join(ui, "src/lib/server/omni/director-analysis-prompt.ts"),
@@ -54,8 +55,13 @@ try {
   const costOutput = findFile(compiled, "openrouter-cost.js");
   const aliasCost = join(output, "node_modules", "@", "lib", "omni", "openrouter-cost.js");
   copyFileSync(costOutput, aliasCost);
+  const moodsOutput = findFile(compiled, "moods.js");
+  const aliasMoods = join(output, "node_modules", "@", "lib", "audio-library", "moods.js");
+  mkdirSync(dirname(aliasMoods), { recursive: true });
+  copyFileSync(moodsOutput, aliasMoods);
 
   const { normalizeDirectorBrief, selectDirectorSegmentProfile } = require(findFile(compiled, "director-analysis-types.js"));
+  const { resolveReferenceFormatMode } = require(findFile(compiled, "omni-reference-format-mode.js"));
   const { shouldAnalyzeDirectorReference } = require(findFile(compiled, "director-analysis-policy.js"));
   const { buildDirectorAnalysisUserPrompt, renderDirectorBriefForOmniPrompt } = require(findFile(compiled, "director-analysis-prompt.js"));
   const {
@@ -99,6 +105,12 @@ try {
         source: "main presenter",
         adaptation_notes: "adapt casual home outfit to avatar gender/body while preserving white and sage palette",
       },
+      wardrobe_continuity: "changes_between_cuts",
+      subject_continuity: "single_subject",
+      wardrobe_timeline: [
+        { start_sec: 0, end_sec: 8, subject_id: "primary_subject", visible: true, description: "white shirt", change_note: "", confidence: 0.95 },
+        { start_sec: 8, end_sec: 16, subject_id: "primary_subject", visible: true, description: "sage overshirt", change_note: "visible cut changes the outer layer", confidence: 0.93 },
+      ],
       location_timeline: [
         { start_sec: 0, end_sec: 8, setting: "small kitchen", environment: "warm home counter", lighting: "bright domestic daylight" },
         { start_sec: 8, end_sec: 16, setting: "near kitchen table", environment: "same home, closer product surface", lighting: "bright domestic daylight" },
@@ -159,10 +171,13 @@ try {
   assert.equal(laterProfile.camera.shot_types[0], "detail insert");
   assert.equal(laterProfile.setting, "near kitchen table");
   assert.equal(laterProfile.actor_gesture, "points at the surface");
+  assert.equal(laterProfile.wardrobe.description, "sage overshirt");
   const analysisPrompt = buildDirectorAnalysisUserPrompt({ transcript: "Тест" });
   assert.ok(analysisPrompt.includes("camera_timeline"));
   assert.ok(analysisPrompt.includes("reference_render_mode"));
   assert.ok(analysisPrompt.includes("reference_motion_mode"));
+  assert.ok(analysisPrompt.includes("wardrobe_timeline"));
+  assert.ok(analysisPrompt.includes("wardrobe_continuity MUST be observed from the video independently"));
   assert.ok(analysisPrompt.includes("raw smartphone texture"));
   const rendered = renderDirectorBriefForOmniPrompt(brief);
   assert.ok(rendered.includes("full-body presenter"));
@@ -172,6 +187,11 @@ try {
   assert.ok(rendered.includes("MOTION CONTINUITY: object movement follows visible hand contact"));
   assert.ok(!rendered.includes("bottom captions area"), "post-production safe zones must not reach provider prompt");
   assert.ok(!/\b(?:Instagram|Reels|TikTok|Shorts)\b/u.test(rendered), "platform imprint terms must not be rendered");
+  assert.equal(resolveReferenceFormatMode({
+    clothing: { style: "different outfits", fit_details: "several looks" },
+    location_timeline: [{ start_sec: 0, end_sec: 10 }],
+    camera_timeline: [{ start_sec: 0, end_sec: 5 }, { start_sec: 5, end_sec: 10 }],
+  }), "continuous_story", "format must not be inferred from wardrobe text");
   const closeUpBrief = normalizeDirectorBrief({
     director_brief: {
       visual_hook: { action: "speaker talks directly to camera", retention_trigger: "urgent eye contact" },

@@ -308,7 +308,7 @@ function buildFrame(input: {
     visualAction: storyboardVisualAction,
     camera: storyboardCamera,
     environment: renderDirectorEnvironment(input.directorBrief, referenceProfile),
-    wardrobe: renderStoryboardWardrobe({ characterContract: input.characterContract, brief: input.directorBrief, wardrobeSource: input.wardrobeSource, referenceFormatMode: input.referenceFormatMode, referenceSceneMode: input.referenceSceneMode }),
+    wardrobe: renderStoryboardWardrobe({ characterContract: input.characterContract, brief: input.directorBrief, referenceProfile, wardrobeSource: input.wardrobeSource, referenceFormatMode: input.referenceFormatMode, referenceSceneMode: input.referenceSceneMode }),
     productPlacement,
     sfxNotes: isCutawayFrame
       ? productVisible

@@ -4,7 +4,7 @@ import { renderReferenceSceneModeForDirectorPrompt, resolveReferenceSceneMode } 
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { renderReferenceFormatContract, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v12-visibility-audio";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v13-wardrobe-timeline";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
@@ -22,7 +22,7 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
   return [
     "Analyze the attached video and transcript.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "reference_subject_mode, visible_subject_policy, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
+    "reference_subject_mode, visible_subject_policy, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, wardrobe_continuity, subject_continuity, wardrobe_timeline, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -39,6 +39,9 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
     "- reference_format_mode MUST be classified from the visible edit and narration: continuous_story when one scene and physical state continue between segments; voiceover_montage when one narrator carries the meaning across independent cutaways where location, action, camera setup, or outfit can change while the main presenter remains the same.",
     "- reference_render_mode MUST be classified from the actual visual production: talking_head, voiceover_broll, fast_montage, object_hands, animation, or mixed. Choose animation for cartoon, anime, illustrated, stop-motion, 2D, or 3D visual production; choose mixed when the source changes production mode between scenes.",
     "- reference_motion_mode MUST describe how the new segment should be produced: continuous_motion, montage, or animated_still. This is a visual production classification, not a guess from the transcript.",
+    "- wardrobe_continuity MUST be observed from the video independently of reference_format_mode: stable when the same visible subject keeps the same outfit; changes_between_cuts when the outfit visibly changes between source cuts or intervals; not_visible when no clothing is visible; unknown only when the video does not provide enough evidence.",
+    "- subject_continuity MUST describe whether the visible subject is one recurring person, multiple different people, absent, or unclear: single_subject, multiple_subjects, no_visible_subject, or unknown. Never infer identity continuity from voiceover montage alone.",
+    "- wardrobe_timeline MUST contain 1-8 chronological intervals covering the source video. For every interval record start_sec, end_sec, subject_id, visible, description, change_note, and confidence. Inspect each cut: do not copy one global outfit into all intervals. If different people appear, use different subject_id values. If clothing is not visible, set visible=false and leave description empty.",
     "- audio_profile MUST classify the actual reference audio. Set music_present to true only when a non-diegetic or clearly musical layer is audible; set it to false for speech, silence, room tone, traffic, handling noise, and isolated natural SFX. Return music_role as none, background_bed, rhythmic_edit_driver, emotional_accent, or unknown; mood as energetic, calm, dramatic, inspiring, playful, or serious; energy as low, medium, high, or unknown; tempo as slow, medium, fast, or unknown; voice_priority as low, medium, high, or unknown; confidence as a number from 0 to 1; and evidence as one short factual sentence. If the audio is unclear, lower confidence and do not claim music is present.",
     "- location_timeline must describe any location/environment changes by seconds. If the location never changes, return one item for the whole video.",
     "- camera_timeline must cover the whole source video with 2-8 chronological intervals. For each interval record exact seconds, shot type, angle, movement, stabilization, setting, environment, lighting, visible action, gesture, and speech_mode. Set speech_mode to on_camera when the visible person is speaking/lip-syncing to camera, voiceover_only when narration continues over an independent B-roll/cutaway, or silent when nobody speaks. This is per interval: a hybrid reference may alternate on_camera and voiceover_only. Preserve raw smartphone texture, handheld shake, focus/exposure changes, and vehicle sway when visible. A moving car is allowed; the presenter is a passenger, never the driver.",
@@ -68,7 +71,8 @@ export function renderDirectorBriefForScriptPrompt(brief: DirectorBrief | null) 
     brief.reference_render_mode ? `- Тип production: ${brief.reference_render_mode}; motion mode: ${brief.reference_motion_mode || "continuous_motion"}.` : "",
     `- Визуальный хук: ${brief.visual_hook.action}; удержание: ${brief.visual_hook.retention_trigger}.`,
     `- Атмосфера: ${brief.atmosphere.mood}; место: ${brief.atmosphere.setting}; свет: ${brief.atmosphere.lighting}.`,
-    `- Одежда: ${brief.clothing.style}; палитра: ${brief.clothing.color_palette.join(", ") || "не указана"}.`,
+    `- Одежда: ${brief.clothing.style}; палитра: ${brief.clothing.color_palette.join(", ") || "не указана"}; continuity: ${brief.wardrobe_continuity}.`,
+    renderWardrobeTimelineForPrompt(brief),
     `- Камера: ${brief.camera.shot_types.join(", ")}; движения: ${brief.camera.movements.join(", ") || "минимальные"}.`,
     brief.location_timeline?.length
       ? `- Локации по таймлайну: ${brief.location_timeline.map((item) => `${item.start_sec}-${item.end_sec}s ${item.setting || item.environment}`).join("; ")}.`
@@ -100,7 +104,9 @@ export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
       : "",
     `REFERENCE DIRECTION: visual hook - ${brief.visual_hook.action}; retention trigger - ${brief.visual_hook.retention_trigger}.`,
     `ATMOSPHERE: ${brief.atmosphere.mood}; ${brief.atmosphere.setting}; ${brief.atmosphere.lighting}; ${brief.atmosphere.color_grading}.`,
+    `WARDROBE POLICY: ${brief.wardrobe_continuity}; subject continuity: ${brief.subject_continuity}.`,
     `WARDROBE: ${brief.clothing.style}; ${brief.clothing.fit_details}; colors: ${brief.clothing.color_palette.join(", ") || "natural neutral palette"}; source: ${brief.clothing.source}.`,
+    renderWardrobeTimelineForPrompt(brief),
     `CAMERA: ${brief.camera.shot_types.join(", ")}; angles: ${brief.camera.angles.join(", ")}; movement: ${brief.camera.movements.join(", ")}; ${sanitizeCameraStabilizationForPrompt(brief.camera.stabilization)}.`,
     `REFERENCE CUT LANGUAGE: ${brief.montage_rhythm.transition_style.join(", ") || "continuous stable shot"}. Use this only where the storyboard reference frames show the same transition; otherwise keep the camera and background continuous.`,
     brief.location_timeline?.length
@@ -117,6 +123,11 @@ export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
     `REUSABLE MECHANICS: ${brief.reusable_mechanics.visual_mechanics.join("; ")}; loop pattern: ${brief.reusable_mechanics.looping_pattern}.`,
     "Adapt this direction to the new person, product, script, and clean raw footage only. Copy the observed visual camera and transition language; do not copy speech tempo.",
   ].filter(Boolean).join("\n");
+}
+
+function renderWardrobeTimelineForPrompt(brief: DirectorBrief) {
+  if (!brief.wardrobe_timeline.length) return "- Временная одежда по кадрам не подтверждена анализом; не выдумывай смену или фиксацию одежды.";
+  return `- Одежда по таймлайну: ${brief.wardrobe_timeline.map((item) => `${item.start_sec}-${item.end_sec}s ${item.subject_id}: ${item.visible ? item.description || "видимая одежда без деталей" : "одежда не видна"}`).join(" | ")}.`;
 }
 
 function buildDirectorBriefSkeleton() {
@@ -145,6 +156,9 @@ function buildDirectorBriefSkeleton() {
       source: "main presenter",
       adaptation_notes: "adapt gendered garments to the avatar gender/body while keeping color, formality, layer, and mood",
     },
+    wardrobe_continuity: "stable|changes_between_cuts|not_visible|unknown",
+    subject_continuity: "single_subject|multiple_subjects|no_visible_subject|unknown",
+    wardrobe_timeline: [{ start_sec: 0, end_sec: 0, subject_id: "primary_subject", visible: true, description: "", change_note: "", confidence: 0 }],
     location_timeline: [{ start_sec: 0, end_sec: 0, setting: "", environment: "", lighting: "" }],
     camera_timeline: [{
       start_sec: 0,

@@ -6,6 +6,7 @@ import {
   validateStoryboardSet,
 } from "./storyboard-set-vision-validator";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
+import type { DirectorWardrobeContinuity } from "./director-wardrobe";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 
 type StoryboardSetEntry = {
@@ -52,12 +53,14 @@ export async function validateAndSaveGeneratedScriptStoryboardSet(input: {
   productName?: string;
   productReferenceUrls?: readonly string[];
   referenceFormatMode?: ReferenceFormatMode;
+  wardrobeContinuity?: DirectorWardrobeContinuity;
 }) {
   const validation = await validateStoryboardSet({
     storyboards: input.storyboards,
     productName: input.productName,
     productReferenceUrls: input.productReferenceUrls,
     referenceFormatMode: input.referenceFormatMode,
+    wardrobeContinuity: input.wardrobeContinuity,
   });
   await saveGeneratedScriptStoryboardSetQuality({
     scriptId: input.scriptId,

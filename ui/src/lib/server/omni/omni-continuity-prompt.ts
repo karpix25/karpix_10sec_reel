@@ -2,14 +2,23 @@ import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 
 const CONTINUITY_PROMPT_CONTRACT = [
   "Start this segment directly from the final pose and layout shown in the provided previous-frame reference.",
-  "Maintain the same person, clothing, camera distance, lighting, room background, and visible prop positions.",
+  "Maintain the same person, camera distance, lighting, room background, and visible prop positions when the storyboard marks them as continuous.",
   "Keep products and props in the same visual relationship to the speaker unless this segment explicitly moves them.",
   "Let the speaker continue naturally with blinking, speech, and small gestures from the starting posture.",
-  "Do not create a sudden camera cut, angle change, lighting change, background reset, or new outfit at the transition boundary.",
 ].join(" ");
 
-export function appendContinuityPromptContract(prompt: string) {
-  return `${prompt.trim()}\n\nContinuity from previous segment: ${CONTINUITY_PROMPT_CONTRACT}`;
+export function appendContinuityPromptContract(
+  prompt: string,
+  options: { wardrobeContinuity?: "stable" | "changes_between_cuts" | "not_visible" | "unknown" } = {},
+) {
+  const wardrobeLine = options.wardrobeContinuity === "stable"
+    ? "Keep the exact storyboard outfit at the transition boundary."
+    : options.wardrobeContinuity === "changes_between_cuts"
+      ? "Use the current storyboard outfit for this interval; a wardrobe change at an analyzed cut is valid."
+      : options.wardrobeContinuity === "not_visible"
+        ? "Do not invent or validate clothing details that are not visible."
+        : "Follow the current storyboard wardrobe; do not infer a global outfit lock from the reference format.";
+  return `${prompt.trim()}\n\nContinuity from previous segment: ${CONTINUITY_PROMPT_CONTRACT} ${wardrobeLine}`;
 }
 
 export function appendKieReferenceOrderPrompt(
@@ -28,7 +37,9 @@ export function appendKieReferenceOrderPrompt(
     "",
     `KIE reference image order: ${labels.join("; ")}.`,
     hasPreviousFrame
-      ? "CONTINUITY AUTHORITY: begin exactly from the previous final frame. It controls the visible person, outfit, hair, camera, lighting, room and prop layout at the cut boundary; never replace this outfit in the new segment."
+      ? montageReference
+        ? "CONTINUITY AUTHORITY: begin from the previous final frame for pose and product placement only; the current storyboard controls the subject and wardrobe for this independent cut."
+        : "CONTINUITY AUTHORITY: begin exactly from the previous final frame. It controls the visible person, outfit, hair, camera, lighting, room and prop layout at the cut boundary."
       : "",
     hasCanonicalStoryboard && !montageReference
       ? "WARDROBE AUTHORITY: copy the exact outfit, color, fabric, fit, sleeves, glasses, and accessories from the canonical storyboard reference. It overrides the current storyboard, avatar, and model guesses for character appearance."

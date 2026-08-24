@@ -1,6 +1,6 @@
 import type { OmniCreativeStrategy } from "@/lib/omni/creative-contract";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
-import type { DirectorBrief, DirectorLocationTimelineItem } from "./director-analysis-types";
+import { selectDirectorSegmentProfile, type DirectorBrief, type DirectorLocationTimelineItem } from "./director-analysis-types";
 import type { OmniCharacterContract } from "./omni-character-contract";
 import {
   resolveReferenceTransferPolicy,
@@ -12,6 +12,7 @@ import { shouldUseAvatarWardrobe } from "./omni-wardrobe-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isFacelessReferenceScene, isObjectOnlyReferenceScene, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
+import { renderReferenceWardrobe } from "./storyboard/omni-storyboard-frame-rendering";
 
 export type CompactReferenceBriefInput = {
   brief: DirectorBrief | null;
@@ -35,6 +36,14 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
   const policy = resolveReferenceTransferPolicy(input.referencePolicy);
   const location = selectDirectorLocationForSegment(input);
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.brief));
+  const wardrobeContinuity = input.brief.wardrobe_continuity || "unknown";
+  const referenceProfile = selectDirectorSegmentProfile({
+    brief: input.brief,
+    segmentIndex: input.segmentIndex,
+    segmentCount: input.segmentCount,
+    frameIndex: 1,
+    frameCount: 1,
+  });
   const facelessReferenceScene = isFacelessReferenceScene(input.referenceSceneMode);
   const voiceoverBrollReference = input.referenceSceneMode === "voiceover_broll";
   const noPeopleReference = resolveDirectorVisibleSubjectPolicy(input.brief) === "no_people";
@@ -61,7 +70,9 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
               ? "Use the reference video for independent locations, objects, approved product screens, lighting, camera framing, and cut rhythm; do not add people or hands."
               : "Use the reference video for independent locations, visible B-roll actions, lighting, camera framing, and cut rhythm; use the saved avatar reference for the recurring visual identity."
           : "Use the reference video for location, environment, lighting, camera framing, and adapted outfit style only.",
-      objectOnlyReferenceScene || montageReference ? "Do not force wardrobe, location, prop position, or physical action continuity between independent cuts." : "",
+      objectOnlyReferenceScene || wardrobeContinuity === "changes_between_cuts" || wardrobeContinuity === "unknown"
+        ? "Do not force wardrobe, location, prop position, or physical action continuity where the director analysis marks independent cuts."
+        : "",
       policy.mode === "style_only"
         ? voiceoverBrollReference
           ? "Use only the independent B-roll visual feel, camera, and light quality; omit unrelated reference-world objects, workflows, uniforms, and product category details."
@@ -77,10 +88,22 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
       : voiceoverBrollReference
           ? noPeopleReference
             ? "WARDROBE: not applicable; no person or hands are visible."
-            : "WARDROBE: use only what is visible in the corresponding independent B-roll frame; keep the saved avatar face, hair, age, body type, and identity across the reel."
+            : shouldUseAvatarWardrobe(wardrobeSource)
+              ? `Wardrobe: use the avatar outfit only; ${input.characterContract?.clothingLine || "keep the avatar reference outfit unchanged"}; ignore clothing from the reference video.`
+              : renderReferenceWardrobe({
+                brief: input.brief,
+                referenceProfile,
+                referenceFormatMode: resolveReferenceFormatMode(input.brief),
+                referenceSceneMode: input.referenceSceneMode,
+              })
         : shouldUseAvatarWardrobe(wardrobeSource)
       ? `Wardrobe: use the avatar outfit only; ${input.characterContract?.clothingLine || "keep the avatar reference outfit unchanged"}; ignore clothing from the reference video.`
-      : renderAdaptedWardrobeLine(input.brief, policy, montageReference),
+          : renderReferenceWardrobe({
+            brief: input.brief,
+            referenceProfile,
+            referenceFormatMode: resolveReferenceFormatMode(input.brief),
+            referenceSceneMode: input.referenceSceneMode,
+          }),
     actionLine: objectOnlyReferenceScene
       ? "REFERENCE ACTION: preserve the macro surface, conceptual props, and simple treatment beat; no human presence or hand interaction."
       : voiceoverBrollReference
@@ -170,28 +193,6 @@ function renderLocationLine(brief: DirectorBrief, location: DirectorLocationRang
     "the matching reference-video light quality"
   );
   return `LOCATION NOW: ${setting}; environment: ${environment}; light: ${lighting}.`;
-}
-
-function renderAdaptedWardrobeLine(brief: DirectorBrief, policy: ReferenceTransferPolicy, montageReference = false) {
-  const colors = brief.clothing.color_palette.length
-    ? `colors ${brief.clothing.color_palette.join(", ")}`
-    : "same color mood";
-  const adaptation = brief.clothing.adaptation_notes ||
-    "adapt gendered garments to the avatar gender/body while preserving style, formality, silhouette, and mood";
-  const wardrobe = [brief.clothing.style, brief.clothing.fit_details].join(" ");
-  if (policy.mode === "style_only" && /uniform|lab coat|doctor|nurse|scrubs|gloves|medical|culinary|униформ|халат|перчат|врач|повар/iu.test(wardrobe)) {
-    return `WARDROBE: use only the reference outfit formality, palette, and silhouette mood; ${colors}; ${adaptation}; omit uniforms, gloves, masks, aprons, and supporting-worker details.`;
-  }
-  return [
-    `WARDROBE: adapt ${brief.clothing.source || "the main presenter outfit style"} to the avatar`,
-    brief.clothing.style,
-    brief.clothing.fit_details,
-    colors,
-    adaptation,
-    montageReference
-      ? "for each independent cut match the visible outfit in its corresponding reference frame; keep the same face, hair, age, body type, and identity"
-      : "keep the same outfit across all parts",
-  ].filter(Boolean).join("; ") + ".";
 }
 
 function renderCameraLine(brief: DirectorBrief) {

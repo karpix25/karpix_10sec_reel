@@ -48,8 +48,6 @@ import type { ReferenceSegmentPlan } from "./reference-segment-plan";
 import {
   buildGeneratedScriptStoryboardReferenceSignature,
   getSegmentDirectorReferenceUrls,
-  normalizeContract,
-  normalizeUrl,
   rowsToUrlMap,
   STORYBOARD_PREVIEW_GENERATOR_VERSION,
 } from "./generated-script-storyboard-helpers";
@@ -331,6 +329,7 @@ async function ensureStoryboardSetApproval(
     productName: input.productName,
     productReferenceUrls: input.productReferenceUrls,
     referenceFormatMode: input.referenceFormatMode || resolveReferenceFormatMode(input.directorBrief),
+    wardrobeContinuity: input.directorBrief?.wardrobe_continuity,
     regenerateTarget: async ({ segmentIndex, validation, repairProgress }) => {
       const storyboardPlan = input.promptPlan.find((segment) => segment.index === segmentIndex)?.storyboardPlan;
       if (!storyboardPlan) throw new Error(`Storyboard ${segmentIndex} is missing from the repair plan`);

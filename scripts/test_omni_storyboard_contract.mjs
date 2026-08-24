@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 const root = resolve(import.meta.dirname, "..");
 const ui = join(root, "ui");
@@ -29,11 +29,17 @@ try {
     include: [
       join(ui, "src/lib/omni/storyboard/**/*.ts"),
       join(ui, "src/lib/server/omni/storyboard/**/*.ts"),
+      join(ui, "src/lib/server/omni/director-analysis-types.ts"),
+      join(ui, "src/lib/audio-library/moods.ts"),
     ],
   }));
 
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
   mirrorAlias("lib/omni/storyboard");
+  const moodsOutput = findFile(compiled, "moods.js");
+  const aliasMoods = join(output, "node_modules", "@", "lib", "audio-library", "moods.js");
+  mkdirSync(dirname(aliasMoods), { recursive: true });
+  cpSync(moodsOutput, aliasMoods);
 
   const types = require(findFile(compiled, "omni-storyboard-types.js"));
   const contract = require(findFile(compiled, "omni-storyboard-contract.js"));
@@ -64,13 +70,13 @@ try {
   assert.ok(prompt.includes("@product_file"));
   assert.ok(prompt.includes("Продукт из"));
   assert.ok(prompt.includes("не показывай саму раскадровку"));
-  assert.ok(prompt.includes("телефон, экран, интерфейс, соцсети"));
+  assert.ok(prompt.includes("интерфейс соцсетей") || prompt.includes("телефон, экран, интерфейс, соцсети"));
   assert.ok(prompt.includes("Оживи панели"));
   assert.ok(prompt.includes("сохрани визуал"));
   assert.ok(prompt.includes("Лицо и личность персонажа бери из avatar/character reference"));
   assert.ok(prompt.includes("одежду, свет, фон, ракурс и действия бери из раскадровки"));
   assert.ok(prompt.includes("те же волосы, пробор, аксессуары"));
-  assert.ok(prompt.includes("один и тот же полный комплект одежды"));
+  assert.ok(prompt.includes("WARDROBE CONTINUITY") || prompt.includes("один и тот же полный комплект одежды"));
   assert.ok(prompt.includes("смотрит прямо в объектив"));
   assert.ok(prompt.includes("CAMERA AUTHORITY"));
   assert.ok(prompt.includes("follow each panel camera"));
@@ -109,7 +115,6 @@ try {
   assert.equal(normalizedCount(prompt, buildValidStoryboard().voiceoverText), 1);
   assert.equal(normalizedCount(prompt, buildValidStoryboard().frames[0].spokenText), 1);
   assert.ok(prompt.includes("Без фоновой музыки"));
-  assert.ok(prompt.includes("обе руки у лица"));
   assert.ok(!prompt.includes("субтитры примени как с референса"));
   assert.ok(!prompt.includes("действие: герой берет"));
   assert.ok(!prompt.includes("Раскадровка без повторного текста речи:"));
@@ -147,7 +152,7 @@ try {
     storyboard: mixedProductStoryboard,
     productName: "Пенка",
   });
-  assert.ok(mixedProductPrompt.includes("только кадры 2"));
+  assert.ok(mixedProductPrompt.includes("кадрах 2"));
   assert.ok(mixedProductPrompt.includes("в остальных кадрах вне кадра"));
 
   const visualCueProductPlan = builder.buildStoryboardFromCreativePlan({

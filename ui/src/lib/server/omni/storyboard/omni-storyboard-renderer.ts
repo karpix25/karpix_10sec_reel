@@ -90,11 +90,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
           ? "Сохраняй независимость B-roll сцен; не добавляй людей, руки или аватар."
           : "Сохраняй независимость B-roll сцен, но фиксируй одного и того же сохранённого аватара как визуального героя; не превращай его в talking-head."
       : "Фиксируй те же волосы, пробор, аксессуары.",
-    avatarFreeReferenceScene
-      ? ""
-      : montageReference
-        ? "VOICEOVER MONTAGE IDENTITY LOCK: один и тот же персонаж, лицо, волосы, возраст и телосложение во всех независимых нарезках; одежда и окружение могут меняться по соответствующим reference-кадрам."
-        : "Канонический outfit задается первым кадром первой части: один и тот же полный комплект одежды во всех частях; не меняй цвет, ткань, крой или аксессуары.",
+    avatarFreeReferenceScene ? "" : renderStoryboardWardrobeContinuity(input.directorBrief),
     renderReferenceTransitionCue(input.directorBrief),
     renderStoryboardCameraLock(montageReference),
     renderVehicleCameraLock(input.directorBrief, montageReference),
@@ -134,6 +130,19 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     `"${voiceoverText}"`,
     "Правила аудио: произнеси строго указанную реплику в кавычках один раз, плавно и без пауз. Не зачитывай технические инструкции. После завершения реплики персонаж молчит. Без фоновой музыки и субтитров.",
   ].join("\n");
+}
+
+function renderStoryboardWardrobeContinuity(brief?: DirectorBrief | null) {
+  switch (brief ? brief.wardrobe_continuity || "unknown" : "stable") {
+    case "stable":
+      return "WARDROBE CONTINUITY: the director analysis marked the visible subject outfit as stable; keep the exact storyboard outfit across the continuous subject's frames and segments.";
+    case "changes_between_cuts":
+      return "WARDROBE CONTINUITY: the director analysis marked outfit changes between source cuts; use each frame's wardrobe for its corresponding interval and never copy the first outfit into unrelated cuts.";
+    case "not_visible":
+      return "WARDROBE CONTINUITY: clothing is not visible in the analyzed reference; do not invent or validate wardrobe details.";
+    default:
+      return "WARDROBE CONTINUITY: the director analysis is inconclusive; follow the wardrobe written in each storyboard frame and do not infer a global outfit lock from the format.";
+  }
 }
 
 function renderStoryboardCameraLock(montageReference = false) {

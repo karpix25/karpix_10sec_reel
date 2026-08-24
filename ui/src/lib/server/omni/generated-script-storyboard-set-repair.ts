@@ -1,6 +1,7 @@
 import pool from "@/lib/db";
 import type { StoryboardSetVisionValidation } from "@/lib/omni/storyboard/omni-storyboard-set-vision-types";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
+import type { DirectorWardrobeContinuity } from "./director-wardrobe";
 import {
   getGeneratedScriptStoryboardSetQuality,
   isCurrentStoryboardSetApproval,
@@ -38,6 +39,7 @@ export async function ensureGeneratedScriptStoryboardSetApproval(input: {
   productName: string;
   productReferenceUrls: readonly string[];
   referenceFormatMode?: ReferenceFormatMode;
+  wardrobeContinuity?: DirectorWardrobeContinuity;
   regenerateTarget: (input: {
     segmentIndex: number;
     validation: StoryboardSetVisionValidation;
@@ -150,6 +152,7 @@ async function validateStoryboardSetRound(
     productName: input.productName,
     productReferenceUrls: input.productReferenceUrls,
     referenceFormatMode: input.referenceFormatMode,
+    wardrobeContinuity: input.wardrobeContinuity,
   });
 }
 

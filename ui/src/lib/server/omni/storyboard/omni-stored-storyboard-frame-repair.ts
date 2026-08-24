@@ -19,13 +19,11 @@ import {
   type ReferenceTransferPolicy,
 } from "../omni-reference-transfer-policy";
 import { buildDigitalProductDemoStep } from "../digital-product-scene";
-import { isVoiceoverMontageReference, type ReferenceFormatMode } from "../omni-reference-format-mode";
+import type { ReferenceFormatMode } from "../omni-reference-format-mode";
 import { sanitizeVoiceoverBrollStoryboardText } from "./omni-storyboard-text-sanitizer";
 import type { ReferenceSceneMode } from "../omni-reference-scene-mode";
 import { resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
-
-const EXACT_FABRIC_LOCK =
-  "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
+import { renderReferenceWardrobe } from "./omni-storyboard-frame-rendering";
 
 export function buildStoredStoryboardFrame(input: {
   frame: StoryboardFrame;
@@ -128,11 +126,12 @@ export function buildStoredStoryboardFrame(input: {
         speechMode,
       });
 
-  const wardrobe = noPeopleReference
-    ? "одежда не применима; в кадре нет людей или рук"
-    : isVoiceoverMontageReference(input.referenceFormatMode)
-    ? "одежда соответствует текущему независимому reference-кадру; лицо, волосы, возраст и телосложение героя сохраняются между сегментами"
-    : `одежда из avatar или reference contract, без смены между кадрами; ${EXACT_FABRIC_LOCK}`;
+  const wardrobe = renderReferenceWardrobe({
+    brief: input.directorBrief,
+    referenceProfile: input.referenceProfile,
+    referenceFormatMode: input.referenceFormatMode,
+    referenceSceneMode: input.referenceSceneMode,
+  });
 
   return {
     spokenText,

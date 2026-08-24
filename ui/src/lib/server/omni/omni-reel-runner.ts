@@ -1,6 +1,6 @@
 import pool from "@/lib/db";
 import type { OmniReel, OmniReelSegment } from "@/lib/omni/types";
-import { normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
+import { normalizeOmniGenerationProvider } from "@/lib/omni/provider";
 import { getCometReferenceImageFieldName, getCometReferenceImageTransport, shouldSendCometReferenceImage } from "./comet-video-client";
 import { ensureOmniSchema } from "./schema";
 import { getLatestOmniClientAvatar } from "./avatars";
@@ -109,12 +109,11 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
 async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
   const { reel, segments } = await getReelBundle(reelId);
   const provider = normalizeOmniGenerationProvider(providerInput);
-  const referenceSceneMode = resolveReferenceSceneMode(
-    extractDirectorBriefFromSnapshot(reel.source_snapshot) || reel.creative_strategy
-  );
+  const directorBrief = extractDirectorBriefFromSnapshot(reel.source_snapshot);
+  const referenceSceneMode = resolveReferenceSceneMode(directorBrief || reel.creative_strategy);
   const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const referenceFormatMode = resolveReferenceFormatMode(
-    extractDirectorBriefFromSnapshot(reel.source_snapshot) || reel.source_snapshot
+    directorBrief || reel.source_snapshot
   );
   const montageReference = isVoiceoverMontageReference(referenceFormatMode);
   const continuityChainEnabled = isOmniContinuityChainEnabled();
@@ -266,7 +265,9 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
       productIsVisible,
     });
     const continuityPrompt = continuity.image
-      ? appendContinuityPromptContract(segment.prompt)
+      ? appendContinuityPromptContract(segment.prompt, {
+        wardrobeContinuity: directorBrief?.wardrobe_continuity || "unknown",
+      })
       : segment.prompt;
     const kieStoryboardPrompt = applyOmniStoryboardFileReference(
       continuityPrompt,

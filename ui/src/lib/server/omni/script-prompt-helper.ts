@@ -32,7 +32,7 @@ export function buildPrompt(input: {
     : renderDirectorBriefForScriptPrompt(input.directorBrief || null);
   const referenceFormatMode = resolveReferenceFormatMode(input.directorBrief);
   const montageReference = isVoiceoverMontageReference(referenceFormatMode);
-  const visualCueInstruction = buildVisualCueInstruction(wardrobeSource, montageReference);
+  const visualCueInstruction = buildVisualCueInstruction(wardrobeSource, montageReference, input.directorBrief);
   const referenceMeaningGuidance = buildReferenceMeaningGuidance(input.sourceScenario.script);
   const visualCueExample = wardrobeSource === "avatar_reference"
     ? "главный персонаж в одежде аватара, со светом, фоном и камерой референса смотрит в камеру; без субтитров"
@@ -50,7 +50,7 @@ export function buildPrompt(input: {
 4. Продукт обязан выполнять понятную функцию в мысли сценария: пример, инструмент, привычка, решение, демонстрация или способ не ошибиться с выбором. Нельзя просто вставить продукт и CTA между двумя полезными фразами.
 5. Новый сценарий должен продвигать выбранный продукт. В произносимом voiceover обязательно назови продукт точным названием «${input.productName}» минимум один раз и объясни его конкретную пользу. «Ссылка в профиле», «ссылка в описании» и похожий CTA не заменяют название продукта.
 5а. Если в первой части reference продукт не назван, не вставляй его искусственно в хук, но назови «${input.productName}» в том месте, где впервые появляется практическое решение. До CTA зритель должен понимать, что это за продукт и зачем он нужен.
-6. Формат: ${montageReference ? "закадровый голос с независимыми монтажными нарезками; один и тот же главный персонаж может появляться в разных сценах и одежде" : "говорящая голова с непрерывной сценой и короткими перебивками"}.
+6. Формат: ${montageReference ? "закадровый голос с независимыми монтажными нарезками" : "говорящая голова с непрерывной сценой и короткими перебивками"}. Одежду определяй только по режиссерскому анализу и его таймлайну.
 7. Структура: кульминационный хук 0-3 сек, 2-3 плотных бита, один CTA. Итоговый сценарий должен укладываться в 2-5 частей, не создавай шестую часть.
 8. CTA: ${buildCtaInstruction(input.ctaMode, input.ctaValue)}
 9. Не добавляй второй CTA и не меняй выбранное действие. Если для CTA нужны конкретные данные и их нет, не выдумывай их.
@@ -65,7 +65,7 @@ export function buildPrompt(input: {
 18. Не пиши псевдовопросы без ответа и фальшивую эмпатию вроде "я знаю, как тебе сложно".
 19. Сначала придумай 3 разных кульминационных hook_options, затем выбери strongest selected_hook.
 20. Разбей сценарий на 2-4 beats. В каждом beat должны быть:
-    visual_cue: одна конкретная видимая сцена, которая прямо раскрывает смысл voiceover этого beat, включая локацию, фон, свет, камеру и простое действие. ${montageReference ? "Для voiceover_montage каждый beat может быть независимой нарезкой; сохраняй личность персонажа, но не требуй продолжения предыдущей сцены или одежды." : "Если персонаж виден, сохрани его одежду без изменений."}
+    visual_cue: одна конкретная видимая сцена, которая прямо раскрывает смысл voiceover этого beat, включая локацию, фон, свет, камеру и простое действие. ${renderWardrobeContinuityRule(input.directorBrief)}
     voiceover: точная произносимая реплика этого бита.
 21. ${visualCueInstruction}
 22. Для каждого visual_cue сначала пойми смысл текущего voiceover, затем покажи именно этот смысл через персонажа, предметы или окружение. Продукт показывай только когда текущая реплика говорит о самом продукте, его свойствах или применении. Остальные темы показывай самостоятельной тематической сценой без продукта. Не копируй из reference несвязанные с текущей репликой процессы и предметы.
@@ -148,10 +148,11 @@ function buildDurationInstruction(durationRange?: OmniDurationRange) {
   );
 }
 
-function buildVisualCueInstruction(wardrobeSource: OmniWardrobeSource, montageReference = false) {
+function buildVisualCueInstruction(wardrobeSource: OmniWardrobeSource, montageReference = false, brief?: DirectorBrief | null) {
   const montageRule = montageReference
-    ? "Для voiceover_montage каждый beat может быть независимой монтажной сценой: сохраняй одного персонажа, но разрешай смену локации, действия, камеры и одежды по соответствующему reference-кадру; не склеивай независимые сцены в один физический сюжет."
-    : "Для continuous_story сохраняй одну физическую сцену, одежду и состояние между beats."
+    ? "Для voiceover_montage каждый beat может быть независимой монтажной сценой: следуй соответствующему reference интервалу и не склеивай независимые сцены в один физический сюжет."
+    : "Для continuous_story сохраняй одну физическую сцену и состояние между beats; одежду фиксируй только если это указано в анализе."
+  const wardrobeRule = renderWardrobeContinuityRule(brief);
   if (wardrobeSource === "avatar_reference") {
     return [
       "Если есть режиссерский анализ reference-видео, visual_cue должен использовать локацию, окружение, свет и камеру reference-видео. Если в reference меняется локация, отрази смену по beats.",
@@ -160,13 +161,22 @@ function buildVisualCueInstruction(wardrobeSource: OmniWardrobeSource, montageRe
       "Монтажный ритм и темп речи reference-видео не копируй. Пиши простую живую речь под новый продукт. Не добавляй субтитры, оверлеи, интерфейсы или текст на экране.",
     ].join(" ");
   }
-  return `Если есть режиссерский анализ reference-видео, visual_cue должен использовать адаптированную одежду главного персонажа, локацию, окружение, свет и камеру reference-видео. Если в reference меняется локация, отрази смену по beats. ${montageRule} Монтажный ритм и темп речи reference-видео не копируй. Пиши простую живую речь под новый продукт. Не добавляй субтитры, оверлеи, интерфейсы или текст на экране.`;
+  return `Если есть режиссерский анализ reference-видео, visual_cue должен использовать локацию, окружение, свет, камеру и одежду соответствующего reference интервала. Если в reference меняется локация или одежда, отрази смену по beats. ${montageRule} ${wardrobeRule} Монтажный ритм и темп речи reference-видео не копируй. Пиши простую живую речь под новый продукт. Не добавляй субтитры, оверлеи, интерфейсы или текст на экране.`;
+}
+
+function renderWardrobeContinuityRule(brief?: DirectorBrief | null) {
+  switch (brief?.wardrobe_continuity || "unknown") {
+    case "stable": return "Анализатор подтвердил стабильную одежду, сохрани один комплект.";
+    case "changes_between_cuts": return "Анализатор подтвердил смену одежды между cut-ами, используй одежду соответствующего интервала.";
+    case "not_visible": return "Одежда не видна, не добавляй её детали.";
+    default: return "Анализатор не подтвердил непрерывность одежды, не выводи её из формата ролика.";
+  }
 }
 
 function removeDirectorWardrobeGuidance(guidance: string) {
   return guidance
     .split("\n")
-    .filter((line) => !/^\s*- Одежда:/iu.test(line))
+    .filter((line) => !/^\s*- (?:Одежда:|Одежда по таймлайну:)/iu.test(line))
     .join("\n")
     .trim();
 }

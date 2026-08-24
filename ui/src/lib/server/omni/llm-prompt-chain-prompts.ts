@@ -87,6 +87,7 @@ export function buildDirectorSegmenterPrompt(input: {
   draft: CreativeScriptDraft;
 }) {
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.chainInput.directorBrief));
+  const wardrobeContinuity = input.chainInput.directorBrief?.wardrobe_continuity || "unknown";
   const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(input.chainInput.directorBrief);
   const noPeopleReference = visibleSubjectPolicy === "no_people";
   const silentAvatarReference = visibleSubjectPolicy === "silent_avatar";
@@ -104,6 +105,14 @@ export function buildDirectorSegmenterPrompt(input: {
   const exampleFrameRole = noPeopleReference ? "environment_cutaway" : "face_open";
   const exampleReferenceRole = noPeopleReference ? "none" : "avatar";
   const exampleFrameAction = noPeopleReference ? "наблюдаемое действие предмета или среды" : "действие лица в камеру";
+  const wardrobeRule = renderPromptChainWardrobeRule(wardrobeContinuity);
+  const formatRule = montageReference
+    ? noPeopleReference
+      ? "Для voiceover montage не добавляй людей; каждый независимый cutaway следует соответствующему reference-кадру."
+      : "Для voiceover montage сохраняй лицо, волосы, возраст, телосложение и типаж героя; независимые cutaways могут менять локацию, свет, действие и камеру по соответствующему reference-кадру."
+    : noPeopleReference
+      ? "Людей, рук и аватара нет; свет, окружение, объекты и монтаж соответствуют reference."
+      : "Свет, окружение и типаж героя должны следовать режиссерскому анализу во всех frames одного ролика.";
   return `
 Ты режиссер монтажа для Gemini Omni.
 
@@ -130,13 +139,7 @@ SFX это только естественные звуки кадра. Музы
 Каждый frame описывает только физическую сцену, камеру, действие и естественный звук внутри кадра.
 Выбирай product_cutaway и удерживание продукта в руках только когда смысл spoken_words этого кадра прямо связан с продуктом, его свойствами или применением. Если фраза посвящена общей теме, проблеме или выводу без прямого контакта с продуктом, продукт должен быть вне кадра (product_state: "вне кадра"), а персонаж говорит с естественной жестикуляцией без товара в руках. В product_cutaway продукт обязан быть физически видимым и детально совпадать с product reference.
 Для непредметных кадров переноси конкретный визуальный приём из соответствующего reference-кадра, но адаптируй его под текущую реплику без чужого продукта.
-${montageReference
-    ? noPeopleReference
-      ? "Для voiceover montage не добавляй людей; каждый независимый cutaway следует соответствующему reference-кадру."
-      : "Для voiceover montage сохраняй лицо, волосы, возраст, телосложение и типаж героя, но каждый независимый cutaway может менять одежду, локацию, свет, действие и камеру по соответствующему reference-кадру. Не связывай соседние сегменты через одежду или помещение."
-    : noPeopleReference
-      ? "Людей, рук и аватара нет; свет, окружение, объекты и монтаж соответствуют reference."
-      : "Одежда, свет, окружение и типаж героя должны быть едиными во всех frames одного ролика."}
+${formatRule} ${wardrobeRule}
 Бери камеру и переходы из соответствующих reference-кадров. Если соседние кадры reference сняты одинаково, повторяй тот же ракурс, фон и направление камеры. Не добавляй автоматическое чередование лево-право, смену крупности или движение камеры только ради динамики.
 Каждый segment обязан содержать законченную грамматическую мысль и завершаться полным предложением со знаком препинания (точка, восклицательный или вопросительный знак).
 Категорически запрещено разрывать предложение между сегментами (например, обрывать фразу на предлоге или прилагательном вроде «в вечернем», «для мягкого», «и третье»). Каждая фраза, начатая в сегменте, должна быть полностью закончена внутри этого же сегмента.
@@ -202,14 +205,13 @@ export function buildProviderPromptWriterPrompt(input: {
 }) {
   const wardrobeSource = normalizeOmniWardrobeSource(input.chainInput.wardrobeSource);
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.chainInput.directorBrief));
+  const wardrobeContinuity = input.chainInput.directorBrief?.wardrobe_continuity || "unknown";
   const wardrobeRule = wardrobeSource === "avatar_reference"
     ? "Одежда берется только из аватара. Не копируй одежду reference."
-    : montageReference
-      ? "Для voiceover montage бери одежду из соответствующего самостоятельного reference-кадра каждого сегмента; не меняй лицо и идентичность персонажа."
-      : "Одежду адаптируй из reference, но не меняй лицо и идентичность персонажа.";
+    : renderPromptChainWardrobeRule(wardrobeContinuity);
   const continuityRule = montageReference
-    ? "Сохрани единый avatar, лицо, волосы, возраст и телосложение между frames и segment prompts. Независимые cutaways могут менять outfit, свет, окружение, действие и камеру по reference."
-    : "Сохрани единый avatar, outfit, свет и окружение между frames и segment prompts. Материал одежды, плетение ткани, плотность, фактура, крой и детали должны быть в точности одинаковыми во всех частях.";
+    ? "Сохрани единый avatar, лицо, волосы, возраст и телосложение между frames и segment prompts. Независимые cutaways следуют своим reference интервалам по локации, свету, действию и камере."
+    : "Сохрани единый avatar, лицо, волосы, возраст и телосложение между frames и segment prompts. Свет и окружение следуют режиссерскому анализу.";
 
   return `
 Ты prompt режиссер для Gemini Omni.
@@ -318,4 +320,11 @@ function buildProductTimingContract(brief: DirectorBrief | null): string {
     intro.introduction_style ? `Способ появления в reference: ${intro.introduction_style}. Адаптируй этот способ под наш продукт — он должен появиться так же органично.` : "",
     intro.naturality_notes ? `Нативность из reference: ${intro.naturality_notes}.` : "",
   ].filter(Boolean).join(" ");
+}
+
+function renderPromptChainWardrobeRule(continuity: DirectorBrief["wardrobe_continuity"] | "unknown") {
+  if (continuity === "stable") return "Анализатор подтвердил стабильную одежду: сохрани один и тот же комплект, материал, крой, фактуру и цвет во всех частях.";
+  if (continuity === "changes_between_cuts") return "Анализатор подтвердил смену одежды: бери одежду из wardrobe_timeline и соответствующего storyboard кадра; смена между интервалами допустима, внутри одного интервала не выдумывай новую одежду.";
+  if (continuity === "not_visible") return "Одежда не видна в анализируемом reference: не добавляй и не проверяй детали одежды.";
+  return "Анализатор не подтвердил непрерывность одежды: следуй только текущему storyboard кадру и не выводи глобальный outfit из формата reference.";
 }

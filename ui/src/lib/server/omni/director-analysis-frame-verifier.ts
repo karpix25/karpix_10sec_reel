@@ -104,7 +104,8 @@ export async function verifyDirectorBriefAgainstReferenceFrames(input: {
 const VERIFICATION_SYSTEM_PROMPT = [
   "You are a strict video-reference QA reviewer.",
   "Compare the supplied director brief with the attached source frames.",
-  "Correct every factual mismatch in location, camera position, movement, lighting, wardrobe and visible actions.",
+  "Correct every factual mismatch in location, camera position, movement, lighting, wardrobe continuity, wardrobe timeline and visible actions.",
+  "Verify wardrobe independently from format: stable, changes_between_cuts, not_visible or unknown. Keep one timeline interval per visibly different outfit or subject; never replace a wardrobe timeline with one global outfit merely because the source is a montage.",
   "Frames are evidence. Never infer a home or studio when a vehicle cabin is visible.",
   "Return only JSON: status (pass or repair), confidence (0-1), reasons (short array), director_brief (full corrected object). Preserve audio_profile exactly; this field was determined from the full video's audio and is not verifiable from still frames.",
 ].join(" ");

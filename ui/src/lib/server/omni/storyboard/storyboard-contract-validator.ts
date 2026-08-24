@@ -4,12 +4,13 @@ import {
   mentionsNamedOmniProduct,
   mentionsOmniProduct,
 } from "../omni-intro-product-contract";
-import type { ReferenceFormatMode } from "../omni-reference-format-mode";
+import type { DirectorWardrobeContinuity } from "../director-wardrobe";
 
 export type StoryboardSegmentContract = {
   productName: string;
   productVisibility: "hidden" | "visible";
-  fixedWardrobe: string;
+  fixedWardrobe?: string;
+  wardrobeContinuity?: DirectorWardrobeContinuity;
 };
 
 export type StoryboardContractValidationResult = {
@@ -34,9 +35,10 @@ export function validateStoryboardSegmentContract(input: {
   contract: StoryboardSegmentContract;
 }): StoryboardContractValidationResult {
   const errors: string[] = [];
-  const fixedWardrobe = normalize(input.contract.fixedWardrobe);
+  const fixedWardrobe = normalize(input.contract.fixedWardrobe || "");
+  const wardrobeContinuity = input.contract.wardrobeContinuity || (fixedWardrobe ? "stable" : "unknown");
 
-  if (!fixedWardrobe) errors.push("fixed_wardrobe_required");
+  if (wardrobeContinuity === "stable" && !fixedWardrobe) errors.push("fixed_wardrobe_required");
 
   input.storyboard.frames.forEach((frame, index) => {
     const frameNumber = index + 1;
@@ -50,7 +52,7 @@ export function validateStoryboardSegmentContract(input: {
     if (input.contract.productVisibility === "visible" && !productVisible) {
       errors.push(`frame_${frameNumber}_product_missing_from_physical_demo`);
     }
-    if (fixedWardrobe && normalize(frame.wardrobe) !== fixedWardrobe) {
+    if (wardrobeContinuity === "stable" && fixedWardrobe && normalize(frame.wardrobe) !== fixedWardrobe) {
       errors.push(`frame_${frameNumber}_wardrobe_contract_mismatch`);
     }
     if (transfer) {
@@ -103,22 +105,22 @@ function tokenSet(value: string) {
 export function assertStoryboardPromptContracts(
   promptPlan: readonly StoryboardPromptContractInput[],
   productName: string,
-  referenceFormatMode: ReferenceFormatMode = "continuous_story"
+  options: { wardrobeContinuity?: DirectorWardrobeContinuity } = {},
 ) {
-  const globalFixedWardrobe = promptPlan.find((segment) => segment.storyboardPlan?.frames[0])
-    ?.storyboardPlan?.frames[0]?.wardrobe || "";
+  const wardrobeContinuity = options.wardrobeContinuity || "unknown";
+  const globalFixedWardrobe = wardrobeContinuity === "stable"
+    ? promptPlan.find((segment) => segment.storyboardPlan?.frames[0])?.storyboardPlan?.frames[0]?.wardrobe || ""
+    : "";
   const errors = promptPlan.flatMap((segment) => {
     if (!segment.storyboardPlan) return [`segment_${segment.index}_storyboard_required`];
     const voiceoverMismatch = normalize(segment.storyboardPlan.voiceoverText) !== normalize(segment.voiceoverText);
-    const fixedWardrobe = referenceFormatMode === "voiceover_montage"
-      ? segment.storyboardPlan.frames[0]?.wardrobe || ""
-      : globalFixedWardrobe;
     const result = validateStoryboardSegmentContract({
       storyboard: segment.storyboardPlan,
       contract: {
         productName,
         productVisibility: segment.creativePlan.productRole === "hidden" ? "hidden" : "visible",
-        fixedWardrobe,
+        fixedWardrobe: globalFixedWardrobe,
+        wardrobeContinuity,
       },
     });
     return [

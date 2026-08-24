@@ -1,6 +1,7 @@
 import type { OmniSegmentCreativePlan, ProductRole } from "@/lib/omni/creative-contract";
 import { compactPromptPhrase } from "./omni-scene-world-sanitizer";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
+import type { DirectorWardrobeContinuity } from "./director-wardrobe";
 
 export type OmniGenerationContinuityState = {
   segmentIndex: number;
@@ -22,6 +23,7 @@ type BuildContinuityDirectionInput = {
   previousState: OmniGenerationContinuityState | null;
   talkingHead: boolean;
   referenceFormatMode?: ReferenceFormatMode;
+  wardrobeContinuity?: DirectorWardrobeContinuity;
 };
 
 export function buildOmniGenerationContinuityDirection(
@@ -43,6 +45,7 @@ export function buildOmniGenerationContinuityDirection(
     : input.previousState
     ? `Start from previous final state: ${compactContinuityState(input.previousState.sceneState)}; product state: ${compactContinuityState(input.previousState.productState)}.`
     : `Start with the scene already established: ${describeInitialScene(input.plan)}.`;
+  const wardrobeInstruction = renderWardrobeContinuityInstruction(input.wardrobeContinuity);
   const nextState = {
     segmentIndex: input.segmentIndex,
     productState: compactContinuityState(productAction.endState),
@@ -53,7 +56,7 @@ export function buildOmniGenerationContinuityDirection(
   return {
     promptLines: montageReference
       ? [
-        `MONTAGE SEGMENT: ${sceneStart} Do not continue the previous segment's room, outfit, camera, or prop positions. ${voiceoverBrollReference ? "Keep the saved avatar identity as the silent visual protagonist; preserve only the approved product appearance." : "Keep the same presenter identity and exact product appearance only."}`,
+        `MONTAGE SEGMENT: ${sceneStart} Do not continue the previous segment's room, camera, or prop positions. ${wardrobeInstruction} ${voiceoverBrollReference ? "Keep the saved avatar identity as the silent visual protagonist; preserve only the approved product appearance." : "Keep the same presenter identity only when the reference analysis requires it; preserve exact product appearance."}`,
         `PRODUCT ACTION: ${productAction.actionLine}`,
         `PHYSICAL CAUSALITY: ${productAction.causalityLine}`,
       ]
@@ -65,6 +68,13 @@ export function buildOmniGenerationContinuityDirection(
       ],
     nextState,
   };
+}
+
+function renderWardrobeContinuityInstruction(continuity?: DirectorWardrobeContinuity) {
+  if (continuity === "stable") return "Keep the exact analyzed outfit across this continuous subject.";
+  if (continuity === "changes_between_cuts") return "Use the outfit from the current analyzed source interval; outfit changes between cuts are intentional.";
+  if (continuity === "not_visible") return "Do not invent clothing details that are not visible.";
+  return "Follow the current storyboard wardrobe and do not infer a global outfit lock from the montage format.";
 }
 
 function buildProductAction(input: {

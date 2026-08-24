@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
@@ -66,9 +66,14 @@ try {
       strict: true,
       skipLibCheck: true,
     },
-    files: [join(ui, "src/lib/server/omni/reference-segment-plan.ts")],
+    files: [join(ui, "src/lib/server/omni/reference-segment-plan.ts"), join(ui, "src/lib/audio-library/moods.ts")],
   }));
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", join(output, "tsconfig.json")], { cwd: ui, stdio: "inherit" });
+
+  const moodsOutput = findFile(compiled, "moods.js");
+  const aliasMoods = join(output, "node_modules", "@", "lib", "audio-library", "moods.js");
+  mkdirSync(join(output, "node_modules", "@", "lib", "audio-library"), { recursive: true });
+  copyFileSync(moodsOutput, aliasMoods);
 
   const plan = require(findFile(compiled, "reference-segment-plan.js"));
   const presenter = plan.buildReferenceSegmentPlan({
