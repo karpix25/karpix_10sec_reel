@@ -71,6 +71,7 @@ try {
   );
   const runnerSource = readFileSync(join(ui, "src/lib/server/omni/llm-prompt-chain-runner.ts"), "utf8");
   const semanticReviewerSource = readFileSync(join(ui, "src/lib/server/omni/script-semantic-reviewer.ts"), "utf8");
+  const semanticReviewer = requireSemanticReviewerWithStubs(findFile(output, "script-semantic-reviewer.js"));
   assert.match(
     runnerSource,
     /validateStoryboard(?:DirectorPlan|ProviderPlan|ProviderAlignment)/u,
@@ -121,6 +122,13 @@ try {
       && semanticReviewerSource.includes("гарантированную скидку, местную цену или защиту от наценки"),
     "semantic review must reject unsupported high-risk product capabilities"
   );
+  const unsupportedSavingsReview = semanticReviewer.reconcileProductCapabilities(
+    passedSemanticReview(),
+    "Чтобы не платить лишнее в поездках, используй Плати по миру виртуальную карту.",
+    "Виртуальная карта помогает оплачивать покупки за границей.",
+    null,
+  );
+  assert.equal(unsupportedSavingsReview.passed, false, "unsupported savings promise before the product name must be rejected");
 
   const directorPlan = makeDirectorPlan();
   const providerPlan = makeProviderPlan();
@@ -441,6 +449,38 @@ function requireRunnerWithStubs(runnerPath) {
   } finally {
     Module._load = originalLoad;
   }
+}
+
+function requireSemanticReviewerWithStubs(reviewerPath) {
+  const originalLoad = Module._load;
+  Module._load = function loadWithSemanticReviewerStubs(request, parent, isMain) {
+    if (request === "@/lib/omni/openrouter-cost") return { normalizeOpenRouterUsage: (value) => value };
+    if (request === "./openrouter-pricing") return { getOpenRouterPricingSnapshot: async () => null };
+    if (request === "./script-json-repair") return { parseAndRepairJson: () => ({}) };
+    if (request === "./script-quality-contract") return { assertCtaConclusionContract: () => {} };
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  try {
+    return require(reviewerPath);
+  } finally {
+    Module._load = originalLoad;
+  }
+}
+
+function passedSemanticReview() {
+  return {
+    version: "script-semantic-review-v1",
+    passed: true,
+    productNamed: true,
+    productValueStated: true,
+    hookAnswered: true,
+    finalAnswerPresent: true,
+    productNaturallyIntegrated: true,
+    referenceMeaningPreserved: true,
+    evidence: { product: "", value: "", answer: "" },
+    issues: [],
+    repairInstructions: [],
+  };
 }
 
 function makeDirectorPlan() {
