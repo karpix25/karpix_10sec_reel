@@ -35,7 +35,7 @@ export function normalizeDirectorSegmentPlan(raw: unknown): DirectorSegmentPlan 
   if (!segments.length || !totalVoiceover) return null;
   return {
     version: LLM_PROMPT_CHAIN_VERSION,
-    format: "talking_head_cutaways",
+    format: normalizePlanFormat(data.format),
     title: clean(data.title) || "Новый сценарий",
     hookOptions: arrayOfStrings(data.hook_options || data.hookOptions),
     selectedHook: clean(data.selected_hook || data.selectedHook || data.hook) || firstSentence(totalVoiceover),
@@ -53,9 +53,67 @@ export function normalizeProviderPromptPlan(raw: unknown): ProviderPromptPlan | 
   if (!segmentPrompts.length) return null;
   return {
     version: LLM_PROMPT_CHAIN_VERSION,
-    format: "talking_head_cutaways",
+    format: normalizePlanFormat(data.format),
     segmentPrompts,
     notes: clean(data.notes) || null,
+  };
+}
+
+export function lockDirectorPlanSpeech(
+  plan: DirectorSegmentPlan,
+  canonicalSegments: readonly { text: string }[],
+  durations: readonly number[],
+  format: DirectorSegmentPlan["format"]
+): DirectorSegmentPlan {
+  if (plan.segments.length !== canonicalSegments.length || durations.length !== canonicalSegments.length) {
+    throw new Error("Director plan segment count does not match the approved script plan");
+  }
+  const sourceByIndex = new Map(plan.segments.map((segment) => [segment.index, segment]));
+  if (sourceByIndex.size !== plan.segments.length) {
+    throw new Error("Director plan contains duplicate segment indexes");
+  }
+  const segments = canonicalSegments.map((canonical, index) => {
+    const source = sourceByIndex.get(index + 1);
+    const durationSeconds = durations[index];
+    if (!source || !durationSeconds) throw new Error("Director plan is missing an approved segment");
+    const storyboardFrames = repairStoryboardFrames(source.storyboardFrames, canonical.text, durationSeconds);
+    return {
+      ...source,
+      index: index + 1,
+      durationSeconds,
+      voiceover: canonical.text,
+      storyboardFrames,
+      shots: deriveLegacyShots(storyboardFrames),
+    };
+  });
+  return {
+    ...plan,
+    format,
+    segments,
+    totalVoiceover: joinVoiceovers(segments),
+    selectedHook: firstSentence(segments[0]?.voiceover || ""),
+  };
+}
+
+export function buildProviderPromptPlanFromDirector(directorPlan: DirectorSegmentPlan): ProviderPromptPlan {
+  return {
+    version: LLM_PROMPT_CHAIN_VERSION,
+    format: directorPlan.format,
+    segmentPrompts: directorPlan.segments.map((segment) => ({
+      index: segment.index,
+      durationSeconds: segment.durationSeconds,
+      voiceover: segment.voiceover,
+      storyboardFrames: segment.storyboardFrames,
+      prompt: directorPlan.format === "voiceover_broll"
+        ? "Используй раскадровку как источник сцен. Диктор читает только реплики из раскадровки за кадром. Не показывай панели раскадровки. Только естественные звуки, без музыки."
+        : "Используй раскадровку как источник сцен. Персонаж читает только реплики из раскадровки. Не показывай панели раскадровки. Только естественные звуки, без музыки.",
+      referenceRole: segment.storyboardFrames.some((frame) => frame.referenceRole === "product")
+        ? "product"
+        : segment.storyboardFrames.some((frame) => frame.referenceRole === "avatar")
+          ? "avatar"
+          : "none",
+    })),
+    notes: null,
   };
 }
 
@@ -81,7 +139,7 @@ function normalizeDirectorSegment(raw: unknown): DirectorSegment | null {
   const index = positiveInteger(data.index);
   const rawDurationSeconds = positiveInteger(data.duration_seconds || data.durationSeconds);
   const rawStoryboardFrames = arrayOf(data.storyboard_frames || data.storyboardFrames || data.frames, normalizeStoryboardFrame);
-  const rawVoiceover = joinStoryboardSpeech(rawStoryboardFrames) || clean(data.voiceover);
+  const rawVoiceover = clean(data.voiceover) || joinStoryboardSpeech(rawStoryboardFrames);
   const durationSeconds = getOmniStoryboardDurationForWordCount(countWords(rawVoiceover)) || rawDurationSeconds;
   const storyboardFrames = repairStoryboardFrames(rawStoryboardFrames, rawVoiceover, durationSeconds);
   const voiceover = joinStoryboardSpeech(storyboardFrames) || rawVoiceover;
@@ -157,6 +215,10 @@ function normalizeStoryboardReferenceRole(value: unknown): StoryboardReferenceRo
   return role === "product" || role === "none" ? role : "avatar";
 }
 
+function normalizePlanFormat(value: unknown): DirectorSegmentPlan["format"] {
+  return clean(value) === "voiceover_broll" ? "voiceover_broll" : "talking_head_cutaways";
+}
+
 function deriveLegacyShots(frames: readonly StoryboardFrame[]): DirectorShot[] {
   if (!frames.length) return [];
   const firstFace = frames.find((frame) => frame.role === "face_open") || frames[0];
@@ -175,34 +237,16 @@ function repairStoryboardFrames(
   durationSeconds: number
 ): StoryboardFrame[] {
   const expectedFrameCount = getOmniStoryboardFrameCount(durationSeconds);
-  if (!expectedFrameCount || !voiceover) return [...frames];
+  if (!expectedFrameCount || !voiceover || !frames.length) return [...frames];
+  if (frames.length !== expectedFrameCount) return [...frames];
   const words = voiceover.split(/\s+/u).filter(Boolean);
   const chunks = splitWords(words, expectedFrameCount);
   if (!chunks.length) return [...frames];
-  const fallback: StoryboardFrame = frames[0] || {
-    index: 1,
-    role: "face_open" as const,
-    spokenWords: "",
-    visualDescription: "Герой в спокойной комнате при мягком свете",
-    camera: "средний статичный план",
-    action: "естественно смотрит в объектив",
-    productState: "продукт вне кадра",
-    sfx: null,
-    referenceRole: "avatar" as const,
-  };
   return chunks.map((spokenWords, index) => {
-    const source = frames[Math.min(index, frames.length - 1)] || fallback;
-    const role: StoryboardFrame["role"] = index === 0
-      ? "face_open"
-      : index === chunks.length - 1
-        ? "face_return"
-        : source.role === "product_cutaway" || source.role === "environment_cutaway"
-          ? source.role
-          : "environment_cutaway";
+    const source = frames[Math.min(index, frames.length - 1)];
     return {
       ...source,
       index: index + 1,
-      role,
       spokenWords,
       productState: source.productState || "продукт вне кадра",
     };

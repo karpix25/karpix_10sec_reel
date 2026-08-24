@@ -6,7 +6,6 @@ import {
 } from "@/lib/omni/openrouter-cost";
 import { formatScenarioScript } from "@/lib/scenario-text";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
-import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 import { parseAndRepairJson } from "./script-json-repair";
 import { validateViralScriptContract } from "./script-quality-contract";
@@ -15,17 +14,20 @@ import {
   type CreativeScriptDraft,
   type DirectorSegmentPlan,
   type LlmPromptChainResult,
+  type PromptValidationIssue,
+  type ScriptSemanticReview,
 } from "./llm-prompt-chain-types";
 import {
   buildCreativeCopywriterPrompt,
+  buildDirectorSegmentRepairPrompt,
   buildDirectorSegmenterPrompt,
-  buildProviderPromptWriterPrompt,
   type PromptChainInput,
 } from "./llm-prompt-chain-prompts";
 import {
+  buildProviderPromptPlanFromDirector,
+  lockDirectorPlanSpeech,
   normalizeCreativeScriptDraft,
   normalizeDirectorSegmentPlan,
-  normalizeProviderPromptPlan,
 } from "./llm-prompt-chain-normalizer";
 import {
   formatPromptValidationIssues,
@@ -43,10 +45,35 @@ import {
 } from "./script-semantic-reviewer";
 import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
 import { planOmniReelSegments } from "./omni-duration-planner";
+import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const PROMPT_CHAIN_ATTEMPTS_PER_LAYER = 2;
+const CREATIVE_COPYWRITER_ATTEMPTS = 4;
+const DIRECTOR_TARGETED_REPAIR_ATTEMPTS = 2;
 const PROMPT_CHAIN_TEMPERATURE = 0.8;
+const PROMPT_CHAIN_REQUEST_TIMEOUT_MS = 90_000;
+
+export type LlmPromptChainFailureStage =
+  | "creative_copywriter"
+  | "director_segmenter"
+  | "provider_plan_validation";
+
+export type LlmPromptChainPartialSnapshot = {
+  creativeScriptDraft?: CreativeScriptDraft;
+  semanticReview?: ScriptSemanticReview;
+  directorSegmentPlan?: DirectorSegmentPlan;
+};
+
+export class LlmPromptChainFailure extends Error {
+  constructor(
+    readonly stage: LlmPromptChainFailureStage,
+    message: string,
+    readonly partialSnapshot: LlmPromptChainPartialSnapshot
+  ) {
+    super(message);
+    this.name = "LlmPromptChainFailure";
+  }
+}
 
 export function isLlmPromptChainEnabled() {
   return process.env.OMNI_LLM_PROMPT_CHAIN !== "false";
@@ -59,10 +86,40 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   const openRouterUsage: OpenRouterUsageRecord[] = [];
   const onUsage = (usage: OpenRouterUsageRecord) => openRouterUsage.push(usage);
 
-  const draft = await runCreativeCopywriter(input, onUsage);
-  const directorResult = await runDirectorSegmenter(input, draft, onUsage);
+  let creativeResult: Awaited<ReturnType<typeof runCreativeCopywriter>>;
+  try {
+    creativeResult = await runCreativeCopywriter(input, onUsage);
+  } catch (error) {
+    throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), {});
+  }
+  const draft = creativeResult.draft;
+  let directorResult: Awaited<ReturnType<typeof runDirectorSegmenter>>;
+  try {
+    directorResult = await runDirectorSegmenter(input, draft, onUsage);
+  } catch (error) {
+    throw new LlmPromptChainFailure("director_segmenter", getErrorMessage(error), {
+      creativeScriptDraft: draft,
+      semanticReview: creativeResult.semanticReview,
+    });
+  }
   const directorPlan = directorResult.plan;
-  const providerPlan = await runProviderPromptWriter(input, directorPlan, onUsage);
+  const providerPlan = buildProviderPromptPlanFromDirector(directorPlan);
+  let providerValidationIssues: PromptValidationIssue[] = [];
+  try {
+    providerValidationIssues = [
+      ...validateProviderPromptPlan(providerPlan),
+      ...validateStoryboardProviderPlan(providerPlan),
+      ...validateStoryboardProviderAlignment(directorPlan, providerPlan),
+    ];
+    const errors = providerValidationIssues.filter((issue) => issue.severity === "error");
+    if (errors.length) throw new Error(formatPromptValidationIssues(errors));
+  } catch (error) {
+    throw new LlmPromptChainFailure("provider_plan_validation", getErrorMessage(error), {
+      creativeScriptDraft: draft,
+      semanticReview: creativeResult.semanticReview,
+      directorSegmentPlan: directorPlan,
+    });
+  }
   const script = sanitizeOmniScriptText(formatScenarioScript(directorPlan.totalVoiceover));
   assertOmniScriptTextContract(script);
   assertRussianSpeechGender(script, input.avatarSpeechGender);
@@ -89,8 +146,8 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
         creativeScriptDraft: draft,
         directorSegmentPlan: directorPlan,
         providerPromptPlan: providerPlan,
-        semanticReview: directorResult.semanticReview,
-        validationIssues: [],
+        semanticReview: creativeResult.semanticReview,
+        validationIssues: [...directorResult.validationIssues, ...providerValidationIssues],
       },
     },
     openRouterUsage,
@@ -103,7 +160,7 @@ async function runCreativeCopywriter(
 ) {
   let retryFeedback = "";
   let lastError: unknown = null;
-  for (let attempt = 1; attempt <= PROMPT_CHAIN_ATTEMPTS_PER_LAYER; attempt += 1) {
+  for (let attempt = 1; attempt <= CREATIVE_COPYWRITER_ATTEMPTS; attempt += 1) {
     try {
       const content = await requestOpenRouter({
         input,
@@ -118,13 +175,30 @@ async function runCreativeCopywriter(
       const script = sanitizeOmniScriptText(formatScenarioScript(draft.script));
       assertPromptChainScriptQuality(input, script, null);
       assertRussianSpeechGender(script, input.avatarSpeechGender);
-      return {
-        ...draft,
+      planOmniReelSegments(script, { durationRange: input.durationRange });
+      const semanticReview = await reviewScriptSemantics({
+        model: input.model,
         script,
+        referenceScript: input.sourceScenario.script,
+        productName: input.productName,
+        productDescription: input.productDescription,
+        productReferenceNotes: input.productReferenceNotes,
+        ctaMode: input.ctaMode,
+        ctaValue: input.ctaValue,
+        directorBrief: input.directorBrief,
+      }, onUsage, attempt);
+      assertScriptSemanticReviewPassed(semanticReview);
+      return {
+        draft: { ...draft, script },
+        semanticReview,
       };
     } catch (error) {
       lastError = error;
-      retryFeedback = `Верни только текст сценария. Ошибка прошлой попытки: ${getErrorMessage(error)}`;
+      retryFeedback = [
+        "Верни только полностью исправленный текст сценария.",
+        `Ошибка прошлой попытки: ${getErrorMessage(error)}`,
+        "Сохрани смысл reference, явно назови продукт, объясни его пользу и дай обещанный хуком ответ до CTA.",
+      ].join(" ");
     }
   }
   throw new Error(`Creative copywriter failed: ${getErrorMessage(lastError)}`);
@@ -135,88 +209,61 @@ async function runDirectorSegmenter(
   draft: CreativeScriptDraft,
   onUsage: (usage: OpenRouterUsageRecord) => void
 ) {
-  let retryFeedback = "";
+  const segmentPlan = planOmniReelSegments(draft.script, { durationRange: input.durationRange });
+  const format = resolveDirectorVisibleSubjectPolicy(input.directorBrief) === "presenter"
+    ? "talking_head_cutaways"
+    : "voiceover_broll";
+  const basePrompt = buildDirectorSegmenterPrompt({ chainInput: input, draft, segmentPlan });
+  const maxAttempts = DIRECTOR_TARGETED_REPAIR_ATTEMPTS + 2;
+  let previousPlan: DirectorSegmentPlan | null = null;
   let lastError: unknown = null;
-  for (let attempt = 1; attempt <= PROMPT_CHAIN_ATTEMPTS_PER_LAYER; attempt += 1) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
+      const isFullRebuild = attempt === maxAttempts;
+      const userPrompt = previousPlan && !isFullRebuild
+        ? buildDirectorSegmentRepairPrompt({
+          basePrompt,
+          previousPlan,
+          validationError: getErrorMessage(lastError),
+          repairAttempt: attempt - 1,
+        })
+        : appendRetry(basePrompt, lastError
+          ? `${isFullRebuild ? "Полностью пересобери визуальную режиссуру" : "Исправь план"}. Не меняй утвержденные voiceover и duration_seconds. Последняя ошибка: ${getErrorMessage(lastError)}`
+          : "");
       const content = await requestOpenRouter({
         input,
         layer: "director_segmenter",
         attempt,
-        userPrompt: appendRetry(buildDirectorSegmenterPrompt({ chainInput: input, draft }), retryFeedback),
+        userPrompt,
         responseFormatJson: true,
+        temperature: isFullRebuild ? 0.65 : attempt === 1 ? PROMPT_CHAIN_TEMPERATURE : 0.35,
         onUsage,
       });
-      const plan = normalizeDirectorSegmentPlan(parseAndRepairJson(content));
-      if (!plan) throw new Error("Director segmenter returned invalid JSON plan");
+      const normalizedPlan = normalizeDirectorSegmentPlan(parseAndRepairJson(content));
+      if (!normalizedPlan) throw new Error("Director segmenter returned invalid JSON plan");
+      previousPlan = normalizedPlan;
+      const plan = lockDirectorPlanSpeech(
+        normalizedPlan,
+        segmentPlan.segments,
+        segmentPlan.segmentDurationsSeconds,
+        format
+      );
       const finalScript = sanitizeOmniScriptText(formatScenarioScript(plan.totalVoiceover));
-      const ensuredCta = ensureOmniScriptCta(finalScript, input.ctaMode, input.ctaValue);
-      if (ensuredCta !== finalScript) throw new Error("Director plan is missing the required CTA");
       assertRussianSpeechGender(finalScript, input.avatarSpeechGender);
-      const issues = [
+      const validationIssues = [
         ...validateDirectorSegmentPlan(plan),
         ...validateStoryboardDirectorPlan(plan),
-      ].filter((issue) => issue.severity === "error");
-      if (issues.length) throw new Error(formatPromptValidationIssues(issues));
-      planOmniReelSegments(finalScript, { durationRange: input.durationRange });
+      ];
+      const errors = validationIssues.filter((issue) => issue.severity === "error");
+      if (errors.length) throw new Error(formatPromptValidationIssues(errors));
       assertPromptChainScriptQuality(input, finalScript, plan.selectedHook);
-      const semanticReview = await reviewScriptSemantics({
-        model: input.model,
-        script: finalScript,
-        referenceScript: input.sourceScenario.script,
-        productName: input.productName,
-        productDescription: input.productDescription,
-        productReferenceNotes: input.productReferenceNotes,
-        ctaMode: input.ctaMode,
-        ctaValue: input.ctaValue,
-        directorBrief: input.directorBrief,
-      }, onUsage, attempt);
-      assertScriptSemanticReviewPassed(semanticReview);
-      return { plan, semanticReview };
+      return { plan, validationIssues };
     } catch (error) {
       lastError = error;
-      retryFeedback = buildValidationRetry("director plan", error);
+      if (attempt === DIRECTOR_TARGETED_REPAIR_ATTEMPTS + 1) previousPlan = null;
     }
   }
   throw new Error(`Director segmenter failed: ${getErrorMessage(lastError)}`);
-}
-
-async function runProviderPromptWriter(
-  input: PromptChainInput & { model: string },
-  directorPlan: DirectorSegmentPlan,
-  onUsage: (usage: OpenRouterUsageRecord) => void
-) {
-  let retryFeedback = "";
-  let lastError: unknown = null;
-  for (let attempt = 1; attempt <= PROMPT_CHAIN_ATTEMPTS_PER_LAYER; attempt += 1) {
-    try {
-      const content = await requestOpenRouter({
-        input,
-        layer: "provider_prompt_writer",
-        attempt,
-        userPrompt: appendRetry(buildProviderPromptWriterPrompt({ chainInput: input, directorPlan }), retryFeedback),
-        responseFormatJson: true,
-        onUsage,
-      });
-      const plan = normalizeProviderPromptPlan(parseAndRepairJson(content));
-      if (!plan) throw new Error("Provider prompt writer returned invalid JSON plan");
-      assertRussianSpeechGender(
-        plan.segmentPrompts.map((segment) => segment.voiceover).join(" "),
-        input.avatarSpeechGender
-      );
-      const issues = [
-        ...validateProviderPromptPlan(plan),
-        ...validateStoryboardProviderPlan(plan),
-        ...validateStoryboardProviderAlignment(directorPlan, plan),
-      ].filter((issue) => issue.severity === "error");
-      if (issues.length) throw new Error(formatPromptValidationIssues(issues));
-      return plan;
-    } catch (error) {
-      lastError = error;
-      retryFeedback = buildValidationRetry("provider prompts", error);
-    }
-  }
-  throw new Error(`Provider prompt writer failed: ${getErrorMessage(lastError)}`);
 }
 
 async function requestOpenRouter(input: {
@@ -225,13 +272,15 @@ async function requestOpenRouter(input: {
   attempt: number;
   userPrompt: string;
   responseFormatJson: boolean;
+  temperature?: number;
   onUsage: (usage: OpenRouterUsageRecord) => void;
 }) {
   const apiKey = process.env.OPENROUTER_API_KEY || "";
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured");
   const body: Record<string, unknown> = {
     model: input.input.model,
-    temperature: PROMPT_CHAIN_TEMPERATURE,
+    temperature: input.temperature ?? PROMPT_CHAIN_TEMPERATURE,
+    max_tokens: input.responseFormatJson ? 12_000 : 4_000,
     messages: [
       {
         role: "system",
@@ -253,6 +302,7 @@ async function requestOpenRouter(input: {
       "X-Title": "Omni Reels",
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(PROMPT_CHAIN_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
@@ -290,29 +340,6 @@ function assertPromptChainScriptQuality(
 
 function appendRetry(prompt: string, retryFeedback: string) {
   return retryFeedback ? `${prompt}\n\nПовторная попытка:\n${retryFeedback}` : prompt;
-}
-
-function buildValidationRetry(layer: string, error: unknown) {
-  const message = getErrorMessage(error);
-  const densityCorrection = /доступные Omni-длительности|Максимум .* слов|не помещается в доступные/iu.test(message)
-    ? "Сожми сценарий максимум до ста двадцати пяти слов и пяти частей, сохранив хук, смысл продукта, главный аргумент и CTA."
-    : "";
-  const ctaCorrection = /CTA|ссылк[аи].*профил/iu.test(message)
-    ? "Для режима ссылки в профиле добавь в voiceover точную фразу «ссылка в профиле» и не используй ссылку в описании, комментарии или кодовое слово."
-    : "";
-  const storyboardCorrection = /storyboard|кадр|shots/iu.test(message)
-    ? "Верни storyboard_frames как массив внутри каждого segment. Для четырех секунд нужны два кадра, для шести три, для восьми четыре, для десяти пять. Не возвращай shots, если они не нужны."
-    : "";
-  return [
-    `Перепиши ${layer}.`,
-    `Исправь только найденные нарушения: ${message}`,
-    densityCorrection,
-    ctaCorrection,
-    storyboardCorrection,
-    "Если ошибка касается грамматического рода, исправь только род говорящего от первого лица и сохрани смысл.",
-    "Не используй emoji, дефисы, тире, минусы и цифры в текстовых значениях.",
-    "Сохрани живую речь и цельный режиссерский замысел.",
-  ].join(" ");
 }
 
 function readAssistantContent(data: Record<string, unknown>) {

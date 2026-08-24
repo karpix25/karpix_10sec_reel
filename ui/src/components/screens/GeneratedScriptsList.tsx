@@ -143,7 +143,11 @@ export function GeneratedScriptsList({
       }),
     [reels, scripts, segments]
   );
-  const visibleItems = items.filter((item) => matchesVideoFilter(item.latestReel, item.script.automation_job || null, filter));
+  const visibleItems = items.filter((item) => {
+    if (item.script.status === "failed") return filter === "all" || filter === "failed";
+    if (item.script.status === "generating") return filter === "all" || filter === "active";
+    return matchesVideoFilter(item.latestReel, item.script.automation_job || null, filter);
+  });
 
   return (
     <div className="min-w-0 rounded-lg border border-border bg-card p-5">
@@ -262,6 +266,15 @@ function GeneratedScriptCard({
 }) {
   const { script, latestReel, latestSegments } = item;
   const automationJob = script.automation_job || null;
+  const generationStage = typeof script.source_snapshot?.generation_stage === "string"
+    ? script.source_snapshot.generation_stage
+    : null;
+  const generationError = typeof script.source_snapshot?.generation_error === "string"
+    ? script.source_snapshot.generation_error
+    : null;
+  const isScriptGenerating = script.status === "generating";
+  const isScriptFailed = script.status === "failed";
+  const isScriptUnavailable = isScriptGenerating || isScriptFailed;
   const isPendingVideo = pendingVideo?.scriptId === script.id && automationJob?.status !== "failed";
   const videoStage = latestReel
     ? getVideoStageLabel(latestReel, latestSegments)
@@ -280,12 +293,14 @@ function GeneratedScriptCard({
             <ChevronDown className={`mt-1 h-4 w-4 shrink-0 text-muted-foreground transition ${isExpanded ? "rotate-180" : ""}`} />
             <div className="min-w-0">
               <p className="line-clamp-2 text-sm font-semibold text-foreground">
-                {script.hook || script.title || "Сценарий без заголовка"}
+                {script.hook || script.title || (isScriptFailed ? "Сценарий не создан" : "Сценарий без заголовка")}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Ref #{script.source_legacy_scenario_id || "n/a"} · {new Date(script.created_at).toLocaleString("ru-RU")}
               </p>
-              <p className="mt-2 line-clamp-2 text-sm leading-5 text-muted-foreground">{script.script}</p>
+              <p className="mt-2 line-clamp-2 text-sm leading-5 text-muted-foreground">
+                {script.script || (isScriptGenerating ? "LLM-цепочка ещё работает" : "Генерация остановлена с ошибкой")}
+              </p>
             </div>
           </div>
         </button>
@@ -298,13 +313,13 @@ function GeneratedScriptCard({
             <span className="block truncate font-semibold text-foreground">{videoStage}</span>
             {latestReel ? <span>Reel #{latestReel.id}</span> : <span>draft</span>}
           </div>
-          {latestReel ? <StatusBadge status={latestReel.status} /> : null}
+          {isScriptUnavailable ? <StatusBadge status={script.status} /> : latestReel ? <StatusBadge status={latestReel.status} /> : null}
           <Button
             type="button"
             size="icon"
             variant="outline"
             onClick={() => onCreateVideo(script.id)}
-            disabled={!canCreateVideo || isCreatingReel}
+            disabled={!canCreateVideo || isCreatingReel || isScriptUnavailable}
             title={isPendingVideo ? "Видео создаётся" : "Создать видео"}
             aria-label={isPendingVideo ? "Видео создаётся" : "Создать видео"}
             className="h-9 w-9"
@@ -344,7 +359,16 @@ function GeneratedScriptCard({
         </div>
       </div>
 
-      {!isExpanded ? null : (
+      {isScriptFailed ? (
+        <div className="mx-4 mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+          <p className="font-semibold">
+            Этап: {getScriptGenerationStageLabel(generationStage)}
+          </p>
+          <p className="mt-1 break-words text-xs leading-5">{generationError || "Неизвестная ошибка генерации"}</p>
+        </div>
+      ) : null}
+
+      {!isExpanded || isScriptUnavailable ? null : (
         <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as CardTab)} className="border-t border-border">
           <div className="overflow-x-auto px-4 py-3">
             <TabsList className="h-9">
@@ -389,4 +413,12 @@ function GeneratedScriptCard({
       )}
     </article>
   );
+}
+
+function getScriptGenerationStageLabel(stage: string | null) {
+  if (stage === "creative_copywriter") return "создание текста";
+  if (stage === "director_segmenter") return "раскадровка и режиссура";
+  if (stage === "provider_plan_validation") return "проверка плана генерации";
+  if (stage === "script_validation") return "проверка сценария";
+  return "LLM-цепочка сценария";
 }

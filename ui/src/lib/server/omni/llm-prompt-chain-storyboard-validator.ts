@@ -19,9 +19,23 @@ const PRODUCT_IN_HAND_PATTERN =
   /(?:продукт|товар|коллаген|банка|упаковк\p{L}*|флакон|тюбик|средств\p{L}*)[^.!?;\n]{0,80}(?:в\s+(?:одной|правой|левой)?\s*руке|держит|holding|holds?)|(?:в\s+(?:одной|правой|левой)?\s*руке|держит|holding|holds?)[^.!?;\n]{0,80}(?:продукт|товар|коллаген|банка|упаковк\p{L}*|флакон|тюбик|средств\p{L}*)/iu;
 const BOTH_HANDS_ON_FACE_PATTERN =
   /(?:обе(?:ими|и)?\s+рук\p{L}*|двумя\s+рук\p{L}*|both\s+hands)[^.!?\n]{0,100}(?:лиц\p{L}*|щек\p{L}*|кож\p{L}*)|(?:лиц\p{L}*|щек\p{L}*|кож\p{L}*)[^.!?\n]{0,100}(?:обе(?:ими|и)?\s+рук\p{L}*|двумя\s+рук\p{L}*|both\s+hands)/iu;
+const STORYBOARD_FRAME_ROLES: ReadonlySet<string> = new Set([
+  "face_open",
+  "product_cutaway",
+  "environment_cutaway",
+  "face_return",
+]);
 
 export function validateStoryboardDirectorPlan(plan: DirectorSegmentPlan): PromptValidationIssue[] {
   const issues: PromptValidationIssue[] = [];
+  if (normalize(plan.segments.map((segment) => segment.voiceover).join(" ")) !== normalize(plan.totalVoiceover)) {
+    issues.push({
+      path: "director.totalVoiceover",
+      code: "director_total_voiceover_mismatch",
+      message: "Director totalVoiceover must exactly equal all joined segment voiceovers.",
+      severity: "error",
+    });
+  }
   plan.segments.forEach((segment, segmentIndex) => {
     const path = `director.segments.${segmentIndex}.storyboardFrames`;
     validateStoryboardFrames(segment.storyboardFrames, segment.durationSeconds, path, issues);
@@ -123,34 +137,15 @@ function validateStoryboardFrames(
     });
     return;
   }
-  if (frames[0]?.role !== "face_open") {
-    issues.push({
-      path: `${path}.0.role`,
-      code: "storyboard_opening_role",
-      message: "Storyboard must start with a face_open frame.",
-      severity: "error",
-    });
-  }
-  if (frames[frames.length - 1]?.role !== "face_return") {
-    issues.push({
-      path: `${path}.${frames.length - 1}.role`,
-      code: "storyboard_closing_role",
-      message: "Storyboard must end with a face_return frame.",
-      severity: "error",
-    });
-  }
-  if (
-    frames.length >= 3 &&
-    !frames.slice(1, -1).some((frame) => frame.role === "product_cutaway" || frame.role === "environment_cutaway")
-  ) {
-    issues.push({
-      path,
-      code: "storyboard_missing_cutaway",
-      message: "Storyboard must include a middle product or environment cutaway.",
-      severity: "error",
-    });
-  }
   frames.forEach((frame, frameIndex) => {
+    if (!STORYBOARD_FRAME_ROLES.has(frame.role)) {
+      issues.push({
+        path: `${path}.${frameIndex}.role`,
+        code: "storyboard_invalid_role",
+        message: "Storyboard frame role is not supported.",
+        severity: "error",
+      });
+    }
     const wordCount = countWords(frame.spokenWords);
     if (wordCount < OMNI_STORYBOARD_WORDS_PER_FRAME_MIN || wordCount > OMNI_STORYBOARD_WORDS_PER_FRAME_MAX) {
       issues.push({
@@ -208,5 +203,5 @@ function countWords(text: string) {
 }
 
 function normalize(text: string) {
-  return text.toLowerCase().replace(/ё/g, "е").replace(/\s+/gu, " ").trim();
+  return text.toLowerCase().replace(/\s+/gu, " ").trim();
 }

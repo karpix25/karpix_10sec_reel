@@ -71,7 +71,7 @@ export type DirectorSegment = {
 
 export type DirectorSegmentPlan = {
   version: typeof LLM_PROMPT_CHAIN_VERSION;
-  format: "talking_head_cutaways";
+  format: "talking_head_cutaways" | "voiceover_broll";
   title: string;
   hookOptions: string[];
   selectedHook: string;
@@ -91,7 +91,7 @@ export type ProviderPromptSegment = {
 
 export type ProviderPromptPlan = {
   version: typeof LLM_PROMPT_CHAIN_VERSION;
-  format: "talking_head_cutaways";
+  format: DirectorSegmentPlan["format"];
   segmentPrompts: ProviderPromptSegment[];
   notes: string | null;
 };

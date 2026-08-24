@@ -1,4 +1,5 @@
 import { createGeneratedScriptFromLegacy } from "./generated-scripts";
+import { LlmPromptChainFailure } from "./llm-prompt-chain-runner";
 import pool from "@/lib/db";
 import {
   claimNextOmniAutomationJob,
@@ -66,6 +67,13 @@ async function failAutomationJob(job: OmniAutomationJob, message: string) {
 
 async function handleJobError(job: OmniAutomationJob, error: unknown) {
   const message = getErrorMessage(error);
+  if (error instanceof LlmPromptChainFailure) {
+    return {
+      action: "failed",
+      job: await failAutomationJob(job, message),
+      error: message,
+    };
+  }
   if (
     isKieStoryboardImagePendingError(error)
     || isKieStoryboardImagePollingError(error)

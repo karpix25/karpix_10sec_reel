@@ -1,7 +1,6 @@
 import type {
   DirectorSegment,
   DirectorSegmentPlan,
-  DirectorShot,
   PromptValidationIssue,
   ProviderPromptPlan,
   ProviderPromptSegment,
@@ -10,26 +9,6 @@ import type {
 const DASH_PATTERN = /[-‐‑‒–—―−]/u;
 const DIGIT_PATTERN = /\p{N}/u;
 const EMOJI_PATTERN = /\p{Extended_Pictographic}/u;
-
-const BAD_SPEECH_ENDINGS = [
-  /(?:^|\s)(?:вы\s+)?сможете[.!?。]*$/iu,
-  /(?:^|\s)(?:ты\s+)?сможешь[.!?。]*$/iu,
-  /(?:^|\s)(?:он|она|оно|это)?\s*сможет[.!?。]*$/iu,
-  /(?:^|\s)(?:можно|можете|может|будет|будете|помогает|позволяет)[.!?。]*$/iu,
-  /(?:^|\s)(?:и|а|но|да|или|либо|то|что|как|чтобы|если|хотя|потому|ведь|уже|еще|ещё|только|также|тоже|даже|для|на|в|во|с|со|к|ко|из|от|до|по|о|об|обо|при|про|за|под|над|без|через)[.!?。]*$/iu,
-  /(?:^|\s)(?:можно|можете|помогает|позволяет)\s+\p{L}+[.!?。]*$/iu,
-  /(?:^|\s)(?:в|во|на|для|с|со|к|ко|из|от|до|по|о|об|обо|при|про|за|под|над|без|через)\s+\p{L}+(?:ом|ем|ой|ей|ую|им|ым|ых|их|ая|ое|ее|ые|ие)[.!?。]*$/iu,
-  /(?:^|\s)(?:это|этот|эта|эти|этого|этой|этих|такой|такая|такое|такие|таких|свой|своя|свое|свои|наш|наша|наше|наши|ваш|ваша|ваше|ваши|мой|моя|мое|мои)[.!?。]*$/iu,
-];
-
-const CUTAWAY_FACE_PATTERNS = [
-  /смотрит\s+в\s+камеру/iu,
-  /говорит\s+в\s+камеру/iu,
-  /лиц[оа]\s+в\s+камер/iu,
-  /face\s*[- ]?to\s*[- ]?camera/iu,
-  /look(?:s|ing)?\s+(?:straight\s+)?(?:into|at)\s+the\s+camera/iu,
-  /talk(?:s|ing)?\s+(?:straight\s+)?(?:into|to)\s+the\s+camera/iu,
-];
 
 const NO_HANDS_PATTERN = /без\s+рук|руки\s+вне\s+кадра|рук\s+нет|no\s+hands|without\s+hands|hands\s+out\s+of\s+frame/iu;
 const HAND_ACTION_PATTERN = /в\s+руках|держит|бер[её]т|поднимает|крутит|поворачивает|рука\s+(?:двигает|бер[её]т|держит)|holds?|holding|picks?\s+it\s+up|hand\s+(?:moves?|turns?|holds?)/iu;
@@ -94,51 +73,22 @@ export function formatPromptValidationIssues(issues: readonly PromptValidationIs
 function validateDirectorSegment(segment: DirectorSegment, index: number, issues: PromptValidationIssue[]) {
   const path = `director.segments.${index}`;
   if (!segment.voiceover?.trim()) addIssue(issues, `${path}.voiceover`, "empty_voiceover", "Voiceover is required.");
-  validateBadSpeechEnding(segment.voiceover, `${path}.voiceover`, issues);
-  validateShotStructure(segment.shots, `${path}.shots`, issues);
-  validatePhysicalConflict(segmentText(segment), path, issues);
+  segment.storyboardFrames.forEach((frame, frameIndex) => {
+    validatePhysicalConflict(
+      `${frame.visualDescription} ${frame.camera} ${frame.action} ${frame.productState}`,
+      `${path}.storyboardFrames.${frameIndex}`,
+      issues
+    );
+  });
 }
 
 function validateProviderSegment(segment: ProviderPromptSegment, index: number, issues: PromptValidationIssue[]) {
   const path = `provider.segmentPrompts.${index}`;
   if (!segment.voiceover?.trim()) addIssue(issues, `${path}.voiceover`, "empty_voiceover", "Voiceover is required.");
   if (!segment.prompt?.trim()) addIssue(issues, `${path}.prompt`, "empty_prompt", "Provider prompt is required.");
-  validateBadSpeechEnding(segment.voiceover, `${path}.voiceover`, issues);
   validatePhysicalConflict(`${segment.voiceover} ${segment.prompt}`, path, issues);
   validateProviderPromptSpeech(segment, path, issues);
   validateProviderImprintCues(segment, path, issues);
-}
-
-function validateShotStructure(shots: DirectorShot[], path: string, issues: PromptValidationIssue[]) {
-  if (!Array.isArray(shots) || shots.length < 3) {
-    addIssue(issues, path, "invalid_shot_count", "Talking head segments need face, cutaway, and return shots.");
-    return;
-  }
-  if (shots[0]?.role !== "face_open") {
-    addIssue(issues, `${path}.0.role`, "bad_opening_role", "Talking head segment must start with face_open.");
-  }
-  if (shots[shots.length - 1]?.role !== "face_return") {
-    addIssue(issues, `${path}.${shots.length - 1}.role`, "bad_closing_role", "Talking head segment must end with face_return.");
-  }
-  const cutawayIndexes = shots
-    .map((shot, index) => (shot.role === "cutaway" ? index : -1))
-    .filter((index) => index >= 0);
-  if (!cutawayIndexes.length) addIssue(issues, path, "missing_cutaway", "Talking head segment must include a middle cutaway.");
-  for (const index of cutawayIndexes) {
-    if (index === 0 || index === shots.length - 1) {
-      addIssue(issues, `${path}.${index}.role`, "cutaway_at_edge", "Cutaway cannot be the opening or closing shot.");
-    }
-    if (CUTAWAY_FACE_PATTERNS.some((pattern) => pattern.test(shots[index].action || ""))) {
-      addIssue(issues, `${path}.${index}.action`, "cutaway_faces_camera", "Cutaway cannot show the presenter facing camera.");
-    }
-  }
-}
-
-function validateBadSpeechEnding(text: string, path: string, issues: PromptValidationIssue[]) {
-  const normalized = normalizeText(text);
-  if (BAD_SPEECH_ENDINGS.some((pattern) => pattern.test(normalized))) {
-    addIssue(issues, path, "bad_speech_boundary", "Voiceover ends on an incomplete phrase.");
-  }
 }
 
 function validatePhysicalConflict(text: string, path: string, issues: PromptValidationIssue[]) {
@@ -242,17 +192,8 @@ function validateDirectorProviderAlignment(
   return issues;
 }
 
-function segmentText(segment: DirectorSegment) {
-  return [
-    segment.voiceover,
-    segment.productState,
-    segment.endState,
-    ...segment.shots.map((shot) => shot.action),
-  ].join(" ");
-}
-
 function normalizeText(text: string) {
-  return text.toLowerCase().replace(/ё/g, "е").replace(/\s+/gu, " ").trim();
+  return text.toLowerCase().replace(/\s+/gu, " ").trim();
 }
 
 function countNormalizedOccurrences(haystack: string, needle: string) {
@@ -276,10 +217,17 @@ function isMetadataField(key: string) {
     "durationSeconds",
     "duration_seconds",
     "format",
+    "hookOptions",
+    "hook_options",
     "index",
+    "notes",
     "referenceRole",
     "reference_role",
     "role",
+    "selectedHook",
+    "selected_hook",
+    "shots",
+    "title",
     "version",
   ].includes(key);
 }

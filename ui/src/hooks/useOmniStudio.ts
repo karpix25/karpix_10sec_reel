@@ -135,7 +135,9 @@ export function useOmniGeneratedScripts(projectId: number | null, productId: num
     staleTime: 20_000,
     refetchInterval: (query) =>
       query.state.data?.some((script) =>
-        script.automation_job?.status === "queued" || script.automation_job?.status === "processing"
+        script.status === "generating"
+        || script.automation_job?.status === "queued"
+        || script.automation_job?.status === "processing"
       ) ? 5_000 : false,
   });
 }
@@ -430,7 +432,7 @@ export function useOmniStudio(
   const createGeneratedScriptMutation = useMutation({
     mutationFn: async (payload: { projectId: number; productId: number; legacyScenarioId?: number | null }) =>
       postOmniApi<OmniGeneratedScript>(`${API_BASE}/generated-scripts`, payload),
-    onSuccess: (_, variables) =>
+    onSettled: (_data, _error, variables) =>
       queryClient.invalidateQueries({
         queryKey: ["omni-generated-scripts", variables.projectId, variables.productId],
       }),

@@ -1,16 +1,17 @@
 import type { CtaMode } from "@/lib/omni/creative-contract";
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import type { OmniAvatarSpeechGender } from "../../omni/avatar-speech-gender";
-import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
+import type { OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type { DirectorBrief } from "./director-analysis-types";
-import { renderDirectorBriefForScriptPrompt, renderDirectorBriefForOmniPrompt } from "./director-analysis-prompt";
+import { renderDirectorBriefForScriptPrompt } from "./director-analysis-prompt";
 import type { OmniDurationRange } from "./omni-duration-range";
+import type { OmniReelSegmentPlan } from "./omni-duration-planner";
 import type { CreativeScriptDraft, DirectorSegmentPlan } from "./llm-prompt-chain-types";
 import { formatPromptChainRange } from "./llm-prompt-chain-number-words";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
-import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
+import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 
 export type PromptChainInput = {
   projectName: string;
@@ -85,43 +86,38 @@ ${renderDirectorBriefForScriptPrompt(input.directorBrief || null)}
 export function buildDirectorSegmenterPrompt(input: {
   chainInput: PromptChainInput;
   draft: CreativeScriptDraft;
+  segmentPlan: OmniReelSegmentPlan;
 }) {
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.chainInput.directorBrief));
   const wardrobeContinuity = input.chainInput.directorBrief?.wardrobe_continuity || "unknown";
   const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(input.chainInput.directorBrief);
-  const noPeopleReference = visibleSubjectPolicy === "no_people";
-  const silentAvatarReference = visibleSubjectPolicy === "silent_avatar";
-  const segmentFormat = noPeopleReference || silentAvatarReference ? "voiceover_broll" : "talking_head_cutaways";
-  const frameRoleRule = noPeopleReference
-    ? "Для no_people роли storyboard_frames только environment_cutaway или product_cutaway; face_open, face_return, avatar и персонаж запрещены."
-    : silentAvatarReference
-      ? "Для silent_avatar роли storyboard_frames только environment_cutaway или product_cutaway; аватар может быть видимым, но не говорит и не lip-sync."
-      : "Первый frame обычно face_open. Последний frame обычно face_return.";
-  const subjectRule = noPeopleReference
-    ? "В reference нет людей или рук: каждый визуальный кадр содержит только наблюдаемые локации, предметы, утвержденные product screens и атмосферный B-roll; речь всегда за кадром."
-    : silentAvatarReference
-      ? "В reference аватар видим молча: narration остается за кадром, аватар не говорит и не lip-sync."
-      : "Сохраняй наблюдаемого presenter и его on-camera delivery там, где он есть в reference.";
-  const exampleFrameRole = noPeopleReference ? "environment_cutaway" : "face_open";
-  const exampleReferenceRole = noPeopleReference ? "none" : "avatar";
-  const exampleFrameAction = noPeopleReference ? "наблюдаемое действие предмета или среды" : "действие лица в камеру";
+  const presenterReference = visibleSubjectPolicy === "presenter";
+  const segmentFormat = presenterReference ? "talking_head_cutaways" : "voiceover_broll";
+  const frameRoleRule = presenterReference
+    ? "Первый frame обычно face_open. Последний frame обычно face_return."
+    : "Роли storyboard_frames только environment_cutaway или product_cutaway. Не добавляй face_open или face_return.";
+  const subjectRule = renderVisibleSubjectPolicy(visibleSubjectPolicy);
+  const exampleFrameRole = presenterReference ? "face_open" : "environment_cutaway";
+  const exampleReferenceRole = visibleSubjectPolicy === "silent_avatar" ? "avatar" : presenterReference ? "avatar" : "none";
+  const exampleFrameAction = presenterReference ? "действие лица в камеру" : "наблюдаемое действие объекта, среды или визуального героя";
   const wardrobeRule = renderPromptChainWardrobeRule(wardrobeContinuity);
   const formatRule = montageReference
-    ? noPeopleReference
-      ? "Для voiceover montage не добавляй людей; каждый независимый cutaway следует соответствующему reference-кадру."
-      : "Для voiceover montage сохраняй лицо, волосы, возраст, телосложение и типаж героя; независимые cutaways могут менять локацию, свет, действие и камеру по соответствующему reference-кадру."
-    : noPeopleReference
-      ? "Людей, рук и аватара нет; свет, окружение, объекты и монтаж соответствуют reference."
-      : "Свет, окружение и типаж героя должны следовать режиссерскому анализу во всех frames одного ролика.";
+    ? presenterReference || visibleSubjectPolicy === "silent_avatar"
+      ? "Для voiceover montage сохраняй подтвержденного визуального героя; независимые cutaways могут менять локацию, свет, действие и камеру по соответствующему reference-кадру."
+      : `${renderVisibleSubjectPolicy(visibleSubjectPolicy)} Каждый независимый cutaway следует соответствующему reference кадру.`
+    : presenterReference
+      ? "Свет, окружение и типаж героя должны следовать режиссерскому анализу во всех frames одного ролика."
+      : `${renderVisibleSubjectPolicy(visibleSubjectPolicy)} Свет, окружение, объекты и монтаж соответствуют reference.`;
   return `
 Ты режиссер монтажа для Gemini Omni.
 
-Возьми готовый сценарий и раздели его на Omni segments для формата ${segmentFormat}.
+Возьми готовый сценарий и поставь его как Omni storyboard для формата ${segmentFormat}.
 Верни только валидный JSON без markdown.
 
 Правила режиссуры:
 Каждый segment строится storyboard first и может длиться четыре, шесть, восемь или десять секунд.
-Итоговый план содержит не больше пяти segments. Если готовый сценарий длиннее доступного лимита, сожми его только сохраняя хук, смысл продукта, ответ и CTA.
+Границы segments, duration_seconds и voiceover уже утверждены ниже. Копируй их дословно и не добавляй, не удаляй, не переставляй и не перефразируй слова.
+total_voiceover должен дословно совпадать с готовым сценарием.
 Количество storyboard frames зависит от duration_seconds: четыре секунды это два кадра, шесть секунд это три кадра, восемь секунд это четыре кадра, десять секунд это пять кадров.
 Каждый frame содержит ровно три, четыре или пять слов финальной русской речи в spoken_words.
 Склейка spoken_words всех frames должна дословно совпадать с voiceover segment.
@@ -131,7 +127,7 @@ ${subjectRule}
 В итоговом voiceover каждого плана обязательно должно прозвучать точное название «${input.chainInput.productName}» и конкретная польза продукта. Фраза «ссылка в профиле», «ссылка в описании» или другой CTA не считается упоминанием продукта.
 ${buildProductTimingContract(input.chainInput.directorBrief || null)}
 Cutaway frames не могут показывать персонажа, который смотрит в камеру. Не создавай пустой кадр одного помещения или фона: переноси конкретное наблюдаемое действие или визуальную механику reference.
-${noPeopleReference ? "Для no_people не добавляй героя, руки, лицо или avatar даже если это кажется удобным для динамики." : "Каждый talking head frame с ролью face_open или face_return показывает героя, который смотрит прямо в объектив при любом разрешенном ракурсе камеры."}
+${presenterReference ? "Каждый talking head frame с ролью face_open или face_return показывает героя, который смотрит прямо в объектив при любом разрешенном ракурсе камеры." : renderVisibleSubjectPolicy(visibleSubjectPolicy)}
 В каждом frame опиши visual_description, camera, action, product_state, sfx и reference_role. Visual_description должен быть конкретной видимой сценой, которая прямо раскрывает смысл spoken_words этого frame, а не универсальной демонстрацией продукта.
 SFX это только естественные звуки кадра. Музыку для Omni не планируй: без фоновой музыки, джинглов и музыкальных эффектов.
 Слова spoken_words будут написаны прямо на визуальном кадре storyboard image и станут единственным источником русской речи для Omni.
@@ -141,9 +137,7 @@ SFX это только естественные звуки кадра. Музы
 Для непредметных кадров переноси конкретный визуальный приём из соответствующего reference-кадра, но адаптируй его под текущую реплику без чужого продукта.
 ${formatRule} ${wardrobeRule}
 Бери камеру и переходы из соответствующих reference-кадров. Если соседние кадры reference сняты одинаково, повторяй тот же ракурс, фон и направление камеры. Не добавляй автоматическое чередование лево-право, смену крупности или движение камеры только ради динамики.
-Каждый segment обязан содержать законченную грамматическую мысль и завершаться полным предложением со знаком препинания (точка, восклицательный или вопросительный знак).
-Категорически запрещено разрывать предложение между сегментами (например, обрывать фразу на предлоге или прилагательном вроде «в вечернем», «для мягкого», «и третье»). Каждая фраза, начатая в сегменте, должна быть полностью закончена внутри этого же сегмента.
-Запрещено заканчивать segment союзами, предлогами, местоимениями или незавершенными оборотами (и, а, но, в, на, для, с, чтобы, если, в вечернем, это, такие, сможете, помогает).
+Мысль может естественно продолжаться между соседними segments. Не добавляй слова ради искусственного завершения фразы.
 ${renderRussianSpeechGenderRule(input.chainInput.avatarSpeechGender)}
 В segment без продуктовой демонстрации продукт остается либо вне кадра, либо в одном стабильном положении. В segment с демонстрацией опиши физическую последовательность: на поверхности, рука подходит, касается, берет, затем держит.
 Если cutaway frame говорит без рук, весь segment не должен включать взятие продукта в руки.
@@ -161,8 +155,16 @@ ${buildDurationLine(input.chainInput.durationRange)}
 Готовый сценарий:
 ${input.draft.script}
 
+Утвержденные segments. Перенеси index, duration_seconds и voiceover без изменений:
+${JSON.stringify(input.segmentPlan.segments.map((segment, index) => ({
+    index: index + 1,
+    duration_seconds: input.segmentPlan.segmentDurationsSeconds[index],
+    voiceover: segment.text,
+  })), null, 2)}
+
 Верни JSON:
 {
+  "format": "${segmentFormat}",
   "title": "короткий заголовок",
   "hook_options": ["вариант хука словами", "вариант хука словами", "вариант хука словами"],
   "selected_hook": "выбранный хук",
@@ -178,18 +180,13 @@ ${input.draft.script}
           "index": 1,
           "role": "${exampleFrameRole}",
           "spoken_words": "три, четыре или пять слов",
-          "visual_description": "детальное описание кадра, света, окружения и ${noPeopleReference ? "наблюдаемого объекта или действия" : "персонажа"}",
+          "visual_description": "детальное описание кадра, света, окружения и ${presenterReference ? "персонажа" : "наблюдаемого объекта, среды или визуального героя"}",
           "camera": "крупность, движение и ракурс камеры",
           "action": "${exampleFrameAction}",
           "product_state": "физическое состояние продукта в этом кадре",
           "sfx": "естественный бытовой звук кадра",
           "reference_role": "${exampleReferenceRole}"
         }
-      ],
-      "shots": [
-        { "role": "${exampleFrameRole}", "action": "${exampleFrameAction}" },
-        { "role": "cutaway", "action": "перебивка на продукт, предмет или среду" },
-        { "role": "${noPeopleReference ? "environment_cutaway" : "face_return"}", "action": "${noPeopleReference ? "финальный наблюдаемый B-roll по выводу" : "возврат к лицу для завершения мысли"}" }
       ],
       "end_state": "как заканчивается сегмент для следующей части"
     }
@@ -199,89 +196,26 @@ ${input.draft.script}
 `.trim();
 }
 
-export function buildProviderPromptWriterPrompt(input: {
-  chainInput: PromptChainInput;
-  directorPlan: DirectorSegmentPlan;
+export function buildDirectorSegmentRepairPrompt(input: {
+  basePrompt: string;
+  previousPlan: DirectorSegmentPlan;
+  validationError: string;
+  repairAttempt: number;
 }) {
-  const wardrobeSource = normalizeOmniWardrobeSource(input.chainInput.wardrobeSource);
-  const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.chainInput.directorBrief));
-  const wardrobeContinuity = input.chainInput.directorBrief?.wardrobe_continuity || "unknown";
-  const wardrobeRule = wardrobeSource === "avatar_reference"
-    ? "Одежда берется только из аватара. Не копируй одежду reference."
-    : renderPromptChainWardrobeRule(wardrobeContinuity);
-  const continuityRule = montageReference
-    ? "Сохрани единый avatar, лицо, волосы, возраст и телосложение между frames и segment prompts. Независимые cutaways следуют своим reference интервалам по локации, свету, действию и камере."
-    : "Сохрани единый avatar, лицо, волосы, возраст и телосложение между frames и segment prompts. Свет и окружение следуют режиссерскому анализу.";
-
-  return `
-Ты prompt режиссер для Gemini Omni.
-
-Напиши готовый цельный provider prompt для каждого segment.
-Код не будет склеивать PRODUCT ACTION, SCENE ACTION или CONTINUITY. Каждый prompt должен быть самодостаточным и физически непротиворечивым.
-Верни только валидный JSON без markdown.
-
-Общие правила:
-Русская речь в voiceover должна совпадать с director plan дословно.
-${renderRussianSpeechGenderRule(input.chainInput.avatarSpeechGender)}
-Каждый provider segment обязан нести storyboard_frames по правилу duration_seconds делить на два.
-Склейка spoken_words всех storyboard_frames должна дословно совпадать с voiceover.
-Каждый frame должен сохранить три, четыре или пять слов финальной русской речи, детальный визуал, camera, action, product_state, sfx и reference_role.
-Provider prompt должен описывать storyboard как последовательные кадры по две секунды.
-Omni должен сгенерировать русскую речь и естественные SFX. Omni не должен генерировать музыку, фоновые треки, джинглы или музыкальные эффекты.
-Наша фоновая музыка добавляется после из библиотеки, поэтому в prompt пиши только no music и natural SFX.
-Final provider prompt должен быть коротким: используй storyboard image как главный референс и не дублируй детали каждого кадра словами.
-Final provider prompt не должен содержать прямой текст voiceover. Он должен просить персонажа читать только реплики, написанные в кадрах раскадровки.
-Final provider prompt должен запретить показ самой раскадровки: никаких панелей, номеров кадров, черного фона, служебных подсказок, карточек и коллажа.
-Final provider prompt описывает только физически видимые сцены, камеру, действия и естественные звуки.
-Product cutaway используй только когда смысл текущих spoken_words требует показать продукт. В остальных cutaway продукт остается вне кадра. Если product cutaway выбран, продукт обязан быть физически видимым и детально совпадать с product reference.
-Character_id аватара передается отдельно. Product reference передается отдельно. Не вставляй ссылки или идентификаторы в prompt.
-В финальном prompt не упоминай названия платформ и интерфейсы приложений.
-${wardrobeRule}
-${continuityRule}
-Момент первого появления продукта совпадает с reference. Если продукт нужен в первом segment, бери его только из product reference; если в reference продукт появляется позже, первый segment показывает героя без продукта.
-Речь каждого segment это одна непрерывная реплика. Каждый следующий кадр продолжает ее со следующего еще не произнесенного слова. После последнего слова персонаж замолкает.
-Сохрани естественную динамику UGC из reference: живые жесты, реакции и конкретные смысловые действия. Визуальный переход используй только там, где он есть в reference; при отсутствии перехода оставь стабильный непрерывный ракурс без рекламной постановки.
-Все числа в текстовых значениях JSON пиши словами. Не используй emoji, дефисы, тире или минусы.
-Если продукт на столе, не пиши что персонаж держит его в руках.
-Если перебивка без рук, не пиши что рука двигает или берет продукт.
-Talking head prompt должен начинаться с лица, иметь короткую середину cutaway и возвращаться к лицу.
-
-Продукт: ${input.chainInput.productName}
-Описание продукта: ${input.chainInput.productDescription || "не указано"}
-Заметки по продукту: ${input.chainInput.productReferenceNotes || "не указаны"}
-Reference style:
-${renderDirectorBriefForOmniPrompt(input.chainInput.directorBrief || null)}
-
-Director plan:
-${JSON.stringify(input.directorPlan, null, 2)}
-
-Верни JSON:
-{
-  "segment_prompts": [
-    {
-      "index": 1,
-      "duration_seconds": 8,
-      "voiceover": "точная речь сегмента",
-      "storyboard_frames": [
-        {
-          "index": 1,
-          "role": "face_open",
-          "spoken_words": "три, четыре или пять слов",
-          "visual_description": "детальное описание кадра",
-          "camera": "крупность и движение камеры",
-          "action": "конкретное действие",
-          "product_state": "физическое состояние продукта",
-          "sfx": "естественный бытовой звук",
-          "reference_role": "avatar"
-        }
-      ],
-      "reference_role": "avatar",
-      "prompt": "короткий prompt для Gemini Omni: читать только реплики из storyboard image, не показывать storyboard панели, natural SFX, no music"
-    }
-  ],
-  "notes": "короткая заметка"
-}
-`.trim();
+  return [
+    input.basePrompt,
+    "",
+    `Точечная починка раскадровки, попытка ${input.repairAttempt}.`,
+    `Ошибка проверки: ${input.validationError}`,
+    "Исправь только поля, связанные с этой ошибкой.",
+    "Верни ровно утвержденное количество segments с утвержденными index, duration_seconds и voiceover. Если текущий план потерял или продублировал segment, восстанови его по утвержденному списку выше.",
+    "Не меняй title, hook_options, selected_hook или total_voiceover.",
+    "Не меняй последовательность spoken_words. Разрешено только заново распределить те же слова утвержденного voiceover между storyboard_frames.",
+    "Если ошибка визуальная, меняй только storyboard_frames, product_state и end_state.",
+    "Текущий план:",
+    JSON.stringify(input.previousPlan, null, 2),
+    "Верни полный исправленный JSON плана.",
+  ].join("\n");
 }
 
 function buildDurationLine(durationRange?: OmniDurationRange) {

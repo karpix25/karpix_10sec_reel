@@ -1,13 +1,14 @@
 import type { OmniCreativeStrategy } from "@/lib/omni/creative-contract";
 import {
+  normalizeDirectorVisibleSubjectPolicy,
   renderVisibleSubjectPolicy,
   type DirectorVisibleSubjectPolicy,
 } from "./director-visibility-policy";
 
-export type ReferenceSceneMode = "presenter" | "voiceover_broll" | "faceless_hands" | "body_crop" | "object_only";
+export type ReferenceSceneMode = "presenter" | "voiceover_broll" | "faceless_hands" | "body_crop" | "object_only" | "animation";
 export type OmniCreativeStrategyWithReferenceSceneMode = OmniCreativeStrategy & { referenceSceneMode: ReferenceSceneMode };
 
-const VALID_MODES: readonly ReferenceSceneMode[] = ["presenter", "voiceover_broll", "faceless_hands", "body_crop", "object_only"];
+const VALID_MODES: readonly ReferenceSceneMode[] = ["presenter", "voiceover_broll", "faceless_hands", "body_crop", "object_only", "animation"];
 const FACE_SIGNAL_PATTERN = /face[- ]?to[- ]?camera|direct eye contact|looks? into (?:the )?camera|лиц[оа]|смотрит в камеру|говорящ(?:ая|ий) голова|взгляд в объектив/iu;
 const VOICEOVER_BROLL_PATTERN = /voice[- ]?over|voiceover|b[-\s]?roll|off[- ]?camera|закадр|нарезк|перебивк|independent cutaway/iu;
 const OBJECT_ONLY_PATTERN = /object[- ]?only|product[- ]?only|предметн(?:ый|ая) кадр|только предмет|без человека/iu;
@@ -21,12 +22,20 @@ export function normalizeReferenceSceneMode(value: unknown): ReferenceSceneMode 
   if (normalized === "broll" || normalized === "voiceover" || normalized === "voiceover_montage") return "voiceover_broll";
   if (normalized === "body") return "body_crop";
   if (normalized === "object") return "object_only";
+  if (normalized === "animated" || normalized === "illustrated" || normalized === "cartoon") return "animation";
   return VALID_MODES.includes(normalized as ReferenceSceneMode) ? normalized as ReferenceSceneMode : null;
 }
 
 export function resolveReferenceSceneMode(brief: unknown): ReferenceSceneMode {
   const candidate = isRecord(brief) ? brief : null;
   const explicit = normalizeReferenceSceneMode(candidate?.reference_subject_mode ?? candidate?.referenceSceneMode ?? candidate?.reference_scene_mode ?? candidate?.referenceSubjectMode);
+  const visibleSubjectPolicy = normalizeDirectorVisibleSubjectPolicy(candidate?.visible_subject_policy ?? candidate?.visibleSubjectPolicy);
+  if (visibleSubjectPolicy === "hands_only") return "faceless_hands";
+  if (visibleSubjectPolicy === "object_only") return "object_only";
+  if (visibleSubjectPolicy === "animation") return "animation";
+  if (visibleSubjectPolicy === "no_people" || visibleSubjectPolicy === "silent_avatar") {
+    return "voiceover_broll";
+  }
   const timelineModes = cameraTimelineModes(candidate?.camera_timeline);
   if (timelineModes.has("on_camera") && timelineModes.has("voiceover_only")) {
     return "presenter";
@@ -71,7 +80,7 @@ export function isFacelessReferenceScene(mode: ReferenceSceneMode | null | undef
 }
 
 export function isAvatarFreeReferenceScene(mode: ReferenceSceneMode | null | undefined) {
-  return isFacelessReferenceScene(mode);
+  return isFacelessReferenceScene(mode) || mode === "animation";
 }
 
 export function isObjectOnlyReferenceScene(mode: ReferenceSceneMode | null | undefined) {
@@ -87,6 +96,13 @@ export function applyReferenceSceneModeToOmniPrompt(
   referenceSceneMode: ReferenceSceneMode,
   visibleSubjectPolicy: DirectorVisibleSubjectPolicy = "presenter",
 ) {
+  if (referenceSceneMode === "animation") {
+    return [prompt,
+      "REFERENCE SUBJECT MODE: ANIMATION.",
+      "Preserve the approved illustrated or animated style, characters, shapes, textures, camera, and edit rhythm from the storyboard.",
+      "Do not add a live presenter, photorealistic avatar, talking-head framing, or live-action lip-sync.",
+    ].join("\n");
+  }
   if (referenceSceneMode === "voiceover_broll") {
     const filtered = prompt.split("\n")
       .map((line) => line.replace(/The avatar says:/u, "The off-camera narrator says:"))
@@ -122,6 +138,9 @@ export function renderReferenceSceneModeForDirectorPrompt(
   mode: ReferenceSceneMode,
   visibleSubjectPolicy: DirectorVisibleSubjectPolicy = "presenter",
 ) {
+  if (mode === "animation") {
+    return "VISIBLE SUBJECT: preserve the observed illustrated or animated production; never replace it with a live presenter or photorealistic avatar.";
+  }
   if (mode === "voiceover_broll") {
     return `${renderVisibleSubjectPolicy(visibleSubjectPolicy)} Preserve independent cutaways and off-camera narration; match each visible subject to the corresponding reference frame.`
   }
@@ -131,6 +150,15 @@ export function renderReferenceSceneModeForDirectorPrompt(
 }
 
 export function assertReferenceScenePromptContract(prompt: string, mode: ReferenceSceneMode) {
+  if (mode === "animation") {
+    const violations = [
+      hasPositivePromptInstruction(prompt, /live presenter|photorealistic avatar|talking-head|live-action lip-sync/iu)
+        ? "live presenter instruction"
+        : "",
+    ].filter(Boolean);
+    if (violations.length) throw new Error(`Animation reference prompt contract failed: ${violations.join(", ")}`);
+    return;
+  }
   if (mode === "voiceover_broll") {
     const violations = [
       hasPositivePromptInstruction(prompt, /The avatar says:/iu) ? "avatar speech instruction" : "",

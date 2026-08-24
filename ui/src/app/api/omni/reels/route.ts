@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createOmniReel, listOmniReels, listOmniReelSegments } from "@/lib/server/omni/reels";
 import { submitOmniReel } from "@/lib/server/omni/omni-reel-runner";
 import { enqueueOmniAutomationJob } from "@/lib/server/omni/omni-automation-queue";
+import { getGeneratedScript } from "@/lib/server/omni/generated-scripts";
 import { getOmniErrorStatus, jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
 import { normalizeOmniGenerationProvider } from "@/lib/omni/provider";
 
@@ -37,6 +38,12 @@ export async function POST(request: Request) {
     if (!productId) return jsonError("productId is required");
 
     if (body.autoRun && sourceGeneratedScriptId) {
+      const generatedScript = await getGeneratedScript({
+        projectId,
+        productId,
+        scriptId: sourceGeneratedScriptId,
+      });
+      if (!generatedScript) return jsonError("Generated script is not ready for video creation", 409);
       const job = await enqueueOmniAutomationJob({
         projectId,
         productId,

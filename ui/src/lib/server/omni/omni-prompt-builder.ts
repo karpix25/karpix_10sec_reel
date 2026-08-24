@@ -454,9 +454,9 @@ function buildStoredCreativePlan(input: {
     continuityProps: input.strategy.continuityProps,
     referenceSceneMode: input.strategy.referenceSceneMode,
     beats: [
-      { startSeconds: 0, endSeconds: middleStart, action: "LLM provider prompt face opening" },
-      { startSeconds: middleStart, endSeconds: middleEnd, action: "LLM provider prompt middle cutaway" },
-      { startSeconds: middleEnd, endSeconds: input.segmentSeconds, action: "LLM provider prompt face return" },
+      { startSeconds: 0, endSeconds: middleStart, action: "LLM storyboard opening" },
+      { startSeconds: middleStart, endSeconds: middleEnd, action: "LLM storyboard middle beat" },
+      { startSeconds: middleEnd, endSeconds: input.segmentSeconds, action: "LLM storyboard closing beat" },
     ],
   };
 }

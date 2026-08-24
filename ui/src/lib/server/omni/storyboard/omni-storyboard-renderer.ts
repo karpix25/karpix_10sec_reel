@@ -38,6 +38,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
   const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const voiceoverBrollReference = referenceSceneMode === "voiceover_broll";
+  const animationReference = referenceSceneMode === "animation";
   const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(input.directorBrief);
   const noPeopleReference = visibleSubjectPolicy === "no_people";
   const deliveryModes = new Set(input.storyboard.frames
@@ -59,6 +60,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       ? "OBJECT-ONLY: голос за кадром; в кадре только утверждённая поверхность, предметы и концептуальные пропы; человека, рук, лица, головы и talking-head framing нет."
       : facelessReferenceScene
         ? "FACELESS HANDS-ONLY: голос за кадром; в кадре только руки, допустимый фрагмент корпуса и физический реквизит; лица, головы и talking-head framing нет."
+      : animationReference
+        ? "ANIMATION: сохрани иллюстрированный или анимационный стиль, персонажей, формы, текстуры, камеру и монтаж раскадровки; не добавляй живого ведущего."
       : voiceoverBrollReference
         ? noPeopleReference
           ? "VOICEOVER B-ROLL: голос за кадром; независимые B-roll кадры не содержат людей, рук, аватара, talking-head или lip-sync."
@@ -76,6 +79,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       ? `Свет, фон, макро поверхность, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй человека, руки, лицо, голову или аватар.`
       : facelessReferenceScene
         ? `Свет, фон, ракурс, руки и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй лицо, голову или аватар.`
+      : animationReference
+        ? `Стиль, персонажей, формы, текстуры, свет, камеру и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй фотореалистичного аватара или live-action сцену.`
       : voiceoverBrollReference
         ? noPeopleReference
           ? `Свет, локации, ракурсы, монтаж и независимые действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй людей, рук или avatar/character reference.`
@@ -85,6 +90,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       ? "Фиксируй одну и ту же макро поверхность, свет, реквизит и физическое положение предметов."
       : facelessReferenceScene
         ? "Фиксируй одну и ту же поверхность, реквизит и физическое положение предметов."
+      : animationReference
+        ? "Сохраняй одних и тех же нарисованных персонажей, пропорции, палитру, фактуры и правила движения между кадрами."
       : voiceoverBrollReference
         ? noPeopleReference
           ? "Сохраняй независимость B-roll сцен; не добавляй людей, руки или аватар."
@@ -98,6 +105,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       ? "Не показывай talking-head, человека, руки или взгляд в объектив; реплика звучит за кадром."
       : facelessReferenceScene
         ? "Не показывай talking-head и взгляд в объектив; реплика звучит за кадром."
+      : animationReference
+        ? "Не добавляй живого ведущего, фотореалистичный talking-head или live-action lip-sync; реплика звучит в стиле утвержденной анимации."
       : voiceoverBrollReference
         ? noPeopleReference
           ? "Не показывай людей, руки, talking-head или lip-sync; реплика звучит за кадром поверх независимых B-roll кадров."
@@ -122,7 +131,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     productAppearsInThisSegment && input.productRole === "digital_demo"
       ? "DIGITAL PRODUCT: показывай только утвержденный экран продукта на смартфоне; не изображай пластиковую карту, упаковку или физический рекламный товар."
       : "",
-    voiceoverBrollReference
+    voiceoverBrollReference || animationReference
       ? "Точная реплика закадрового диктора на русском языке (произноси только текст в кавычках, ничего кроме него):"
       : hybridDelivery
         ? "Точная реплика на русском языке: в кадрах on_camera говорит аватар, в кадрах voiceover_only реплика звучит за кадром; произноси только текст в кавычках, ничего кроме него:"

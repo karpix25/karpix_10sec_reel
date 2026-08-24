@@ -15,6 +15,11 @@ import { listRecentLifeFormatIds } from "./omni-creative-history";
 import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
 import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { generateScript } from "./script-generator";
+import {
+  createGeneratedScriptGenerationRecord,
+  failStaleGeneratedScriptGenerations,
+  failGeneratedScriptGeneration,
+} from "./generated-script-generation-state";
 import { resolveReadyGeneratedScriptReference } from "./generated-script-reference-selection";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { ensureGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
@@ -54,6 +59,7 @@ function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
 
 export async function listGeneratedScripts(projectId: number, productId?: number | null) {
   await ensureOmniSchema();
+  await failStaleGeneratedScriptGenerations(projectId, productId);
   const values: unknown[] = [projectId];
   const clauses = ["project_id = $1"];
 
@@ -107,7 +113,7 @@ export async function getGeneratedScript(input: { projectId: number; productId: 
      WHERE id = $1
        AND project_id = $2
        AND product_id = $3
-       AND status <> 'archived'
+       AND status IN ('draft', 'approved')
      LIMIT 1`,
     [input.scriptId, input.projectId, input.productId]
   );
@@ -295,28 +301,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     directorBrief,
   });
 
-  const model = process.env.SCENARIO_MODEL || "google/gemini-2.5-flash";
-  const generated = await generateScript({
-    model,
-    projectName: project.name,
-    targetAudience: project.target_audience,
-    brandVoice: project.brand_voice,
-    productName: product.name,
-    productDescription: product.description,
-    productReferenceNotes: product.product_reference_notes,
-    ctaMode: product.cta_mode,
-    ctaValue: product.cta_value,
-    sourceScenario,
-    directorBrief,
-    wardrobeSource: project.wardrobe_source,
-    durationRange,
-    avatarSpeechGender,
-  });
-  const directorCost = extractOpenRouterCostSummaryFromSnapshot(directorAnalysis?.source_snapshot);
-  const openRouterUsage = [...(directorCost?.layers || []), ...generated.openRouterUsage];
-  const openRouterCost = summarizeOpenRouterUsage(openRouterUsage);
-
-  const sourceSnapshot = {
+  const sourceSnapshotBase = {
     id: sourceScenario.id,
     source_selection_mode: sourceMode,
     legacy_client_id: sourceScenario.client_id,
@@ -330,12 +315,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     word_count: sourceScenario.word_count,
     duration_seconds: sourceScenario.duration_seconds,
     source_reference: sourceScenario.source_reference,
-    quality_check: generated.qualityCheck,
-    semantic_review: generated.semanticReview || generated.payload.semantic_review || null,
-    openrouter_usage: openRouterUsage,
-    openrouter_cost: openRouterCost,
     director_analysis_id: directorAnalysis?.id || null,
-    background_audio_mood: normalizeAudioMood(generated.payload.background_audio_mood),
     director_analysis_status: directorAnalysis?.director_analysis_status || "not_requested",
     director_analysis: directorBrief,
     reference_format_mode: resolveReferenceFormatMode(directorBrief),
@@ -347,9 +327,58 @@ export async function createGeneratedScriptFromLegacy(input: {
     director_analysis_model: directorAnalysis?.analysis_model || null,
     director_analysis_prompt_version: directorAnalysis?.analysis_prompt_version || null,
     director_analysis_error: directorAnalysis?.analysis_error || null,
-    llm_prompt_chain: generated.llmPromptChainSnapshot || null,
     generated_script_plan_version: "reels-script-writer-v1",
     duration_range: durationRange,
+  };
+  const model = process.env.SCENARIO_MODEL || "google/gemini-2.5-flash";
+  const pendingScript = await createGeneratedScriptGenerationRecord({
+    projectId: input.projectId,
+    productId: input.productId,
+    sourceLegacyScenarioId: sourceScenario.id,
+    sourceLegacyClientId: sourceScenario.client_id,
+    directorAnalysisId: directorAnalysis?.id || null,
+    title: sourceScenario.title || null,
+    sourceSnapshot: sourceSnapshotBase,
+    productSnapshot: { id: product.id, name: product.name },
+    model,
+  });
+
+  let generated: Awaited<ReturnType<typeof generateScript>>;
+  try {
+    generated = await generateScript({
+      model,
+      projectName: project.name,
+      targetAudience: project.target_audience,
+      brandVoice: project.brand_voice,
+      productName: product.name,
+      productDescription: product.description,
+      productReferenceNotes: product.product_reference_notes,
+      ctaMode: product.cta_mode,
+      ctaValue: product.cta_value,
+      sourceScenario,
+      directorBrief,
+      wardrobeSource: project.wardrobe_source,
+      durationRange,
+      avatarSpeechGender,
+    });
+  } catch (error) {
+    await failGeneratedScriptGeneration(pendingScript.id, error);
+    throw error;
+  }
+  const directorCost = extractOpenRouterCostSummaryFromSnapshot(directorAnalysis?.source_snapshot);
+  const openRouterUsage = [...(directorCost?.layers || []), ...generated.openRouterUsage];
+  const openRouterCost = summarizeOpenRouterUsage(openRouterUsage);
+
+  const sourceSnapshot = {
+    ...sourceSnapshotBase,
+    generation_stage: "completed",
+    generation_error: null,
+    quality_check: generated.qualityCheck,
+    semantic_review: generated.semanticReview || generated.payload.semantic_review || null,
+    openrouter_usage: openRouterUsage,
+    openrouter_cost: openRouterCost,
+    background_audio_mood: normalizeAudioMood(generated.payload.background_audio_mood),
+    llm_prompt_chain: generated.llmPromptChainSnapshot || null,
     generated_script_plan: {
       hook_options: generated.payload.hook_options,
       selected_hook: generated.payload.selected_hook,
@@ -376,32 +405,22 @@ export async function createGeneratedScriptFromLegacy(input: {
   };
 
   const { rows } = await pool.query<OmniGeneratedScript>(
-    `INSERT INTO omni_generated_scripts (
-       project_id,
-       product_id,
-       source_legacy_scenario_id,
-       source_legacy_client_id,
-       director_analysis_id,
-       title,
-       hook,
-       script,
-       caption,
-       cta_keyword,
-       lead_magnet,
-       background_audio_mood,
-       source_snapshot,
-       product_snapshot,
-       model,
-       updated_at
-     )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14::jsonb, $15, CURRENT_TIMESTAMP)
+    `UPDATE omni_generated_scripts
+     SET status = 'draft',
+         title = $2,
+         hook = $3,
+         script = $4,
+         caption = $5,
+         cta_keyword = $6,
+         lead_magnet = $7,
+         background_audio_mood = $8,
+         source_snapshot = $9::jsonb,
+         product_snapshot = $10::jsonb,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1
      RETURNING *`,
     [
-      input.projectId,
-      input.productId,
-      sourceScenario.id,
-      sourceScenario.client_id,
-      directorAnalysis?.id || null,
+      pendingScript.id,
       generated.payload.title || null,
       generated.payload.hook || null,
       generated.payload.script || "",
@@ -411,7 +430,6 @@ export async function createGeneratedScriptFromLegacy(input: {
       normalizeAudioMood(generated.payload.background_audio_mood),
       JSON.stringify(sourceSnapshot),
       JSON.stringify(productSnapshot),
-      model,
     ]
   );
 

@@ -36,7 +36,7 @@ export function resolveDirectorVisibleSubjectPolicy(brief: {
 }
 
 export function isAvatarFreeVisibleSubjectPolicy(policy: DirectorVisibleSubjectPolicy) {
-  return policy === "no_people" || policy === "hands_only" || policy === "object_only";
+  return policy === "no_people" || policy === "hands_only" || policy === "object_only" || policy === "animation";
 }
 
 export function renderVisibleSubjectPolicy(policy: DirectorVisibleSubjectPolicy) {
