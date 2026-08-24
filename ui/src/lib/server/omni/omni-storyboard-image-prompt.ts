@@ -71,10 +71,10 @@ export function buildStoryboardImagePrompt(input: {
       : facelessReferenceScene
         ? "FACELESS HANDS-ONLY CONTRACT: в кадре нет лица, головы, глаз, губ, портрета аватара или talking-head. Показывай только руки, допустимый фрагмент корпуса и предметы, которые нужны действию. Озвучка идёт за кадром. Не добавляй человека из avatar reference."
       : voiceoverBrollReference
-        ? "VOICEOVER B-ROLL CONTRACT: голос идёт за кадром поверх независимых cutaways. Сохранённый avatar/character reference остаётся визуальным героем во всех панелях; он не говорит, не синхронизирует губы и не превращается в talking-head. Случайные люди не заменяют его."
+        ? "DIRECTOR-LED B-ROLL: создавай самостоятельные сцены под смысл реплики. Любой главный человек использует avatar reference; фоновые люди и видимая речь допустимы."
       : hybridDelivery
-        ? "HYBRID DELIVERY CONTRACT: в каждой панели следуй speech_mode раскадровки. on_camera — аватар говорит в кадре; voiceover_only — аватар молчит, а реплика звучит за кадром поверх самостоятельного B-roll. Не смешивай эти режимы и не добавляй lip-sync в voiceover_only."
-      : "@file1 - avatar/character reference: единственный человек во всех панелях; фиксирует лицо, пол, возраст, волосы, телосложение и личность. Не копируй их из кадров reference.",
+        ? "DIRECTOR-LED HYBRID: речь в кадре или за кадром выбирай по смыслу новой сцены. Любой главный человек использует avatar reference; фоновые люди допустимы."
+      : "@file1 - avatar/character reference: источник личности главного героя. Фоновые люди допустимы и не обязаны повторять аватара.",
     canonicalFile
       ? objectOnlyReferenceScene
         ? `@file${canonicalFile} - эталон композиции, поверхности и реквизита из первого утверждённого storyboard. Сохрани макро поверхность, ракурс, свет и физическое положение предметов; не добавляй человека, руки, лицо или голову.`
@@ -82,20 +82,14 @@ export function buildStoryboardImagePrompt(input: {
           ? `@file${canonicalFile} - эталон композиции и реквизита из первого утверждённого storyboard. Сохрани поверхность, ракурс, свет, руки и физическое положение предметов; не добавляй лицо или голову.`
         : voiceoverBrollReference
           ? `@file${canonicalFile} - эталон монтажной композиции и B-roll ритма из первого утверждённого storyboard; лицо и личность всё равно бери из avatar reference @file1.`
-        : wardrobeContinuity === "stable"
-          ? `@file${canonicalFile} - эталон одежды из первого утверждённого storyboard. В точности повтори видимые верх, рукава, вырез, ткань, цвет, очки, украшения и волосы. Этот эталон важнее кадров оригинала для внешнего вида героя.`
-          : `@file${canonicalFile} - эталон личности и базовой композиции из первого утверждённого storyboard. Не используй его как глобальный эталон одежды: одежда определяется анализом текущего reference-интервала и соответствующей раскадровкой.`
+        : `@file${canonicalFile} - предыдущий визуальный контекст и идентичность главного аватара. Это не точный lock одежды, камеры, локации или композиции.`
       : objectOnlyReferenceScene
         ? "Первый storyboard задаёт эталон макро поверхности, света, композиции и реквизита для всех следующих частей; человека и руки не добавляй."
         : facelessReferenceScene
           ? "Первый storyboard задаёт эталон композиции, рук и реквизита для всех следующих частей ролика."
         : voiceoverBrollReference
           ? "Первый storyboard задаёт монтажный ритм и визуальную механику B-roll; avatar reference @file1 фиксирует повторяющегося визуального героя."
-        : wardrobeContinuity === "stable"
-          ? "Первый storyboard задаёт эталон одежды для всех следующих частей ролика."
-          : wardrobeContinuity === "not_visible"
-            ? "Одежда не видна в анализируемом reference-интервале; не выдумывай детали одежды и не создавай глобальный outfit lock."
-            : "Одежда каждой панели берётся из соответствующего анализируемого reference-интервала и поля wardrobe её раскадровки; не переноси одежду из первого storyboard в другие cut.",
+        : "Первый storyboard задаёт только идентичность главного аватара и общий визуальный контекст; точная одежда, камера и локация могут меняться по новой режиссуре.",
     repairFile
       ? `@file${repairFile} - предыдущая версия этой раскадровки. Это база для точечной правки: сохрани без изменений все панели, которые не названы в PHYSICAL REPAIR FROM PRIOR CHECK. Меняй только указанные панели и детали; не создавай новый вариант всего storyboard.`
       : "",
@@ -104,60 +98,60 @@ export function buildStoryboardImagePrompt(input: {
       : "Product reference не передан: продукт не показывай.",
     directorReferenceImageUrls.length
       ? voiceoverBrollReference
-        ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник независимых B-roll локаций, ракурсов, света, движения камеры и монтажа из плана панели. Не копируй главного персонажа, исходный рекламный товар, текст или логотипы.`
+        ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: только вдохновение для макроформата, света и энергии. Не копируй точные сцены, людей, одежду, действия, товар, текст или логотипы.`
       : canonicalFile
         ? objectOnlyReferenceScene
           ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только макро поверхности, ракурса, света, движения камеры, монтажа и концептуальных пропов из плана панели. Человека, руки, лицо, голову, исходный рекламный товар, текст и логотипы не копируй.`
           : facelessReferenceScene
             ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только локации, ракурса, света, движения камеры, PIP, монтажа, рук и обязательного нейтрального реквизита из плана панели. Лицо, голову и исходный рекламный товар не копируй; не копируй текст или логотипы.`
-          : `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник локации, ракурса, света, одежды, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо только из @file1; ${renderReferenceImageWardrobeRule(wardrobeContinuity, canonicalFile ? `эталон @file${canonicalFile}` : "текущий reference-интервал")}; не копируй исходный рекламный товар, текст или логотипы.`
+          : `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: вдохновение для макроформата, света и энергии. Сцену, одежду, камеру и действие поставь заново; лицо главного героя только из @file1; не копируй товар, текст или логотипы.`
         : objectOnlyReferenceScene
           ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только макро поверхности, ракурса, света, движения камеры, монтажа и концептуальных пропов из плана панели. Человека, руки, лицо, голову, исходный рекламный товар, текст и логотипы не копируй.`
           : facelessReferenceScene
             ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник только локации, ракурса, света, рук, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо, голову и исходный рекламный товар не копируй; не копируй текст или логотипы.`
           : voiceoverBrollReference
-            ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник независимых B-roll локаций, ракурсов, света, движения камеры и монтажа из плана панели. Лицо и личность бери из avatar reference @file1; не копируй исходных людей, рекламный товар, текст или логотипы.`
-          : `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник локации, ракурса, света, одежды, движения камеры, PIP, монтажа и обязательного нейтрального реквизита из плана панели. Лицо только из @file1; не копируй исходный рекламный товар, текст или логотипы.`
+            ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: только вдохновение для макроформата, света и энергии B-roll. Лицо главного героя бери из avatar reference @file1; сцены поставь заново и не копируй исходных людей, рекламный товар, текст или логотипы.`
+          : `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: только вдохновение для макроформата, света и энергии. Лицо главного героя бери из @file1; сцену, ракурс, одежду и действие поставь заново.`
       : "",
     !avatarFreeReferenceScene && !objectOnlyReferenceScene && !facelessReferenceScene
       ? montageReference || voiceoverBrollReference
-        ? "PERSON REPLACEMENT LOCK: любые люди, лица, волосы, тела и кожа в director reference — только визуальные заглушки для композиции и действия. Полностью замени их на одного сохранённого аватара из @file1; не копируй исходных мужчин, женщин или случайных людей. Сохраняй только локацию, позу, ракурс и движение."
-        : "PERSON REPLACEMENT LOCK: лицо, волосы, тело и кожа героя берутся только из @file1. Люди из director reference — только заглушки композиции; не копируй их внешность."
+        ? "FEATURED PERSON LOCK: главный или акцентный человек берётся из @file1. Фоновые прохожие допустимы; людей из reference не копируй как нового главного героя."
+        : "FEATURED PERSON LOCK: лицо и личность главного героя берутся из @file1. Фоновые люди допустимы."
       : "",
     isPipLayout && !avatarFreeReferenceScene
-      ? "REFERENCE LAYOUT: оригинал целиком в PIP/collage. В каждой панели полноэкранный динамичный фон и avatar cutout в нижнем левом углу с той же позицией, размером и белой обводкой; не делай centered talking-head."
+      ? "MACRO LAYOUT: сохрани идею PIP или collage, но размер, позицию, фон и точные переходы поставь заново под текущий сценарий."
       : "",
     objectOnlyReferenceScene
       ? "SCENE CONTINUITY LOCK: во всех панелях сохраняй одну и ту же макро поверхность, ракурс, свет и физическое положение реквизита. Не создавай человека, руки, лицо или голову между панелями."
       : facelessReferenceScene
         ? "SCENE CONTINUITY LOCK: во всех панелях сохраняй одну и ту же поверхность, ракурс, свет, руки и физическое положение реквизита. Не создавай лицо или голову между панелями."
       : voiceoverBrollReference
-        ? "SCENE CONTINUITY LOCK: сохраняй независимость B-roll панелей и соответствующие reference-локации, но фиксируй одного и того же аватара из @file1 как визуального героя; он молчит и не смотрит в объектив обязательно."
+        ? "B-ROLL CONTINUITY: панели могут быть независимыми оригинальными сценами; если есть главный человек, это аватар из @file1."
       : "",
     !avatarFreeReferenceScene && !objectOnlyReferenceScene && !facelessReferenceScene
       ? renderStoryboardImageWardrobeContract({ wardrobeContinuity, hasCanonicalReference: Boolean(canonicalFile) })
       : "",
-    !avatarFreeReferenceScene && wardrobeContinuity === "stable" && !canonicalFile && input.directorBrief?.clothing
+    !avatarFreeReferenceScene && !canonicalFile && input.directorBrief?.clothing
       ? [
-          "CLOTHING LOCK (all panels):",
+          "WARDROBE SUGGESTION:",
           input.directorBrief.clothing.style,
           input.directorBrief.clothing.fit_details,
           input.directorBrief.clothing.color_palette.length
             ? `colors: ${input.directorBrief.clothing.color_palette.join(", ")}`
             : "",
           input.directorBrief.clothing.adaptation_notes || "",
-        ].filter(Boolean).join("; ") + ". Same fabric, cut, and color in every panel — any deviation is a failure."
+        ].filter(Boolean).join("; ") + ". Adapt freely to the new scene; clothing differences are not a failure."
       : "",
     facelessReferenceScene
       ? "В кадре нет talking-head и взгляда в объектив: действие выполняют руки, а голос остаётся за кадром."
       : voiceoverBrollReference
-        ? "В кадре нет talking-head и lip-sync; сохранённый аватар действует молча, голос остаётся за кадром, а независимые B-roll сцены следуют соответствующим reference-кадрам."
+        ? "Главный человек это сохранённый аватар. Он может говорить в кадре или действовать под закадровый голос; точное состояние губ не проверяется."
       : hybridDelivery
-        ? "HYBRID AUDIO: speech_mode=on_camera означает речь аватара в кадре; speech_mode=voiceover_only означает молчащий визуальный B-roll и закадровую реплику."
+        ? "HYBRID AUDIO: произнеси реплику один раз; режиссёр сам выбирает речь в кадре или за кадром."
       : montageReference
-        ? "VOICEOVER MONTAGE: голос идёт за кадром или поверх независимых кадров; не добавляй обязательный talking-head взгляд в объектив, если его нет в соответствующем reference-кадре."
-        : "В talking-head кадрах герой смотрит прямо в объектив. Не добавляй selfie-ракурсы, которых нет в references.",
-    `Смысл реплики определяет главный предмет и действие кадра. Сохраняй ракурс, свет, ${renderReferenceImageWardrobeRule(wardrobeContinuity, "текущий анализируемый reference-интервал")}, тряску, PIP и монтаж reference; жест адаптируй. Исходный рекламный товар и его упаковка никогда не являются нейтральным реквизитом: при replace_with_product показывай только продукт клиента, при remove не показывай. Остальной реквизит — только из плана.`,
+        ? "VOICEOVER MONTAGE: голос идёт за кадром или поверх независимых кадров; talking-head взгляд выбирай только когда он помогает новой раскадровке."
+        : "В talking-head кадрах используй ясный естественный ракурс и взгляд, подходящий текущей реплике.",
+    "Смысл реплики определяет сцену, главный предмет и действие. Ракурс, свет, одежду, жест и точные переходы поставь заново; reference задаёт только общий визуальный язык. Исходный рекламный товар не копируй.",
     productAppearsInThisSegment && input.productRole !== "digital_demo" ? OMNI_PHYSICAL_ACTION_CONTRACT : "",
     productAppearsInThisSegment
       ? `Продукт впервые появляется только в панели ${productRevealFrame || "по смыслу реплики"}; точно по product reference, без смены формы, упаковки и положения.`
@@ -181,7 +175,7 @@ export function buildStoryboardImagePrompt(input: {
         `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)};${index === 0 ? ` окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};` : ""}`,
         frame.effectNotes ? `переход: ${compactText(frame.effectNotes)};` : "",
         frame.referenceTransfer
-          ? `перенос: исходный рекламный товар ${frame.referenceTransfer.decisions.sourceProduct}; его упаковку и части не сохраняй; нейтральный реквизит ${frame.referenceTransfer.decisions.sourceProps}; композиция ${compactText(frame.referenceTransfer.cameraComposition || "сохраняй reference")}; обязательный реквизит ${(frame.referenceTransfer.requiredSupportProps || []).join("; ") || "нет"}; обязательное действие ${compactText(frame.referenceTransfer.requiredReferenceAction || "нет")};`
+          ? `перенос: исходный рекламный товар ${frame.referenceTransfer.decisions.sourceProduct}; его упаковку и части не сохраняй; нейтральный реквизит ${frame.referenceTransfer.decisions.sourceProps}; композиция ${compactText(frame.referenceTransfer.cameraComposition || "по новой раскадровке")}; обязательный реквизит ${(frame.referenceTransfer.requiredSupportProps || []).join("; ") || "нет"}; обязательное действие ${compactText(frame.referenceTransfer.requiredReferenceAction || "нет")};`
           : "",
         productReferenceUrls.length
           ? isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName)
@@ -202,27 +196,17 @@ function compactText(value: unknown, maxLength = 45) {
 }
 
 function renderReferenceImageWardrobeRule(continuity: DirectorWardrobeContinuity, source: string) {
-  if (continuity === "stable") return `одежду из ${source} не копируй: она задана утверждённой раскадровкой`;
-  if (continuity === "changes_between_cuts") return `одежда только из ${source}; не переноси её в другие cut`;
-  if (continuity === "not_visible") return "одежду не выдумывай: она не подтверждена анализом";
-  return "одежда только текущего reference-интервала; глобальный outfit lock запрещён";
+  void continuity;
+  void source;
+  return "одежда является свободной режиссерской рекомендацией и не проверяется на совпадение";
 }
 
 function renderStoryboardImageWardrobeContract(input: {
   wardrobeContinuity: DirectorWardrobeContinuity;
   hasCanonicalReference: boolean;
 }) {
-  if (input.wardrobeContinuity === "stable") {
-    return input.hasCanonicalReference
-      ? "OUTFIT LOCK: повторяй outfit утверждённой раскадровки во всех панелях; тип верха, рукава, вырез, ткань, цвет и волосы не меняй."
-      : "OUTFIT LOCK: одна одежда, одинаковые волосы, свет и окружение во всех панелях; натуральная живая кожа.";
-  }
-  if (input.wardrobeContinuity === "not_visible") {
-    return "WARDROBE POLICY: одежда не видна; не выдумывай и не проверяй её детали.";
-  }
-  return input.wardrobeContinuity === "changes_between_cuts"
-    ? "WARDROBE BY SOURCE INTERVAL: одежда текущего storyboard кадра; смена только между интервалами из wardrobe_timeline."
-    : "WARDROBE BY ANALYZED PLAN: следуй текущему storyboard кадру; формат reference не задаёт continuity.";
+  void input;
+  return "WARDROBE GUIDANCE: use a simple outfit that serves the new scene. Exact reference or cross-panel clothing continuity is not a QA requirement.";
 }
 
 function cleanUrl(value: string | null | undefined) {

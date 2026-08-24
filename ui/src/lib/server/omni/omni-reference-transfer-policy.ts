@@ -57,18 +57,18 @@ export type ReferenceTransferFramePlan = {
 
 export const DEFAULT_REFERENCE_TRANSFER_POLICY: ReferenceTransferPolicy = {
   version: "reference-transfer-v6",
-  mode: "full_reference",
-  omitRawDirectorGuidance: false,
+  mode: "style_only",
+  omitRawDirectorGuidance: true,
   decisions: {
     layout: "preserve",
-    camera: "preserve",
+    camera: "adapt_action",
     lighting: "preserve",
     editLanguage: "preserve",
-    wardrobe: "preserve",
-    environment: "preserve",
+    wardrobe: "adapt_action",
+    environment: "adapt_action",
     presenterAction: "adapt_action",
     sourceProduct: "replace_with_product",
-    sourceProps: "preserve_as_support",
+    sourceProps: "remove",
     overlays: "remove",
   },
   visualContract: {
@@ -92,12 +92,13 @@ export function buildReferenceTransferPolicy(input: {
 
   return {
     ...DEFAULT_REFERENCE_TRANSFER_POLICY,
-    // Retained for existing callers. Product category alone must not erase a
-    // working reference situation such as a car, clothing, food, or a studio.
-    mode: "full_reference",
-    omitRawDirectorGuidance: false,
     decisions: { ...DEFAULT_REFERENCE_TRANSFER_POLICY.decisions, sourceProduct: productDecision },
-    visualContract: buildReferenceVisualTransferContract(input.directorBrief),
+    visualContract: {
+      ...buildReferenceVisualTransferContract(input.directorBrief),
+      cameraComposition: null,
+      persistentSupportProps: [],
+      actionBeats: [],
+    },
   };
 }
 
@@ -179,9 +180,7 @@ export function resolveReferenceTransferAction(input: {
   // movement is useful direction, but must never override a planned pickup,
   // gesture, or cutaway and create an impossible QA contract.
   const primaryAction = visualCue || fallbackAction || requiredReferenceAction || referenceAction;
-  const contextLine = referenceAction
-    ? "сохраняет позу, ритм жеста и бытовой контекст reference, но действие подчинено текущей реплике"
-    : "действие подчинено текущей реплике и сохраняет общий ритм reference";
+  const contextLine = "сцена поставлена заново под текущую реплику и берет из reference только общий визуальный язык";
 
   if (input.framePlan.productMeaningfulBeat) {
     return `${primaryAction}; ${contextLine}; исходный рекламный предмет заменен нашим продуктом`;

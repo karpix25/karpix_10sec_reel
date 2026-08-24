@@ -444,15 +444,15 @@ try {
   assert.ok(promptChainSource.includes("в описании упоминается только артикул"), "LLM chain article CTA must not add extra description info");
   assert.ok(promptChainSource.includes("прямо раскрывает смысл spoken_words"), "storyboard frames must visualize their current speech");
   assert.ok(promptChainSource.includes("Выбирай product_cutaway и удерживание продукта в руках только когда смысл spoken_words"), "product cutaways must be meaning-driven");
-  assert.ok(promptChainSource.includes("переноси конкретный визуальный приём из соответствующего reference-кадра"), "non-product speech must use reference-driven visual devices");
-  assert.ok(promptChainSource.includes("Первый segment повторяет визуальную механику reference"), "first segment must preserve reference visuals without an early product reveal");
+  assert.ok(promptChainSource.includes("Для непредметных кадров создавай самостоятельную сцену"), "non-product speech must receive original visual direction");
+  assert.ok(promptChainSource.includes("Первый segment сохраняет силу и макроформат хука reference"), "first segment must preserve the hook category without copying the source shot");
   assert.ok(promptChainSource.includes("Общая фраза только о пользе продукта не считается выводом reference"), "copywriter must conclude the reference thesis, not only the product benefit");
   assert.ok(semanticReviewerSource.includes("Не предлагай вопрос, приказ, CTA или императив"), "semantic repair feedback must not suggest forbidden imperative endings");
   assert.ok(semanticReviewerSource.includes("даже если несколько перечислены в одном предложении"), "semantic review must count distinct examples inside one list");
   assert.ok(semanticReviewerSource.includes("сам рекламный переход не является ошибкой"), "semantic review must accept the mid-roll ad contract");
   assert.ok(promptChainSource.includes("десять секунд это пять кадров"), "prompt chain must preserve exact frame counts");
-  assert.ok(promptChainSource.includes("Анализатор подтвердил стабильную одежду"), "director must preserve analyzed wardrobe continuity");
-  assert.match(promptChainSource, /talking head frame.+смотрит прямо в объектив/iu, "talking-head frames must preserve direct gaze");
+  assert.ok(promptChainSource.includes("точный материал, крой и цвет reference не являются контрактом"), "wardrobe must not trigger paid regeneration");
+  assert.ok(promptChainSource.includes("позу, взгляд и жест выбирай под текущую реплику"), "talking-head direction must serve the new script");
   assert.doesNotMatch(promptChainSource, technicalMontageTerms);
 
   console.log("LLM prompt chain contract checks passed!");

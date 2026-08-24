@@ -18,7 +18,7 @@ const DEFAULT_MODEL = "minimax/minimax-m3";
 const MIN_CONFIDENCE = 0.65;
 const MAX_JSON_REPAIR_ATTEMPTS = 2;
 const MAX_JSON_REPAIR_SOURCE_CHARS = 12_000;
-export const STORYBOARD_SET_QA_POLICY_VERSION = "storyboard-set-qa-v8";
+export const STORYBOARD_SET_QA_POLICY_VERSION = "storyboard-set-qa-v9";
 
 export class StoryboardSetVisionJsonFormatError extends Error {
   readonly rawResponse: string;
@@ -37,6 +37,7 @@ export function isStoryboardSetVisionJsonFormatError(error: unknown): error is S
 
 export async function validateStoryboardSet(input: {
   storyboards: readonly { segmentIndex: number; imageUrl: string; storyboard: OmniStoryboardSegment }[];
+  avatarReferenceUrl?: string | null;
   productName?: string;
   productReferenceUrls?: readonly string[];
   model?: string | null;
@@ -48,6 +49,7 @@ export async function validateStoryboardSet(input: {
   if (!apiKey.trim()) throw new Error("OPENROUTER_API_KEY is not configured for storyboard set QA");
 
   const model = input.model || process.env.OMNI_STORYBOARD_VISION_MODEL || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL || DEFAULT_MODEL;
+  const avatarReferenceUrl = input.avatarReferenceUrl?.trim() || null;
   const productReferenceUrls = uniqueUrls(input.productReferenceUrls || []).slice(0, 3);
   const response = await requestVisionJson({
     apiKey,
@@ -59,6 +61,7 @@ export async function validateStoryboardSet(input: {
           type: "text",
           text: buildStoryboardSetVisionPrompt({
             storyboards: input.storyboards,
+            hasAvatarReference: Boolean(avatarReferenceUrl),
             productName: input.productName,
             productReferenceCount: productReferenceUrls.length,
             referenceFormatMode: input.referenceFormatMode || "continuous_story",
@@ -66,6 +69,7 @@ export async function validateStoryboardSet(input: {
           }),
         },
         ...input.storyboards.map((storyboard) => ({ type: "image_url" as const, image_url: { url: storyboard.imageUrl } })),
+        ...(avatarReferenceUrl ? [{ type: "image_url" as const, image_url: { url: avatarReferenceUrl } }] : []),
         ...productReferenceUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
       ],
     }],
@@ -177,22 +181,13 @@ async function requestVisionJson(input: { apiKey: string; model: string; message
 
 function buildStoryboardSetVisionPrompt(input: {
   storyboards: readonly { segmentIndex: number; storyboard: OmniStoryboardSegment }[];
+  hasAvatarReference: boolean;
   productName?: string;
   productReferenceCount: number;
   referenceFormatMode: ReferenceFormatMode;
   wardrobeContinuity: DirectorWardrobeContinuity;
 }) {
-  const canonical = input.storyboards[0];
-  const wardrobe = canonical?.storyboard.frames[0]?.wardrobe || "the complete visible outfit in segment 1";
   const montageReference = input.referenceFormatMode === "voiceover_montage";
-  const stableWardrobe = input.wardrobeContinuity === "stable";
-  const wardrobeContract = input.wardrobeContinuity === "changes_between_cuts"
-    ? "The analyzed wardrobe policy is changes_between_cuts: use each segment's own expected wardrobe; a visible outfit change between source intervals is valid."
-    : input.wardrobeContinuity === "not_visible"
-      ? "The analyzed wardrobe policy is not_visible: clothing is out of scope; do not require or block wardrobe details."
-      : input.wardrobeContinuity === "unknown"
-        ? "The analyzed wardrobe policy is unknown: do not infer continuity from the format and do not block uncertain wardrobe details."
-        : "The analyzed wardrobe policy is stable: the first approved storyboard's visible core garment is canonical across the reel.";
   const visualContracts = input.storyboards.map((storyboard) => ({
     segment_index: storyboard.segmentIndex,
     panels: storyboard.storyboard.frames.map((frame, panelIndex) => ({
@@ -205,30 +200,16 @@ function buildStoryboardSetVisionPrompt(input: {
   }));
   return [
     montageReference
-      ? "You are a cross-segment identity and product QA for a voiceover montage. The video intentionally contains independent cutaways, not one continuous physical scene."
-      : "You are a strict cross-segment continuity QA for one vertical video.",
+      ? "You are a minimal cross-segment identity and product QA for an original voiceover montage. Independent scenes are intentional."
+      : "You are a minimal cross-segment identity and product QA for one vertical video.",
     `The first ${input.storyboards.length} image(s) are contact sheets in order: ${input.storyboards.map((storyboard, index) => `contact sheet ${index + 1} is segment ${storyboard.segmentIndex}`).join("; ")}.`,
+    input.hasAvatarReference ? "The next image is the saved avatar identity authority for any featured/main human. Ignore its clothing and background." : "No avatar identity reference was supplied; check only clear identity changes between featured people.",
     input.productReferenceCount ? `The next ${input.productReferenceCount} image(s) are product references for ${input.productName || "the client product"}. When the storyboard plan shows the product, its visible package must match these references.` : "No product reference images were supplied.",
-    wardrobeContract,
-    stableWardrobe
-      ? "Do not use an avatar reference in this QA pass. Segment 1 contact sheet is the visual authority for the presenter outfit and hairstyle. Compare later visible presenter panels against it; do not require offscreen accessories."
-      : "Do not use an avatar reference in this QA pass. Compare each panel against its own storyboard plan and corresponding source interval; do not create a whole-reel wardrobe lock.",
-    stableWardrobe
-      ? "Block only a positively visible contradiction in face, hair, or the canonical core garment: garment type, sleeves, neckline, fabric, color, or fit. A detail wholly outside a panel is not a mismatch; do not block accessories."
-      : input.wardrobeContinuity === "changes_between_cuts"
-        ? "Block only a positively visible contradiction in face, hair, or that segment's own expected core garment. A wardrobe difference between segments is valid and must not be reported as wardrobe_mismatch."
-        : "Do not block wardrobe differences or uncertain clothing details. Block only positively visible identity or product contradictions.",
-    stableWardrobe ? `Canonical wardrobe contract: ${wardrobe}.` : "No whole-reel canonical wardrobe contract.",
-    "Also check only these static product facts. When the plan shows the client product, its visible package must match the supplied product references. Block a visibly wrong client package or a visible foreign advertised product, brand, package, box, bottle, jar, stick, sachet, or logo. Neutral support props are allowed only when listed in required_support_props. Do not infer a copied product from ordinary food, a bag, a table, or another neutral object without positive branded-package evidence.",
-    "A contact sheet is static. Expected action, hand approach, touch, pickup timing, product motion, face gestures, reference gestures, and camera composition are video-prompt metadata, never QA blockers. Do not emit an error for any of them. Do not block because a hand movement happens between panels, because a product is cropped, or because a detail cannot be verified. Only report an error when the contradictory visual fact is positively visible.",
+    "Do not use this pass to enforce exact reference continuity. Clothing, location, camera, gesture, mouth state, background people, cut order, and source-reference similarity are never blockers.",
+    "The only allowed error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only for a clear featured-person identity change between segments, a planned client product missing from every intended panel, a visibly wrong physical form of the client product, a foreign advertised product replacing it, or gross visual corruption. Ordinary props and uncertain details are not evidence.",
     `Visual-mechanics contracts: ${JSON.stringify(visualContracts)}.`,
     "Return only JSON: { status: pass|repair|block, confidence: number, canonical_identity: string, violations: [{ segment_index: integer, panels: integer[], code: string, severity: error|warning, evidence: string }], repair_instructions: string[] }.",
-    stableWardrobe
-      ? "Use severity error only for a positively visible face, hair, canonical core-garment, client-package, or foreign-advertised-product contradiction."
-      : input.wardrobeContinuity === "changes_between_cuts"
-        ? "Use severity error only for a positively visible identity contradiction, a contradiction with that segment's own core-garment plan, a client-package mismatch, or a foreign-advertised-product contradiction. Never use wardrobe_mismatch for a valid outfit change between segments."
-        : "Use severity error only for a positively visible identity, client-package, or foreign-advertised-product contradiction; wardrobe is not a blocker under the analyzed policy.",
-    "All other observations are warnings or omitted. If every segment matches, return pass with an empty violations array.",
+    "All other observations are warnings or omitted. If every segment avoids the hard errors, return pass with an empty violations array.",
   ].join("\n");
 }
 

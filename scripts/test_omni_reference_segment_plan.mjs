@@ -125,7 +125,8 @@ try {
   });
   assert.equal(animation.renderMode, "animation");
   assert.equal(animation.motionMode, "animated_still");
-  assert.match(plan.renderReferenceSegmentPlanForPrompt(animation), /Beat 1/iu);
+  assert.match(plan.renderReferenceSegmentPlanForPrompt(animation), /REFERENCE INSPIRATION/iu);
+  assert.doesNotMatch(plan.renderReferenceSegmentPlanForPrompt(animation), /Beat 1/iu);
   console.log("Omni reference segment plan checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });

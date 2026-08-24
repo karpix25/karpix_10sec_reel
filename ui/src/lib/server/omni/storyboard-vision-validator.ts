@@ -170,8 +170,8 @@ async function parseStoryboardVisionValidation(input: {
 
 const STORYBOARD_VISION_SYSTEM_PROMPT = [
   "You are a strict static visual QA auditor for storyboard contact sheets.",
-  "Inspect only facts that are positively visible in the candidate panels. Compare the candidate against the avatar identity reference and the wardrobe policy supplied by the director analysis.",
-  "Use severity error only for a visible face or hair identity mismatch, a visible core-garment contradiction under that wardrobe policy, a visibly wrong client product package when the product is planned in the panel, or a visible foreign advertised product. Never reject missing offscreen accessories, cropped jeans, camera composition, reference gestures, hand motion, pickup timing, face gestures, or an action that occurs between static panels.",
+  "Inspect only facts that are positively visible. The only allowed error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only when the featured/main person is clearly not the supplied avatar, a planned client product is absent, the client product has the wrong physical form or is visibly replaced by a foreign advertised product, or the image has gross corruption such as a melted face, extra limb, or impossible phone.",
+  "Background people, clothing, camera, location, gesture, mouth state, timing, and reference similarity are creative choices and never errors.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous, outside the crop, or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
@@ -198,17 +198,16 @@ const STORYBOARD_VISION_OBJECT_ONLY_SYSTEM_PROMPT = [
 
 const STORYBOARD_VISION_MONTAGE_SYSTEM_PROMPT = [
   "You are a strict static visual QA auditor for storyboard contact sheets in a voiceover montage.",
-  "Inspect only facts that are positively visible in the candidate panels. Every visible human must be the supplied avatar; independent cuts may use different locations, lighting, camera setups, and art treatments. Clothing follows the wardrobe policy supplied by the director analysis.",
-  "Use severity error for any visible human who is not the supplied avatar, a visible face or hair identity mismatch, a contradiction with the current wardrobe policy, a visibly wrong client product package, or a visible foreign advertised product.",
-  "Do not block missing offscreen accessories, cropped jeans, camera composition, reference gestures, hand motion, pickup timing, face gestures, or an action that occurs between static panels.",
+  "Inspect only facts that are positively visible. The only allowed error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only when the featured/main person is clearly not the supplied avatar, a planned client product is absent, the client product has the wrong physical form or is visibly replaced by a foreign advertised product, or the image has gross visual corruption.",
+  "Independent scenes, background people, clothing, camera, location, gesture, mouth state, timing, and source-reference similarity are creative choices and never errors.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous, outside the crop, or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
 
 const STORYBOARD_VISION_BROLL_SYSTEM_PROMPT = [
   "You are a strict static visual QA auditor for storyboard contact sheets in voiceover B-roll.",
-  "Inspect only facts that are positively visible in the candidate panels. The approved format has off-camera narration over independent cutaways led by the supplied silent avatar identity reference.",
-  "Use severity error when any visible human is not the supplied avatar, the avatar visibly changes identity, a talking-head presenter or lip-sync is introduced against the storyboard plan, or a visibly wrong client product appears. Source people are composition placeholders and must be replaced by the avatar.",
+  "Inspect only facts that are positively visible. The only allowed error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only when the featured/main person is clearly not the supplied avatar, a planned client product is absent, the client product has the wrong physical form or is visibly replaced by a foreign advertised product, or the image has gross visual corruption.",
+  "Background people, visible speaking, lip movement, clothing, camera, location, gesture, timing, and source-reference similarity are creative choices and never errors.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
@@ -249,10 +248,10 @@ function buildStoryboardVisionPrompt(input: {
   }
   if (input.referenceSceneMode === "voiceover_broll") {
     return [
-      "The first image is the candidate storyboard. The supplied avatar image is the identity reference for the recurring silent visual protagonist in every panel.",
+      "The first image is the candidate storyboard. The supplied avatar image is the identity reference for any featured/main human.",
       input.hasCanonicalStoryboardReference ? "The next image is a visual-mechanics reference only; the avatar image remains the identity authority." : "",
       input.hasDirectorReference ? "The final supplied image is a source-reference frame for B-roll location, light, camera, and action only." : "",
-      "Verify that every visible human is the same supplied avatar, without talking-head framing or lip-sync. People from the matching source frame must be replaced by the avatar; no other human is allowed.",
+      "Verify only that a featured/main human is the supplied avatar. Natural background people and visible speaking are allowed and must not trigger repair.",
       "Expected storyboard plan:",
       JSON.stringify({
         product: input.productName,
@@ -264,20 +263,9 @@ function buildStoryboardVisionPrompt(input: {
       }),
     ].join("\n");
   }
-  const stableWardrobe = input.wardrobeContinuity === "stable";
-  const wardrobeAuthority = stableWardrobe
-    ? "The analyzed wardrobe policy is stable: the approved canonical storyboard is the wardrobe authority for every visible presenter panel."
-    : input.wardrobeContinuity === "changes_between_cuts"
-      ? "The analyzed wardrobe policy is changes_between_cuts: compare each panel only with its own storyboard wardrobe and matching source interval; a change between cuts is valid."
-      : input.wardrobeContinuity === "not_visible"
-        ? "The analyzed wardrobe policy is not_visible: do not require, invent, or block any clothing detail."
-        : "The analyzed wardrobe policy is unknown: use only positively visible contradictions with the current panel plan; never block on wardrobe uncertainty or impose a whole-reel outfit lock.";
   return [
-    input.hasCanonicalStoryboardReference
-      ? stableWardrobe
-        ? "The first image is the candidate storyboard. The second image is the approved avatar identity reference. The third image is the approved canonical storyboard core-garment reference. Every candidate panel must show the same person as the avatar in face, hair, and body type. Preserve the visible core garment from the canonical reference: garment type, sleeves, neckline, fabric, color, and fit. Do not require jewelry, glasses, watches, rings, jeans, or other accessories. Ignore any detail outside the candidate crop."
-        : "The first image is the candidate storyboard. The second image is the approved avatar identity reference. The third image is a visual-mechanics reference only, not a whole-reel wardrobe lock. Use the current panel's storyboard wardrobe and matching source interval for clothing. Do not require jewelry, glasses, watches, rings, jeans, or other accessories. Ignore any detail outside the candidate crop."
-      : "The first image is the candidate storyboard. The second image is the approved avatar identity reference. Every candidate panel must show the same person as the avatar in face, hair, and body type. Only a positively visible identity mismatch requires repair.",
+    "The first image is the candidate storyboard. The second image is the approved avatar identity reference for any featured/main human.",
+    input.hasCanonicalStoryboardReference ? "The next image is previous approved visual context only, not a wardrobe, camera, or scene lock." : "",
     input.hasDirectorReference
       ? "The final supplied image is a source-reference frame. It is a creative source only: never use it to reject camera, gesture, action timing, face identity, clothing, source brand, text, or logos in the candidate."
       : "",
@@ -292,16 +280,13 @@ function buildStoryboardVisionPrompt(input: {
         wardrobe: frame.wardrobe,
       })),
     }),
-    wardrobeAuthority,
-    "For every panel, inspect only the visible person, the wardrobe contract above, and visible branded packages. The action and physical_plan guide the final video prompt; a static card cannot prove motion, pickup, timing, or face-touch intent. If reference_transfer says the source product is removed or replaced, reject only a visibly copied source product or competing branded package. Neutral support props, crops, camera geometry, and ordinary food are not evidence of a foreign advertised product.",
+    "Hard errors only: a featured/main human clearly differs from the avatar, the client product has the wrong physical form, a foreign advertised product replaces it, or the panel has gross visual corruption. Background people, wardrobe, camera, location, gestures, mouth state, timing, and similarity to the reference are not blockers.",
   ].join("\n");
 }
 
 function renderWardrobeQaSystemInstruction(continuity: DirectorWardrobeContinuity) {
-  if (continuity === "stable") return "Wardrobe QA authority: stable. A visible contradiction with the approved canonical core garment is an error.";
-  if (continuity === "changes_between_cuts") return "Wardrobe QA authority: changes_between_cuts. A wardrobe change between source intervals is valid; only a visible contradiction with the current panel's own plan is an error.";
-  if (continuity === "not_visible") return "Wardrobe QA authority: not_visible. Clothing is out of scope and must never be an error.";
-  return "Wardrobe QA authority: unknown. Do not infer continuity from the format and do not block on uncertain clothing.";
+  void continuity;
+  return "Wardrobe is creative guidance only. Never emit a wardrobe error or request regeneration for clothing.";
 }
 
 function readAssistantContent(data: Record<string, unknown>) {

@@ -257,11 +257,10 @@ try {
     directorBrief: closeUpBrief,
   });
   assert.ok(simplePrompt.includes("LOCATION"), "director prompt must render location guidance");
-  assert.ok(simplePrompt.includes("CAMERA/LIGHT: medium close-up, close-up"), "director framing must reach provider prompt");
-  assert.ok(simplePrompt.includes("WARDROBE: adapt main presenter"), "director wardrobe must reach provider prompt");
+  assert.ok(simplePrompt.includes("CAMERA/LIGHT: choose clear natural vertical framing"), "the new director must choose framing for the current beat");
+  assert.ok(simplePrompt.includes("WARDROBE: use a simple scene-appropriate outfit"), "wardrobe must remain soft creative guidance");
   assert.ok(!simplePrompt.includes("REFERENCE EDITING:"), "director editing rhythm must not reach provider prompt");
   assert.ok(!simplePrompt.includes("single continuous take or very minimal cutting"), "reference montage rhythm must not be copied");
-  assert.ok(simplePrompt.includes("stable locked-off camera framing"), "tripod stabilization should become stable off-camera framing");
   assert.ok(simplePrompt.includes("filming equipment is never visible"), "director prompt must ban visible filming gear");
   assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(simplePrompt), "raw tripod wording must not reach provider prompt");
   assert.ok(simplePrompt.includes("PRODUCT: Апельсиновый коллаген"));
@@ -274,10 +273,10 @@ try {
     productReferenceNotes: null,
     hasProductReference: true,
   });
-  assert.equal(irrelevantPolicy.mode, "full_reference", "a different product category must retain the useful source setup");
-  assert.equal(irrelevantPolicy.decisions.environment, "preserve");
+  assert.equal(irrelevantPolicy.mode, "style_only", "the source must guide style without locking the new production");
+  assert.equal(irrelevantPolicy.decisions.environment, "adapt_action");
   assert.equal(irrelevantPolicy.decisions.sourceProduct, "replace_with_product");
-  assert.equal(irrelevantPolicy.decisions.sourceProps, "preserve_as_support");
+  assert.equal(irrelevantPolicy.decisions.sourceProps, "remove");
   const foodBeat = buildReferenceTransferFramePlan({
     policy: irrelevantPolicy,
     productName: "Апельсиновый коллаген",
@@ -286,7 +285,7 @@ try {
   });
   assert.equal(foodBeat.productMeaningfulBeat, false);
   assert.equal(foodBeat.decisions.sourceProduct, "remove");
-  assert.equal(foodBeat.decisions.sourceProps, "preserve_as_support");
+  assert.equal(foodBeat.decisions.sourceProps, "remove");
   assert.match(
     resolveReferenceTransferAction({
       framePlan: foodBeat,
@@ -368,10 +367,8 @@ try {
     spokenText: "В дорогу беру овощи и воду.",
     position: 1,
   });
-  assert.ok(neutralFoodBeat.requiredSupportProps.includes("food container on the passenger seat"));
-  assert.ok(neutralFoodBeat.requiredSupportProps.includes("food container"));
-  assert.ok(!neutralFoodBeat.requiredSupportProps.some((prop) => /product box/iu.test(prop)));
-  assert.equal(neutralFoodBeat.requiredReferenceAction, "shows the food container");
+  assert.deepEqual(neutralFoodBeat.requiredSupportProps, []);
+  assert.equal(neutralFoodBeat.requiredReferenceAction, null);
   const splitPackageBrief = normalizeDirectorBrief({
     director_brief: {
       ...brief,
@@ -398,7 +395,7 @@ try {
     productVisible: false,
     position: 0,
   });
-  assert.deepEqual(hiddenSourceProductBeat.requiredSupportProps, ["phone on the table"]);
+  assert.deepEqual(hiddenSourceProductBeat.requiredSupportProps, []);
   assert.equal(hiddenSourceProductBeat.requiredReferenceAction, null);
   const replacementSourceProductBeat = buildReferenceTransferFramePlan({
     policy: splitPackagePolicy,
@@ -407,8 +404,8 @@ try {
     productVisible: true,
     position: 0.5,
   });
-  assert.deepEqual(replacementSourceProductBeat.requiredSupportProps, ["phone on the table"]);
-  assert.match(replacementSourceProductBeat.requiredReferenceAction, /продуктом клиента/iu);
+  assert.deepEqual(replacementSourceProductBeat.requiredSupportProps, []);
+  assert.equal(replacementSourceProductBeat.requiredReferenceAction, null);
   const wardrobePropPolicy = buildReferenceTransferPolicy({
     hasProductReference: true,
     directorBrief: normalizeDirectorBrief({
@@ -432,8 +429,8 @@ try {
     spokenText: "Объясняю выбор",
     productVisible: false,
   });
-  assert.deepEqual(wardrobePropFrame.requiredSupportProps, ["steel worktable"]);
-  assert.equal(wardrobePropFrame.requiredReferenceAction, "speaks to camera");
+  assert.deepEqual(wardrobePropFrame.requiredSupportProps, []);
+  assert.equal(wardrobePropFrame.requiredReferenceAction, null);
   const referencePrompt = renderSimpleFullBodyUgcPrompt({
     plan: {
       segmentIndex: 1,
@@ -462,7 +459,7 @@ try {
     directorBrief: brief,
     referencePolicy: irrelevantPolicy,
   });
-  assert.ok(referencePrompt.includes("small kitchen"), "reference environment must remain available to the prompt");
+  assert.ok(!referencePrompt.includes("small kitchen"), "exact source environment must not become a provider constraint");
 
   process.env.OPENROUTER_API_KEY = "test-key";
   process.env.OMNI_DIRECTOR_ANALYSIS_MODEL = "minimax/minimax-m3";

@@ -28,7 +28,7 @@ try {
   const retry = require(findFile(join(output, "compiled"), "omni-segment-retry.js"));
   assert.equal(retry.getOmniSegmentRetryCount(null), 0);
   assert.equal(retry.canRetryOmniSegment({ omni_retry_count: 0 }), true);
-  assert.equal(retry.canRetryOmniSegment({ omni_retry_count: 2 }), false);
+  assert.equal(retry.canRetryOmniSegment({ omni_retry_count: 1 }), false);
   assert.deepEqual(retry.buildOmniSegmentRetryPayload({ request_id: "old" }, "provider failed"), {
     request_id: "old",
     omni_retry_count: 1,

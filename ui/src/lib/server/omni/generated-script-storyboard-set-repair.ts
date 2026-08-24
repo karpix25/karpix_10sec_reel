@@ -36,6 +36,7 @@ export async function ensureGeneratedScriptStoryboardSetApproval(input: {
   referenceSignature: string;
   promptPlan: readonly StoryboardPromptSegment[];
   urls: Map<number, string>;
+  avatarReferenceUrl: string | null;
   productName: string;
   productReferenceUrls: readonly string[];
   referenceFormatMode?: ReferenceFormatMode;
@@ -68,7 +69,7 @@ export async function ensureGeneratedScriptStoryboardSetApproval(input: {
         referenceSignature: input.referenceSignature,
         qaRound: 1,
         snapshot: getStoryboardSetEntries(input.promptPlan, input.urls).map(({ segmentIndex, imageUrl }) => ({ segmentIndex, url: imageUrl })),
-        targetSegments: getRepairTargets(validation, getStoryboardSetEntries(input.promptPlan, input.urls)),
+        targetSegments: getRepairTargets(validation),
         validation,
       });
       await saveStoryboardSetRepairState(input.scriptId, state);
@@ -149,6 +150,7 @@ async function validateStoryboardSetRound(
     scriptId: input.scriptId,
     storyboards: getStoryboardSetEntries(input.promptPlan, input.urls),
     attemptCount: qaRound,
+    avatarReferenceUrl: input.avatarReferenceUrl,
     productName: input.productName,
     productReferenceUrls: input.productReferenceUrls,
     referenceFormatMode: input.referenceFormatMode,
@@ -156,10 +158,6 @@ async function validateStoryboardSetRound(
   });
 }
 
-function getRepairTargets(validation: StoryboardSetVisionValidation, storyboards: readonly StoryboardSetEntry[]) {
-  const repairSegments = getStoryboardSetRepairSegments(validation);
-  const allSegments = storyboards.map((storyboard) => storyboard.segmentIndex);
-  return repairSegments.length
-    ? repairSegments.includes(1) ? allSegments : repairSegments
-    : allSegments;
+function getRepairTargets(validation: StoryboardSetVisionValidation) {
+  return getStoryboardSetRepairSegments(validation);
 }

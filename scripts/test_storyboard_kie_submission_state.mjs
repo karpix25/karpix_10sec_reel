@@ -43,11 +43,11 @@ try {
   assert.deepEqual(resolveStoryboardKieSubmissionAction(row({ generationStatus: "submitting" }), now), { kind: "wait" });
   assert.deepEqual(resolveStoryboardKieSubmissionAction(row({ generationStatus: "submitting", lastAttemptAt: new Date(now - STORYBOARD_KIE_SUBMISSION_STALE_MS) }), now), { kind: "stalled" });
   assert.deepEqual(resolveStoryboardKieSubmissionAction(row({ generationStatus: "generating", taskId: null }), now), { kind: "stalled" });
-  assert.deepEqual(resolveStoryboardKieSubmissionAction(row({ generationStatus: "failed", generationAttemptCount: 2 }), now), {
-    kind: "submit", generationAttemptCount: 3,
+  assert.deepEqual(resolveStoryboardKieSubmissionAction(row({ generationStatus: "failed", generationAttemptCount: 1 }), now), {
+    kind: "submit", generationAttemptCount: 2,
   });
-  assert.deepEqual(resolveStoryboardKieSubmissionAction(row({ generationStatus: "failed", generationAttemptCount: 3, generationError: "KIE policy blocked the source action" }), now), {
-    kind: "exhausted", generationAttemptCount: 3, generationError: "KIE policy blocked the source action",
+  assert.deepEqual(resolveStoryboardKieSubmissionAction(row({ generationStatus: "failed", generationAttemptCount: 2, generationError: "KIE policy blocked the source action" }), now), {
+    kind: "exhausted", generationAttemptCount: 2, generationError: "KIE policy blocked the source action",
   });
   assert.deepEqual(resolveVersionedStoryboardKieSubmissionAction(versionedRow({ generationAttemptCount: 3 }), {
     referenceSignature: "current", generatorVersion: "v10",
@@ -69,7 +69,7 @@ try {
   ], 2), false, "a wrong core garment requires a fresh card without the bad card as input");
   assert.equal(getStoryboardRepairMode([
     { segmentIndex: 2, code: "environment_mismatch" },
-  ], 2), "fresh");
+  ], 2), "metadata_only");
   assert.equal(getStoryboardRepairMode([
     { segmentIndex: 2, code: "product_packaging_mismatch" },
   ], 2), "patch");

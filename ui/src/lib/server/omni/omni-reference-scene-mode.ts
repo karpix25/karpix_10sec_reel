@@ -108,13 +108,13 @@ export function applyReferenceSceneModeToOmniPrompt(
       .map((line) => line.replace(/The avatar says:/u, "The off-camera narrator says:"))
       .join("\n");
     const avatarLine = visibleSubjectPolicy === "silent_avatar"
-      ? "Use the saved avatar/character reference as the same silent visual subject in every panel; identity is fixed even when location, outfit, or action changes with the reference cut."
-      : "Do not add an avatar, presenter, face, head, or hands unless the approved storyboard explicitly requires them.";
+      ? "Use the saved avatar/character reference for any featured human. Natural background people are allowed; exact mouth state and source-person behavior are not QA contracts."
+      : "Use the approved storyboard subject policy; any featured human must use the saved avatar identity.";
     return [filtered,
       "REFERENCE SUBJECT MODE: VOICEOVER B-ROLL.",
       renderVisibleSubjectPolicy(visibleSubjectPolicy),
       avatarLine,
-      "Do not use talking-head framing, lip-sync, mouth-synced speech, or mandatory eye contact; narration stays off-camera.",
+      "Prefer original script-relevant B-roll direction. Talking-head framing, visible speaking, and eye contact are allowed when the new storyboard chooses them.",
     ].join("\n");
   }
   if (!isFacelessReferenceScene(referenceSceneMode)) return prompt;
@@ -129,8 +129,8 @@ export function applyReferenceSceneModeToOmniPrompt(
       ? "Use off-camera narration. Never show a person, hands, face, head, eyes, lips, lip-sync portrait, talking-head framing, avatar portrait, or eye contact."
       : "Use off-camera narration. Never show a face, head, eyes, lip-sync portrait, talking-head framing, avatar portrait, or eye contact.",
     objectOnly
-      ? "Show only the approved surface, product, and conceptual props. Preserve the reference camera, light, action order, and object continuity."
-      : "Show only the hands and the exact body crop, surface, and physical props required by the approved storyboard. Preserve the reference camera, light, action order, and object continuity."]
+      ? "Show only the approved surface, product, and conceptual props. Direct the camera, light, and action for the current storyboard."
+      : "Show only the hands and body crop required by the approved storyboard. Direct the camera, light, and action for the current beat."]
     .join("\n");
 }
 
@@ -142,7 +142,7 @@ export function renderReferenceSceneModeForDirectorPrompt(
     return "VISIBLE SUBJECT: preserve the observed illustrated or animated production; never replace it with a live presenter or photorealistic avatar.";
   }
   if (mode === "voiceover_broll") {
-    return `${renderVisibleSubjectPolicy(visibleSubjectPolicy)} Preserve independent cutaways and off-camera narration; match each visible subject to the corresponding reference frame.`
+    return `${renderVisibleSubjectPolicy(visibleSubjectPolicy)} Use the reference only for macro format and energy; direct original cutaways for the current script.`
   }
   return isFacelessReferenceScene(mode)
     ? "VISIBLE SUBJECT: faceless hands-only reference; narration is off-camera; no face, head, eyes, avatar portrait, or talking-head framing."
@@ -160,13 +160,6 @@ export function assertReferenceScenePromptContract(prompt: string, mode: Referen
     return;
   }
   if (mode === "voiceover_broll") {
-    const violations = [
-      hasPositivePromptInstruction(prompt, /The avatar says:/iu) ? "avatar speech instruction" : "",
-      hasPositivePromptInstruction(prompt, /говорит\s+в\s+камеру|talking-head\s+(?:кадр|framing)|lip-sync/iu) ? "talking-head instruction" : "",
-    ].filter(Boolean);
-    if (violations.length) {
-      throw new Error(`Avatar-led B-roll prompt contract failed: ${violations.join(", ")}`);
-    }
     return;
   }
   if (!isAvatarFreeReferenceScene(mode)) return;

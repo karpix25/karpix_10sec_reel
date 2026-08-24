@@ -34,6 +34,7 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
   if (!input.brief) return fallbackReferenceBrief(input);
   const wardrobeSource = normalizeOmniWardrobeSource(input.wardrobeSource);
   const policy = resolveReferenceTransferPolicy(input.referencePolicy);
+  const styleOnly = policy.mode === "style_only";
   const location = selectDirectorLocationForSegment(input);
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.brief));
   const wardrobeContinuity = input.brief.wardrobe_continuity || "unknown";
@@ -49,7 +50,11 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
   const noPeopleReference = resolveDirectorVisibleSubjectPolicy(input.brief) === "no_people";
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(input.referenceSceneMode);
   return {
-    referenceLine: [
+    referenceLine: styleOnly ? [
+      `REFERENCE INSPIRATION: part ${input.segmentIndex}/${input.segmentCount}; preserve only the macro ${montageReference ? "montage" : "continuous"} format, broad visual mood, and pace range.`,
+      "Create original product-relevant scenes and beats for the current spoken line. Exact source locations, actions, props, people, clothes, and cut timings are not a contract.",
+      objectOnlyReferenceScene ? "Keep the macro object-only format." : facelessReferenceScene ? "Keep the macro faceless crop." : "Any featured human uses the saved avatar; natural background people are allowed.",
+    ].join(" ") : [
       objectOnlyReferenceScene
         ? `REFERENCE: object-only part ${input.segmentIndex}/${input.segmentCount}; preserve the approved surface, props, macro camera, light, and action order. No avatar or person is visible.`
         : facelessReferenceScene
@@ -79,9 +84,17 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
           : "Use only the main presenter setup, visual feel, and light quality; omit unrelated reference-world objects, workflows, uniforms, and product category details."
         : "",
     ].filter(Boolean).join(" "),
-    locationLine: renderLocationLine(input.brief, location),
-    cameraLine: renderCameraLine(input.brief),
-    wardrobeLine: objectOnlyReferenceScene
+    locationLine: styleOnly
+      ? "LOCATION: choose a believable product- and narration-relevant location; borrow only the broad color and light mood from the reference."
+      : renderLocationLine(input.brief, location),
+    cameraLine: styleOnly
+      ? "CAMERA/LIGHT: choose clear natural vertical framing for the current beat; reference shot scale and movement are optional inspiration."
+      : renderCameraLine(input.brief),
+    wardrobeLine: styleOnly
+      ? objectOnlyReferenceScene || facelessReferenceScene || noPeopleReference
+        ? "WARDROBE: not applicable to the approved visible-subject crop."
+        : `WARDROBE: use a simple scene-appropriate outfit for the saved avatar; ${input.characterContract?.clothingLine || "exact reference clothing is not required"}.`
+      : objectOnlyReferenceScene
       ? "WARDROBE: not applicable; no person, hands, face, or avatar is visible."
       : facelessReferenceScene
         ? "WARDROBE: not applicable to the visible crop; do not add a face, head, or avatar reference."
@@ -104,7 +117,13 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
             referenceFormatMode: resolveReferenceFormatMode(input.brief),
             referenceSceneMode: input.referenceSceneMode,
           }),
-    actionLine: objectOnlyReferenceScene
+    actionLine: styleOnly
+      ? objectOnlyReferenceScene
+        ? "DIRECTOR ACTION: create a simple original object-only beat for the current line."
+        : facelessReferenceScene
+          ? "DIRECTOR ACTION: create a simple original hands or body-crop beat for the current line."
+          : "DIRECTOR ACTION: create an original observable beat for the current line; if a featured person appears, use the saved avatar."
+      : objectOnlyReferenceScene
       ? "REFERENCE ACTION: preserve the macro surface, conceptual props, and simple treatment beat; no human presence or hand interaction."
       : voiceoverBrollReference
         ? noPeopleReference
@@ -160,21 +179,21 @@ function fallbackReferenceBrief(input: CompactReferenceBriefInput) {
         : voiceoverBrollReference
           ? noPeopleReference
             ? `REFERENCE: voiceover B-roll part ${input.segmentIndex}/${input.segmentCount}; no people or hands are visible.`
-            : `REFERENCE: voiceover B-roll part ${input.segmentIndex}/${input.segmentCount}; the saved avatar remains visible as the silent visual protagonist.`
+            : `REFERENCE INSPIRATION: voiceover B-roll part ${input.segmentIndex}/${input.segmentCount}; create an original scene for the current line and use the saved avatar for any featured human.`
         : `REFERENCE: part ${input.segmentIndex}/${input.segmentCount}; continue the same avatar identity and product story.`,
     locationLine: `LOCATION: ${input.strategy?.setting || "ordinary believable real-life setting"}.`,
     cameraLine: "CAMERA/LIGHT: natural phone footage, simple framing, believable room light.",
     wardrobeLine: objectOnlyReferenceScene || facelessReferenceScene || voiceoverBrollReference
       ? noPeopleReference
         ? "WARDROBE: not applicable; no person or hands are visible."
-        : "WARDROBE: use the saved avatar identity with the outfit visible in the matching B-roll reference frame."
+        : "WARDROBE: use a simple outfit appropriate to the new scene; clothing is not a QA contract."
       : `WARDROBE: ${input.characterContract?.clothingLine || "consistent avatar outfit"}.`,
     actionLine: objectOnlyReferenceScene
       ? "ACTION: simple object-only movement with conceptual props, no human presence."
       : voiceoverBrollReference
         ? noPeopleReference
-          ? "ACTION: independent location, object, or approved product-screen action from the matching reference frame, with off-camera narration and no people."
-          : "ACTION: the saved avatar performs the independent B-roll action from the matching reference frame, with off-camera narration."
+          ? "ACTION: direct an original location, object, or approved product-screen beat for the current narration, with no people."
+          : "ACTION: direct an original B-roll action for the current narration; any featured human uses the saved avatar."
       : "ACTION: simple product-relevant movement, no filler choreography.",
   };
 }
@@ -207,7 +226,7 @@ function renderCameraLine(brief: DirectorBrief) {
 
 function renderActionLine(brief: DirectorBrief, policy: ReferenceTransferPolicy) {
   if (policy.mode === "style_only") {
-    return "REFERENCE ACTION: simple presenter confidence with product-relevant show-and-tell only; replace unrelated process inserts with physical product moments.";
+    return "DIRECTOR ACTION: create an original product-relevant beat for the current line; follow the approved digital or physical product contract.";
   }
   const actions = brief.action_beats
     .slice(0, 2)

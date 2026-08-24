@@ -6,9 +6,9 @@ export type StoryboardQaViolation = {
 
 export type StoryboardRepairMode = "fresh" | "patch" | "metadata_only";
 
-const METADATA_ONLY_CODES = /(?:reference_(?:action|composition|camera)|camera(?:_|$)|composition|frame_?action|gesture|motion|timing|teleportation|face_?gesture|physical_?action)/iu;
-const SYSTEMIC_DRIFT_CODES = /(?:face|identity|gender|hair|body|wardrobe|outfit|garment|sleeve|neckline|fabric|environment|lighting|room|camera_setup)/iu;
-const BLOCKING_VISUAL_CODES = /(?:face|identity|gender|hair|body|wardrobe|outfit|garment|sleeve|neckline|fabric|product|package|packaging|label|logo|brand|foreign|competitor|source_product)/iu;
+const METADATA_ONLY_CODES = /(?:reference_(?:action|composition|camera)|camera(?:_|$)|composition|frame_?action|gesture|motion|timing|teleportation|face_?gesture|physical_?action|wardrobe|outfit|garment|sleeve|neckline|fabric|environment|lighting|room|location|background|mouth|lip)/iu;
+const SYSTEMIC_DRIFT_CODES = /(?:featured_identity_mismatch|identity_mismatch|wrong_(?:featured_)?(?:person|avatar)|gross_visual_corruption)/iu;
+const BLOCKING_VISUAL_CODES = /(?:featured_identity_mismatch|identity_mismatch|wrong_(?:featured_)?(?:person|avatar)|product_(?:form|packaging)_mismatch|product_missing|foreign_product|gross_visual_corruption)/iu;
 const OFFSCREEN_EVIDENCE = /(?:not visible|outside (?:the )?crop|offscreen|cropped(?: out)?|cannot (?:see|verify|tell)|unclear|not enough (?:detail|evidence)|не видно|вне кадра|обрезан|не удается (?:увидеть|проверить)|недостаточно (?:деталей|данных))/iu;
 
 export function normalizeStoryboardQaViolation<T extends StoryboardQaViolation>(violation: T): T {
@@ -39,5 +39,5 @@ export function resolveStoryboardRepairMode(
 }
 
 function isProductViolation(code: string) {
-  return /(?:product|package|packaging|label|logo|brand|foreign|competitor|source_product)/iu.test(code);
+  return /(?:product_(?:form|packaging)_mismatch|product_missing|foreign_product)/iu.test(code);
 }

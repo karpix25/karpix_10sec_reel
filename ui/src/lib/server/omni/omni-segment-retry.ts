@@ -1,4 +1,4 @@
-const MAX_OMNI_SEGMENT_RETRIES = 2;
+const MAX_OMNI_SEGMENT_RETRIES = 1;
 
 export function getOmniSegmentRetryCount(payload?: Record<string, unknown> | null) {
   const value = Number(payload?.omni_retry_count || 0);

@@ -5,14 +5,14 @@ const FILM_TRANSITION_TERMS = /film\s*(?:burn|flash)|light\s*leak|exposure\s*fla
 export function renderReferenceTransitionCue(brief?: DirectorBrief | null) {
   const styles = brief?.montage_rhythm.transition_style || [];
   const styleText = styles.join(", ") || "continuous stable shot";
-  return `REFERENCE TRANSITION: ${styleText}; copy only visible cut effects (film burn/light leak/flash), never a camera or outfit change.`;
+  return `EDITING INSPIRATION: ${styleText}; use only effects that help the new storyboard. Exact source cut timing is not required.`;
 }
 
 export function renderFrameTransitionNote(brief: DirectorBrief | null | undefined, frameIndex: number) {
   if (frameIndex === 1) return null;
   const styles = brief?.montage_rhythm.transition_style || [];
   const filmCue = styles.some((style) => FILM_TRANSITION_TERMS.test(style))
-    ? " preserve the exact film-burn/light-leak flash visible at this cut"
-    : " use the exact visible cut treatment from the corresponding reference boundary";
-  return `transition from previous panel: ${styles.join(", ") || "the reference cut"};${filmCue}; never move the camera to create the transition`;
+    ? " a film-burn or light-leak flash may be used if it supports this beat"
+    : " choose a clean transition for the new beat";
+  return `transition from previous panel: ${styles.join(", ") || "simple clean cut"};${filmCue}`;
 }

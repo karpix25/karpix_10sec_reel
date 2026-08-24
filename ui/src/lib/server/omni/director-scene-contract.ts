@@ -71,54 +71,41 @@ export function buildDirectorSceneContract(
   const layoutContract = buildDirectorLayoutContract(brief, policy);
 
   if (policy.mode === "style_only") {
-    const transferableScene = buildTransferableStyleOnlyScene(brief, segmentLocation);
-    const transferableWardrobe = buildTransferableStyleOnlyWardrobe(brief, wardrobe);
     return {
       referenceLockLine: [
-        "REFERENCE LOCK:",
-        "use the original reference only for transferable direction: main-presenter wardrobe style, background color mood, lighting feel, camera framing, camera movement, and gesture confidence.",
-        "Do not copy unrelated B-roll locations, props, tools, hands-only process shots, uniforms from supporting workers, or another product category.",
-        "Replace every product/process insert with the new product reference as a lived-in physical product insert with visible object placement or hand contact.",
+        "REFERENCE INSPIRATION:",
+        "borrow only the macro format, energy, lighting feel, broad framing, and editing language.",
+        "Direct original scenes and visual beats for the current script; do not copy exact locations, actions, props, clothes, cut timings, or people.",
       ].join(" "),
       framingLine: [
-        "REFERENCE FRAMING:",
-        camera,
-        "Keep the reference shot scale and stability, but point all insert shots at the new product instead of the original scene objects.",
+        "CAMERA DIRECTION:",
+        "use clear natural vertical framing inspired by the reference, but choose the shot that best communicates the current spoken beat.",
       ].filter(Boolean).join(" "),
-      layoutLine: undefined,
+      layoutLine: layoutContract?.layoutLine,
       sceneLine: [
-        "REFERENCE SCENE:",
-        transferableScene,
-        "Do not recreate unrelated scene worlds, process props, work tools, supporting characters, or objects from another product category.",
+        "ORIGINAL SCENE:",
+        "choose a believable location and action that directly visualizes the current line and the client product.",
       ].filter(Boolean).join(" "),
       cameraLightLine: [
-        "REFERENCE CAMERA AND LIGHT:",
-        camera,
-        `match the reference lighting quality on the presenter: ${getTransferableLighting(brief)}`,
-        "product inserts must use believable room light that keeps the new product image recognizable.",
+        "CAMERA AND LIGHT:",
+        `borrow only the broad light mood: ${getTransferableLighting(brief)}; camera and movement are chosen for clarity.`,
         OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
       ].filter(Boolean).join(" "),
       wardrobeLine: [
-        "REFERENCE WARDROBE:",
-        transferableWardrobe,
-        "do not copy supporting-character outfit details, brand marks, or clothing from unrelated cutaways.",
+        "WARDROBE:",
+        "keep the saved avatar identity; use a simple scene-appropriate outfit. Exact reference clothing is not a continuity or QA requirement.",
       ].filter(Boolean).join(" "),
       editingLine: [
         "EDITING:",
-        "use simple clean cuts only when they help the product story.",
-        "Do not copy the reference speech tempo or edit rhythm.",
+        "borrow the reference pace range and macro layout, then place clean cuts where the new script needs them. Exact source timestamps are not a contract.",
       ].filter(Boolean).join(" "),
       actionLine: [
-        "REFERENCE ACTION DNA:",
-        "keep the reference pattern of presenter explanation plus short visual insert.",
-        "Rewrite all unrelated process shots into lived-in product inserts: the new product starts on a real table, shelf, bag, or hand, a visible hand may place or adjust it once, packaging stays recognizable.",
-        "Do not show another product, another workflow, or unrelated objects from the original reference.",
+        "DIRECTOR ACTION:",
+        "create original observable beats from the current spoken line. If a featured human appears, use the saved avatar. Show the client product only in the approved physical or digital form.",
       ].join(" "),
       propPassportLine: [
-        "REFERENCE SCENE PASSPORT:",
-        "stable presenter background plus the new product only;",
-        "the original reference product/process is not a prop source;",
-        "when a cutaway appears, show the new product reference as a real prop on an ordinary surface or in hand with one simple physical movement.",
+        "PROP PASSPORT:",
+        "use only simple props required by the current script or product; source products and unrelated reference props are excluded.",
       ].join(" "),
       cleanFrameLine: undefined,
     };

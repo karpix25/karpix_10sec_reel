@@ -6,9 +6,6 @@ import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../o
 import type { PhysicalSpeechMode } from "../../../omni/physical-scene-types";
 import { resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
 
-const EXACT_FABRIC_LOCK =
-  "ONE EXACT FABRIC FOR THE WHOLE REEL: preserve the same fiber material, weave, density, surface texture, seams, cut, and fit established in the first frame across every frame and segment";
-
 export function renderStoryboardFrameCamera(input: {
   isCutawayFrame: boolean;
   directorCamera: string;
@@ -22,13 +19,13 @@ export function renderStoryboardFrameCamera(input: {
   speechMode?: PhysicalSpeechMode;
 }) {
   if (input.directorCamera) {
-    return `${input.directorCamera}; ${input.cameraComposition ? `КОМПОЗИЦИЯ REFERENCE: ${input.cameraComposition}; ` : ""}тот же исходный ракурс и направление камеры, что в соответствующем reference-кадре${input.noPeopleReference ? "; в кадре нет людей и рук" : input.isCutawayFrame || input.facelessReferenceScene || input.voiceoverBrollReference || input.speechMode === "voiceover_only" ? "" : "; герой смотрит прямо в объектив"}`;
+    return `${input.directorCamera}; выбери ясный ракурс для текущей реплики${input.noPeopleReference ? "; в кадре нет людей и рук" : ""}`;
   }
-  if (input.noPeopleReference) return "независимый атмосферный B-roll ракурс по соответствующему reference-кадру, без людей и рук";
-  if (input.objectOnlyReferenceScene) return "стабильный object-only макро ракурс, та же поверхность и направление камеры во всех кадрах";
-  if (input.facelessReferenceScene) return "стабильный hands-only ракурс, та же поверхность и направление камеры во всех кадрах";
-  if (input.voiceoverBrollReference || input.speechMode === "voiceover_only") return "независимый B-roll ракурс по соответствующему reference-кадру, без обязательного взгляда в объектив";
-  if (!input.isCutawayFrame) return "стабильный talking-head ракурс, тот же фон и направление камеры во всех кадрах, герой смотрит прямо в объектив";
+  if (input.noPeopleReference) return "самостоятельный атмосферный B-roll ракурс по текущей реплике, без людей и рук";
+  if (input.objectOnlyReferenceScene) return "ясный object-only макро ракурс для текущего действия";
+  if (input.facelessReferenceScene) return "ясный hands-only ракурс для текущего действия";
+  if (input.voiceoverBrollReference || input.speechMode === "voiceover_only") return "самостоятельный B-roll ракурс по текущей реплике, без обязательного взгляда в объектив";
+  if (!input.isCutawayFrame) return "естественный talking-head ракурс для текущей реплики";
   if (!input.productVisible) return "смысловая перебивка: предметный или атмосферный кадр по текущей реплике";
   return input.productRole === "background_prop"
     ? "смысловая перебивка: блогерская сцена по реплике, продукт только как второстепенная деталь окружения"
@@ -50,7 +47,7 @@ export function renderStoryboardWardrobe(input: {
     return "WARDROBE: not applicable; no person or hands are visible";
   }
   if (normalizeOmniWardrobeSource(input.wardrobeSource) === "avatar_reference") {
-    return `${input.characterContract.clothingLine}; ${EXACT_FABRIC_LOCK}; ignore clothing from the reference video`;
+    return `${input.characterContract.clothingLine}; exact clothing is creative guidance, not a QA contract`;
   }
   return renderReferenceWardrobe({
     brief: input.brief,
@@ -78,30 +75,19 @@ export function renderReferenceWardrobe(input: {
     : "";
 
   if (policy === "not_visible") return "WARDROBE: not visible in the analyzed reference interval; do not invent clothing details";
-  if (policy === "stable") {
-    return [
-      "WARDROBE: adapt main presenter outfit; REFERENCE WARDROBE LOCK:",
-      brief?.clothing.style,
-      brief?.clothing.fit_details,
-      colors,
-      "ONE EXACT OUTFIT FOR THE ANALYZED CONTINUOUS SUBJECT: keep the same garments, layers, fit, accessories, and color placement",
-      EXACT_FABRIC_LOCK,
-    ].filter(Boolean).join("; ");
-  }
+  if (policy === "stable") return ["WARDROBE INSPIRATION:", brief?.clothing.style, colors, "choose a simple scene-appropriate outfit; exact source clothing and cross-segment continuity are not QA requirements"].filter(Boolean).join("; ");
   if (profileWardrobe?.visible && profileWardrobe.description) {
     return [
-      "WARDROBE: adapt main presenter outfit in this source interval; REFERENCE WARDROBE:",
+      "WARDROBE INSPIRATION:",
       profileWardrobe.description,
-      `subject: ${profileWardrobe.subject_id}`,
-      "keep the current interval outfit only; do not carry it into unrelated cuts",
+      "adapt freely to the new scene; exact source clothing is not a QA requirement",
     ].join("; ");
   }
   return [
-    "WARDROBE: adapt main presenter style from the current analyzed reference interval only",
+    "WARDROBE INSPIRATION:",
     brief?.clothing.style,
     brief?.clothing.fit_details,
     colors,
-    brief?.clothing.adaptation_notes,
-    "do not infer global wardrobe continuity from the format or from another cut",
+    "choose a simple outfit for the new scene; clothing is not a QA contract",
   ].filter(Boolean).join("; ");
 }

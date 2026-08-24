@@ -1,4 +1,4 @@
-export const MAX_STORYBOARD_IMAGE_GENERATION_ATTEMPTS = 3;
+export const MAX_STORYBOARD_IMAGE_GENERATION_ATTEMPTS = 2;
 
 export function canAttemptStoryboardImageGeneration(previousAttemptCount: number) {
   return Math.max(0, previousAttemptCount) < MAX_STORYBOARD_IMAGE_GENERATION_ATTEMPTS;

@@ -44,7 +44,7 @@ export function renderVisibleSubjectPolicy(policy: DirectorVisibleSubjectPolicy)
     case "no_people":
       return "VISIBLE SUBJECT POLICY: no people, no avatar, no hands, no face; use only locations, objects, approved product screens, and atmospheric B-roll. Narration is off-camera.";
     case "silent_avatar":
-      return "VISIBLE SUBJECT POLICY: the saved avatar may appear as a silent visual subject, but never speaks or lip-syncs; narration is off-camera.";
+      return "VISIBLE SUBJECT POLICY: any featured/main human uses the saved avatar. Off-camera narration is preferred for B-roll, but visible speaking or mouth movement is an allowed creative choice. Natural background people are allowed.";
     case "hands_only":
       return "VISIBLE SUBJECT POLICY: show only the approved hands or body crop; no face, head, eyes, avatar portrait, or talking-head framing.";
     case "object_only":

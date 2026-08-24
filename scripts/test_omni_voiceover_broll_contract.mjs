@@ -86,10 +86,7 @@ try {
     "Не показывай talking-head и lip-sync; голос звучит за кадром.",
     "voiceover_broll"
   ));
-  assert.throws(
-    () => mode.assertReferenceScenePromptContract("The avatar says: test", "voiceover_broll"),
-    /Avatar-led B-roll prompt contract failed/iu
-  );
+  assert.doesNotThrow(() => mode.assertReferenceScenePromptContract("The avatar says: test", "voiceover_broll"));
 
   const strategy = selector.selectOmniCreativeStrategy({
     script: "Покажу мобильное приложение Плати по миру. Артикул в описании.",
@@ -114,8 +111,8 @@ try {
     "Historical painting showing person by campfire; речь звучит за кадром"
   );
   assert.match(historicalCutaway, /сохранённый аватар/iu);
-  assert.match(historicalCutaway, /других людей в кадре нет/iu);
-  assert.match(historicalCutaway, /сомкнутыми губами/iu);
+  assert.match(historicalCutaway, /фоновые люди допустимы/iu);
+  assert.doesNotMatch(historicalCutaway, /других людей в кадре нет|сомкнутыми губами/iu);
 
   const digitalStep = digital.buildDigitalProductDemoStep({ productName: "Плати по миру", frameIndex: 3, frameCount: 5 });
   const digitalOpening = digital.buildDigitalProductDemoStep({ productName: "Плати по миру", frameIndex: 1, frameCount: 5 });

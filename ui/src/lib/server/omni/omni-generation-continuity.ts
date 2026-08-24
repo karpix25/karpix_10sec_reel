@@ -56,7 +56,7 @@ export function buildOmniGenerationContinuityDirection(
   return {
     promptLines: montageReference
       ? [
-        `MONTAGE SEGMENT: ${sceneStart} Do not continue the previous segment's room, camera, or prop positions. ${wardrobeInstruction} ${voiceoverBrollReference ? "Keep the saved avatar identity as the silent visual protagonist; preserve only the approved product appearance." : "Keep the same presenter identity only when the reference analysis requires it; preserve exact product appearance."}`,
+        `MONTAGE SEGMENT: ${sceneStart} Do not continue the previous segment's room, camera, or prop positions. ${wardrobeInstruction} ${voiceoverBrollReference ? "Any featured human uses the saved avatar identity; background people are allowed. Preserve only the approved product appearance." : "Keep the same featured presenter identity; preserve exact product appearance."}`,
         `PRODUCT ACTION: ${productAction.actionLine}`,
         `PHYSICAL CAUSALITY: ${productAction.causalityLine}`,
       ]
@@ -91,7 +91,7 @@ function buildProductAction(input: {
     return {
       actionLine: `${product} stays outside the frame; do not introduce it as an image or overlay.`,
       causalityLine: input.voiceoverBroll
-        ? "The saved avatar and established scene props move only as shown by the matching B-roll reference; no random recurring person or new object appears without a reference cue."
+        ? "Follow the approved storyboard action. Any featured person uses the saved avatar; background people may appear naturally."
         : "Only the presenter and established scene props move; no new object appears without contact.",
       endState: "product remains off camera",
     };

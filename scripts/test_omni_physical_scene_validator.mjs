@@ -57,20 +57,20 @@ try {
   const storyboardRepairLimit = require(findFile(compiled, "storyboard-repair-limit.js"));
   const storyboardTextSanitizer = require(findFile(compiled, "omni-storyboard-text-sanitizer.js"));
 
-  assert.equal(storyboardRepairLimit.canAttemptStoryboardImageGeneration(2), true);
-  assert.equal(storyboardRepairLimit.canAttemptStoryboardImageGeneration(3), false);
+  assert.equal(storyboardRepairLimit.canAttemptStoryboardImageGeneration(1), true);
+  assert.equal(storyboardRepairLimit.canAttemptStoryboardImageGeneration(2), false);
   const silentVoiceoverAction = storyboardTextSanitizer.sanitizeVoiceoverBrollStoryboardText(
     "Мужчина жестикулирует, объясняя преимущества приложения; самостоятельная B-roll сцена, речь звучит за кадром"
   );
   assert.doesNotMatch(silentVoiceoverAction, /объясняя|говорит|рассказывает/iu);
-  assert.match(silentVoiceoverAction, /сомкнутыми губами/iu);
+  assert.match(silentVoiceoverAction, /фоновые люди допустимы/iu);
   assert.deepEqual(
     storyboardRepairLimit.resolveStoryboardImageGenerationAttempt({
       previousAttemptCount: 3,
       pendingKieTaskId: "already-paid-task",
       usesKie: true,
     }),
-    { shouldAttempt: true, resumesPendingKieTask: true, generationAttemptCount: 3 }
+    { shouldAttempt: true, resumesPendingKieTask: true, generationAttemptCount: 2 }
   );
   assert.equal(
     storyboardVisionContract.normalizeStoryboardVisionValidation({
@@ -156,8 +156,8 @@ try {
     productVisible: false,
     position: 0,
   });
-  assert.match(foodHookFrame.cameraComposition, /lap and containers/iu);
-  assert.deepEqual(foodHookFrame.requiredSupportProps, ["food container on the lap"]);
+  assert.equal(foodHookFrame.cameraComposition, null);
+  assert.deepEqual(foodHookFrame.requiredSupportProps, []);
   const foodActionFrame = referenceTransfer.buildReferenceTransferFramePlan({
     policy: foodReferencePolicy,
     spokenText: "Рассказываю о полезном перекусе",
@@ -165,7 +165,7 @@ try {
     productVisible: false,
     position: 1,
   });
-  assert.ok(foodActionFrame.requiredSupportProps.includes("carrot sticks"));
+  assert.deepEqual(foodActionFrame.requiredSupportProps, []);
   assert.match(
     physicalModel.repairReferenceAction({
       action: "герой показывает морковные палочки в камеру",
@@ -204,10 +204,10 @@ try {
     directorBrief: directorBriefWithFoodProps(),
     referenceTransferPolicy: foodReferencePolicy,
   });
-  assert.match(foodStoryboard.frames[0].camera, /lap and containers/iu);
-  assert.match(foodStoryboard.frames[0].productPlacement, /food container on the lap/iu);
-  assert.match(foodStoryboard.frames[1].productPlacement, /carrot sticks/iu);
-  assert.match(foodStoryboard.frames[1].visualAction, /carrot sticks/iu);
+  assert.match(foodStoryboard.frames[0].camera, /camera inspiration/iu);
+  assert.doesNotMatch(foodStoryboard.frames[0].camera, /lap and containers/iu);
+  assert.doesNotMatch(foodStoryboard.frames[0].productPlacement, /food container|carrot sticks/iu);
+  assert.doesNotMatch(foodStoryboard.frames[1].visualAction, /carrot sticks/iu);
   assert.equal(
     contractValidator.validateStoryboardSegmentContract({
       storyboard: foodStoryboard,

@@ -205,7 +205,7 @@ export async function generateStoryboardImage(input: StoryboardImageInput) {
         : facelessReferenceScene
         ? "Re-render the same storyboard plan with every panel clear, readable, and only the approved hands, crop, and physical props visible; do not introduce a face or head."
         : referenceSceneMode === "voiceover_broll"
-        ? "Re-render the same storyboard plan with independent B-roll panels led by the saved silent avatar and off-camera narration; do not introduce talking-head or lip-sync. Incidental visible people are allowed only when the reference frame requires them."
+        ? "Re-render the same storyboard plan clearly. Any featured human must use the saved avatar; background people and visible speaking are allowed. Preserve the approved client product form."
         : "Re-render the same storyboard plan with every panel clear, readable, and the avatar fully visible for continuity QA."]
       : retryInstructions;
     if (!automaticRetryInstructions.length || !canAttemptStoryboardImageGeneration(generationAttemptCount)) {

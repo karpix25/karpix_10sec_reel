@@ -59,17 +59,17 @@ export function buildOmniCharacterContract(input: {
 
   return {
     identityLine: input.referenceSceneMode === "voiceover_broll"
-      ? "сохранённый аватар остаётся главным визуальным героем независимых B-roll сцен; он молчит, не синхронизирует губы и не становится talking-head, голос идёт за кадром; случайные люди не заменяют его"
+      ? "любой главный или акцентный человек в B-roll использует сохранённый аватар; фоновые люди допустимы; поза, взгляд и видимая речь выбираются по новой раскадровке"
       : isObjectOnlyReferenceScene(input.referenceSceneMode)
       ? "в кадре только утверждённая поверхность, предметы и концептуальные пропы; человек, руки, лицо, голова и портрет аватара не показываются; голос за кадром"
       : isFacelessReferenceScene(input.referenceSceneMode)
         ? "в кадре только руки и необходимый body crop; лицо, голова и портрет аватара не показываются; голос за кадром"
       : buildIdentityLine({ avatarName, avatarPrompt, hasAvatarReference: hasAvatarReference(input.avatar) }),
     clothingLine: input.referenceSceneMode === "voiceover_broll" && wardrobeContinuity !== "stable"
-      ? "лицо, волосы, возраст, телосложение и личность аватара фиксированы character_id/reference image; одежду каждой независимой B-roll сцены бери только из соответствующего reference интервала"
+      ? "лицо, волосы, возраст, телосложение и личность аватара фиксированы character_id/reference image; одежда выбирается по новой сцене и не является QA контрактом"
       : clothingLine,
     sourceRuleLine: input.referenceSceneMode === "voiceover_broll" && wardrobeContinuity !== "stable"
-      ? "источник локации, света, действия и одежды - соответствующий B-roll reference интервал; источник лица, возраста, телосложения и личности - avatar reference/character_id; голос остаётся за кадром"
+      ? "источник лица, возраста, телосложения и личности главного героя - avatar reference/character_id; локацию, свет, действие и одежду режиссёр выбирает под текущую реплику"
       : allowsReferenceWardrobeVariation
       ? "источник outfit для каждой независимой сцены - соответствующий reference-кадр и строка ОДЕЖДА; товарные image_urls задают продукт, а не одежду героя; лицо, волосы и личность сохраняются у одного персонажа"
       : "единственный источник outfit - строка ОДЕЖДА и описание главного персонажа; товарные image_urls задают продукт, а не одежду героя; одежда сохраняется одинаковой во всех частях",

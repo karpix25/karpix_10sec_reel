@@ -168,11 +168,11 @@ try {
       },
     })),
   });
-  assert.equal(setValidation.status, "block");
-  assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments(setValidation), [2, 3]);
+  assert.equal(setValidation.status, "pass");
+  assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments(setValidation), []);
   assert.deepEqual(setVisionValidator.getStoryboardSetRepairSegments({
     violations: [{ segmentIndex: 1, severity: "error", code: "wardrobe_mismatch", evidence: "visible sleeve changed" }],
-  }), [1], "a failed canonical storyboard must be eligible for targeted repair");
+  }), [], "wardrobe must not trigger targeted repair");
   const softReferenceOnly = setVisionValidator.normalizeStoryboardSetVisionValidation({
     status: "block",
     confidence: 0.95,
@@ -214,14 +214,12 @@ try {
     productReferenceUrls: ["https://example.com/product-front.jpg", "https://example.com/product-back.jpg"],
   });
   const referencedSetImages = setRequests[1].messages[0].content.filter((item) => item.type === "image_url");
-  assert.equal(referencedSetImages.length, 5, "cross-storyboard QA must see contact sheets and product references, but not avatar clothing");
+  assert.equal(referencedSetImages.length, 6, "cross-storyboard QA must see contact sheets, the avatar identity reference, and product references");
   const referencedSetPrompt = setRequests[1].messages[0].content[0].text;
-  assert.match(referencedSetPrompt, /Do not use an avatar reference in this QA pass/u);
-  assert.match(referencedSetPrompt, /complete outfit ground truth/u);
-  assert.match(referencedSetPrompt, /jeans, a watch, a ring, earrings, or any other accessory are offscreen/u);
-  assert.match(referencedSetPrompt, /contact sheet is static/u);
-  assert.match(referencedSetPrompt, /video-prompt metadata, never QA blockers/u);
-  assert.doesNotMatch(referencedSetPrompt, /expected_action is the hard action contract/u);
+  assert.match(referencedSetPrompt, /saved avatar identity authority/iu);
+  assert.match(referencedSetPrompt, /Ignore its clothing and background/iu);
+  assert.match(referencedSetPrompt, /Clothing, location, camera, gesture, mouth state, background people, cut order, and source-reference similarity are never blockers/u);
+  assert.match(referencedSetPrompt, /FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION/u);
   assert.match(referencedSetPrompt, /first 3 image\(s\) are contact sheets/u);
   assert.equal(referencedSetImages[0].image_url.url, "https://example.com/storyboard-1.jpg");
 

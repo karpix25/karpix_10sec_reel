@@ -148,14 +148,9 @@ export function resolveReferenceFrameCount(renderMode: ReferenceRenderMode, beat
 export function renderReferenceSegmentPlanForPrompt(plan: ReferenceSegmentPlan | null | undefined) {
   if (!plan) return "";
   return [
-    "REFERENCE SEGMENT PLAN: render the following positive visual direction inside this Omni segment.",
-    `Segment ${plan.segmentIndex}, ${plan.durationSeconds}s; format=${plan.renderMode}; motion=${plan.motionMode}; source window=${plan.sourceStartSeconds}-${plan.sourceEndSeconds}s.`,
-    ...plan.beats.map((beat, index) => [
-      `Beat ${index + 1}, ${beat.startSeconds}-${beat.endSeconds}s:`,
-      `action=${compact(beat.action)}; gesture=${compact(beat.gesture)}; camera=${compact(beat.camera)};`,
-      `setting=${compact(beat.setting)}; environment=${compact(beat.environment)}; lighting=${compact(beat.lighting)}; speech_mode=${beat.speechMode}.`,
-    ].join(" ")),
-    "Keep the observed shot order, visual rhythm, camera language, and scene changes. Adapt the visual plan to the approved avatar, product, and script.",
+    "REFERENCE INSPIRATION: use only the macro production type and broad energy.",
+    `Segment ${plan.segmentIndex}, ${plan.durationSeconds}s; suggested format=${plan.renderMode}; suggested motion=${plan.motionMode}.`,
+    "Create original scene beats, camera choices, actions, locations, and cut timing for the approved script and product. Exact source windows and observed shot order are not requirements.",
   ].join("\n");
 }
 

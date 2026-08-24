@@ -67,9 +67,11 @@ try {
                 status: isInconclusive || isActionableBlock ? "block" : shouldRepair ? "repair" : "pass",
                 violations: isActionableBlock
                   ? [{ code: "AVATAR_IDENTITY_MISMATCH", severity: "error", evidence: "different face" }]
-                  : [],
+                  : shouldRepair
+                    ? [{ code: "PRODUCT_FORM_MISMATCH", severity: "error", evidence: "physical card shown instead of mobile app" }]
+                    : [],
               }],
-              repair_instructions: shouldRepair ? ["restore the canonical black sleeveless top"] : [],
+              repair_instructions: shouldRepair ? ["show the approved mobile app on a smartphone"] : [],
             }),
           },
         }],
@@ -105,13 +107,13 @@ try {
     assert.equal(result, "https://s3.example.com/storyboard.jpg");
     assert.match(warnings[0].message, /Optional storyboard reference image skipped/u);
     assert.equal(visionRequests, 2, "a repairable storyboard gets one retry");
-    assert.ok(cometPrompts[0].includes("эталон одежды из первого утверждённого storyboard"));
+    assert.ok(cometPrompts[0].includes("Exact reference or cross-panel clothing continuity is not a QA requirement"));
     assert.ok(cometPrompts[1].includes("PHYSICAL REPAIR FROM PRIOR CHECK"));
     const visionImages = visionPayloads[0].messages[1].content.filter((item) => item.type === "image_url");
-    assert.equal(visionImages.length, 3, "vision compares the candidate with both the active avatar and canonical outfit storyboard");
+    assert.equal(visionImages.length, 4, "vision compares the candidate with the avatar, prior storyboard context, and product reference");
     assert.equal(visionImages[1].image_url.url, "https://cdn.example.com/avatar.jpg", "vision must validate the candidate against the active avatar identity");
     assert.equal(visionImages[2].image_url.url, "https://cdn.example.com/first-storyboard.jpg", "vision must validate later boards against the canonical outfit");
-    assert.match(visionPayloads[0].messages[1].content[0].text, /same person as the avatar/u, "vision prompt must reject a non-avatar identity");
+    assert.match(visionPayloads[0].messages[1].content[0].text, /featured\/main human/iu, "vision prompt must reject a non-avatar featured identity");
     assert.ok(!cometPrompts[0].includes(expiredDirectorUrl));
     assert.ok(!cometPrompts[0].includes("Director reference image URLs:"));
 
@@ -127,26 +129,23 @@ try {
       avatarReferenceUrl: "https://cdn.example.com/avatar.jpg",
       canonicalStoryboardReferenceUrl: "https://cdn.example.com/first-storyboard.jpg",
     });
-    assert.equal(visionRequests, 2, "an inconclusive QA response retries the check without a new image");
+    assert.equal(visionRequests, 1, "an uncertain QA response must not spend on another check");
     assert.equal(cometPrompts.length, 1, "an inconclusive QA response does not spend on another storyboard image");
 
     visionMode = "always_inconclusive";
     visionRequests = 0;
     cometPrompts.length = 0;
-    await assert.rejects(
-      () => generateStoryboardImage({
-        projectId: 6,
-        reelId: 10,
-        segmentIndex: 1,
-        storyboard: storyboard(),
-        productName: "Коллаген",
-        avatarReferenceUrl: "https://cdn.example.com/avatar.jpg",
-        canonicalStoryboardReferenceUrl: "https://cdn.example.com/first-storyboard.jpg",
-      }),
-      /Storyboard vision validation remained inconclusive after automatic retries/u
-    );
-    assert.equal(visionRequests, 4, "an inconclusive result gets two QA checks for each automatic image attempt");
-    assert.equal(cometPrompts.length, 2, "an inconclusive result gets one automatic replacement image");
+    await generateStoryboardImage({
+      projectId: 6,
+      reelId: 10,
+      segmentIndex: 1,
+      storyboard: storyboard(),
+      productName: "Коллаген",
+      avatarReferenceUrl: "https://cdn.example.com/avatar.jpg",
+      canonicalStoryboardReferenceUrl: "https://cdn.example.com/first-storyboard.jpg",
+    });
+    assert.equal(visionRequests, 1, "an uncertain result passes without a paid retry");
+    assert.equal(cometPrompts.length, 1, "an uncertain result keeps the first storyboard image");
 
     visionMode = "block_then_pass";
     visionRequests = 0;
@@ -176,7 +175,7 @@ try {
         avatarReferenceUrl: "https://cdn.example.com/avatar.jpg",
         canonicalStoryboardReferenceUrl: "https://cdn.example.com/first-storyboard.jpg",
       }),
-      /Storyboard image blocked by vision validation/u
+      /Storyboard image (?:blocked by|did not pass) vision|Storyboard image did not pass visual QA/u
     );
     assert.equal(visionRequests, 2, "video-ready storyboard flow stops after the single retry is exhausted");
   } finally {

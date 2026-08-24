@@ -19,14 +19,14 @@ export type SemanticStoryboardMemoryIssue = {
 };
 
 const MAX_INSTRUCTION_LENGTH = 320;
+const HARD_QA_MEMORY_CODES = /^(?:featured_identity_mismatch|identity_mismatch|wrong_(?:featured_)?(?:person|avatar)|product_(?:form|packaging)_mismatch|product_missing|foreign_product|gross_visual_corruption)$/iu;
 const POSITIVE_INSTRUCTIONS: Record<string, string> = {
-  environment_mismatch: "Используй локации и окружение, подтвержденные текущим анализом reference.",
-  final_answer_missing: "Заверши финальный сегмент визуальным ответом на главный тезис до CTA.",
-  frame_action_mismatch: "Связывай действие каждого кадра с текущей репликой и action beats reference.",
+  featured_identity_mismatch: "Любой главный или акцентный человек должен использовать сохранённый аватар.",
+  product_form_mismatch: "Показывай продукт только в утверждённой физической или цифровой форме из product contract.",
+  product_missing: "Покажи клиентский продукт в запланированной рекламной вставке.",
   product_packaging_mismatch: "Сохраняй утвержденные форму, упаковку и маркировку продукта из product contract.",
-  product_placement_mismatch: "Показывай согласованный продукт, когда текущая реплика требует его присутствия.",
-  reference_format_mismatch: "Сохраняй выбранный reference format и его observed delivery/layout mechanics.",
-  wardrobe_mismatch: "Сохраняй утвержденные одежду, цвет и фасон reference в рамках текущего формата.",
+  foreign_product: "Не заменяй клиентский продукт чужим рекламируемым товаром или брендом.",
+  gross_visual_corruption: "Не допускай явно сломанных лиц, конечностей, смартфонов и физически невозможной геометрии.",
 };
 
 export function buildPositiveSemanticMemoryInstruction(
@@ -41,10 +41,11 @@ export function buildPositiveSemanticMemoryInstruction(
 export function renderSemanticStoryboardMemoryRules(
   rules: readonly SemanticStoryboardMemoryRule[] | undefined,
 ) {
-  if (!rules?.length) return "";
+  const hardRules = rules?.filter((rule) => HARD_QA_MEMORY_CODES.test(rule.issueCode)) || [];
+  if (!hardRules.length) return "";
   return [
     "Scoped learned memory, only as additional positive guardrails:",
-    ...rules.map((rule) => `- ${rule.positiveInstruction}`),
+    ...hardRules.map((rule) => `- ${rule.positiveInstruction}`),
     "Current director analysis and product contract override these learned guardrails.",
   ].join("\n");
 }

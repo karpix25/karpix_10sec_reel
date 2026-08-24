@@ -68,9 +68,9 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       : voiceoverBrollReference
         ? noPeopleReference
           ? "VOICEOVER B-ROLL: голос за кадром; независимые B-roll кадры не содержат людей, рук, аватара, talking-head или lip-sync."
-          : "VOICEOVER B-ROLL: голос за кадром; независимые B-roll кадры ведёт сохранённый молчащий аватар, без talking-head, lip-sync и обязательного взгляда в объектив."
+          : "DIRECTOR-LED B-ROLL: оживи новые сцены раскадровки; любой главный человек использует сохранённый аватар. Фоновые люди и видимая речь допустимы."
       : hybridDelivery
-        ? "HYBRID DELIVERY: следуй speechMode каждого storyboard-кадра. on_camera — аватар произносит свою часть в кадре; voiceover_only — тот же аватар молча выполняет самостоятельный B-roll под закадровую речь. Любой видимый человек — сохранённый аватар; других людей не создавай."
+        ? "DIRECTOR-LED HYBRID: главный человек всегда сохранённый аватар. Режиссёр может выбрать речь в кадре или B-roll под закадровый голос по смыслу текущей реплики; фоновые люди допустимы."
       : "",
     renderVisibleSubjectPolicy(visibleSubjectPolicy),
     preservePipLayout
@@ -87,7 +87,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       : voiceoverBrollReference
         ? noPeopleReference
           ? `Свет, локации, ракурсы, монтаж и независимые действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй людей, рук или avatar/character reference.`
-          : `Свет, локации, ракурсы, монтаж и независимые действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; личность и лицо бери из avatar/character reference, но не добавляй talking-head.`
+          : `Свет, локации, ракурсы, монтаж и действия бери из новой раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; личность любого главного человека бери из avatar/character reference.`
       : `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
     objectOnlyReferenceScene
       ? "Фиксируй одну и ту же макро поверхность, свет, реквизит и физическое положение предметов."
@@ -98,7 +98,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       : voiceoverBrollReference
         ? noPeopleReference
           ? "Сохраняй независимость B-roll сцен; не добавляй людей, руки или аватар."
-          : "Сохраняй независимость B-roll сцен, но фиксируй одного и того же сохранённого аватара как визуального героя; не превращай его в talking-head."
+          : "Сохраняй личность главного аватара и форму продукта; фоновые люди, одежда и сцены могут естественно меняться."
       : "Фиксируй те же волосы, пробор, аксессуары.",
     avatarFreeReferenceScene ? "" : renderStoryboardWardrobeContinuity(input.directorBrief),
     avatarFreeReferenceScene ? "" : renderStoryboardWardrobe(input.storyboard),
@@ -114,11 +114,11 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       : voiceoverBrollReference
         ? noPeopleReference
           ? "Не показывай людей, руки, talking-head или lip-sync; реплика звучит за кадром поверх независимых B-roll кадров."
-          : "Не показывай talking-head и lip-sync; сохранённый аватар действует молча, а реплика звучит за кадром поверх независимых B-roll кадров."
+          : "Произнеси точную реплику один раз. Она может звучать в кадре или за кадром по новой раскадровке; состояние губ не является контрактом."
       : hybridDelivery
-        ? "HYBRID AUDIO: в кадрах speechMode=on_camera аватар говорит в кадре; в кадрах speechMode=voiceover_only тот же аватар молчит с сомкнутыми губами, а та же реплика звучит за кадром поверх самостоятельного B-roll. Других людей в кадре нет."
+        ? "HYBRID AUDIO: произнеси точную реплику один раз. Она может звучать в кадре или за кадром по новой раскадровке; точное состояние губ не является визуальным контрактом."
       : montageReference
-        ? "VOICEOVER MONTAGE: голос может идти за кадром поверх независимых кадров; не добавляй обязательный talking-head взгляд в объектив, если его нет в соответствующем reference-кадре."
+        ? "VOICEOVER MONTAGE: голос может идти за кадром поверх независимых кадров; talking-head взгляд выбирай только когда он помогает новой раскадровке."
         : "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     productAppearsInThisSegment
       ? input.productRole === "digital_demo"
@@ -146,16 +146,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
 }
 
 function renderStoryboardWardrobeContinuity(brief?: DirectorBrief | null) {
-  switch (brief ? brief.wardrobe_continuity || "unknown" : "stable") {
-    case "stable":
-      return "WARDROBE CONTINUITY: the director analysis marked the visible subject outfit as stable; keep the exact storyboard outfit across the continuous subject's frames and segments.";
-    case "changes_between_cuts":
-      return "WARDROBE CONTINUITY: the director analysis marked outfit changes between source cuts; use each frame's wardrobe for its corresponding interval and never copy the first outfit into unrelated cuts.";
-    case "not_visible":
-      return "WARDROBE CONTINUITY: clothing is not visible in the analyzed reference; do not invent or validate wardrobe details.";
-    default:
-      return "WARDROBE CONTINUITY: the director analysis is inconclusive; follow the wardrobe written in each storyboard frame and do not infer a global outfit lock from the format.";
-  }
+  void brief;
+  return "WARDROBE GUIDANCE: use the outfit from the new storyboard when visible. Exact reference or cross-segment clothing continuity is not required.";
 }
 
 function renderStoryboardWardrobe(storyboard: OmniStoryboardSegment) {
@@ -165,8 +157,8 @@ function renderStoryboardWardrobe(storyboard: OmniStoryboardSegment) {
 
 function renderStoryboardCameraLock(montageReference = false) {
   return montageReference
-    ? `CAMERA AUTHORITY: follow each panel camera in ${OMNI_STORYBOARD_FILE_PLACEHOLDER}. Independent montage panels may change setup, location, and background when the corresponding reference frame changes; do not invent transitions inside one panel.`
-    : `CAMERA AUTHORITY: follow each panel camera in ${OMNI_STORYBOARD_FILE_PLACEHOLDER}. Keep setup until a visible reference cut; no left-right/front-rear, seat, zoom, orbit or background changes.`;
+    ? `CAMERA AUTHORITY: follow each new panel in ${OMNI_STORYBOARD_FILE_PLACEHOLDER}. Independent montage panels may choose different setups, locations, and backgrounds; keep motion coherent inside one panel.`
+    : `CAMERA AUTHORITY: follow the new panels in ${OMNI_STORYBOARD_FILE_PLACEHOLDER}. Keep each planned setup coherent until the storyboard introduces a cut.`;
 }
 
 function renderVehicleCameraLock(brief?: DirectorBrief | null, montageReference = false) {
@@ -183,11 +175,11 @@ function renderVehicleCameraLock(brief?: DirectorBrief | null, montageReference 
   const isMovingVehicle = /(?:moving|motion|sway|vibration|handheld|driv|движущ|едет|тряск|колебан)/iu.test(referenceText);
   return [
     montageReference
-      ? "VEHICLE REFERENCE: each independent cut may use its corresponding cabin position and moment; preserve the same presenter identity and never show the presenter driving."
-      : "VEHICLE CAMERA LOCK: keep one continuous smartphone camera position inside the vehicle, with the same side of the cabin, distance, horizon and seat in every frame and segment; preserve the exact front or rear seat shown in the reference; let only visible reference cuts change the moment, never the seating position or camera location.",
+      ? "VEHICLE DIRECTION: each independent cut may choose a clear passenger viewpoint; preserve the featured avatar identity and never show the presenter driving."
+      : "VEHICLE CAMERA: keep a coherent smartphone passenger viewpoint inside each planned scene; the storyboard may introduce a clear new angle at a cut.",
     isMovingVehicle
-      ? "Preserve natural handheld micro-vibration and subtle vehicle sway from the moving car; the presenter is a passenger and never drives."
-      : "Keep the natural smartphone framing from the reference; the presenter never drives.",
+      ? "Use natural handheld micro-vibration and subtle vehicle sway; the presenter is a passenger and never drives."
+      : "Use natural smartphone framing; the presenter never drives.",
   ].join(" ");
 }
 

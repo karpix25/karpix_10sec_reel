@@ -326,6 +326,7 @@ async function ensureStoryboardSetApproval(
     referenceSignature,
     promptPlan: input.promptPlan,
     urls,
+    avatarReferenceUrl: input.avatarReferenceUrl,
     productName: input.productName,
     productReferenceUrls: input.productReferenceUrls,
     referenceFormatMode: input.referenceFormatMode || resolveReferenceFormatMode(input.directorBrief),
@@ -387,10 +388,10 @@ function buildSetRepairInstructions(
     .map((violation) => `${violation.code}: ${violation.evidence}`);
   return [
     propagateCanonicalRepair
-      ? "Regenerate this dependent storyboard from the newly repaired storyboard 1. Preserve the approved avatar, wardrobe, environment, and voiceover while aligning visual continuity. Do not use the previous dependent storyboard as a source."
+      ? "Regenerate only this failed storyboard. Preserve the saved avatar identity, approved product form, and exact voiceover; clothing, environment, and source continuity are creative choices."
       : repairMode === "fresh"
-      ? "Create a fresh storyboard from the avatar, canonical frame, product references, and reference frames. Do not use the previous failed storyboard as a source."
-      : "Patch only the visibly incorrect package or prop in the previous storyboard. Preserve the approved person, core garment, setting, and every unaffected panel.",
+      ? "Create a fresh storyboard with the saved avatar for any featured human and the approved client product form. Direct the scene freely from the current script."
+      : "Patch only the hard identity, missing product, product-form, foreign-product, or gross-corruption defect. Preserve every unaffected panel.",
     ...instructions,
     ...targeted,
   ];

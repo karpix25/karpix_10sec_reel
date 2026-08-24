@@ -71,9 +71,9 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
     scope: "reel",
     lifeFormatId: selected.format.id,
     providerFormatDescription: input.referenceSceneMode === "voiceover_broll"
-      ? "независимый B-roll с закадровым voiceover, с сохранённым молчащим аватаром, без talking-head"
+      ? "режиссёрский B-roll с закадровым voiceover; главный человек использует сохранённый аватар, фоновые люди и короткие talking-head кадры допустимы"
       : selected.format.providerDescription,
-    setting: voiceoverBrollReference ? "по соответствующим независимым reference-кадрам" : visualStyle.sceneArc.setting,
+    setting: voiceoverBrollReference ? "самостоятельные сцены по смыслу текущей реплики" : visualStyle.sceneArc.setting,
     continuityProps: voiceoverBrollReference ? [] : visualStyle.sceneArc.fixedProps,
     visualStyle: voiceoverBrollReference ? undefined : visualStyle,
     hookType,

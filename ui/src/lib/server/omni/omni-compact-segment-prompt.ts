@@ -72,23 +72,19 @@ export function renderCompactSegmentPrompt(input: {
   const hybridDelivery = timelineModes.has("on_camera") && timelineModes.has("voiceover_only");
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
   const wardrobeContinuity = input.directorBrief?.wardrobe_continuity || "unknown";
-  const wardrobeDirection = wardrobeContinuity === "stable"
-    ? "Одежду сохраняй неизменной только потому, что именно так указал анализатор для этого субъекта."
-    : wardrobeContinuity === "changes_between_cuts"
-      ? "Одежду бери из wardrobe каждого соответствующего storyboard кадра; смена между независимыми перебивками разрешена анализатором."
-      : wardrobeContinuity === "not_visible"
-        ? "Одежду не выдумывай и не проверяй, потому что в reference она не видна."
-        : "Не делай вывод об одинаковой или разной одежде из формата; следуй только одежде, указанной в текущем storyboard кадре.";
+  const wardrobeDirection = wardrobeContinuity === "not_visible"
+    ? "Одежду не выдумывай, если она не нужна текущей сцене."
+    : "Используй простой outfit из новой раскадровки; точное совпадение с reference не требуется.";
   const continuity = montageReference
-    ? "This is an independent montage segment. Do not continue the previous segment's room, camera, or prop positions; preserve subject identity only when the director analysis marks it as continuous, and preserve exact product appearance."
+    ? "This is an original independent montage segment. Preserve the featured avatar identity and exact product form; room, camera, clothes, and props may change for the new scene."
     : objectOnlyReferenceScene
       ? "Keep the same approved surface, macro camera, light, and conceptual props; never introduce a person, hands, face, head, or avatar."
       : facelessReferenceScene
         ? "Keep the same approved hands, body crop, camera, light, and props; never introduce a face, head, or avatar."
       : voiceoverBrollReference
         ? noPeopleReference
-          ? "Keep each independent B-roll cut tied to its reference frame; do not add people, hands, or an avatar."
-          : "Keep each independent B-roll cut tied to its reference frame; keep the saved avatar as the silent visual protagonist and never turn the cut into talking-head."
+          ? "Create independent script-relevant B-roll without a featured person."
+          : "Create independent script-relevant B-roll; any featured human uses the saved avatar, while background people and visible speaking are allowed."
     : input.segmentIndex < input.segmentCount
     ? "End in a stable believable state that the next part can continue from."
     : "End after the last spoken word without adding a new phrase or CTA.";
@@ -112,9 +108,9 @@ export function renderCompactSegmentPrompt(input: {
       : voiceoverBrollReference
         ? noPeopleReference
           ? "FORMAT: VOICEOVER B-ROLL. Off-camera narration over independent cutaways; no people, hands, avatar, talking-head, or lip-sync."
-          : "FORMAT: VOICEOVER B-ROLL. Off-camera narration over independent cutaways led by the saved silent avatar; no talking-head or lip-sync."
+          : "FORMAT: DIRECTOR-LED B-ROLL. Create original cutaways for the current line; any featured human uses the saved avatar. Visible speaking and background people are allowed."
       : hybridDelivery
-        ? "FORMAT: HYBRID DELIVERY. Follow each reference interval's speech_mode: on_camera means the avatar speaks visibly; voiceover_only means the same avatar performs silent independent B-roll with off-camera narration. Any visible human is the saved avatar; never generate another person."
+        ? "FORMAT: DIRECTOR-LED HYBRID. Use the saved avatar for any featured human and create the speaking or B-roll delivery that best serves the current line. Background people and exact mouth state are not continuity requirements."
       : null,
     renderVisibleSubjectPolicy(visibleSubjectPolicy),
     objectOnlyReferenceScene
@@ -138,7 +134,7 @@ export function renderCompactSegmentPrompt(input: {
     "SPEECH:",
     "Start speaking on frame 0. Use simple natural conversational Russian. Say only the current part once. Do not repeat, skip, restart, paraphrase, continue a neighbor part, or add subtitles.",
     `${voiceoverBrollReference || avatarFreeReferenceScene ? "The off-camera narrator says" : hybridDelivery ? "The avatar or off-camera narrator says according to each storyboard frame's speech_mode" : "The avatar says"}: ${input.plan.voiceoverText}`,
-    `CONTINUITY: ${montageReference ? "same identity only when the reference analysis requires it; each independent cut follows its corresponding reference setup" : objectOnlyReferenceScene ? "same surface, macro light, camera, conceptual props, and physical action order" : facelessReferenceScene ? "same hands, body crop, light, camera, and physical prop positions" : "same identity, analyzed wardrobe policy, location, light, product appearance, and physical prop positions unless the reference timeline changes"}. ${wardrobeDirection} ${continuity}`,
+    `CONTINUITY: preserve only featured avatar identity, exact approved product form, and the physical state needed inside the current action. Exact reference scene continuity is not required. ${wardrobeDirection} ${continuity}`,
     "CLEAN FRAME: no on-screen text, subtitles, captions, progress bars, overlay icons, buttons, watermarks, logos, or app interface.",
     OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
   ].filter(Boolean).join("\n");

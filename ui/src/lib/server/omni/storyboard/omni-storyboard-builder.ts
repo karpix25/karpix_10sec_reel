@@ -198,12 +198,13 @@ function buildFrame(input: {
     frameCount: input.frameCount,
   });
   const speechMode = noPeopleReference ? "voiceover_only" : referenceProfile?.speech_mode || "on_camera";
-  const referenceAction = layoutLocked
+  const referencePolicy = resolveReferenceTransferPolicy(input.referenceTransferPolicy);
+  const referenceAction = layoutLocked || referencePolicy.mode === "style_only"
     ? ""
     : renderProfileAction(referenceProfile);
   const fallbackAction = normalizeDefaultFrameAction(beat?.action, noPeopleReference);
   const referenceTransfer = buildReferenceTransferFramePlan({
-    policy: resolveReferenceTransferPolicy(input.referenceTransferPolicy),
+    policy: referencePolicy,
     spokenText: input.spokenText,
     visualCue: extractVisualCue(fallbackAction),
     productName: input.productName,
@@ -331,17 +332,14 @@ function applySpeechModeToAction(action: string, speechMode: DirectorSegmentProf
 }
 
 function renderDirectorEnvironment(brief?: DirectorBrief | null, profile?: DirectorSegmentProfile | null) {
-  const timeline = brief?.location_timeline?.[0];
   const parts = [
-    profile?.setting || timeline?.setting || brief?.atmosphere.setting,
-    profile?.environment || timeline?.environment,
-    profile?.lighting || timeline?.lighting || brief?.atmosphere.lighting,
+    profile?.lighting || brief?.atmosphere.lighting,
     brief?.atmosphere.color_grading,
     brief?.atmosphere.mood,
   ].filter(Boolean);
   return parts.length
-    ? normalizeVehicleContext(`REFERENCE SCENE LOCK: ${parts.join("; ")}`)
-    : "то же окружение и свет, что заданы сценой сегмента";
+    ? normalizeVehicleContext(`LIGHT AND MOOD INSPIRATION: ${parts.join("; ")}; choose a new location for the current line`)
+    : "выбери ясное окружение и свет для текущей реплики";
 }
 
 function renderDirectorCamera(
@@ -355,11 +353,12 @@ function renderDirectorCamera(
     ? camera.shot_types
     : camera.shot_types.filter((shotType) => !/product|packag|продукт|упаков/iu.test(shotType));
   return normalizeVehicleContext(compactText([
-    "reference camera lock:",
+    "camera inspiration:",
     shotTypes.join(", "),
     camera.angles.length ? `angles ${camera.angles.join(", ")}` : "",
     camera.movements.length ? `movement ${camera.movements.join(", ")}` : "",
     camera.stabilization,
+    "choose the clearest angle for the current beat",
   ].filter(Boolean).join("; "), 220));
 }
 

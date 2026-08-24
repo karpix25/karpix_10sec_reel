@@ -28,10 +28,7 @@ export function sanitizeVoiceoverBrollStoryboardText(value: string) {
     .replace(/\btalking-head\s+(?:кадр|framing)\b/giu, "independent B-roll framing")
     .replace(/avatar\s+lower-left\s+cutout/giu, "independent B-roll framing");
 
-  const withIdentityLock = /сохранённ(?:ый|ого)\s+аватар/iu.test(sanitized) && !/других\s+людей\s+в\s+кадре\s+нет/iu.test(sanitized)
-    ? `${sanitized}; единственный видимый человек — сохранённый аватар, других людей в кадре нет`
+  return /сохранённ(?:ый|ого)\s+аватар/iu.test(sanitized)
+    ? `${sanitized}; главный человек в кадре — сохранённый аватар; фоновые люди допустимы`
     : sanitized;
-  return /речь\s+звучит\s+за\s+кадром/iu.test(withIdentityLock) && !/сомкнут(?:ыми|ые)\s+губ/iu.test(withIdentityLock)
-    ? `${withIdentityLock}; сохранённый аватар сохраняет нейтральное молчаливое выражение с сомкнутыми губами`
-    : withIdentityLock;
 }
