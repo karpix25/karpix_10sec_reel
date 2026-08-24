@@ -62,9 +62,9 @@ export function buildStoryboardImagePrompt(input: {
     ? renderProductPhysicalStoryboardHint(input.productPhysicalContract)
     : "";
   return [
-    `UGC-storyboard: черный фон, ровно ${frameCount} вертикальных панелей в ряд, белые разделители и номер панели.`,
+    `UGC-storyboard: черный фон, ровно ${frameCount} вертикальных панелей в ряд и белые разделители.`,
     renderReferenceSegmentPlanForPrompt(input.referenceSegmentPlan),
-    "В каждой панели: живой вертикальный кадр, точная реплика на русском, короткие подписи РАКУРС и ДЕЙСТВИЕ.",
+    "В панелях только живые вертикальные кадры без букв, цифр, реплик, заголовков и технических подписей.",
     "Без рекламного дизайна, элементов соцсетей, водяных знаков, captions, стикеров и декора; экран продукта допустим только по product reference.",
     objectOnlyReferenceScene
       ? "OBJECT-ONLY CONTRACT: в кадре нет человека, рук, лица, головы, глаз, губ, портрета аватара или talking-head. Показывай только утверждённую поверхность, предметы и концептуальные пропы. Озвучка идёт за кадром. Не добавляй человека из avatar reference."
@@ -176,7 +176,7 @@ export function buildStoryboardImagePrompt(input: {
     ...input.storyboard.frames.map((frame, index) =>
       [
         `Кадр ${index + 1}, ${index * 2}-${(index + 1) * 2} сек:`,
-        `РЕПЛИКА "${frame.spokenText}".`,
+        `смысл речи для визуального действия: ${frame.spokenText}.`,
         frame.speechMode ? `speech_mode: ${frame.speechMode};` : "",
         `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)};${index === 0 ? ` окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};` : ""}`,
         frame.effectNotes ? `переход: ${compactText(frame.effectNotes)};` : "",

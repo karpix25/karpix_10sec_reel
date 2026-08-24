@@ -13,6 +13,7 @@ import {
   isKiePublicFigureSafetyBlock,
   regenerateKieSafetyBlockedStoryboard,
 } from "./omni-kie-safety-storyboard-repair";
+import { OmniSpeechQualityError } from "./omni-speech-quality";
 
 export async function syncOmniReelSegments(input: {
   reel: OmniReel;
@@ -41,11 +42,21 @@ export async function syncOmniReelSegments(input: {
         }).catch((error) => console.error("KIE video cost sync failed:", error));
       }
       if (status === "completed") {
-        await storeCompletedSegment({
-          projectId: input.reel.project_id,
-          segment,
-          task,
-        });
+        try {
+          await storeCompletedSegment({
+            projectId: input.reel.project_id,
+            segment,
+            task,
+          });
+        } catch (error) {
+          if (!(error instanceof OmniSpeechQualityError)) throw error;
+          if (canRetryOmniSegment(segment.request_payload)) {
+            await resetSegmentForRetry(segment, task.raw, error.message);
+            retried = true;
+          } else {
+            await markSegmentFailed(segment, task.raw, error.message);
+          }
+        }
       } else if (status === "failed" || status === "error") {
         const message = String(task.error || "Omni segment failed");
         const safetyStoryboardRepair = segment.generation_provider === "kie-ai" &&

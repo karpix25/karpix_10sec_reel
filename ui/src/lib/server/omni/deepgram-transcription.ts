@@ -1,5 +1,8 @@
-import { readFile } from "fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import path from "path";
 import type { WordTimestamp } from "@/types";
+import { runOmniFfmpeg } from "./omni-ffmpeg";
 
 export type DeepgramTranscript = {
   transcript: string;
@@ -78,4 +81,17 @@ export async function transcribeAudioFileWithDeepgram(filePath: string): Promise
   }
 
   return parseDeepgramTranscription(await response.json());
+}
+
+export async function transcribeVideoBufferWithDeepgram(videoBuffer: Buffer) {
+  const workdir = await mkdtemp(path.join(tmpdir(), "omni-segment-speech-"));
+  const videoPath = path.join(workdir, "segment.mp4");
+  const audioPath = path.join(workdir, "audio.wav");
+  try {
+    await writeFile(videoPath, videoBuffer);
+    await runOmniFfmpeg(["-y", "-i", videoPath, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", audioPath]);
+    return transcribeAudioFileWithDeepgram(audioPath);
+  } finally {
+    await rm(workdir, { recursive: true, force: true }).catch(() => {});
+  }
 }

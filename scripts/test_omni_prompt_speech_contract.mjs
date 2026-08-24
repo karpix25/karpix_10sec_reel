@@ -121,7 +121,9 @@ try {
       ],
       canonicalStoryboardReferenceUrl: item.index > 1 ? "https://example.com/first-storyboard.jpg" : null,
     });
-    assert.ok(imagePrompt.includes(`РЕПЛИКА "${item.storyboardPlan.frames[0].spokenText}"`), "storyboard image prompt must draw frame speech");
+    assert.ok(imagePrompt.includes(`смысл речи для визуального действия: ${item.storyboardPlan.frames[0].spokenText}`), "storyboard image prompt must preserve speech meaning for visual planning");
+    assert.ok(imagePrompt.includes("без букв, цифр, реплик, заголовков"), "storyboard image prompt must keep provider references text-free");
+    assert.ok(!imagePrompt.includes("РЕПЛИКА \""), "storyboard image prompt must not render spoken text as a caption");
     assert.ok(imagePrompt.includes(`ровно ${item.storyboardPlan.frames.length} вертикальных панелей`), "storyboard image prompt must lock the storyboard panel count");
     assert.ok(imagePrompt.includes("@file1 - avatar/character reference"), "storyboard image prompt must bind the avatar file");
     assert.ok(imagePrompt.includes("кадры оригинала: источник локации") || imagePrompt.includes("кадры оригинала: источник только локации"), "storyboard image prompt must preserve the source visual contract");

@@ -10,6 +10,8 @@ import { createContinuityFrameAsset } from "./omni-frame-continuity";
 import { downloadProviderVideo, type ProviderTask } from "./omni-provider-tasks";
 import { startOmniReelSubtitlesIfEnabled } from "./omni-reel-subtitles";
 import { mixBackgroundAudioForReel } from "./omni-background-audio";
+import { transcribeVideoBufferWithDeepgram } from "./deepgram-transcription";
+import { assertOmniSpeechQuality } from "./omni-speech-quality";
 
 export async function storeCompletedSegment(input: {
   projectId: number;
@@ -22,6 +24,12 @@ export async function storeCompletedSegment(input: {
 
   const provider = normalizeOmniGenerationProvider(input.segment.generation_provider);
   const videoBuffer = await downloadProviderVideo(provider, input.segment.kie_task_id);
+  const speechQuality = input.segment.voiceover_text?.trim()
+    ? assertOmniSpeechQuality(
+        input.segment.voiceover_text,
+        (await transcribeVideoBufferWithDeepgram(videoBuffer)).transcript
+      )
+    : null;
   const videoUrl = await uploadOmniVideoBufferToS3({
     projectId: input.projectId,
     reelId: input.segment.reel_id,
@@ -40,6 +48,7 @@ export async function storeCompletedSegment(input: {
   const responsePayload = {
     ...input.task.raw,
     continuity_frame: continuity.payload,
+    speech_quality: speechQuality,
   };
 
   await pool.query(
