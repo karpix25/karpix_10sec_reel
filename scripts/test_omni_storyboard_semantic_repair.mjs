@@ -38,6 +38,9 @@ try {
   }));
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", join(output, "tsconfig.json")], { cwd: ui, stdio: "inherit" });
   mirrorAlias("lib");
+  const pgStub = join(output, "node_modules", "pg");
+  mkdirSync(pgStub, { recursive: true });
+  writeFileSync(join(pgStub, "index.js"), "class Pool { async query() { return { rows: [] }; } } module.exports = { Pool };\n");
 
   const { prepareOmniPromptPlanWithSemanticRepair } = require(findFile(compiled, "omni-storyboard-semantic-repair.js"));
   process.env.OPENROUTER_API_KEY = "test-key";
@@ -75,6 +78,8 @@ async function runScenario(prepare, options) {
   let finalReviewCalls = 0;
   const promptPlan = [buildPromptPlan(options.suffix)];
   const input = {
+    projectId: 1,
+    productId: 1,
     promptPlan,
     script: "Это тестовая реплика для нового ролика",
     productName: "Тестовый продукт",
