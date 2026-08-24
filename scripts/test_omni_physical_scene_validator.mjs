@@ -55,9 +55,15 @@ try {
   const digitalProductScene = require(findFile(compiled, "digital-product-scene.js"));
   const storyboardVisionContract = require(findFile(compiled, "storyboard-vision-contract.js"));
   const storyboardRepairLimit = require(findFile(compiled, "storyboard-repair-limit.js"));
+  const storyboardTextSanitizer = require(findFile(compiled, "omni-storyboard-text-sanitizer.js"));
 
   assert.equal(storyboardRepairLimit.canAttemptStoryboardImageGeneration(2), true);
   assert.equal(storyboardRepairLimit.canAttemptStoryboardImageGeneration(3), false);
+  const silentVoiceoverAction = storyboardTextSanitizer.sanitizeVoiceoverBrollStoryboardText(
+    "Мужчина жестикулирует, объясняя преимущества приложения; самостоятельная B-roll сцена, речь звучит за кадром"
+  );
+  assert.doesNotMatch(silentVoiceoverAction, /объясняя|говорит|рассказывает/iu);
+  assert.match(silentVoiceoverAction, /сомкнутыми губами/iu);
   assert.deepEqual(
     storyboardRepairLimit.resolveStoryboardImageGenerationAttempt({
       previousAttemptCount: 3,

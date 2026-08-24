@@ -15,10 +15,16 @@ export function sanitizeFacelessStoryboardText(value: string, referenceSceneMode
 }
 
 export function sanitizeVoiceoverBrollStoryboardText(value: string) {
-  return value
+  const sanitized = value
     .replace(/(?:герой|персонаж)(?:\s+(?:естественно|живо|спокойно|продолжает|свободно|уверенно|активно|снова|вновь)){0,3}\s+говорит\s+в\s+камеру/giu, "видимый B-roll субъект естественно присутствует в кадре")
     .replace(/(?:герой|персонаж)(?:\s+(?:естественно|живо|спокойно|продолжает|свободно|уверенно|активно|снова|вновь)){0,3}\s+смотрит\s+(?:прямо\s+)?в\s+(?:объектив|камеру)/giu, "камера сохраняет соответствующий reference-ракурс")
+    .replace(/,\s*(?:объясняя|рассказывая|произнося|комментируя|делая\s+акцент\s+на)[^.;]*/giu, "")
+    .replace(/\b(?:говорит|рассказывает|объясняет|произносит|комментирует)\b[^.;]*/giu, "молча жестикулирует")
     .replace(/\btalking-head\s+(?:кадр|framing)\b/giu, "independent B-roll framing")
     .replace(/главн(?:ый|ого)\s+персонаж/giu, "видимый B-roll субъект")
     .replace(/avatar\s+lower-left\s+cutout/giu, "independent B-roll framing");
+
+  return /речь\s+звучит\s+за\s+кадром/iu.test(sanitized) && !/сомкнут(?:ыми|ые)\s+губ/iu.test(sanitized)
+    ? `${sanitized}; видимый B-roll субъект сохраняет нейтральное молчаливое выражение с сомкнутыми губами`
+    : sanitized;
 }
