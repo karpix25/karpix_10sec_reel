@@ -117,6 +117,14 @@ try {
     /последний CTA должен вести по ссылке в профиле/u,
     "foreign description CTA after the product CTA must fail",
   );
+  assert.throws(
+    () => qualityContract.assertCtaConclusionContract(
+      "Плати по миру помогает платить за границей. Ссылка в профиле. Так что не слушай новости. Путешествуй.",
+      "link_in_profile",
+    ),
+    /утвердительный вывод/u,
+    "imperative conclusion with a connective must fail",
+  );
   assert.ok(
     semanticReviewerSource.includes("reconcileSemanticConclusion")
       && semanticReviewerSource.includes("assertCtaConclusionContract")

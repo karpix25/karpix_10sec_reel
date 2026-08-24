@@ -12,7 +12,7 @@ import { validateReferenceMeaningCoverage, type ReferenceMeaningCoverage } from 
 const FORBIDDEN_SYMBOL_ERROR = "Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.";
 const DURATION_MIN_WORD_TOLERANCE = 2;
 const CTA_SENTENCE_PATTERN = /артикул|описани|коммент|кодово.*слов|ссылк|профил/iu;
-const IMPERATIVE_CONCLUSION_PATTERN = /^(?:забудь(?:те)?|наслаждай(?:ся|тесь)|путешествуй(?:те)?|попробуй(?:те)?|используй(?:те)?|выбирай(?:те)?|плати(?:те)?|лети(?:те)?|будь(?:те)?|ознакомь(?:ся|тесь)|подпишись|подпишитесь|пиши(?:те)?|хочешь\s+так\s+же)(?=$|[^\p{L}\p{N}])/iu;
+const IMPERATIVE_CONCLUSION_PATTERN = /^(?:так\s+что\s+)?(?:не\s+)?(?:забудь(?:те)?|слушай(?:те)?|наслаждай(?:ся|тесь)|путешествуй(?:те)?|попробуй(?:те)?|используй(?:те)?|выбирай(?:те)?|плати(?:те)?|лети(?:те)?|будь(?:те)?|ознакомь(?:ся|тесь)|подпишись|подпишитесь|пиши(?:те)?|хочешь\s+так\s+же)(?=$|[^\p{L}\p{N}])/iu;
 
 export interface ScriptQualityResult {
   score: number;
