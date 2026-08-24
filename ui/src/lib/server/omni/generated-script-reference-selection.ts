@@ -1,5 +1,6 @@
 import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { normalizeDirectorBrief, type OmniDirectorAnalysis } from "./director-analysis-types";
+import { isAvatarFreeVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import type { GeneratedScriptSourceMode } from "./generated-script-source";
 
 export const MAX_DIRECTOR_REFERENCE_ATTEMPTS = 16;
@@ -33,6 +34,7 @@ export async function resolveReadyGeneratedScriptReference(input: {
     sourceScenario: OmniLegacyScenario;
   }) => Promise<OmniDirectorAnalysis>;
   reviewProductFit?: (sourceScenario: OmniLegacyScenario) => Promise<ReferenceProductFit>;
+  requireVisibleAvatar?: boolean;
   warn?: (message: string) => void;
 }): Promise<ResolvedGeneratedScriptReference> {
   const maxAttempts = input.maxAttempts || MAX_DIRECTOR_REFERENCE_ATTEMPTS;
@@ -64,6 +66,20 @@ export async function resolveReadyGeneratedScriptReference(input: {
       : null;
 
     if (isDirectorReferenceReady(directorAnalysis)) {
+      const directorBrief = directorAnalysis
+        ? normalizeDirectorBrief(directorAnalysis.director_analysis_json)
+        : null;
+      const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(directorBrief);
+      if (
+        input.requireVisibleAvatar &&
+        source.sourceMode !== "selected_legacy_reference" &&
+        isAvatarFreeVisibleSubjectPolicy(visibleSubjectPolicy)
+      ) {
+        excludedLegacyScenarioIds.push(source.sourceScenario.id);
+        skippedFailures.push(`#${source.sourceScenario.id}: avatar-incompatible: ${visibleSubjectPolicy}`);
+        input.warn?.(`Skipping avatar-incompatible Omni reference source #${source.sourceScenario.id}: ${visibleSubjectPolicy}`);
+        continue;
+      }
       return {
         ...source,
         directorAnalysis,

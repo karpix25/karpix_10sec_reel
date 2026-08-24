@@ -286,6 +286,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     resolveSource: resolveGeneratedScriptSource,
     shouldAnalyze: shouldAnalyzeDirectorReference,
     ensureAnalysis: ensureDirectorAnalysis,
+    requireVisibleAvatar: Boolean(avatar),
     reviewProductFit: (sourceScenario) => reviewReferenceProductFit({
       model: process.env.SCENARIO_MODEL || "google/gemini-2.5-flash",
       sourceScenario,

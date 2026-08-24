@@ -146,6 +146,31 @@ try {
   assert.deepEqual(analyzedIds, [compatible.id], "incompatible reference must be skipped before director analysis");
   assert.match(fitWarnings[0], /product-incompatible/);
 
+  const handsOnly = legacyScenario(2937);
+  const silentAvatar = legacyScenario(2938);
+  const avatarWarnings = [];
+  const resolvedAfterAvatarMismatch = await resolveReadyGeneratedScriptReference({
+    projectId: 7,
+    productId: 9,
+    maxAttempts: 3,
+    requireVisibleAvatar: true,
+    resolveSource: async (input) => ({
+      sourceScenario: input.excludedLegacyScenarioIds?.length ? silentAvatar : handsOnly,
+      sourceMode: "round_robin_active_legacy_reference",
+    }),
+    shouldAnalyze: () => true,
+    ensureAnalysis: async ({ sourceScenario }) => {
+      const analysis = directorAnalysis(sourceScenario.id, "completed", null);
+      analysis.director_analysis_json.visible_subject_policy = sourceScenario.id === handsOnly.id
+        ? "hands_only"
+        : "silent_avatar";
+      return analysis;
+    },
+    warn: (message) => avatarWarnings.push(message),
+  });
+  assert.equal(resolvedAfterAvatarMismatch.sourceScenario.id, silentAvatar.id);
+  assert.match(avatarWarnings[0], /avatar-incompatible/);
+
   await assert.rejects(
     () => resolveReadyGeneratedScriptReference({
       projectId: 7,
