@@ -128,6 +128,10 @@ try {
   assert.equal(normalizedProvider.segmentPrompts[0].storyboardFrames.length, 4);
   assert.equal(numberWords.formatPromptChainRange(60, 72), "от шестидесяти до семидесяти двух");
   assert.ok(!/[\d-]/u.test(numberWords.formatPromptChainRange(60, 72)));
+  assert.equal(
+    numberWords.spellPromptChainNumbersInText("Билет 68 тысяч, залог 7, итого 124 400 рублей"),
+    "Билет шестьдесят восемь тысяч, залог семь, итого сто двадцать четыре тысячи четыреста рублей"
+  );
 
   const repairedFrameCount = normalizer.lockDirectorPlanSpeech(
     {

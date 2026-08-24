@@ -46,6 +46,7 @@ import {
   reviewScriptSemantics,
 } from "./script-semantic-reviewer";
 import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
+import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
 import { getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
 import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
@@ -189,7 +190,7 @@ async function runCreativeCopywriter(
       const draft = normalizeCreativeScriptDraft(content);
       if (!draft) throw new Error("Creative copywriter returned empty script");
       const script = compactOmniScriptToWordBudget(
-        sanitizeOmniScriptText(formatScenarioScript(draft.script)),
+        spellPromptChainNumbersInText(sanitizeOmniScriptText(formatScenarioScript(draft.script))),
         input.durationRange?.maxWords || getOmniMaxScriptWords(),
         { referenceScript: input.sourceScenario.script, productName: input.productName },
       );

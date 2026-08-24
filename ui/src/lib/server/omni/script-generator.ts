@@ -38,6 +38,7 @@ import {
 } from "./script-semantic-reviewer";
 import type { ScriptSemanticReview } from "./llm-prompt-chain-types";
 import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
+import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
 import { getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
 import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
 
@@ -218,7 +219,7 @@ async function requestScriptOnce(
   const voiceoverScript = deriveVoiceoverScriptFromPlan(scriptPlan);
   const rawScriptSource = voiceoverScript || parsed.script;
   const rawScriptFromModel = String(rawScriptSource || "");
-  const rawScript = sanitizeOmniScriptText(formatScenarioScript(rawScriptSource));
+  const rawScript = spellPromptChainNumbersInText(sanitizeOmniScriptText(formatScenarioScript(rawScriptSource)));
   if (!rawScript) throw new Error("Script model returned empty script");
   let script = ensureOmniScriptCta(rawScript, input.ctaMode, input.ctaValue);
   const scriptBudget = Math.min(input.durationRange?.maxWords || getOmniMaxScriptWords(), getOmniMaxScriptWords() - 4);
