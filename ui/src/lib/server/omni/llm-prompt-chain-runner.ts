@@ -194,10 +194,11 @@ async function runCreativeCopywriter(
       );
       const maxWords = input.durationRange?.maxWords || getOmniMaxScriptWords();
       previousDraft = { ...draft, script: normalizedScript };
-      if (creativeAttempt.mode === "targeted_repair" && countOmniScriptWords(normalizedScript) > maxWords) {
+      const overWordBudget = countOmniScriptWords(normalizedScript) > maxWords;
+      if (creativeAttempt.mode === "targeted_repair" && overWordBudget && attempt < CREATIVE_COPYWRITER_ATTEMPTS) {
         throw new Error(`Исправленный сценарий длиннее лимита: ${countOmniScriptWords(normalizedScript)} слов вместо ${maxWords}. Сократи второстепенные формулировки, не удаляя обязательные исправления.`);
       }
-      const script = creativeAttempt.mode === "targeted_repair"
+      const script = creativeAttempt.mode === "targeted_repair" && !overWordBudget
         ? normalizedScript
         : compactOmniScriptToWordBudget(normalizedScript, maxWords, {
           referenceScript: input.sourceScenario.script,

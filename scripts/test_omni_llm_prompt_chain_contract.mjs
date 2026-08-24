@@ -82,8 +82,8 @@ try {
   );
   assert.match(
     runnerSource,
-    /creativeAttempt\.mode === "targeted_repair"[\s\S]*countOmniScriptWords\(normalizedScript\)[\s\S]*\? normalizedScript\s*: compactOmniScriptToWordBudget/u,
-    "targeted semantic repairs must be shortened by the copywriter instead of deleting repaired sentences"
+    /creativeAttempt\.mode === "targeted_repair" && overWordBudget && attempt < CREATIVE_COPYWRITER_ATTEMPTS[\s\S]*creativeAttempt\.mode === "targeted_repair" && !overWordBudget[\s\S]*\? normalizedScript\s*: compactOmniScriptToWordBudget/u,
+    "targeted repairs must keep content until the final budget fallback"
   );
   assert.match(
     runnerSource,
