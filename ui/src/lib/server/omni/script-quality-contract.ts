@@ -11,6 +11,8 @@ import { validateReferenceMeaningCoverage, type ReferenceMeaningCoverage } from 
 
 const FORBIDDEN_SYMBOL_ERROR = "Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.";
 const DURATION_MIN_WORD_TOLERANCE = 2;
+const CTA_SENTENCE_PATTERN = /артикул|описани|коммент|кодово.*слов|ссылк|профил/iu;
+const IMPERATIVE_CONCLUSION_PATTERN = /^(?:забудь(?:те)?|наслаждай(?:ся|тесь)|путешествуй(?:те)?|попробуй(?:те)?|используй(?:те)?|выбирай(?:те)?|плати(?:те)?|лети(?:те)?|будь(?:те)?|подпишись|подпишитесь|пиши(?:те)?|хочешь\s+так\s+же)(?=$|[^\p{L}\p{N}])/iu;
 
 export interface ScriptQualityResult {
   score: number;
@@ -209,6 +211,7 @@ export function validateViralScriptContract(input: {
   if (input.ctaMode === "article_in_description") {
     assertArticleCtaHasContext(scriptText);
   }
+  assertCtaConclusionContract(scriptText, input.ctaMode);
 
   const repeatedDescriptor = findRepeatedProductDescriptor(scriptText, input.productName);
   if (repeatedDescriptor) {
@@ -337,6 +340,22 @@ export function validateViralScriptContract(input: {
 export function assertGeneratedScriptSymbolContract(value: string) {
   if (hasForbiddenOmniScriptSymbols(value)) {
     throw new Error(FORBIDDEN_SYMBOL_ERROR);
+  }
+}
+
+export function assertCtaConclusionContract(script: string, ctaMode: string) {
+  if (ctaMode === "no_explicit_cta") return;
+  const sentences = getSentences(script);
+  let ctaIndex = -1;
+  for (let index = sentences.length - 1; index >= 0; index -= 1) {
+    if (CTA_SENTENCE_PATTERN.test(sentences[index] || "")) {
+      ctaIndex = index;
+      break;
+    }
+  }
+  const conclusion = ctaIndex >= 0 ? sentences[ctaIndex + 1] : null;
+  if (!conclusion || conclusion.endsWith("?") || IMPERATIVE_CONCLUSION_PATTERN.test(conclusion)) {
+    throw new Error("Сценарий отклонен: после CTA нужен отдельный утвердительный вывод, а не вопрос, приказ или новый призыв.");
   }
 }
 

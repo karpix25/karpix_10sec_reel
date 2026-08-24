@@ -61,6 +61,7 @@ try {
   const runner = requireRunnerWithStubs(findFile(output, "llm-prompt-chain-runner.js"));
   const numberWords = require(findFile(output, "llm-prompt-chain-number-words.js"));
   const lengthGuard = require(findFile(output, "omni-script-length-guard.js"));
+  const qualityContract = require(findFile(output, "script-quality-contract.js"));
   assert.ok(runner.runLlmPromptChain, "runner smoke import must expose runLlmPromptChain");
   const runnerSource = readFileSync(join(ui, "src/lib/server/omni/llm-prompt-chain-runner.ts"), "utf8");
   assert.match(
@@ -81,6 +82,15 @@ try {
   assert.ok(compactedConclusion.includes("Плати по миру виртуальная карта помогает платить за границей."), "word-budget compaction must preserve the product sentence");
   assert.ok(compactedConclusion.includes("Ссылка в профиле."), "word-budget compaction must preserve the CTA");
   assert.ok(compactedConclusion.endsWith("Лангкави подходит для бюджетной зимовки."), "word-budget compaction must preserve the conclusion after CTA");
+  assert.throws(
+    () => qualityContract.assertCtaConclusionContract("Ссылка в профиле. Путешествуйте дешево и с комфортом.", "link_in_profile"),
+    /утвердительный вывод/u,
+    "imperative text after CTA must fail deterministically"
+  );
+  assert.doesNotThrow(
+    () => qualityContract.assertCtaConclusionContract("Ссылка в профиле. Тунис подходит для бюджетного морского отдыха.", "link_in_profile"),
+    "declarative conclusion after CTA must pass"
+  );
 
   const directorPlan = makeDirectorPlan();
   const providerPlan = makeProviderPlan();
