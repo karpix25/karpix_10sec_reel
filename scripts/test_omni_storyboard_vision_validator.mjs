@@ -51,7 +51,7 @@ try {
   assert.equal(wardrobe.requiresContinuousPresenterWardrobe({
     referenceFormatMode: "voiceover_montage",
     referenceSceneMode: "presenter",
-  }), false);
+  }), true);
   assert.equal(wardrobe.requiresContinuousPresenterWardrobe({
     referenceFormatMode: "continuous_story",
     referenceSceneMode: "voiceover_broll",

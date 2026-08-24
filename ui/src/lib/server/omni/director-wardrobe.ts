@@ -33,7 +33,7 @@ export function requiresContinuousPresenterWardrobe(input: {
   referenceFormatMode?: ReferenceFormatMode;
   referenceSceneMode?: ReferenceSceneMode;
 }) {
-  return input.referenceFormatMode === "continuous_story" && input.referenceSceneMode === "presenter";
+  return input.referenceSceneMode === "presenter";
 }
 
 export function normalizeDirectorWardrobeContinuity(value: unknown): DirectorWardrobeContinuity | null {
