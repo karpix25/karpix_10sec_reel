@@ -19,7 +19,6 @@ export function resolveCreativeCopywriterAttemptMode(input: {
   hasRejectedScript: boolean;
 }): CreativeCopywriterAttemptMode {
   if (input.attempt === 1) return "initial";
-  if (input.attempt === input.maxAttempts) return "full_rebuild";
   return input.hasRejectedScript ? "targeted_repair" : "retry";
 }
 

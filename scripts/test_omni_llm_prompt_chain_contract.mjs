@@ -60,9 +60,15 @@ try {
   const normalizer = require(findFile(output, "llm-prompt-chain-normalizer.js"));
   const runner = requireRunnerWithStubs(findFile(output, "llm-prompt-chain-runner.js"));
   const numberWords = require(findFile(output, "llm-prompt-chain-number-words.js"));
+  const creativeRepair = require(findFile(output, "llm-prompt-chain-creative-repair.js"));
   const lengthGuard = require(findFile(output, "omni-script-length-guard.js"));
   const qualityContract = require(findFile(output, "script-quality-contract.js"));
   assert.ok(runner.runLlmPromptChain, "runner smoke import must expose runLlmPromptChain");
+  assert.equal(
+    creativeRepair.resolveCreativeCopywriterAttemptMode({ attempt: 3, maxAttempts: 3, hasRejectedScript: true }),
+    "targeted_repair",
+    "final copywriter attempt must repair the best rejected draft instead of discarding it"
+  );
   const runnerSource = readFileSync(join(ui, "src/lib/server/omni/llm-prompt-chain-runner.ts"), "utf8");
   assert.match(
     runnerSource,

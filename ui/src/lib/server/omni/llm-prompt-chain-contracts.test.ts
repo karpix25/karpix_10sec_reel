@@ -67,7 +67,7 @@ test("creative semantic failures use two targeted repairs before one clean rebui
       maxAttempts: 4,
       hasRejectedScript: attempt > 1,
     })),
-    ["initial", "targeted_repair", "targeted_repair", "full_rebuild"]
+    ["initial", "targeted_repair", "targeted_repair", "targeted_repair"]
   );
 
   const review = {
@@ -105,7 +105,7 @@ test("creative semantic failures use two targeted repairs before one clean rebui
   assert.ok(repairAttempt.prompt.includes("Добавьте ответ перед CTA"));
   assert.ok(repairAttempt.prompt.includes("сначала произнеси полноценный вывод, затем CTA"));
 
-  const rebuildAttempt = buildCreativeCopywriterAttemptPrompt({
+  const finalRepairAttempt = buildCreativeCopywriterAttemptPrompt({
     chainInput: makeCreativeInput(),
     attempt: 4,
     maxAttempts: 4,
@@ -118,10 +118,9 @@ test("creative semantic failures use two targeted repairs before one clean rebui
     semanticReview: review,
     failureReason: "semantic review failed",
   });
-  assert.equal(rebuildAttempt.mode, "full_rebuild");
-  assert.ok(rebuildAttempt.prompt.includes("с чистого листа"));
-  assert.ok(rebuildAttempt.prompt.includes("не повторяй его формулировки"));
-  assert.ok(!rebuildAttempt.prompt.includes(rejectedScript));
+  assert.equal(finalRepairAttempt.mode, "targeted_repair");
+  assert.ok(finalRepairAttempt.prompt.includes("Rejected script:"));
+  assert.ok(finalRepairAttempt.prompt.includes(rejectedScript));
 });
 
 function makePlan(): DirectorSegmentPlan {
