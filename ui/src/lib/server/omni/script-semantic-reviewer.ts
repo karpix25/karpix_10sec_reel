@@ -5,6 +5,7 @@ import type { DirectorBrief } from "./director-analysis-types";
 import type { ScriptSemanticReview } from "./llm-prompt-chain-types";
 import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 import { parseAndRepairJson } from "./script-json-repair";
+import { assertCtaConclusionContract } from "./script-quality-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -65,7 +66,36 @@ export async function reviewScriptSemantics(
     pricing,
   }));
 
-  return normalizeScriptSemanticReview(parseAndRepairJson(readAssistantContent(data)));
+  return reconcileSemanticConclusion(
+    normalizeScriptSemanticReview(parseAndRepairJson(readAssistantContent(data))),
+    input.script,
+    input.ctaMode,
+  );
+}
+
+export function reconcileSemanticConclusion(
+  review: ScriptSemanticReview,
+  script: string,
+  ctaMode: string,
+): ScriptSemanticReview {
+  if (review.finalAnswerPresent || !hasDeterministicCtaConclusion(script, ctaMode)) return review;
+  const patched = {
+    ...review,
+    finalAnswerPresent: true,
+    issues: review.issues.filter((item) => !isConclusionOnlyFeedback(item)),
+    repairInstructions: review.repairInstructions.filter((item) => !isConclusionOnlyFeedback(item)),
+  };
+  return {
+    ...patched,
+    passed: [
+      patched.productNamed,
+      patched.productValueStated,
+      patched.hookAnswered,
+      patched.finalAnswerPresent,
+      patched.productNaturallyIntegrated,
+      patched.referenceMeaningPreserved,
+    ].every(Boolean),
+  };
 }
 
 export function assertScriptSemanticReviewPassed(review: ScriptSemanticReview) {
@@ -166,6 +196,19 @@ function readAssistantContent(data: Record<string, unknown>) {
   const message = isRecord(firstChoice) && isRecord(firstChoice.message) ? firstChoice.message : null;
   if (message && typeof message.content === "string" && message.content.trim()) return message.content;
   throw new Error("Script semantic review model returned empty content");
+}
+
+function hasDeterministicCtaConclusion(script: string, ctaMode: string) {
+  try {
+    assertCtaConclusionContract(script, ctaMode);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isConclusionOnlyFeedback(value: string) {
+  return /финальн(?:ый|ого|ом)\s+вывод|утвердительн(?:ый|ого|ом)\s+вывод|после\s+cta|заканчивается\s+(?:cta|призыв)/iu.test(value);
 }
 
 function readText(value: unknown) {

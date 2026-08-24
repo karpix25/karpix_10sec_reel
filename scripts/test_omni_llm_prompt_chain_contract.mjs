@@ -70,6 +70,7 @@ try {
     "final copywriter attempt must repair the best rejected draft instead of discarding it"
   );
   const runnerSource = readFileSync(join(ui, "src/lib/server/omni/llm-prompt-chain-runner.ts"), "utf8");
+  const semanticReviewerSource = readFileSync(join(ui, "src/lib/server/omni/script-semantic-reviewer.ts"), "utf8");
   assert.match(
     runnerSource,
     /validateStoryboard(?:DirectorPlan|ProviderPlan|ProviderAlignment)/u,
@@ -106,6 +107,12 @@ try {
   assert.doesNotThrow(
     () => qualityContract.assertCtaConclusionContract("Ссылка в профиле. Тунис подходит для бюджетного морского отдыха.", "link_in_profile"),
     "declarative conclusion after CTA must pass"
+  );
+  assert.ok(
+    semanticReviewerSource.includes("reconcileSemanticConclusion")
+      && semanticReviewerSource.includes("assertCtaConclusionContract")
+      && semanticReviewerSource.includes("finalAnswerPresent: true"),
+    "semantic reviewer must defer declarative CTA conclusions to the deterministic contract"
   );
 
   const directorPlan = makeDirectorPlan();
@@ -360,10 +367,6 @@ try {
 
   const promptChainSource = readFileSync(
     join(ui, "src/lib/server/omni/llm-prompt-chain-prompts.ts"),
-    "utf8"
-  );
-  const semanticReviewerSource = readFileSync(
-    join(ui, "src/lib/server/omni/script-semantic-reviewer.ts"),
     "utf8"
   );
   assert.ok(promptChainSource.includes("смысловую основу"), "LLM chain copywriter must use the reference as source material");
