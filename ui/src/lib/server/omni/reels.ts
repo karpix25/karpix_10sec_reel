@@ -280,6 +280,8 @@ export async function createOmniReel(input: {
     referenceSceneMode: resolveReferenceSceneMode(directorBrief),
   });
   const promptPlan = await prepareOmniPromptPlanWithSemanticRepair({
+    projectId: input.projectId,
+    productId: input.productId,
     promptPlan: repairedPromptPlan,
     model: process.env.OMNI_STORYBOARD_SEMANTIC_REVIEW_MODEL?.trim()
       || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL?.trim()

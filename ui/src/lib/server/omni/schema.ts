@@ -232,6 +232,19 @@ const statements = [
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(generated_script_id, segment_index)
   )`,
+  `CREATE TABLE IF NOT EXISTS omni_semantic_storyboard_memory_rules (
+    id SERIAL PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES omni_projects(id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES omni_products(id) ON DELETE CASCADE,
+    reference_format_mode TEXT NOT NULL CHECK (reference_format_mode IN ('continuous_story', 'voiceover_montage')),
+    reference_scene_mode TEXT NOT NULL CHECK (reference_scene_mode IN ('presenter', 'voiceover_broll', 'faceless_hands', 'body_crop', 'object_only')),
+    issue_code TEXT NOT NULL,
+    positive_instruction TEXT NOT NULL,
+    occurrence_count INTEGER NOT NULL DEFAULT 1 CHECK (occurrence_count > 0),
+    last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(project_id, product_id, reference_format_mode, reference_scene_mode, issue_code)
+  )`,
   `CREATE TABLE IF NOT EXISTS omni_generation_cost_events (
     id SERIAL PRIMARY KEY,
     project_id INTEGER NOT NULL REFERENCES omni_projects(id) ON DELETE CASCADE,
@@ -409,6 +422,7 @@ const statements = [
   "CREATE INDEX IF NOT EXISTS idx_omni_generated_scripts_project_product ON omni_generated_scripts(project_id, product_id, created_at DESC)",
   "CREATE INDEX IF NOT EXISTS idx_omni_generated_scripts_source ON omni_generated_scripts(source_legacy_scenario_id)",
   "CREATE INDEX IF NOT EXISTS idx_omni_generated_script_storyboards_script ON omni_generated_script_storyboards(generated_script_id, segment_index)",
+  "CREATE INDEX IF NOT EXISTS idx_omni_semantic_storyboard_memory_scope ON omni_semantic_storyboard_memory_rules(project_id, product_id, reference_format_mode, reference_scene_mode, occurrence_count DESC)",
   "CREATE INDEX IF NOT EXISTS idx_omni_generation_cost_events_script ON omni_generation_cost_events(generated_script_id, created_at DESC)",
   "CREATE INDEX IF NOT EXISTS idx_omni_generation_cost_events_reel ON omni_generation_cost_events(reel_id, created_at DESC)",
   "CREATE INDEX IF NOT EXISTS idx_omni_reels_project_product ON omni_reels(project_id, product_id)",

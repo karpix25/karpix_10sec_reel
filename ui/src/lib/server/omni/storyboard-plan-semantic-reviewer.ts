@@ -3,6 +3,10 @@ import { normalizeOpenRouterUsage } from "@/lib/omni/openrouter-cost";
 import type { DirectorBrief } from "./director-analysis-types";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
+import {
+  renderSemanticStoryboardMemoryRules,
+  type SemanticStoryboardMemoryRule,
+} from "./semantic-storyboard-memory-contract";
 import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 import { parseAndRepairJson } from "./script-json-repair";
 
@@ -24,9 +28,11 @@ export type StoryboardPlanSemanticReviewInput = {
   script: string;
   productName: string;
   productDescription: string | null;
+  productPhysicalContract?: string | null;
   directorBrief: DirectorBrief | null;
   referenceSceneMode: ReferenceSceneMode;
   referenceFormatMode: ReferenceFormatMode;
+  learnedRules?: readonly SemanticStoryboardMemoryRule[];
   segments: readonly {
     index: number;
     voiceoverText: string;
@@ -104,9 +110,11 @@ export const STORYBOARD_PLAN_REVIEW_SYSTEM_PROMPT = [
   "Верни только JSON: {passed:boolean, issues:[{segmentIndex:number, code:string, explanation:string}], repairInstructions:string[]}.",
   "Отклоняй план, если выбранный render mode или layout не соответствует наблюдаемому reference format.",
   "Для voiceover B-roll и voiceover montage не разрешай превращать независимые перебивки в обычную говорящую голову.",
+  "Текущий режиссерский анализ reference и product contract имеют приоритет над scoped learned memory; learned memory только дополняет их.",
   "Отклоняй случайные локации, персонажей, предметы и визуальные механики, которых нет в режиссерском анализе и которые не раскрывают текущую реплику.",
   "Когда voiceover прямо говорит о продукте, storyboard обязан поддерживать эту реплику видимым продуктом или согласованной демонстрацией. Фраза «продукт вне кадра» в этот момент является ошибкой.",
   "Финальный сегмент должен завершать главный тезис или отвечать на вопрос reference, а CTA не может быть единственным содержанием финала.",
+  "repairInstructions формулируй как короткие положительные действия, без истории предыдущих проверок.",
   "Не блокируй обычную смену локации, одежды или камеры, если reference format явно voiceover montage и смена согласуется с timeline.",
   "Если данных недостаточно, не выдумывай нарушение и не блокируй по неопределенности.",
 ].join("\n");
@@ -115,10 +123,12 @@ function buildReviewPrompt(input: StoryboardPlanSemanticReviewInput) {
   return [
     `Продукт: ${input.productName}`,
     `Описание продукта: ${input.productDescription || "не указано"}`,
+    `Текущий product contract: ${input.productPhysicalContract || "не указан"}`,
     `Reference scene mode: ${input.referenceSceneMode}`,
     `Reference format mode: ${input.referenceFormatMode}`,
-    "Режиссерский анализ reference:",
+    "Текущий режиссерский анализ reference, обязательный источник правды:",
     JSON.stringify(input.directorBrief || {}, null, 2),
+    renderSemanticStoryboardMemoryRules(input.learnedRules),
     "Исходный сценарий:",
     input.script,
     "План сегментов:",

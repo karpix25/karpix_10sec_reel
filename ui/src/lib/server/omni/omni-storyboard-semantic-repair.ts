@@ -18,6 +18,14 @@ import { normalizeOmniPromptPlanWithPhysicalRules } from "./omni-physical-repair
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 import { assertStoryboardPromptContracts } from "./storyboard/storyboard-contract-validator";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
+import {
+  loadSemanticStoryboardMemory,
+  rememberSemanticStoryboardIssues,
+} from "./semantic-storyboard-memory";
+import {
+  renderSemanticStoryboardMemoryRules,
+  type SemanticStoryboardMemoryRule,
+} from "./semantic-storyboard-memory-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -30,6 +38,8 @@ type SemanticRepairSegment = {
 };
 
 export async function prepareOmniPromptPlanWithSemanticRepair(input: {
+  projectId: number;
+  productId: number;
   promptPlan: readonly OmniSegmentPrompt[];
   script: string;
   productName: string;
@@ -41,6 +51,12 @@ export async function prepareOmniPromptPlanWithSemanticRepair(input: {
   model: string;
 }) {
   let promptPlan = [...input.promptPlan];
+  const learnedRules = await loadSemanticStoryboardMemory({
+    projectId: input.projectId,
+    productId: input.productId,
+    referenceFormatMode: input.referenceFormatMode,
+    referenceSceneMode: input.referenceSceneMode,
+  });
 
   for (let attempt = 0; attempt <= MAX_SEMANTIC_REPAIR_ATTEMPTS; attempt += 1) {
     promptPlan = normalizeOmniPromptPlanWithPhysicalRules({
@@ -54,7 +70,19 @@ export async function prepareOmniPromptPlanWithSemanticRepair(input: {
     assertPhysicalPromptPlan(promptPlan);
     assertStoryboardPromptContracts(promptPlan, input.productName, input.referenceFormatMode);
 
-    const review = await reviewStoryboardPlanSemantics(buildReviewInput(input, promptPlan));
+    const review = await reviewStoryboardPlanSemantics(buildReviewInput(input, promptPlan, learnedRules));
+    if (review.issues.length) {
+      void rememberSemanticStoryboardIssues({
+        scope: {
+          projectId: input.projectId,
+          productId: input.productId,
+          referenceFormatMode: input.referenceFormatMode,
+          referenceSceneMode: input.referenceSceneMode,
+        },
+        issues: review.issues,
+        repairInstructions: review.repairInstructions,
+      });
+    }
     if (review.passed) return promptPlan;
     if (attempt === MAX_SEMANTIC_REPAIR_ATTEMPTS) {
       assertStoryboardPlanSemanticReviewPassed(review);
@@ -64,6 +92,7 @@ export async function prepareOmniPromptPlanWithSemanticRepair(input: {
       ...input,
       promptPlan,
       review,
+      learnedRules,
     });
   }
 
@@ -81,6 +110,7 @@ async function repairOmniStoryboardPlanWithAi(input: {
   referenceFormatMode: ReferenceFormatMode;
   model: string;
   review: StoryboardPlanSemanticReview;
+  learnedRules: readonly SemanticStoryboardMemoryRule[];
 }) {
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
@@ -118,6 +148,7 @@ const SEMANTIC_REPAIR_SYSTEM_PROMPT = [
   "При необходимости добавь voiceoverText на уровне сегмента и в storyboardPlan, чтобы перераспределить существующие слова между сегментами; итоговая последовательность слов должна остаться прежней.",
   "Не добавляй и не удаляй слова из исходного сценария. Если финалу не хватает тезиса, разрешено только перераспределить существующие слова между соседними сегментами и кадрами.",
   "Исправляй визуальную режиссуру, композицию, формат reference, финальное раскрытие тезиса и интеграцию продукта; не добавляй новые утверждения.",
+  "Текущий режиссерский анализ reference и product contract имеют приоритет над scoped learned memory; learned memory только дополняет их.",
   "Для voiceover_montage с visible_subject_policy=no_people используй самостоятельные пейзажные, предметные, food и product-UI B-roll кадры с voiceover_only.",
   "Для финального сегмента покажи визуальное завершение главной мысли; CTA не должен быть единственным содержанием кадра.",
   "Сохрани положительный визуальный план reference и меняй только то, на что указывает semantic review.",
@@ -125,16 +156,19 @@ const SEMANTIC_REPAIR_SYSTEM_PROMPT = [
 
 function buildReviewInput(
   input: Omit<StoryboardPlanSemanticReviewInput, "segments"> & { promptPlan: readonly OmniSegmentPrompt[] },
-  promptPlan: readonly OmniSegmentPrompt[]
+  promptPlan: readonly OmniSegmentPrompt[],
+  learnedRules: readonly SemanticStoryboardMemoryRule[],
 ): StoryboardPlanSemanticReviewInput {
   return {
     model: input.model,
     script: input.script,
     productName: input.productName,
     productDescription: input.productDescription,
+    productPhysicalContract: input.productPhysicalContract,
     directorBrief: input.directorBrief,
     referenceSceneMode: input.referenceSceneMode,
     referenceFormatMode: input.referenceFormatMode,
+    learnedRules,
     segments: promptPlan.map((segment) => ({
       index: segment.index,
       voiceoverText: segment.voiceoverText,
@@ -149,18 +183,22 @@ function buildRepairPrompt(input: {
   script: string;
   productName: string;
   productDescription: string | null;
+  productPhysicalContract?: string | null;
   directorBrief: DirectorBrief | null;
   referenceSceneMode: ReferenceSceneMode;
   referenceFormatMode: ReferenceFormatMode;
   review: StoryboardPlanSemanticReview;
+  learnedRules: readonly SemanticStoryboardMemoryRule[];
 }) {
   return [
     `Продукт: ${input.productName}`,
     `Описание продукта: ${input.productDescription || "не указано"}`,
+    `Текущий product contract, обязательный источник правды: ${input.productPhysicalContract || "не указан"}`,
     `Reference scene mode: ${input.referenceSceneMode}`,
     `Reference format mode: ${input.referenceFormatMode}`,
-    "Режиссерский анализ reference:",
+    "Текущий режиссерский анализ reference, обязательный источник правды:",
     JSON.stringify(input.directorBrief || {}, null, 2),
+    renderSemanticStoryboardMemoryRules(input.learnedRules),
     "Исходный сценарий:",
     input.script,
     "Найденные semantic issues:",
