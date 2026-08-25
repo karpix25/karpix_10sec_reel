@@ -44,6 +44,7 @@ try {
       join(ui, "src/lib/server/omni/provider-prompt-contract-validator.ts"),
       join(ui, "src/lib/server/omni/llm-prompt-chain-normalizer.ts"),
       join(ui, "src/lib/server/omni/llm-prompt-chain-runner.ts"),
+      join(ui, "src/lib/server/omni/omni-script-length-guard.ts"),
       join(ui, "src/lib/server/omni/llm-prompt-chain-number-words.ts"),
       join(ui, "src/lib/server/omni/llm-prompt-chain-storyboard-validator.ts"),
     ],
@@ -84,8 +85,8 @@ try {
   );
   assert.match(
     runnerSource,
-    /creativeAttempt\.mode === "targeted_repair" && overWordBudget && attempt < CREATIVE_COPYWRITER_ATTEMPTS[\s\S]*creativeAttempt\.mode === "targeted_repair" && !overWordBudget[\s\S]*\? normalizedScript\s*: compactOmniScriptToWordBudget/u,
-    "targeted repairs must keep content until the final budget fallback"
+    /overWordBudget && attempt < CREATIVE_COPYWRITER_ATTEMPTS[\s\S]*const script = overWordBudget[\s\S]*\? compactOmniScriptToWordBudget/u,
+    "copywriter must use LLM repairs before the final deterministic budget fallback"
   );
   assert.match(
     runnerSource,
@@ -416,18 +417,22 @@ try {
   assert.ok(promptChainSource.includes("Сделай минимальную редактуру"), "LLM chain must keep reference adaptation minimal");
   assert.ok(promptChainSource.includes("Сохрани смысловые опоры"), "LLM chain must state one priority rule for reference adaptation");
   assert.ok(promptChainSource.includes("не переноси эту роль на аватара"), "LLM chain must strip source author expert roles");
-  assert.ok(promptChainSource.includes("короткой рекламной вставкой в середине"), "LLM chain must place the product in a mid-roll ad");
-  assert.ok(promptChainSource.includes("вставка не обязана решать исходную проблему"), "LLM chain must allow unrelated reference topics");
+  assert.ok(
+    promptChainSource.includes("Продукт не является отдельной рекламной вставкой")
+      && promptChainSource.includes("может появиться в любой естественной точке"),
+    "LLM chain must integrate the product at a natural point",
+  );
+  assert.ok(promptChainSource.includes("Продукт должен быть функциональной частью мысли"), "LLM chain must keep the product functional");
   assert.ok(promptChainSource.includes("Если в reference уже есть чужой продукт"), "LLM chain must replace source products with our reference only");
   assert.ok(promptChainSource.includes("Если в reference уже есть чужой продукт"), "LLM chain must handle source products safely");
   assert.ok(promptChainSource.includes("не копируй его название, бренд, упаковку и свойства"), "LLM chain must not copy source product identity");
   assert.ok(promptChainSource.includes("Сохрани его сценарную роль"), "LLM chain must preserve source product narrative role");
-  assert.ok(promptChainSource.includes("после CTA вернись к исходной теме"), "LLM chain must return to the reference after the ad");
+  assert.ok(promptChainSource.includes("После CTA продолжи или заверши исходный тезис reference"), "LLM chain must return to the reference after the CTA");
   assert.ok(promptChainSource.includes("где естественно завершается рассказ о продукте"), "LLM chain CTA must be embedded at the natural product mention");
   assert.ok(promptChainSource.includes("финальная часть ролика не состояла только из призыва"), "link CTA must be followed by a real conclusion");
   assert.ok(promptChainSource.includes("вопросом, приказом или новым призывом"), "CTA conclusion must be declarative");
   assert.ok(promptChainSource.includes("Для подтверждения достаточно одного конкретного факта"), "one concrete reference fact must be enough");
-  assert.ok(promptChainSource.includes("Не переноси весь список ради формального совпадения"), "copywriter must not copy full reference lists");
+  assert.ok(promptChainSource.includes("Второй добавляй только когда"), "copywriter must not copy unnecessary reference lists");
   assert.ok(!promptChainSource.includes("сохрани минимум два конкретных примера"), "copywriter must not require two examples");
   assert.ok(promptChainSource.includes("без такого действия не считаются пользой"), "product benefit must name an action from the product description");
   assert.ok(!promptChainSource.includes("CTA: последняя фраза должна"), "link CTA must not be forced into the last sentence");
@@ -439,7 +444,7 @@ try {
   assert.ok(!creativeRepairSource.includes("CTA отдельной последней фразой"), "targeted repair must not reintroduce CTA-only endings");
   assert.ok(creativeRepairSource.includes("достаточно одного конкретного факта или примера"), "targeted repair must preserve one supporting fact");
   assert.ok(!creativeRepairSource.includes("сохрани минимум два конкретных примера"), "targeted repair must not restore the old strict gate");
-  assert.ok(creativeRepairSource.includes("CTA перед полноценным финальным выводом"), "full rebuild must keep a conclusion after CTA");
+  assert.ok(creativeRepairSource.includes("поставь CTA после его пользы, до полноценного финального вывода"), "full rebuild must keep a conclusion after CTA");
   assert.ok(creativeRepairSource.includes("не является вопросом, приказом или призывом"), "full rebuild must reject imperative endings");
   assert.ok(creativeRepairSource.includes("до финального вывода попроси написать"), "comment CTA must precede the conclusion");
   assert.ok(promptChainSource.includes("артикул или подробности можно найти в описании"), "LLM chain article CTA must identify the exact product variant");
@@ -453,7 +458,7 @@ try {
   assert.ok(promptChainSource.includes("Общая фраза только о пользе продукта не считается выводом reference"), "copywriter must conclude the reference thesis, not only the product benefit");
   assert.ok(semanticReviewerSource.includes("Не предлагай вопрос, приказ, CTA или императив"), "semantic repair feedback must not suggest forbidden imperative endings");
   assert.ok(semanticReviewerSource.includes("Не отклоняй полезный сценарий только потому"), "semantic review must allow concise reference adaptation");
-  assert.ok(semanticReviewerSource.includes("сам рекламный переход не является ошибкой"), "semantic review must accept the mid-roll ad contract");
+  assert.ok(semanticReviewerSource.includes("Отдельная рекламная вставка, внезапное упоминание"), "semantic review must reject detached product ads");
   assert.ok(promptChainSource.includes("десять секунд это пять кадров"), "prompt chain must preserve exact frame counts");
   assert.ok(promptChainSource.includes("точный материал, крой и цвет reference не являются контрактом"), "wardrobe must not trigger paid regeneration");
   assert.ok(promptChainSource.includes("позу, взгляд и жест выбирай под текущую реплику"), "talking-head direction must serve the new script");

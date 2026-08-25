@@ -3,7 +3,6 @@ import type { OmniProduct, OmniProject } from "@/lib/omni/types";
 import { normalizeOmniDurationRange, type OmniDurationRange } from "./omni-duration-range";
 
 type ClientDurationRow = {
-  name: string | null;
   target_duration_seconds: number | null;
   target_duration_min_seconds: number | null;
   target_duration_max_seconds: number | null;
@@ -15,11 +14,19 @@ export async function resolveOmniDurationRange(input: {
   requestTargetDurationSeconds?: unknown;
   legacyClientId?: number | null;
 }): Promise<OmniDurationRange> {
-  const linkedClientRange = await getLegacyClientDurationRange(input.project.legacy_client_id);
-  const projectClientRange = linkedClientRange && namesMatch(linkedClientRange.name, input.project.name)
-    ? linkedClientRange
-    : await getLegacyClientDurationRangeByName(input.project.name);
-  const clientRange = projectClientRange || await getLegacyClientDurationRange(input.legacyClientId ?? null);
+  const linkedLegacyClientId = await getActiveProjectLegacyClientId(input.project.id, input.product.id);
+  const clientIds = [
+    input.project.legacy_client_id,
+    linkedLegacyClientId,
+    input.legacyClientId ?? null,
+  ].filter((id, index, values): id is number => Boolean(id) && values.indexOf(id) === index);
+
+  let clientRange = null;
+  for (const clientId of clientIds) {
+    clientRange = await getLegacyClientDurationRange(clientId);
+    if (clientRange) break;
+  }
+
   if (clientRange) {
     return normalizeOmniDurationRange({
       requestedMinSeconds: clientRange.target_duration_min_seconds,
@@ -51,8 +58,7 @@ async function getLegacyClientDurationRange(legacyClientId: number | null) {
 
   try {
     const { rows } = await pool.query<ClientDurationRow>(
-      `SELECT name,
-              target_duration_seconds,
+      `SELECT target_duration_seconds,
               target_duration_min_seconds,
               target_duration_max_seconds
        FROM clients
@@ -67,29 +73,23 @@ async function getLegacyClientDurationRange(legacyClientId: number | null) {
   }
 }
 
-async function getLegacyClientDurationRangeByName(name: string) {
-  const normalizedName = name.trim();
-  if (!normalizedName) return null;
-
+async function getActiveProjectLegacyClientId(projectId: number, productId: number) {
   try {
-    const { rows } = await pool.query<ClientDurationRow>(
-      `SELECT name,
-              target_duration_seconds,
-              target_duration_min_seconds,
-              target_duration_max_seconds
-       FROM clients
-       WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
-       ORDER BY id ASC
+    const { rows } = await pool.query<{ legacy_client_id: number | string }>(
+      `SELECT legacy_client_id
+       FROM omni_legacy_library_links
+       WHERE project_id = $1
+         AND (product_id = $2 OR product_id IS NULL)
+       ORDER BY CASE WHEN product_id = $2 THEN 0 ELSE 1 END,
+                created_at DESC,
+                id DESC
        LIMIT 1`,
-      [normalizedName]
+      [projectId, productId]
     );
-    return rows[0] || null;
+    const clientId = Number(rows[0]?.legacy_client_id || 0);
+    return Number.isFinite(clientId) && clientId > 0 ? clientId : null;
   } catch (error) {
-    console.warn("Omni duration settings name fallback:", error instanceof Error ? error.message : error);
+    console.warn("Omni duration settings project link fallback:", error instanceof Error ? error.message : error);
     return null;
   }
-}
-
-function namesMatch(left: string | null, right: string) {
-  return Boolean(left && left.trim().toLocaleLowerCase() === right.trim().toLocaleLowerCase());
 }

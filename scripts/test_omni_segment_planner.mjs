@@ -53,6 +53,16 @@ try {
   assert.equal(exactThirty.minWords, 62);
   assert.equal(exactThirty.maxWords, 75);
 
+  const configuredRange = normalizeOmniDurationRange({
+    requestedMinSeconds: 30,
+    requestedMaxSeconds: 40,
+    fallbackSeconds: 35,
+    source: "client_settings",
+  });
+  assert.equal(configuredRange.minSeconds, 30);
+  assert.equal(configuredRange.maxSeconds, 40);
+  assert.equal(configuredRange.maxWords, 100);
+
   const overLimit = normalizeOmniDurationRange({
     requestedMinSeconds: 50,
     requestedMaxSeconds: 50,
