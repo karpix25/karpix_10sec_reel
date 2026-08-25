@@ -7,6 +7,10 @@ import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 import { parseAndRepairJson } from "./script-json-repair";
 import { assertCtaConclusionContract } from "./script-quality-contract";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
+import {
+  renderScriptAdaptationReviewContract,
+  type ScriptAdaptationPlan,
+} from "./script-adaptation-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -36,6 +40,7 @@ export type ScriptSemanticReviewInput = {
   ctaMode: CtaMode;
   ctaValue: string | null;
   directorBrief?: DirectorBrief | null;
+  adaptationPlan: ScriptAdaptationPlan;
 };
 
 export async function reviewScriptSemantics(
@@ -161,7 +166,7 @@ export const SEMANTIC_REVIEW_SYSTEM_PROMPT = [
   "productValueStated означает, что зрителю понятно, какую конкретную задачу продукта решают в этом ролике.",
   "hookAnswered означает, что обещание, вопрос или интрига первой части получают конкретный ответ внутри сценария, а не только CTA.",
   "finalAnswerPresent означает, что главный вопрос или тезис исходного reference получает отдельный утвердительный вывод после последнего CTA. Вопрос, приказ или новый призыв, включая «забудь», «наслаждайся», «путешествуй», «попробуй» и «хочешь так же», не считаются выводом.",
-  "referenceMeaningPreserved означает сохранение главного тезиса, конкретного ответа на обещание хука, причинной связи и хотя бы одного релевантного доказательства или примера, если они были в reference. Если payoff состоит в названии места, способа, цены или результата, этот ответ должен прозвучать явно.",
+  "referenceMeaningPreserved означает выполнение контракта выбранного режима адаптации: для сохранения смысла проверь тезис, механизм и вывод reference; для переноса формата проверь сохранение формы хука, подачи, темпа, структуры и последовательное раскрытие нового продуктового тезиса.",
   "Если reference явно обещает количество советов, шагов или ошибок, проверь, что сценарий сохраняет это количество и каждый пункт по смыслу. Если reference не обещает список и деталь второстепенна, не требуй сохранять весь текст или несколько примеров: одного конкретного факта достаточно, если главный ответ и логика reference не потеряны.",
   "Сокращение, объединение и перестановка примеров сами по себе не являются подменой смысла. Не отклоняй полезный сценарий только потому, что в нем меньше деталей, чем в reference.",
   "Не требуй сохранять чужой CTA, канал, ссылку, скидку, лид-магнит или место публикации из reference. Они заменяются текущим CTA продукта и не являются смысловым выводом reference.",
@@ -176,6 +181,7 @@ export const SEMANTIC_REVIEW_SYSTEM_PROMPT = [
 ].join("\n");
 
 function buildReviewPrompt(input: ScriptSemanticReviewInput) {
+  const adaptationPlan = input.adaptationPlan;
   return [
     "Проверь этот сценарий.",
     "Верни JSON строго с полями: passed, productNamed, productValueStated, hookAnswered, finalAnswerPresent, productNaturallyIntegrated, referenceMeaningPreserved, evidence, issues, repairInstructions.",
@@ -192,7 +198,9 @@ function buildReviewPrompt(input: ScriptSemanticReviewInput) {
     "Исходный reference transcript:",
     input.referenceScript.trim() || "не предоставлен",
     "",
-    buildReferenceMeaningGuidance(input.referenceScript),
+    adaptationPlan.mode === "preserve_reference"
+      ? buildReferenceMeaningGuidance(input.referenceScript)
+      : renderScriptAdaptationReviewContract(adaptationPlan),
     "",
     "Готовый сценарий:",
     input.script.trim(),

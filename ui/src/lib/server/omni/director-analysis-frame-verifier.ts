@@ -78,6 +78,7 @@ export async function verifyDirectorBriefAgainstReferenceFrames(input: {
   }
   const brief: DirectorBrief = {
     ...verifiedBrief,
+    content_adaptation: input.brief.content_adaptation,
     audio_profile: input.brief.audio_profile,
   };
 

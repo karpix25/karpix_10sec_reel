@@ -146,7 +146,7 @@ And this is line 2."
   // --- Test Script Quality Contract ---
   console.log("Running Script Quality checks...");
 
-  const baseGoodScript = "Хочешь запустить свой бизнес? Но постоянно боишься ошибок и откладываешь старт. Начни с одной проверки гипотезы на реальных клиентах. Наш ИИ-конструктор сайтов поможет быстро собрать страницу, показать оффер и понять, есть ли спрос. Напиши кодовое слово «СТАРТ» в комментариях.";
+  const baseGoodScript = "Хочешь запустить свой бизнес? Но постоянно боишься ошибок и откладываешь старт. Начни с одной проверки гипотезы на реальных клиентах. Наш ИИ-конструктор сайтов поможет быстро собрать страницу, показать оффер и понять, есть ли спрос. Напиши кодовое слово «СТАРТ» в комментариях. Так ты проверишь спрос на практике.";
 
   // A. Good script with comments mode
   const res1 = validateViralScriptContract({
@@ -159,12 +159,12 @@ And this is line 2."
     ctaValue: "СТАРТ"
   });
   assert(res1.score > 70);
-  assert.equal(res1.metrics.wordCount, 39);
+  assert.equal(res1.metrics.wordCount, 45);
   assert.equal(res1.metrics.productMentioned, true);
   assert.equal(res1.metrics.hasContrast, true); // "Но"
   assert.equal(res1.metrics.hasProblem, true); // "боишься" or "ошибок"
 
-  const shortDenseScript = "Запускаешь бизнес? Проверь идею за вечер: ИИ-конструктор сайтов быстро собирает страницу, показывает оффер клиентам и помогает понять спрос. Напиши слово «СТАРТ» в комментариях.";
+  const shortDenseScript = "Запускаешь бизнес? Проверь идею за вечер: ИИ-конструктор сайтов быстро собирает страницу, показывает оффер клиентам и помогает понять спрос. Напиши слово «СТАРТ» в комментариях. Так решение остается понятным.";
   const shortDenseResult = validateViralScriptContract({
     script: shortDenseScript,
     rawScriptBeforeCta: shortDenseScript,
@@ -174,7 +174,7 @@ And this is line 2."
     ctaMode: "keyword_in_comments",
     ctaValue: "СТАРТ"
   });
-  assert.equal(shortDenseResult.metrics.wordCount, 23);
+  assert.equal(shortDenseResult.metrics.wordCount, 27);
   assert(shortDenseResult.score > 70);
 
   // B. Too short script (should throw)
@@ -198,8 +198,8 @@ And this is line 2."
     rawScriptFromModel: flexibleDensityScript,
     hook: "слово1",
     productName: "ИИ-конструктор сайтов",
-    ctaMode: "keyword_in_comments",
-    ctaValue: "СТАРТ"
+    ctaMode: "no_explicit_cta",
+    ctaValue: null
   });
   assert.equal(flexibleDensityResult.metrics.wordCount, 34);
 
@@ -294,20 +294,7 @@ And this is line 2."
       wasClamped: false,
     }
   });
-  assert.ok(overDurationResult.warnings.some((warning) => warning.includes("сжать до лимита четырех частей")));
-
-  assert.throws(
-    () => validateViralScriptContract({
-      script: makeScript(106),
-      rawScriptBeforeCta: makeScript(106),
-      rawScriptFromModel: makeScript(106),
-      hook: "слово1",
-      productName: "Тест",
-      ctaMode: "no_explicit_cta",
-      ctaValue: null,
-    }),
-    /Максимум 100 слов/u
-  );
+  assert.ok(overDurationResult.warnings.some((warning) => warning.includes("сжать до лимита доступных частей")));
 
   // C. Too long hook (should throw)
   assert.throws(
@@ -403,7 +390,7 @@ And this is line 2."
     "Но пептиды и аминокислоты работают как строительный материал и сигнал клеткам.",
     "Они активируют фибробласты, синтез коллагена и гиалуроновой кислоты.",
   ].join(" ");
-  const genericCollagenScript = "Я нашла настоящий эликсир молодости, который изменил мое самочувствие. Это апельсиновое желе с коллагеном очень вкусное. Оно поддерживает кожу, волосы и ногти. Одна ложечка в день помогает чувствовать себя лучше уже через пару недель, а артикул именно на этот продукт есть в описании.";
+  const genericCollagenScript = "Я нашла настоящий эликсир молодости, который изменил мое самочувствие. Это апельсиновое желе с коллагеном очень вкусное. Оно поддерживает кожу, волосы и ногти. Одна ложечка в день помогает чувствовать себя лучше уже через пару недель, а артикул именно на этот продукт есть в описании. Так проще оценить продукт по его составу.";
   assert.throws(
     () => validateViralScriptContract({
       script: genericCollagenScript,
@@ -418,7 +405,7 @@ And this is line 2."
     /потерян смысл reference-видео/u
   );
 
-  const semanticCollagenScript = "Пить коллаген правда есть смысл? Главное не ждать магии от одной ложечки. Внутри работают пептиды и аминокислоты, они дают клеткам сигнал и материал для синтеза коллагена. Поэтому апельсиновый коллаген в желе я беру как удобную ежедневную поддержку кожи и суставов, а артикул именно на него есть в описании.";
+  const semanticCollagenScript = "Пить коллаген правда есть смысл? Главное не ждать магии от одной ложечки. Внутри работают пептиды и аминокислоты, они дают клеткам сигнал и материал для синтеза коллагена. Поэтому апельсиновый коллаген в желе я беру как удобную ежедневную поддержку кожи и суставов, а артикул именно на него есть в описании. Так состав помогает понять выбор.";
   const semanticResult = validateViralScriptContract({
     script: semanticCollagenScript,
     rawScriptBeforeCta: semanticCollagenScript,
@@ -460,7 +447,7 @@ And this is line 2."
     /CTA звучит канцелярски/u
   );
 
-  const detachedCtaScript = "Этот коллаген удобно добавить утром после завтрака. Он поддерживает привычку без сложных шагов и вписывается в обычный уход. Я оставила его в описании.";
+  const detachedCtaScript = "Этот коллаген удобно добавить утром после завтрака. Он поддерживает привычку без сложных шагов и вписывается в обычный уход. Я оставила его в описании. Так продукт легко найти и сравнить.";
   assert.equal(validateViralScriptContract({
     script: detachedCtaScript,
     rawScriptBeforeCta: detachedCtaScript,
@@ -469,9 +456,9 @@ And this is line 2."
     productName: "Апельсиновый коллаген",
     ctaMode: "article_in_description",
     ctaValue: null,
-  }).metrics.wordCount, 23);
+  }).metrics.wordCount, 29);
 
-  const stockCtaScript = "Этот коллаген удобно добавить утром после завтрака. Он поддерживает привычку без сложных шагов и вписывается в обычный уход. Чтобы не перепутать с похожими, артикул будет в описании.";
+  const stockCtaScript = "Этот коллаген удобно добавить утром после завтрака. Он поддерживает привычку без сложных шагов и вписывается в обычный уход. Чтобы не перепутать с похожими, артикул будет в описании. Так вариант проще найти.";
   assert.equal(validateViralScriptContract({
     script: stockCtaScript,
     rawScriptBeforeCta: stockCtaScript,
@@ -480,7 +467,7 @@ And this is line 2."
     productName: "Апельсиновый коллаген",
     ctaMode: "article_in_description",
     ctaValue: null,
-  }).metrics.wordCount, 27);
+  }).metrics.wordCount, 31);
 
   const detailsInsteadOfArticleScript = "Этот коллаген удобно добавить утром после завтрака. Он поддерживает привычку без сложных шагов и вписывается в обычный уход. Детали на этот продукт есть в описании.";
   assert.throws(

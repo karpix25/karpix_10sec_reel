@@ -1,17 +1,24 @@
 import { countOmniScriptWords } from "./omni-duration-planner";
 import { buildReferenceMeaningContract } from "./reference-meaning-contract";
+import type { ScriptAdaptationMode } from "./script-adaptation-contract";
 
 const CTA_PATTERN = /артикул|описани|коммент|кодово.*слов|ссылк|профил/iu;
 
 export function compactOmniScriptToWordBudget(
   script: string,
   maxWords: number,
-  options: { referenceScript?: string | null; productName?: string | null } = {}
+  options: {
+    referenceScript?: string | null;
+    productName?: string | null;
+    adaptationMode?: ScriptAdaptationMode;
+  } = {}
 ) {
   if (countOmniScriptWords(script) <= maxWords) return script;
 
   const sentences = splitSentences(script);
-  const protectedMeaningSignals = buildReferenceMeaningContract(options.referenceScript || "").criticalSignals;
+  const protectedMeaningSignals = options.adaptationMode === "preserve_reference"
+    ? buildReferenceMeaningContract(options.referenceScript || "").criticalSignals
+    : [];
   while (countWords(sentences) > maxWords) {
     const overflow = countWords(sentences) - maxWords;
     const ctaIndex = findLastCtaSentence(sentences);

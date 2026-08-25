@@ -3,7 +3,6 @@ import type { OmniLegacyScenario } from "@/lib/omni/types";
 import type { OmniAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import type { OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type { DirectorBrief } from "./director-analysis-types";
-import { renderDirectorBriefForScriptPrompt } from "./director-analysis-prompt";
 import type { OmniDurationRange } from "./omni-duration-range";
 import type { OmniReelSegmentPlan } from "./omni-duration-planner";
 import type { CreativeScriptDraft, DirectorSegmentPlan } from "./llm-prompt-chain-types";
@@ -14,6 +13,10 @@ import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-
 import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { requiresContinuousPresenterWardrobe } from "./director-wardrobe";
+import {
+  renderScriptAdaptationContract,
+  type ScriptAdaptationPlan,
+} from "./script-adaptation-contract";
 
 export type PromptChainInput = {
   projectName: string;
@@ -29,14 +32,14 @@ export type PromptChainInput = {
   wardrobeSource?: OmniWardrobeSource;
   durationRange?: OmniDurationRange;
   avatarSpeechGender: OmniAvatarSpeechGender;
+  adaptationPlan: ScriptAdaptationPlan;
 };
 
 export function buildCreativeCopywriterPrompt(input: PromptChainInput) {
-  const referenceMeaningGuidance = buildReferenceMeaningGuidance(input.sourceScenario.script);
-  const referenceFormatMode = resolveReferenceFormatMode(input.directorBrief);
-  const formatInstruction = isVoiceoverMontageReference(referenceFormatMode)
-    ? "Reference — voiceover montage: голос идёт за кадром, а независимые B-roll сцены могут меняться между репликами. Не связывай сцены в одну непрерывную историю и не требуй постоянного присутствия аватара."
-    : "Reference — presenter format: сохраняй логику говорящей головы и добавляй только короткие смысловые перебивки, если они нужны текущей реплике.";
+  const adaptationPlan = input.adaptationPlan;
+  const referenceMeaningGuidance = adaptationPlan.mode === "preserve_reference"
+    ? buildReferenceMeaningGuidance(input.sourceScenario.script)
+    : "";
   return `
 Ты креативный сценарист коротких вертикальных видео.
 
@@ -48,21 +51,21 @@ export function buildCreativeCopywriterPrompt(input: PromptChainInput) {
 Сначала определи форму хука reference. Сохрани её: утверждение остаётся утверждением, список остаётся списком, вопрос остаётся вопросом. Не превращай любой reference в шаблонный вопрос или универсальный кликбейт.
 Первая часть сценария повторяет хук и механику reference без нашего продукта.
 ${buildProductTimingContract()}
-${formatInstruction}
 Сохрани разговорность, темп и конкретику.
 Используй короткие, грамматически законченные предложения. Вопросительный и восклицательный знаки ставь только там, где они естественно задают интонацию.
-Используй исходную транскрибацию reference-видео как смысловую основу, а не как отвлеченную тему.
+  Используй исходную транскрибацию reference-видео и выбранный режим адаптации ниже. Не смешивай правила разных режимов.
+  ${renderScriptAdaptationContract(adaptationPlan)}
 Перед написанием сделай внутреннюю карту reference: главный тезис, вопрос или возражение, механизм или объяснение "почему это работает", конкретные доказательства или примеры, порядок смысловых шагов и финальный вывод. Не показывай эту карту, но проверь по ней итоговый текст.
-Сохрани смысловые опоры, порядок мыслей, разговорную подачу, главный тезис, вопрос или возражение, механизм, доказательство или пример и тип финала. Не пытайся сохранить большую часть фраз дословно. Если сохранение фраз конфликтует с лимитом длины, приоритет имеют лимит и смысл, а не формулировки.
+  Сохрани только те смысловые опоры, которые обязательны для выбранного режима. Не пытайся сохранить большую часть фраз дословно. Если сохранение фраз конфликтует с лимитом длины, приоритет имеют лимит и контракт адаптации, а не формулировки.
 Фокус сценария на нашем продукте:
 В произносимом voiceover обязательно назови продукт точным названием «${input.productName}» минимум один раз и объясни его конкретную пользу. Фраза «ссылка в профиле», «ссылка в описании» или другой CTA никогда не заменяет название продукта.
 Конкретную пользу возьми дословно по смыслу из описания продукта: назови действие, которое зритель сможет выполнить. Общие обещания «без проблем», «проще», «удобнее» и «без ограничений» без такого действия не считаются пользой.
 Не называй продукт в хуке, если reference не требует этого. Введи продукт через конкретную потребность, выбор или проблему, которую уже создал текущий сюжет. Перед продуктом добавь короткий причинный мостик, после него объясни подтвержденную пользу именно для этой ситуации и продолжи основную мысль. Продукт не является отдельной рекламной вставкой и может появиться в любой естественной точке.
 Сначала раскрой обещание или вопрос хука и дай зрителю конкретный ответ. Упоминание продукта и CTA не считаются ответом на хук.
-Не заменяй тему reference темой продукта. Продукт должен быть функциональной частью мысли: инструментом, примером, заменой исходного объекта или решением конкретной потребности текущего сюжета. Если фразу о продукте можно удалить без потери логики или пользы, перепиши переход. Называй только подтвержденное действие и пользу из описания продукта и заметок. Не добавляй свойства, гарантии, страны, цены, скидки или результаты, которых нет во входных данных.
+  Не смешивай несовместимые темы. В режиме «перенос формата» разрешено заменить предметный тезис reference темой продукта; в остальных режимах соблюдай границы, описанные в контракте адаптации. Называй только подтвержденное действие и пользу из описания продукта и заметок. Не добавляй свойства, гарантии, страны, цены, скидки или результаты, которых нет во входных данных.
 CTA произнеси до полноценного финального вывода, завершающего главный тезис reference. После CTA обязательно должна прозвучать отдельная полезная заключительная фраза.
 Финальная фраза после CTA должна быть утвердительным смысловым выводом, а не вопросом, приказом или новым призывом. «Забудь», «наслаждайся», «путешествуй», «попробуй» и «хочешь так же» не считаются выводом.
-В финальном выводе назови главный объект или ответ reference и утверди его исходный тезис. Общая фраза только о пользе продукта не считается выводом reference.
+  В финальном выводе назови главный объект или ответ reference, если этого требует режим адаптации. В режиме «перенос формата» финальный вывод должен завершать новый продуктовый тезис, а не возвращать несовместимую тему reference.
 Если хук обещает конкретное место, способ, цену или результат, обязательно назови этот ответ. Для подтверждения достаточно одного конкретного факта или примера из reference. Второй добавляй только когда без него теряется причинная связь.
 Если в reference перечисляется список советов, шагов или ошибок, сохрани обещанное количество и каждый обязательный пункт по смыслу. Рекламная вставка и CTA не считаются пунктами списка.
 Сделай минимальную редактуру. Меняй слова синонимами только там, где это нужно для нашего продукта, грамматики или безопасности. Не добавляй новые рекламные аргументы и не перестраивай повестку reference.
@@ -88,8 +91,6 @@ Reference transcript:
 ${input.sourceScenario.script}
 
 ${referenceMeaningGuidance}
-
-${renderDirectorBriefForScriptPrompt(input.directorBrief || null)}
 `.trim();
 }
 
@@ -98,6 +99,7 @@ export function buildDirectorSegmenterPrompt(input: {
   draft: CreativeScriptDraft;
   segmentPlan: OmniReelSegmentPlan;
 }) {
+  const adaptationPlan = input.chainInput.adaptationPlan;
   const referenceFormatMode = resolveReferenceFormatMode(input.chainInput.directorBrief);
   const referenceSceneMode = resolveReferenceSceneMode(input.chainInput.directorBrief);
   const montageReference = isVoiceoverMontageReference(referenceFormatMode);
@@ -127,8 +129,9 @@ export function buildDirectorSegmenterPrompt(input: {
 Возьми готовый сценарий и поставь его как Omni storyboard для формата ${segmentFormat}.
 Верни только валидный JSON без markdown.
 
-Правила режиссуры:
-Каждый segment строится storyboard first и может длиться четыре, шесть, восемь или десять секунд.
+  Правила режиссуры:
+  ${renderScriptAdaptationContract(adaptationPlan)}
+  Каждый segment строится storyboard first и может длиться четыре, шесть, восемь или десять секунд.
 Границы segments, duration_seconds и voiceover уже утверждены ниже. Копируй их дословно и не добавляй, не удаляй, не переставляй и не перефразируй слова.
 total_voiceover должен дословно совпадать с готовым сценарием.
 Количество storyboard frames зависит от duration_seconds: четыре секунды это два кадра, шесть секунд это три кадра, восемь секунд это четыре кадра, десять секунд это пять кадров.

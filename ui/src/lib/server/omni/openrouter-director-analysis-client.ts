@@ -21,6 +21,9 @@ export type DirectorVideoAnalysisResult = {
 export async function analyzeDirectorVideo(input: {
   videoUrl: string;
   transcript: string;
+  productName: string;
+  productDescription: string | null;
+  productReferenceNotes: string | null;
   model?: string | null;
 }): Promise<DirectorVideoAnalysisResult> {
   const apiKey = process.env.OPENROUTER_API_KEY || "";
@@ -43,7 +46,15 @@ export async function analyzeDirectorVideo(input: {
         {
           role: "user",
           content: [
-            { type: "text", text: buildDirectorAnalysisUserPrompt({ transcript: input.transcript }) },
+            {
+              type: "text",
+              text: buildDirectorAnalysisUserPrompt({
+                transcript: input.transcript,
+                productName: input.productName,
+                productDescription: input.productDescription,
+                productReferenceNotes: input.productReferenceNotes,
+              }),
+            },
             { type: "video_url", video_url: { url: input.videoUrl } },
           ],
         },

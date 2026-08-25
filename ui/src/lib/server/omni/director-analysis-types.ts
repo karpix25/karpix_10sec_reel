@@ -1,5 +1,6 @@
 import { normalizeReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { normalizeReferenceFormatMode, type ReferenceFormatMode } from "./omni-reference-format-mode";
+import { normalizeScriptAdaptationPlan, type ScriptAdaptationPlan } from "./script-adaptation-contract";
 import type { PhysicalSpeechMode } from "../../omni/physical-scene-types";
 import {
   normalizeDirectorAudioProfile,
@@ -94,6 +95,7 @@ export type DirectorVisualTransferContract = {
 };
 
 export type DirectorBrief = {
+  content_adaptation?: ScriptAdaptationPlan;
   reference_subject_mode?: ReferenceSceneMode;
   visible_subject_policy?: DirectorVisibleSubjectPolicy;
   reference_format_mode?: ReferenceFormatMode;
@@ -181,6 +183,7 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
   const camera = candidate.camera;
   const montage = candidate.montage_rhythm;
   const mechanics = candidate.reusable_mechanics;
+  const contentAdaptation = normalizeScriptAdaptationPlan(candidate.content_adaptation ?? candidate.contentAdaptation);
   const wardrobeTimeline = candidate.wardrobe_timeline ?? candidate.wardrobeTimeline;
   if (
     !isRecord(visualHook) ||
@@ -194,6 +197,7 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
   }
 
   const brief: DirectorBrief = {
+    content_adaptation: contentAdaptation || undefined,
     reference_subject_mode: normalizeReferenceSceneMode(
       candidate.reference_subject_mode ?? candidate.referenceSceneMode ?? candidate.reference_scene_mode ?? candidate.referenceSubjectMode
     ) || undefined,

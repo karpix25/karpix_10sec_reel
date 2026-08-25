@@ -156,6 +156,15 @@ function buildPromptInput(avatarSpeechGender) {
       wasClamped: false,
     },
     avatarSpeechGender,
+    adaptationPlan: {
+      version: "script-adaptation-v1",
+      mode: "preserve_reference",
+      reason: "Reference and product solve the same need.",
+      preserve: ["personal delivery", "practical benefit"],
+      replace: ["unrelated source brand"],
+      productBridge: "Connect the current need to the product benefit.",
+      confidence: 0.9,
+    },
   };
 }
 

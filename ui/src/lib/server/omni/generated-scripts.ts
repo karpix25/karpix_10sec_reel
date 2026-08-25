@@ -314,6 +314,10 @@ export async function createGeneratedScriptFromLegacy(input: {
     hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),
     directorBrief,
   });
+  const adaptationPlan = directorBrief?.content_adaptation;
+  if (!adaptationPlan) {
+    throw new Error("Не удалось определить режим адаптации: video analyzer не вернул content_adaptation.");
+  }
 
   const sourceSnapshotBase = {
     id: sourceScenario.id,
@@ -343,6 +347,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     director_analysis_error: directorAnalysis?.analysis_error || null,
     generated_script_plan_version: "reels-script-writer-v1",
     duration_range: durationRange,
+    content_adaptation_plan: adaptationPlan,
   };
   const model = process.env.SCENARIO_MODEL || "google/gemini-2.5-flash";
   const pendingScript = await createGeneratedScriptGenerationRecord({
@@ -374,6 +379,7 @@ export async function createGeneratedScriptFromLegacy(input: {
       wardrobeSource: project.wardrobe_source,
       durationRange,
       avatarSpeechGender,
+      adaptationPlan,
     });
   } catch (error) {
     await failGeneratedScriptGeneration(pendingScript.id, error);

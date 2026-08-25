@@ -1,4 +1,8 @@
 import { buildReferenceMeaningRepairGuidance } from "./reference-meaning-contract";
+import {
+  renderScriptAdaptationRepairContract,
+  type ScriptAdaptationPlan,
+} from "./script-adaptation-contract";
 
 export const MAX_SCRIPT_GENERATION_ATTEMPTS = 5;
 export const MAX_REFERENCE_MEANING_REPAIR_ATTEMPTS = 2;
@@ -24,13 +28,15 @@ export function isReferenceMeaningScriptGenerationError(error: unknown) {
 
 export function buildScriptRetryFeedback(
   error: unknown,
-  input: { referenceScript?: string | null } = {}
+  input: { referenceScript?: string | null; adaptationPlan?: ScriptAdaptationPlan } = {}
 ) {
   const message = getErrorMessage(error);
 
   if (isReferenceMeaningScriptGenerationError(error)) {
     return input.referenceScript?.trim()
-      ? buildReferenceMeaningRepairGuidance(input.referenceScript)
+      ? input.adaptationPlan && input.adaptationPlan.mode !== "preserve_reference"
+        ? renderScriptAdaptationRepairContract(input.adaptationPlan)
+        : buildReferenceMeaningRepairGuidance(input.referenceScript)
       : [
           "КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: предыдущий сценарий потерял смысл reference.",
           "Верни главный тезис, причинную связь, конкретный механизм или доказательство и вывод.",

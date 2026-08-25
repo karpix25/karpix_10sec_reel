@@ -63,6 +63,7 @@ export type LlmPromptChainFailureStage =
   | "provider_plan_validation";
 
 export type LlmPromptChainPartialSnapshot = {
+  adaptationPlan?: PromptChainInput["adaptationPlan"];
   creativeScriptDraft?: CreativeScriptDraft;
   semanticReview?: ScriptSemanticReview;
   directorSegmentPlan?: DirectorSegmentPlan;
@@ -87,22 +88,25 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   result: LlmPromptChainResult;
   openRouterUsage: OpenRouterUsageRecord[];
 }> {
+  const adaptationPlan = input.adaptationPlan;
+  const chainInput = input;
   const openRouterUsage: OpenRouterUsageRecord[] = [];
   const onUsage = (usage: OpenRouterUsageRecord) => openRouterUsage.push(usage);
 
   let creativeResult: Awaited<ReturnType<typeof runCreativeCopywriter>>;
   try {
-    creativeResult = await runCreativeCopywriter(input, onUsage);
+    creativeResult = await runCreativeCopywriter(chainInput, onUsage);
   } catch (error) {
     if (error instanceof LlmPromptChainFailure) throw error;
-    throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), {});
+    throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), { adaptationPlan });
   }
   const draft = creativeResult.draft;
   let directorResult: Awaited<ReturnType<typeof runDirectorSegmenter>>;
   try {
-    directorResult = await runDirectorSegmenter(input, draft, onUsage);
+      directorResult = await runDirectorSegmenter(chainInput, draft, onUsage);
   } catch (error) {
     throw new LlmPromptChainFailure("director_segmenter", getErrorMessage(error), {
+      adaptationPlan,
       creativeScriptDraft: draft,
       semanticReview: creativeResult.semanticReview,
     });
@@ -120,6 +124,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
     if (errors.length) throw new Error(formatPromptValidationIssues(errors));
   } catch (error) {
     throw new LlmPromptChainFailure("provider_plan_validation", getErrorMessage(error), {
+      adaptationPlan,
       creativeScriptDraft: draft,
       semanticReview: creativeResult.semanticReview,
       directorSegmentPlan: directorPlan,
@@ -151,6 +156,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
       })),
       snapshot: {
         version: LLM_PROMPT_CHAIN_VERSION,
+        adaptationPlan,
         creativeScriptDraft: draft,
         directorSegmentPlan: directorPlan,
         providerPromptPlan: providerPlan,
@@ -197,17 +203,14 @@ async function runCreativeCopywriter(
         input.avatarSpeechGender
       );
       const maxWords = input.durationRange?.maxWords || getOmniMaxScriptWords();
-      previousDraft = { ...draft, script: normalizedScript };
-      const overWordBudget = countOmniScriptWords(normalizedScript) > maxWords;
-      if (overWordBudget && attempt < CREATIVE_COPYWRITER_ATTEMPTS) {
-        throw new Error(`Сценарий длиннее лимита: ${countOmniScriptWords(normalizedScript)} слов вместо ${maxWords}. Сократи второстепенные формулировки, не удаляя обязательные смысловые пункты.`);
+      const script = compactOmniScriptToWordBudget(normalizedScript, maxWords, {
+        referenceScript: input.sourceScenario.script,
+        productName: input.productName,
+        adaptationMode: input.adaptationPlan?.mode,
+      });
+      if (countOmniScriptWords(script) > maxWords) {
+        throw new Error(`Сценарий длиннее лимита после автоматического сокращения: ${countOmniScriptWords(script)} слов вместо ${maxWords}.`);
       }
-      const script = overWordBudget
-        ? compactOmniScriptToWordBudget(normalizedScript, maxWords, {
-          referenceScript: input.sourceScenario.script,
-          productName: input.productName,
-        })
-        : normalizedScript;
       previousDraft = { ...draft, script };
       lastSemanticReview = null;
       assertOmniScriptTextContract(script);
@@ -224,6 +227,7 @@ async function runCreativeCopywriter(
         ctaMode: input.ctaMode,
         ctaValue: input.ctaValue,
         directorBrief: input.directorBrief,
+        adaptationPlan: input.adaptationPlan,
       }, onUsage, attempt);
       lastSemanticReview = semanticReview;
       assertScriptSemanticReviewPassed(semanticReview);
@@ -239,6 +243,7 @@ async function runCreativeCopywriter(
     "creative_copywriter",
     `Creative copywriter failed: ${getErrorMessage(lastError)}`,
     {
+      adaptationPlan: input.adaptationPlan,
       ...(previousDraft ? { creativeScriptDraft: previousDraft } : {}),
       ...(lastSemanticReview ? { semanticReview: lastSemanticReview } : {}),
     }
@@ -379,6 +384,7 @@ function assertPromptChainScriptQuality(
     ctaValue: input.ctaValue,
     durationRange: input.durationRange,
     referenceScript: input.sourceScenario.script,
+    adaptationPlan: input.adaptationPlan,
   });
 }
 

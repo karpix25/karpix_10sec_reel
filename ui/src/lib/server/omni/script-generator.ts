@@ -41,6 +41,7 @@ import { assertRussianSpeechGender, normalizeRussianSpeechGender } from "./russi
 import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
 import { getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
 import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
+import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const SCRIPT_GENERATION_REQUEST_TIMEOUT_MS = 90_000;
@@ -74,6 +75,7 @@ export async function generateScript(input: {
   wardrobeSource?: OmniWardrobeSource;
   durationRange?: OmniDurationRange;
   avatarSpeechGender: OmniAvatarSpeechGender;
+  adaptationPlan: ScriptAdaptationPlan;
 }): Promise<{
   payload: GeneratedScriptResultPayload;
   qualityCheck: ScriptQualityResult;
@@ -98,7 +100,10 @@ export async function generateScript(input: {
       lastError = error;
       const retryable = isRetryableScriptGenerationError(error);
       const referenceMeaningFailed = isReferenceMeaningScriptGenerationError(error);
-      const feedback = buildScriptRetryFeedback(error, { referenceScript: input.sourceScenario.script });
+      const feedback = buildScriptRetryFeedback(error, {
+        referenceScript: input.sourceScenario.script,
+        adaptationPlan: input.adaptationPlan,
+      });
       if (referenceMeaningFailed) referenceMeaningRepair = feedback;
       const maxAttempts = MAX_SCRIPT_GENERATION_ATTEMPTS +
         (referenceMeaningRepair ? MAX_REFERENCE_MEANING_REPAIR_ATTEMPTS : 0);
@@ -151,6 +156,7 @@ async function requestPromptChainScript(input: Parameters<typeof generateScript>
     ctaValue: input.ctaValue,
     durationRange: input.durationRange,
     referenceScript: input.sourceScenario.script,
+    adaptationPlan: input.adaptationPlan,
   });
   return {
     payload,
@@ -225,6 +231,7 @@ async function requestScriptOnce(
   const scriptBudget = Math.min(input.durationRange?.maxWords || getOmniMaxScriptWords(), getOmniMaxScriptWords() - 4);
   const compactedScript = compactOmniScriptToWordBudget(script, scriptBudget, {
     referenceScript: input.sourceScenario.script,
+    adaptationMode: input.adaptationPlan?.mode,
     productName: input.productName,
   });
   const wasCompacted = compactedScript !== script;
@@ -276,6 +283,7 @@ async function requestScriptOnce(
     ctaValue: input.ctaValue,
     durationRange: input.durationRange,
     referenceScript: input.sourceScenario.script,
+    adaptationPlan: input.adaptationPlan,
   });
   try {
     planOmniReelSegments(script, { durationRange: input.durationRange });
@@ -292,6 +300,7 @@ async function requestScriptOnce(
     ctaMode: input.ctaMode,
     ctaValue: input.ctaValue,
     directorBrief: input.directorBrief,
+    adaptationPlan: input.adaptationPlan,
   }, onUsage, attempt);
   assertScriptSemanticReviewPassed(semanticReview);
   payload.semantic_review = semanticReview;

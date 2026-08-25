@@ -34,6 +34,7 @@ try {
       join(ui, "src/lib/omni/openrouter-cost.ts"),
       join(ui, "src/lib/audio-library/moods.ts"),
       join(ui, "src/lib/server/omni/director-analysis-types.ts"),
+      join(ui, "src/lib/server/omni/script-adaptation-contract.ts"),
       join(ui, "src/lib/server/omni/director-analysis-policy.ts"),
       join(ui, "src/lib/server/omni/director-analysis-prompt.ts"),
       join(ui, "src/lib/server/omni/director-scene-contract.ts"),
@@ -96,6 +97,14 @@ try {
 
   const brief = normalizeDirectorBrief({
     director_brief: {
+      content_adaptation: {
+        mode: "format_transfer",
+        reason: "The reference uses a travel discovery hook while the supplied product solves payment friction abroad.",
+        preserve: ["personal hook", "step by step reveal"],
+        replace: ["WiFi mechanism", "source subject"],
+        product_bridge: "Move from travel friction to a concrete payment solution abroad.",
+        confidence: 0.94,
+      },
       visual_hook: { action: "full-body presenter steps into a bright kitchen", retention_trigger: "movement starts before the first word" },
       atmosphere: { mood: "warm and fast", lighting: "bright domestic daylight", color_grading: "clean natural contrast", setting: "small kitchen" },
       clothing: {
@@ -172,10 +181,17 @@ try {
   assert.equal(laterProfile.setting, "near kitchen table");
   assert.equal(laterProfile.actor_gesture, "points at the surface");
   assert.equal(laterProfile.wardrobe.description, "sage overshirt");
-  const analysisPrompt = buildDirectorAnalysisUserPrompt({ transcript: "Тест" });
+  const analysisPrompt = buildDirectorAnalysisUserPrompt({
+    transcript: "Тест",
+    productName: "Плати по миру",
+    productDescription: "Виртуальная карта для оплаты за границей.",
+    productReferenceNotes: "Выпускается в приложении.",
+  });
   assert.ok(analysisPrompt.includes("camera_timeline"));
   assert.ok(analysisPrompt.includes("reference_render_mode"));
   assert.ok(analysisPrompt.includes("reference_motion_mode"));
+  assert.ok(analysisPrompt.includes("content_adaptation"));
+  assert.ok(analysisPrompt.includes("Плати по миру"));
   assert.ok(analysisPrompt.includes("wardrobe_timeline"));
   assert.ok(analysisPrompt.includes("wardrobe_continuity MUST be observed from the video independently"));
   assert.ok(analysisPrompt.includes("raw smartphone texture"));
@@ -487,6 +503,9 @@ try {
   const analyzed = await analyzeDirectorVideo({
     videoUrl: "https://cdn.example.com/direct.mp4",
     transcript: "Тестовая русская реплика.",
+    productName: "Плати по миру",
+    productDescription: "Виртуальная карта для оплаты за границей.",
+    productReferenceNotes: null,
   });
   assert.equal(analyzed.model, "minimax/minimax-m3");
   assert.ok(requestSignal, "director analysis request must have a timeout signal");

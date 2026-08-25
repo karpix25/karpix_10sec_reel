@@ -77,6 +77,7 @@ try {
       script: "Хочешь сияющую кожу и крепкие ногти? Тогда тебе нужен коллаген!",
     },
     directorBrief: {
+      wardrobe_continuity: "changes_between_cuts",
       visual_hook: { action: "Presenter talks to camera", retention_trigger: "Blue-lit direct address" },
       atmosphere: {
         mood: "Confident",
@@ -117,6 +118,15 @@ try {
       source: "client_settings",
       wasClamped: false,
     },
+    adaptationPlan: {
+      version: "script-adaptation-v1",
+      mode: "preserve_reference",
+      reason: "Reference and product solve the same need.",
+      preserve: ["direct hook", "practical product benefit"],
+      replace: ["unrelated source brand"],
+      productBridge: "Move directly from the need to the product.",
+      confidence: 0.9,
+    },
   });
 
   assert.ok(prompt.includes('"hook_options"'), "prompt must request three hook options");
@@ -135,19 +145,9 @@ try {
   assert.ok(prompt.includes("Все числа в текстовых значениях JSON пиши словами"), "prompt must force numbers as words in generated text values");
   assert.ok(prompt.includes("нет дефисов, нет тире, нет минусов, нет цифр"), "prompt must require final symbol self-check");
   assert.ok(prompt.includes("Поле script должно совпадать"), "script must match beat voiceovers");
-  assert.ok(prompt.includes("как почти готовый текст"), "prompt must treat reference as near-source text");
-  assert.ok(prompt.includes("Меняй слова синонимами только там"), "prompt must only lightly synonymize reference text");
-  assert.ok(prompt.includes("Не добавляй новые рекламные аргументы"), "prompt must preserve reference instead of inventing new ad claims");
-  assert.ok(prompt.includes("Переписывай reference близко"), "prompt must keep close reference adaptation");
-  assert.ok(prompt.includes("Главный принцип адаптации reference"), "prompt must state one priority rule for reference adaptation");
+  assert.ok(prompt.includes("контрактом адаптации"), "prompt must use the analyzer adaptation contract");
+  assert.ok(prompt.includes("в границах выбранного режима"), "prompt must keep adaptation mode boundaries");
   assert.ok(prompt.includes("не переноси эту роль на аватара"), "prompt must strip source author expert roles");
-  assert.ok(prompt.includes("повторяй момент появления продукта из reference"), "prompt must follow reference product reveal timing");
-  assert.ok(prompt.includes("Если в reference продукт появляется в первом кадре или первой фразе"), "prompt must allow first-beat product when the reference does it");
-  assert.ok(prompt.includes("Чужой продукт всегда заменяй только нашим product reference"), "prompt must replace source products with our reference only");
-  assert.ok(prompt.includes("Если в reference уже есть чужой продукт"), "prompt must handle source products safely");
-  assert.ok(prompt.includes("не копируй его название, бренд, упаковку и свойства"), "prompt must not copy source product identity");
-  assert.ok(prompt.includes("Сохрани его сценарную роль"), "prompt must preserve source product narrative role");
-  assert.ok(prompt.includes("Не превращай полезный reference в отдельный рекламный питч продукта"), "prompt must block ad-pitch rewrites");
   assert.ok(prompt.includes("Продукт обязан выполнять понятную функцию"), "prompt must require product to serve the script idea");
   assert.ok(prompt.includes("в момент первого естественного появления продукта"), "CTA must be embedded at the natural product mention");
   assert.ok(prompt.includes("После CTA продолжи полезную мысль"), "CTA must not end the reel as a sales line");
@@ -157,7 +157,6 @@ try {
   assert.ok(prompt.includes("В описании упоминается только артикул"), "article CTA must not add extra description info");
   assert.ok(!prompt.includes("чтобы не перепутать с похожими"), "article CTA must not give a phrase template");
   assert.ok(!prompt.includes("артикул или код"), "article CTA must not ask the model to say generic code wording");
-  assert.ok(prompt.includes("как почти готовый текст"), "prompt must preserve reference meaning, not only structure");
   assert.ok(prompt.includes("Не пытайся сохранить большую часть фраз дословно"), "prompt must prioritize meaning over phrase count");
   assert.ok(prompt.includes("главный тезис, вопрос или возражение, механизм"), "prompt must require the original argument mechanics");
   assert.ok(prompt.includes("внутреннюю карту reference"), "prompt must require an internal reference meaning map");
@@ -165,8 +164,7 @@ try {
   assert.ok(!prompt.includes("только как пример структуры"), "prompt must not reduce reference to structure only");
   assert.ok(prompt.includes('"background_audio_mood"'), "prompt must request background audio mood");
   assert.ok(prompt.includes("energetic, calm, dramatic, inspiring, playful, serious"), "prompt must constrain mood enum");
-  assert.ok(prompt.includes("Первый beat повторяет механику reference"), "first beat must follow reference product mechanics");
-  assert.ok(prompt.includes("если original hook был с продуктом"), "prompt must permit product in the hook when reference uses it");
+  assert.ok(prompt.includes("Первый beat сохраняет тип и силу original hook"), "first beat must follow the analyzed hook mechanics");
   assert.ok(prompt.includes("Вопросительный и восклицательный знаки"), "script prompt must guide natural speech punctuation");
   assert.ok(prompt.includes("Целевая длительность итогового ролика: 30-30 сек"), "prompt must include configured duration range");
   assert.ok(prompt.includes("60-72 слов"), "prompt must include computed word range");
@@ -189,8 +187,8 @@ try {
   assert.ok(semanticReviewerSource.includes("Не оценивай длину, число слов"));
   assert.ok(semanticReviewerSource.includes("после последнего CTA"));
   assert.ok(semanticReviewerSource.includes("Вопрос, приказ или новый призыв"));
-  assert.ok(semanticReviewerSource.includes("Одного конкретного факта или примера достаточно"));
-  assert.ok(semanticReviewerSource.includes("Не требуй сохранять весь список"));
+  assert.ok(semanticReviewerSource.includes("одного конкретного факта достаточно"));
+  assert.ok(semanticReviewerSource.includes("Если reference явно обещает количество советов"));
   assert.ok(!semanticReviewerSource.includes("минимум два конкретных примера"));
   assert.ok(semanticReviewerSource.includes("Не требуй сохранять чужой CTA"));
   assert.ok(semanticReviewerSource.includes("Если факт назван, нельзя писать, что он отсутствует"));
@@ -241,9 +239,18 @@ try {
       },
     },
     wardrobeSource: "avatar_reference",
+    adaptationPlan: {
+      version: "script-adaptation-v1",
+      mode: "preserve_reference",
+      reason: "Reference and product solve the same need.",
+      preserve: ["direct hook", "practical product benefit"],
+      replace: ["unrelated source brand"],
+      productBridge: "Move directly from the need to the product.",
+      confidence: 0.9,
+    },
   });
-  assert.ok(avatarWardrobePrompt.includes("всегда берется из аватара"), "avatar wardrobe mode must guide script visuals to avatar outfit");
-  assert.ok(avatarWardrobePrompt.includes("в одежде аватара"), "avatar wardrobe mode must use avatar outfit JSON example");
+  assert.ok(avatarWardrobePrompt.includes("Главный человек в кадре это сохраненный аватар"), "avatar wardrobe mode must guide script visuals to avatar outfit");
+  assert.ok(avatarWardrobePrompt.includes("сохраненный аватар в самостоятельной сцене"), "avatar wardrobe mode must use avatar visual example");
   assert.ok(!avatarWardrobePrompt.includes("- Одежда: Black sleeveless fitted top"), "avatar wardrobe mode must not pass raw reference wardrobe into writer guidance");
   assert.equal(MAX_SCRIPT_GENERATION_ATTEMPTS, 5, "script writer attempt budget should remain unchanged");
   assert.ok(

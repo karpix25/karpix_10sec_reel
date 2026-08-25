@@ -4,7 +4,7 @@ import { renderReferenceSceneModeForDirectorPrompt, resolveReferenceSceneMode } 
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { renderReferenceFormatContract, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v13-wardrobe-timeline";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v14-content-adaptation";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
@@ -18,11 +18,16 @@ export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "Extract reusable direction without copying the creator identity, face, brand, exact location, logos, protected marks, or platform interface.",
 ].join("\n");
 
-export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
+export function buildDirectorAnalysisUserPrompt(input: {
+  transcript: string;
+  productName: string;
+  productDescription: string | null;
+  productReferenceNotes: string | null;
+}) {
   return [
     "Analyze the attached video and transcript.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "reference_subject_mode, visible_subject_policy, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, wardrobe_continuity, subject_continuity, wardrobe_timeline, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
+    "content_adaptation, reference_subject_mode, visible_subject_policy, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, wardrobe_continuity, subject_continuity, wardrobe_timeline, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -32,8 +37,16 @@ export function buildDirectorAnalysisUserPrompt(input: { transcript: string }) {
     input.transcript.trim() || "No transcript provided.",
     '"""',
     "",
+    "Product context:",
+    `Product name: ${input.productName}`,
+    `Product description: ${input.productDescription || "not provided"}`,
+    `Product reference notes: ${input.productReferenceNotes || "not provided"}`,
+    "",
     "Important constraints:",
     "- Values must be descriptive but compact.",
+    "- content_adaptation MUST be chosen from the relationship between the reference transcript, visible video evidence, and the supplied product context. Do not choose it from keywords alone and do not use reference_format_mode as a substitute for content adaptation.",
+    "- content_adaptation.mode MUST be exactly preserve_reference, adjacent_bridge, or format_transfer. Use preserve_reference when the product solves the same problem as the reference. Use adjacent_bridge when the reference remains useful and the product solves a neighboring need in the same situation. Use format_transfer when the reference subject is incompatible with the product and only the hook mechanics, personal delivery, pacing, structure, and conclusion pattern should transfer.",
+    "- content_adaptation.reason MUST explain the semantic relationship in one sentence. preserve and replace MUST list concrete meaning anchors, not visual camera details. product_bridge MUST describe the causal transition from the current viewer need to the product benefit. confidence MUST be a number from 0 to 1.",
     "- reference_subject_mode MUST be classified from visible frames and narration, not transcript alone: presenter, voiceover_broll, faceless_hands, body_crop, or object_only. Use voiceover_broll when the meaning is carried by off-camera voiceover over independent B-roll cutaways; the saved avatar may remain the silent visual protagonist, but there is no stable talking-head performance. Use faceless_hands only when only hands/props are visible; never invent a face or avatar.",
     "- visible_subject_policy MUST be classified from visible frames: presenter when a person speaks to camera, silent_avatar when the same person appears but narration is off-camera, no_people when no person or hands are visible, hands_only when only hands/body crop are visible, object_only when only an object or surface is visible, and animation when the source is illustrated or animated. Never choose silent_avatar for a reference that contains no person.",
     "- reference_format_mode MUST be classified from the visible edit and narration: continuous_story when one scene and physical state continue between segments; voiceover_montage when one narrator carries the meaning across independent cutaways where location, action, camera setup, or outfit can change while the main presenter remains the same.",
@@ -65,10 +78,6 @@ export function renderDirectorBriefForScriptPrompt(brief: DirectorBrief | null) 
   const motionContinuity = brief.motion_continuity || [];
   return [
     "Режиссерский анализ оригинального видео:",
-    `- ${renderReferenceSceneModeForDirectorPrompt(resolveReferenceSceneMode(brief), resolveDirectorVisibleSubjectPolicy(brief))}`,
-    `- ${renderVisibleSubjectPolicy(resolveDirectorVisibleSubjectPolicy(brief))}`,
-    `- ${renderReferenceFormatContract(resolveReferenceFormatMode(brief), resolveReferenceSceneMode(brief))}`,
-    brief.reference_render_mode ? `- Тип production: ${brief.reference_render_mode}; motion mode: ${brief.reference_motion_mode || "continuous_motion"}.` : "",
     `- Визуальный хук: ${brief.visual_hook.action}; удержание: ${brief.visual_hook.retention_trigger}.`,
     `- Атмосфера: ${brief.atmosphere.mood}; место: ${brief.atmosphere.setting}; свет: ${brief.atmosphere.lighting}.`,
     `- Одежда: ${brief.clothing.style}; палитра: ${brief.clothing.color_palette.join(", ") || "не указана"}; continuity: ${brief.wardrobe_continuity}.`,
@@ -132,6 +141,14 @@ function renderWardrobeTimelineForPrompt(brief: DirectorBrief) {
 
 function buildDirectorBriefSkeleton() {
   return {
+    content_adaptation: {
+      mode: "preserve_reference|adjacent_bridge|format_transfer",
+      reason: "semantic reason for the selected adaptation mode",
+      preserve: ["hook or delivery mechanic"],
+      replace: ["incompatible subject or source product"],
+      product_bridge: "causal bridge from the viewer need to the product benefit",
+      confidence: 0,
+    },
     reference_subject_mode: "presenter|voiceover_broll|faceless_hands|body_crop|object_only",
     visible_subject_policy: "presenter|silent_avatar|no_people|hands_only|object_only|animation",
     reference_format_mode: "continuous_story|voiceover_montage",

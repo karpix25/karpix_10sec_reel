@@ -1,3 +1,5 @@
+import type { ScriptAdaptationMode } from "./script-adaptation-contract";
+
 const MAX_ANCHORS = 6;
 const MAX_ANCHOR_CHARS = 220;
 
@@ -130,7 +132,17 @@ export function buildReferenceMeaningContract(referenceScript: string): Referenc
 export function validateReferenceMeaningCoverage(input: {
   referenceScript?: string | null;
   generatedScript: string;
+  adaptationMode?: ScriptAdaptationMode;
 }): ReferenceMeaningCoverage {
+  if (input.adaptationMode === "format_transfer" || input.adaptationMode === "adjacent_bridge") {
+    return {
+      passed: true,
+      requiresMechanism: false,
+      coveredSignals: [],
+      missingSignals: [],
+      coverageScore: 100,
+    };
+  }
   const contract = buildReferenceMeaningContract(input.referenceScript || "");
   const normalizedGenerated = normalizeText(input.generatedScript);
   const coveredSignals = contract.criticalSignals.filter((signal) => normalizedGenerated.includes(signal));

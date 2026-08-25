@@ -140,6 +140,8 @@ test("reference list obligations are carried into the generator contract", () =>
     ...makeCreativeInput(),
     sourceScenario: { ...makeCreativeInput().sourceScenario, script: reference },
   });
+  assert.ok(!prompt.includes("reference_format_mode"));
+  assert.ok(!prompt.includes("voiceover montage"));
   assert.match(prompt, /сохрани каждый обязательный пункт по смыслу/iu);
   assert.ok(prompt.includes("следите за вещами на пляже"));
   assert.ok(prompt.includes("не упоминай описание, комментарии или кодовые слова"));
@@ -231,5 +233,14 @@ function makeCreativeInput(): PromptChainInput {
       wasClamped: false,
     },
     avatarSpeechGender: "female",
+    adaptationPlan: {
+      version: "script-adaptation-v1",
+      mode: "format_transfer",
+      reason: "The reference mechanic can transfer to the product problem.",
+      preserve: ["personal hook", "step by step reveal"],
+      replace: ["unrelated source mechanism"],
+      productBridge: "Connect the travel problem to the card benefit.",
+      confidence: 0.9,
+    },
   };
 }

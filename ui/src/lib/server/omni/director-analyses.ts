@@ -10,6 +10,7 @@ import { resolveInstagramVideoWithScrapeCreators } from "./scrapecreators-client
 import { normalizeDirectorBrief, type OmniDirectorAnalysis } from "./director-analysis-types";
 import { verifyDirectorBriefAgainstReferenceFrames } from "./director-analysis-frame-verifier";
 import { isRetryableDirectorAnalysisError } from "./director-analysis-retry";
+import { requireOmniProductInProject } from "./products";
 
 const LEGACY_SOURCE = "old_db";
 const STORED_VIDEO_PROBE_TIMEOUT_MS = 15_000;
@@ -45,18 +46,20 @@ export async function ensureDirectorAnalysis(input: {
   sourceScenario: OmniLegacyScenario;
 }) {
   await ensureOmniSchema();
+  const product = await requireOmniProductInProject(input.projectId, input.productId);
   const existing = await getDirectorAnalysisForLegacy({ legacyScenarioId: input.sourceScenario.id });
-  if (existing?.director_analysis_status === "completed" && normalizeDirectorBrief(existing.director_analysis_json)) {
+  const existingBrief = existing ? normalizeDirectorBrief(existing.director_analysis_json) : null;
+  if (existing?.director_analysis_status === "completed" && existingBrief?.content_adaptation) {
     if (!existing.stored_video_url || await isStoredDirectorVideoAvailable(existing.stored_video_url)) {
       return existing;
     }
 
     await resetDirectorAnalysisForRetry(existing.id);
-    return runDirectorAnalysis(existing.id, input.sourceScenario);
+    return runDirectorAnalysis(existing.id, input.sourceScenario, product);
   }
 
   const row = await upsertPendingAnalysis(input);
-  return runDirectorAnalysis(row.id, input.sourceScenario);
+  return runDirectorAnalysis(row.id, input.sourceScenario, product);
 }
 
 async function isStoredDirectorVideoAvailable(sourceUrl: string) {
@@ -176,7 +179,11 @@ async function upsertPendingAnalysis(input: {
   return normalizeAnalysis(rows[0]);
 }
 
-async function runDirectorAnalysis(analysisId: number, sourceScenario: OmniLegacyScenario) {
+async function runDirectorAnalysis(
+  analysisId: number,
+  sourceScenario: OmniLegacyScenario,
+  product: { name: string; description: string | null; product_reference_notes: string | null },
+) {
   await markProcessing(analysisId);
 
   try {
@@ -202,7 +209,13 @@ async function runDirectorAnalysis(analysisId: number, sourceScenario: OmniLegac
     const analyzed = await analyzeDirectorVideo({
       videoUrl: videoUrlForAnalysis,
       transcript: sourceScenario.script,
+      productName: product.name,
+      productDescription: product.description,
+      productReferenceNotes: product.product_reference_notes,
     });
+    if (!analyzed.brief.content_adaptation) {
+      throw new Error("Director analysis returned no content adaptation plan");
+    }
     const verified = await verifyDirectorBriefAgainstReferenceFrames({
       videoUrl: videoUrlForAnalysis,
       brief: analyzed.brief,
