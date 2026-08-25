@@ -18,6 +18,11 @@ import {
   type DirectorWardrobeContinuity,
   type DirectorWardrobeTimelineItem,
 } from "./director-wardrobe";
+import {
+  normalizeDirectorSourceIntervalFields,
+  type DirectorSourceRole,
+  type DirectorVisibleSubjectRole,
+} from "./director-source-interval";
 export { selectDirectorSegmentProfile } from "./director-analysis-timeline";
 
 export type DirectorAnalysisStatus = "pending" | "processing" | "completed" | "failed";
@@ -56,6 +61,15 @@ export type DirectorCameraTimelineItem = DirectorCameraProfile & {
   action_description: string;
   actor_gesture: string;
   speech_mode: PhysicalSpeechMode;
+  visible_subject_role?: DirectorVisibleSubjectRole;
+  avatar_allowed?: boolean;
+  source_role?: DirectorSourceRole;
+  visual_description?: string;
+  composition?: string;
+  visible_objects?: string[];
+  transition_in?: string;
+  transition_out?: string;
+  adaptation_rule?: string;
 };
 
 export type DirectorSegmentProfile = {
@@ -67,6 +81,15 @@ export type DirectorSegmentProfile = {
   actor_gesture: string;
   speech_mode: PhysicalSpeechMode;
   wardrobe: DirectorWardrobeTimelineItem | null;
+  visible_subject_role?: DirectorVisibleSubjectRole;
+  avatar_allowed?: boolean;
+  source_role?: DirectorSourceRole;
+  visual_description?: string;
+  composition?: string;
+  visible_objects?: string[];
+  transition_in?: string;
+  transition_out?: string;
+  adaptation_rule?: string;
 };
 
 export type DirectorProductIntroductionPosition = "hook" | "body" | "payoff" | "never";
@@ -322,6 +345,8 @@ function normalizeCameraTimelineItem(value: unknown) {
   const camera = isRecord(value.camera) ? value.camera : value;
   const start = Number(value.start_sec || value.start_seconds || value.timestamp_start_sec || 0) || 0;
   const end = Number(value.end_sec || value.end_seconds || value.timestamp_end_sec || start) || start;
+  const speechMode = normalizeSpeechMode(value.speech_mode || value.speechMode || value.delivery_mode || camera.speech_mode || camera.speechMode) ||
+    inferSpeechMode(stringValue(value.action_description || value.action));
   const item: DirectorCameraTimelineItem = {
     start_sec: Math.max(0, start),
     end_sec: Math.max(Math.max(0, start), end),
@@ -334,8 +359,8 @@ function normalizeCameraTimelineItem(value: unknown) {
     lighting: stringValue(value.lighting),
     action_description: stringValue(value.action_description || value.action),
     actor_gesture: stringValue(value.actor_gesture || value.gesture),
-    speech_mode: normalizeSpeechMode(value.speech_mode || value.speechMode || value.delivery_mode || camera.speech_mode || camera.speechMode) ||
-      inferSpeechMode(stringValue(value.action_description || value.action)),
+    speech_mode: speechMode,
+    ...normalizeDirectorSourceIntervalFields(value, speechMode),
   };
   return item.shot_types.length || item.angles.length || item.movements.length || item.setting || item.action_description
     ? item

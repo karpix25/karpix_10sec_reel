@@ -9,6 +9,8 @@ import type { ProductRole } from "../../omni/creative-contract";
 import { requiresContinuousPresenterWardrobe } from "./director-wardrobe";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { renderReferenceSegmentPlanForPrompt, type ReferenceSegmentPlan } from "./reference-segment-plan";
+import { selectDirectorSegmentProfile } from "./director-analysis-timeline";
+import { renderDirectorSubjectPolicy } from "./director-source-interval";
 
 export function buildStoryboardImagePrompt(input: {
   segmentIndex: number;
@@ -28,6 +30,7 @@ export function buildStoryboardImagePrompt(input: {
 }) {
   const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(input.directorBrief);
   const referenceFormatMode = resolveReferenceFormatMode(input.directorBrief);
+  const detailedSourceTimeline = Boolean(input.directorBrief?.camera_timeline?.length);
   const montageReference = isVoiceoverMontageReference(referenceFormatMode);
   const continuousPresenterWardrobe = requiresContinuousPresenterWardrobe({ referenceFormatMode, referenceSceneMode });
   const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
@@ -174,9 +177,25 @@ export function buildStoryboardImagePrompt(input: {
       ? `PHYSICAL REPAIR FROM PRIOR CHECK: ${input.repairInstructions.join("; ")}.`
       : "",
     `Сегмент ${input.segmentIndex}. Каждый кадр длится две секунды.`,
-    ...input.storyboard.frames.map((frame, index) =>
-      [
+    "PER-FRAME SUBJECT CONTRACT: the source interval subject policy below overrides any global presenter or avatar guidance.",
+    detailedSourceTimeline
+      ? "DETAILED SOURCE TRANSFER: use the matching source interval as a visual reconstruction reference for each panel: preserve its visible-subject role, B-roll versus presenter distribution, composition, foreground/background relationship, camera movement, transition language, and visible object logic. Replace only incompatible source identity, wardrobe, location details, and product."
+      : "",
+    ...input.storyboard.frames.map((frame, index) => {
+      const referenceProfile = selectDirectorSegmentProfile({
+        brief: input.directorBrief,
+        segmentIndex: input.segmentIndex,
+        segmentCount: Math.max(1, input.referenceSegmentPlan?.segmentCount || input.segmentIndex),
+        frameIndex: index + 1,
+        frameCount: input.storyboard.frames.length,
+      });
+      return [
         `Кадр ${index + 1}, ${index * 2}-${(index + 1) * 2} сек:`,
+        renderDirectorSubjectPolicy({
+          visibleSubjectRole: referenceProfile?.visible_subject_role,
+          avatarAllowed: referenceProfile?.avatar_allowed,
+          speechMode: referenceProfile?.speech_mode,
+        }),
         `смысл речи для визуального действия: ${frame.spokenText}.`,
         frame.speechMode ? `speech_mode: ${frame.speechMode};` : "",
         `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)};${index === 0 ? ` окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};` : ""}`,
@@ -190,8 +209,8 @@ export function buildStoryboardImagePrompt(input: {
             : "продукт в этом кадре не показывай;"
           : `предметы: ${compactText(frame.productPlacement)};`,
         `звук: ${compactText(frame.sfxNotes)}.`,
-      ].join(" ")
-    ),
+      ].join(" ");
+    }),
   ].filter(Boolean).join("\n");
 }
 

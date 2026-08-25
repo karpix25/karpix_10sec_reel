@@ -11,6 +11,7 @@ import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract"
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
+import { renderDirectorTimelineForPrompt, resolveDirectorSegmentFormat } from "./director-analysis-timeline";
 import { requiresContinuousPresenterWardrobe } from "./director-wardrobe";
 import {
   renderScriptAdaptationContract,
@@ -97,11 +98,14 @@ export function buildDirectorSegmenterPrompt(input: {
   const montageReference = isVoiceoverMontageReference(referenceFormatMode);
   const wardrobeContinuity = input.chainInput.directorBrief?.wardrobe_continuity || "unknown";
   const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(input.chainInput.directorBrief);
-  const presenterReference = visibleSubjectPolicy === "presenter";
+  const hasDetailedTimeline = Boolean(input.chainInput.directorBrief?.camera_timeline?.length);
+  const presenterReference = resolveDirectorSegmentFormat(input.chainInput.directorBrief) === "talking_head_cutaways";
   const segmentFormat = presenterReference ? "talking_head_cutaways" : "voiceover_broll";
-  const frameRoleRule = presenterReference
-    ? "Первый frame обычно face_open. Последний frame обычно face_return."
-    : "Роли storyboard_frames только environment_cutaway или product_cutaway. Не добавляй face_open или face_return.";
+  const frameRoleRule = hasDetailedTimeline
+    ? "Для каждого storyboard_frame соблюдай соответствующий interval из SOURCE SHOT TIMELINE. face_open и face_return разрешены только в interval с subject=primary_presenter и avatar_allowed=true; в interval с avatar_allowed=false не добавляй лицо, голову или говорящего аватара. Не переноси правила первого и последнего кадра на весь ролик."
+    : presenterReference
+      ? "Первый frame обычно face_open. Последний frame обычно face_return."
+      : "Роли storyboard_frames только environment_cutaway или product_cutaway. Не добавляй face_open или face_return.";
   const subjectRule = renderVisibleSubjectPolicy(visibleSubjectPolicy);
   const exampleFrameRole = presenterReference ? "face_open" : "environment_cutaway";
   const exampleReferenceRole = visibleSubjectPolicy === "silent_avatar" ? "avatar" : presenterReference ? "avatar" : "none";
@@ -110,7 +114,9 @@ export function buildDirectorSegmenterPrompt(input: {
     wardrobeContinuity,
     requiresContinuousPresenterWardrobe({ referenceFormatMode, referenceSceneMode }),
   );
-  const formatRule = montageReference
+  const formatRule = hasDetailedTimeline
+    ? "Сохрани SOURCE SHOT TIMELINE как монтажный контракт: последовательность ролей, наличие человека, speech_mode, avatar_allowed, крупность, композицию, характер B-roll и переходы. Подмени только исходный сюжет, несовместимую одежду, локацию, реквизит и продукт под текущий сценарий."
+    : montageReference
     ? "Сохрани только макроформат montage и примерный темп смены планов. Сцены, действия, локации и порядок перебивок поставь заново под смысл текущего сценария."
     : presenterReference
       ? "Сохрани макроформат говорящей головы, но самостоятельно поставь сцену, жесты и короткие перебивки под новый сценарий."
@@ -129,7 +135,8 @@ total_voiceover должен дословно совпадать с готовы
 Количество storyboard frames зависит от duration_seconds: четыре секунды это два кадра, шесть секунд это три кадра, восемь секунд это четыре кадра, десять секунд это пять кадров.
 Каждый frame содержит ровно три, четыре или пять слов финальной русской речи в spoken_words.
 Склейка spoken_words всех frames должна дословно совпадать с voiceover segment.
-${frameRoleRule} Product_cutaway или environment_cutaway добавляй только там, где он помогает смыслу spoken_words. Точный момент перебивки из reference не является обязательным.
+  ${frameRoleRule} Product_cutaway или environment_cutaway добавляй только там, где он помогает смыслу spoken_words. Точный момент перебивки из reference не является обязательным.
+${renderDirectorTimelineForPrompt(input.chainInput.directorBrief)}
 ${subjectRule}
 Первый segment сохраняет силу и макроформат хука reference, но получает новую режиссерскую сцену под текущий текст. Продукт остается вне кадра, пока текущая реплика не создает конкретную потребность показать его применение или результат выбора.
 В итоговом voiceover каждого плана обязательно должно прозвучать точное название «${input.chainInput.productName}» и конкретная польза продукта. Фраза «ссылка в профиле», «ссылка в описании» или другой CTA не считается упоминанием продукта.
@@ -144,7 +151,7 @@ SFX это только естественные звуки кадра. Музы
 Выбирай product_cutaway и удерживание продукта в руках только когда смысл spoken_words этого кадра прямо связан с продуктом, его свойствами или применением. Если фраза посвящена общей теме, проблеме или выводу без прямого контакта с продуктом, продукт должен быть вне кадра (product_state: "вне кадра"), а персонаж говорит с естественной жестикуляцией без товара в руках. В product_cutaway продукт обязан быть физически видимым и детально совпадать с product reference.
 Для непредметных кадров создавай самостоятельную сцену, которая наглядно раскрывает текущую реплику. Из reference бери только общий визуальный язык без чужого продукта.
 ${formatRule} ${wardrobeRule}
-Камеру, переходы и точные тайминги выбирай сам под ясность текущего сценария. Из reference сохрани только примерную энергетику, крупность и общий тип монтажа.
+  ${hasDetailedTimeline ? "Камеру, переходы и тайминги адаптируй из SOURCE SHOT TIMELINE, сохраняя его визуальную механику и распределение человека/B-roll." : "Камеру, переходы и точные тайминги выбирай сам под ясность текущего сценария. Из reference сохрани только примерную энергетику, крупность и общий тип монтажа."}
 Мысль может естественно продолжаться между соседними segments. Не добавляй слова ради искусственного завершения фразы.
 ${renderRussianSpeechGenderRule(input.chainInput.avatarSpeechGender)}
 В segment без продуктовой демонстрации продукт остается либо вне кадра, либо в одном стабильном положении. В segment с демонстрацией опиши физическую последовательность: на поверхности, рука подходит, касается, берет, затем держит.

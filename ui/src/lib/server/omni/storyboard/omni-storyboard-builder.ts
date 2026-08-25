@@ -181,15 +181,6 @@ function buildFrame(input: {
   referenceSceneMode?: ReferenceSceneMode;
   referenceFormatMode?: ReferenceFormatMode;
 }): OmniStoryboardFrame {
-  const facelessReferenceScene = isFacelessReferenceScene(input.referenceSceneMode);
-  const voiceoverBrollReference = input.referenceSceneMode === "voiceover_broll";
-  const noPeopleReference = resolveDirectorVisibleSubjectPolicy(input.directorBrief) === "no_people";
-  const objectOnlyReferenceScene = isObjectOnlyReferenceScene(input.referenceSceneMode);
-  const startSeconds = (input.frameIndex - 1) * 2;
-  const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
-    input.plan.beats[0];
-  const layoutLocked = !noPeopleReference && /REFERENCE LAYOUT|collage\/PIP/iu.test(beat?.action || "");
-  const productVisible = input.plan.productRole !== "hidden";
   const referenceProfile = selectDirectorSegmentProfile({
     brief: input.directorBrief,
     segmentIndex: input.segmentIndex,
@@ -197,6 +188,16 @@ function buildFrame(input: {
     frameIndex: input.frameIndex,
     frameCount: input.frameCount,
   });
+  const facelessReferenceScene = isFacelessReferenceScene(input.referenceSceneMode);
+  const voiceoverBrollReference = input.referenceSceneMode === "voiceover_broll" || referenceProfile?.avatar_allowed === false;
+  const noPeopleReference = resolveDirectorVisibleSubjectPolicy(input.directorBrief) === "no_people" ||
+    referenceProfile?.visible_subject_role === "no_people";
+  const objectOnlyReferenceScene = isObjectOnlyReferenceScene(input.referenceSceneMode);
+  const startSeconds = (input.frameIndex - 1) * 2;
+  const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
+    input.plan.beats[0];
+  const layoutLocked = !noPeopleReference && /REFERENCE LAYOUT|collage\/PIP/iu.test(beat?.action || "");
+  const productVisible = input.plan.productRole !== "hidden";
   const speechMode = noPeopleReference ? "voiceover_only" : referenceProfile?.speech_mode || "on_camera";
   const referencePolicy = resolveReferenceTransferPolicy(input.referenceTransferPolicy);
   const referenceAction = layoutLocked || referencePolicy.mode === "style_only"
@@ -333,7 +334,7 @@ function applySpeechModeToAction(action: string, speechMode: DirectorSegmentProf
 
 function renderDirectorEnvironment(brief?: DirectorBrief | null, profile?: DirectorSegmentProfile | null) {
   const parts = [
-    profile?.lighting || brief?.atmosphere.lighting,
+    profile?.setting || profile?.environment || profile?.lighting || brief?.atmosphere.lighting,
     brief?.atmosphere.color_grading,
     brief?.atmosphere.mood,
   ].filter(Boolean);
@@ -357,7 +358,7 @@ function renderDirectorCamera(
     shotTypes.join(", "),
     camera.angles.length ? `angles ${camera.angles.join(", ")}` : "",
     camera.movements.length ? `movement ${camera.movements.join(", ")}` : "",
-    camera.stabilization,
+    camera.stabilization, profile?.composition ? `composition ${profile.composition}` : "",
     "choose the clearest angle for the current beat",
   ].filter(Boolean).join("; "), 220));
 }
@@ -454,7 +455,7 @@ function renderIntroFrameAction(
 function renderProfileAction(profile?: DirectorSegmentProfile | null) {
   if (!profile) return "";
   return compactText(
-    [sanitizeReferenceActionDescription(profile.action_description), profile.actor_gesture].filter(Boolean).join("; "),
+    [sanitizeReferenceActionDescription(profile.visual_description || profile.action_description), profile.actor_gesture].filter(Boolean).join("; "),
     220
   );
 }

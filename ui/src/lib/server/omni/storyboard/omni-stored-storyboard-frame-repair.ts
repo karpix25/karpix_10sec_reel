@@ -41,7 +41,7 @@ export function buildStoredStoryboardFrame(input: {
   const spokenText = input.frame.spokenWords;
   const productVisible = input.productVisible;
   const noPeopleReference = resolveDirectorVisibleSubjectPolicy(input.directorBrief) === "no_people";
-  const speechMode = noPeopleReference || input.referenceSceneMode === "voiceover_broll"
+  const speechMode = noPeopleReference || input.referenceSceneMode === "voiceover_broll" || input.referenceProfile?.avatar_allowed === false
     ? "voiceover_only"
     : input.referenceProfile?.speech_mode || "on_camera";
   const sourceAction = input.frame.visualDescription || input.frame.action;

@@ -3,6 +3,7 @@ import { extractDirectorReferenceFrameBuffers } from "./storyboard-director-refe
 import { normalizeDirectorBrief, type DirectorBrief } from "./director-analysis-types";
 import { normalizeOpenRouterUsage, type OpenRouterUsageRecord } from "@/lib/omni/openrouter-cost";
 import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
+import type { DirectorAnalysisEvidenceFrame } from "./openrouter-director-analysis-client";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "google/gemini-3.5-flash-lite";
@@ -26,11 +27,15 @@ export async function verifyDirectorBriefAgainstReferenceFrames(input: {
   videoUrl: string;
   brief: DirectorBrief;
   model?: string | null;
+  evidenceFrames?: readonly DirectorAnalysisEvidenceFrame[];
 }): Promise<DirectorAnalysisVerificationResult> {
   const apiKey = process.env.OPENROUTER_API_KEY || "";
   if (!apiKey.trim()) throw new Error("OPENROUTER_API_KEY is not configured for director analysis verification");
 
-  const frames = await extractDirectorReferenceFrameBuffers({ videoUrl: input.videoUrl, maxFrames: 3 });
+  const frames = input.evidenceFrames?.length
+    ? selectVerificationFrames(input.evidenceFrames)
+    : (await extractDirectorReferenceFrameBuffers({ videoUrl: input.videoUrl, maxFrames: 3 }))
+      .map((body, index) => ({ timestampSec: index, body }));
   if (frames.length < 2) throw new Error("Director analysis verification needs at least two source frames");
 
   const model = input.model || process.env.OMNI_DIRECTOR_ANALYSIS_VERIFY_MODEL || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL || DEFAULT_MODEL;
@@ -52,10 +57,13 @@ export async function verifyDirectorBriefAgainstReferenceFrames(input: {
           role: "user",
           content: [
             { type: "text", text: buildVerificationPrompt(input.brief) },
-            ...frames.map((frame) => ({
-              type: "image_url",
-              image_url: { url: `data:image/jpeg;base64,${frame.toString("base64")}` },
-            })),
+            ...frames.flatMap((frame) => [
+              { type: "text" as const, text: `SOURCE FRAME ${frame.timestampSec}s` },
+              {
+                type: "image_url" as const,
+                image_url: { url: `data:image/jpeg;base64,${frame.body.toString("base64")}` },
+              },
+            ]),
           ],
         },
       ],
@@ -105,7 +113,8 @@ export async function verifyDirectorBriefAgainstReferenceFrames(input: {
 const VERIFICATION_SYSTEM_PROMPT = [
   "You are a strict video-reference QA reviewer.",
   "Compare the supplied director brief with the attached source frames.",
-  "Correct every factual mismatch in location, camera position, movement, lighting, wardrobe continuity, wardrobe timeline and visible actions.",
+  "Correct every factual mismatch in location, camera position, movement, lighting, wardrobe continuity, wardrobe timeline, visible subject role, avatar permission, shot composition and visible actions.",
+  "Preserve the detailed approximately two-second camera_timeline. Do not collapse independent B-roll intervals into one broad shot. Keep visual_description, composition, visible_objects, source_role, visible_subject_role, avatar_allowed, transition_in, transition_out and adaptation_rule for every interval.",
   "Verify wardrobe independently from format: stable, changes_between_cuts, not_visible or unknown. Keep one timeline interval per visibly different outfit or subject; never replace a wardrobe timeline with one global outfit merely because the source is a montage.",
   "Frames are evidence. Never infer a home or studio when a vehicle cabin is visible.",
   "Return only JSON: status (pass or repair), confidence (0-1), reasons (short array), director_brief (full corrected object). Preserve audio_profile exactly; this field was determined from the full video's audio and is not verifiable from still frames.",
@@ -117,6 +126,12 @@ function buildVerificationPrompt(brief: DirectorBrief) {
     JSON.stringify(brief),
     "Return the complete corrected director_brief, keeping the same schema. Preserve the observed format mechanics, not the source creator identity, product brand or text overlays.",
   ].join("\n");
+}
+
+function selectVerificationFrames(frames: readonly DirectorAnalysisEvidenceFrame[]) {
+  const limit = 8;
+  if (frames.length <= limit) return frames;
+  return Array.from({ length: limit }, (_, index) => frames[Math.round((index * (frames.length - 1)) / (limit - 1))]);
 }
 
 function readAssistantContent(data: Record<string, unknown>) {

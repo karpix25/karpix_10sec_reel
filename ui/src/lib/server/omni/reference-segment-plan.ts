@@ -17,6 +17,7 @@ import {
   type ReferenceFormatMode,
 } from "./omni-reference-format-mode";
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
+import type { DirectorSourceRole, DirectorVisibleSubjectRole } from "./director-source-interval";
 
 export type ReferenceSegmentBeat = {
   startSeconds: number;
@@ -30,11 +31,21 @@ export type ReferenceSegmentBeat = {
   environment: string;
   lighting: string;
   speechMode: PhysicalSpeechMode;
+  visibleSubjectRole?: DirectorVisibleSubjectRole;
+  avatarAllowed?: boolean;
+  sourceRole?: DirectorSourceRole;
+  visualDescription?: string;
+  composition?: string;
+  visibleObjects?: readonly string[];
+  transitionIn?: string;
+  transitionOut?: string;
+  adaptationRule?: string;
 };
 
 export type ReferenceSegmentPlan = {
   version: "reference-segment-plan-v1";
   segmentIndex: number;
+  segmentCount?: number;
   outputStartSeconds: number;
   outputEndSeconds: number;
   durationSeconds: number;
@@ -102,6 +113,7 @@ export function buildReferenceSegmentPlan(input: {
   return {
     version: "reference-segment-plan-v1",
     segmentIndex: input.segmentIndex,
+    segmentCount: input.segmentCount,
     outputStartSeconds: round(outputStartSeconds),
     outputEndSeconds: round(outputStartSeconds + durationSeconds),
     durationSeconds: round(durationSeconds),
@@ -148,9 +160,22 @@ export function resolveReferenceFrameCount(renderMode: ReferenceRenderMode, beat
 export function renderReferenceSegmentPlanForPrompt(plan: ReferenceSegmentPlan | null | undefined) {
   if (!plan) return "";
   return [
-    "REFERENCE INSPIRATION: use only the macro production type and broad energy.",
-    `Segment ${plan.segmentIndex}, ${plan.durationSeconds}s; suggested format=${plan.renderMode}; suggested motion=${plan.motionMode}.`,
-    "Create original scene beats, camera choices, actions, locations, and cut timing for the approved script and product. Exact source windows and observed shot order are not requirements.",
+    "REFERENCE SHOT CONTRACT: preserve the analyzed interval structure, visible-subject role, speech mode, avatar permission, composition, camera language, and cut rhythm. Replace source-specific people, wardrobe, location details, props, product, and spoken meaning only when the current product adaptation requires it.",
+    `Segment ${plan.segmentIndex}/${plan.segmentCount || "?"}, ${plan.durationSeconds}s; render=${plan.renderMode}; motion=${plan.motionMode}.`,
+    ...plan.beats.map((beat) => [
+      `Beat ${beat.startSeconds}-${beat.endSeconds}s; source ${beat.sourceStartSeconds}-${beat.sourceEndSeconds}s`,
+      `role=${beat.sourceRole || "unknown"}`,
+      `subject=${beat.visibleSubjectRole || "unknown"}`,
+      `avatar_allowed=${beat.avatarAllowed === true ? "true" : beat.avatarAllowed === false ? "false" : "unknown"}`,
+      `speech=${beat.speechMode}`,
+      `shown=${compact(beat.visualDescription || beat.action)}`,
+      `composition=${compact(beat.composition || "not specified")}`,
+      `objects=${beat.visibleObjects?.join(", ") || "none specified"}`,
+      `camera=${compact(beat.camera)}`,
+      `setting=${compact(beat.setting)}; environment=${compact(beat.environment)}; light=${compact(beat.lighting)}`,
+      beat.transitionIn || beat.transitionOut ? `transition=${compact([beat.transitionIn, beat.transitionOut].filter(Boolean).join(" -> "))}` : "",
+      beat.adaptationRule ? `adapt=${compact(beat.adaptationRule)}` : "",
+    ].filter(Boolean).join("; ")),
   ].join("\n");
 }
 
@@ -175,6 +200,15 @@ function buildBeat(input: {
     environment: profile?.environment || "визуальные детали из reference",
     lighting: profile?.lighting || "свет из reference",
     speechMode: profile?.speech_mode || "voiceover_only",
+    visibleSubjectRole: profile?.visible_subject_role,
+    avatarAllowed: profile?.avatar_allowed,
+    sourceRole: profile?.source_role,
+    visualDescription: profile?.visual_description || profile?.action_description,
+    composition: profile?.composition,
+    visibleObjects: profile?.visible_objects,
+    transitionIn: profile?.transition_in,
+    transitionOut: profile?.transition_out,
+    adaptationRule: profile?.adaptation_rule,
   };
 }
 

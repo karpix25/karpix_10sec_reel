@@ -11,6 +11,9 @@ import { normalizeDirectorBrief, type OmniDirectorAnalysis } from "./director-an
 import { verifyDirectorBriefAgainstReferenceFrames } from "./director-analysis-frame-verifier";
 import { isRetryableDirectorAnalysisError } from "./director-analysis-retry";
 import { requireOmniProductInProject } from "./products";
+import { buildDirectorTimelineSeekSeconds } from "./director-source-interval";
+import { extractDirectorReferenceFrameBuffers } from "./storyboard-director-references";
+import type { DirectorAnalysisEvidenceFrame } from "./openrouter-director-analysis-client";
 
 const LEGACY_SOURCE = "old_db";
 const STORED_VIDEO_PROBE_TIMEOUT_MS = 15_000;
@@ -206,12 +209,14 @@ async function runDirectorAnalysis(
     }
 
     const videoUrlForAnalysis = storedVideoUrl || resolved.videoUrl;
+    const evidenceFrames = await extractDirectorEvidenceFrames(videoUrlForAnalysis, sourceScenario.duration_seconds);
     const analyzed = await analyzeDirectorVideo({
       videoUrl: videoUrlForAnalysis,
       transcript: sourceScenario.script,
       productName: product.name,
       productDescription: product.description,
       productReferenceNotes: product.product_reference_notes,
+      evidenceFrames,
     });
     if (!analyzed.brief.content_adaptation) {
       throw new Error("Director analysis returned no content adaptation plan");
@@ -220,6 +225,7 @@ async function runDirectorAnalysis(
       videoUrl: videoUrlForAnalysis,
       brief: analyzed.brief,
       model: analyzed.model,
+      evidenceFrames,
     });
     const openRouterUsage = [
       verified.openRouterUsage,
@@ -275,6 +281,23 @@ async function runDirectorAnalysis(
       [analysisId, formatError(error)]
     );
     return normalizeAnalysis(rows[0]);
+  }
+}
+
+async function extractDirectorEvidenceFrames(videoUrl: string, durationSeconds: number | null | undefined): Promise<DirectorAnalysisEvidenceFrame[]> {
+  const seekSeconds = buildDirectorTimelineSeekSeconds(durationSeconds);
+  try {
+    const bodies = await extractDirectorReferenceFrameBuffers({
+      videoUrl,
+      maxFrames: seekSeconds.length,
+      seekSeconds,
+    });
+    return bodies.map((body, index) => ({ timestampSec: seekSeconds[index] || 0, body }));
+  } catch (error) {
+    console.warn("Detailed director evidence frame extraction failed; continuing with video analysis:", {
+      error: formatError(error),
+    });
+    return [];
   }
 }
 

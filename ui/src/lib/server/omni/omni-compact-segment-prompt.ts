@@ -20,6 +20,7 @@ import { renderOmniVerticalRhythmContract } from "./omni-vertical-rhythm-contrac
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isAvatarFreeReferenceScene, isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
+import { renderDirectorTimelineForPrompt, resolveDirectorSegmentFormat } from "./director-analysis-timeline";
 
 export function renderCompactSegmentPrompt(input: {
   plan: OmniSegmentCreativePlan;
@@ -70,6 +71,7 @@ export function renderCompactSegmentPrompt(input: {
   const voiceoverBrollReference = referenceSceneMode === "voiceover_broll";
   const timelineModes = new Set((input.directorBrief?.camera_timeline || []).map((item) => item.speech_mode));
   const hybridDelivery = timelineModes.has("on_camera") && timelineModes.has("voiceover_only");
+  const detailedTimeline = Boolean(input.directorBrief?.camera_timeline?.length);
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
   const wardrobeContinuity = input.directorBrief?.wardrobe_continuity || "unknown";
   const wardrobeDirection = wardrobeContinuity === "not_visible"
@@ -113,6 +115,9 @@ export function renderCompactSegmentPrompt(input: {
         ? "FORMAT: DIRECTOR-LED HYBRID. Use the saved avatar for any featured human and create the speaking or B-roll delivery that best serves the current line. Background people and exact mouth state are not continuity requirements."
       : null,
     renderVisibleSubjectPolicy(visibleSubjectPolicy),
+    detailedTimeline
+      ? `${renderDirectorTimelineForPrompt(input.directorBrief)} Per-interval subject rules override all global avatar, wardrobe, and speech defaults. Current segment format fallback: ${resolveDirectorSegmentFormat(input.directorBrief)}.`
+      : null,
     objectOnlyReferenceScene
       ? "VISIBLE SUBJECT: object-only macro scene; no person, hands, face, head, or avatar."
       : noPeopleReference

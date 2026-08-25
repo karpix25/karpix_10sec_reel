@@ -4,7 +4,7 @@ import { renderReferenceSceneModeForDirectorPrompt, resolveReferenceSceneMode } 
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { renderReferenceFormatContract, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v14-content-adaptation";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v15-detailed-shot-timeline";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
@@ -12,10 +12,10 @@ export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "Treat visible frames as the factual source of truth: verify the opening, middle, and ending setup before using the transcript. A vehicle cabin, handheld phone shake, visible food, or a passenger seat must never be rewritten as a home or studio.",
   "Return only valid JSON. Do not include markdown, prose, comments, or extra keys.",
   "Do not describe or request application interfaces, social app overlays, buttons, like/share icons, comments, subtitles, captions, progress bars, brand logos, or UI elements.",
-  "Focus only on raw footage: subject actions, visual hook, location timeline, atmosphere, clothing style, camera language, lighting, reusable scene mechanics, and the audible music layer.",
+    "Focus only on raw footage: subject actions, visual hook, detailed shot-by-shot visual descriptions, location timeline, atmosphere, clothing style, camera language, lighting, reusable scene mechanics, and the audible music layer.",
   "Listen to the attached video's audio when supported. Distinguish spoken voice, background music, natural production sound, and sound effects. Do not confuse speech or ambient noise with music.",
   "Do not turn the reference speaker's speech tempo or pauses into generation instructions. Do extract visible camera changes, cuts, and transitions exactly as observed, including film burn, light leak, exposure flash, lens flare, blur, wipe, fade, or other edit treatment.",
-  "Extract reusable direction without copying the creator identity, face, brand, exact location, logos, protected marks, or platform interface.",
+    "Extract reusable direction without copying the creator identity, face, brand, exact location, logos, protected marks, or platform interface. Describe the physical placement and visual role of phones or screens without transcribing interface text, logos, or branded UI.",
 ].join("\n");
 
 export function buildDirectorAnalysisUserPrompt(input: {
@@ -57,7 +57,8 @@ export function buildDirectorAnalysisUserPrompt(input: {
     "- wardrobe_timeline MUST contain 1-8 chronological intervals covering the source video. For every interval record start_sec, end_sec, subject_id, visible, description, change_note, and confidence. Inspect each cut: do not copy one global outfit into all intervals. If different people appear, use different subject_id values. If clothing is not visible, set visible=false and leave description empty.",
     "- audio_profile MUST classify the actual reference audio. Set music_present to true only when a non-diegetic or clearly musical layer is audible; set it to false for speech, silence, room tone, traffic, handling noise, and isolated natural SFX. Return music_role as none, background_bed, rhythmic_edit_driver, emotional_accent, or unknown; mood as energetic, calm, dramatic, inspiring, playful, or serious; energy as low, medium, high, or unknown; tempo as slow, medium, fast, or unknown; voice_priority as low, medium, high, or unknown; confidence as a number from 0 to 1; and evidence as one short factual sentence. If the audio is unclear, lower confidence and do not claim music is present.",
     "- location_timeline must describe any location/environment changes by seconds. If the location never changes, return one item for the whole video.",
-    "- camera_timeline must cover the whole source video with 2-8 chronological intervals. For each interval record exact seconds, shot type, angle, movement, stabilization, setting, environment, lighting, visible action, gesture, and speech_mode. Set speech_mode to on_camera when the visible person is speaking/lip-syncing to camera, voiceover_only when narration continues over an independent B-roll/cutaway, or silent when nobody speaks. This is per interval: a hybrid reference may alternate on_camera and voiceover_only. Preserve raw smartphone texture, handheld shake, focus/exposure changes, and vehicle sway when visible. A moving car is allowed; the presenter is a passenger, never the driver.",
+    "- camera_timeline must cover the whole source video with approximately two-second chronological intervals, additionally split at every visible shot boundary. Do not merge independent B-roll scenes into one broad interval. For each interval record exact seconds, shot type, angle, movement, stabilization, setting, environment, lighting, visual_description, composition, visible_objects, visible action, gesture, transition_in, transition_out, source_role, visible_subject_role, avatar_allowed, adaptation_rule, and speech_mode. Set speech_mode to on_camera when the visible person is speaking/lip-syncing to camera, voiceover_only when narration continues over an independent B-roll/cutaway, or silent when nobody speaks. Set visible_subject_role to primary_presenter only for the main person who is visibly delivering the message; use background_person for incidental people and no_people when no person is visible. Set avatar_allowed=false for independent B-roll, background people, and no-people intervals. This is per interval: a hybrid reference may alternate on_camera and voiceover_only. Preserve raw smartphone texture, handheld shake, focus/exposure changes, and vehicle sway when visible. A moving car is allowed; the presenter is a passenger, never the driver.",
+    "- visual_description must be concrete enough to rebuild the shot: what is visible, subject or object placement, foreground and background, framing geometry, action, movement, and physical props. Do not write generic phrases such as 'a relevant B-roll scene'. Describe observed facts first; adaptation_rule separately explains what may be replaced for the new product. Keep source_role as hook, presenter, environment_broll, product_broll, proof_broll, transition, ending, or unknown.",
     "- clothing.source names whose outfit style is being described, usually the main presenter.",
     "- clothing.adaptation_notes MUST contain a specific concrete outfit equivalent for the opposite gender body — not a generic instruction like 'adapt gendered garments'. Write what the adapted person would actually wear: name the exact garment (shirt, trousers, dress, etc.), its color matching the original palette, cut (loose, fitted, tailored, etc.), and mood. Example: if source wears a white loose blouse → write 'white loose linen shirt, untucked, same relaxed silhouette and light color'.",
     "- montage_rhythm must describe only visible cuts and transitions. Inspect every boundary between source shots and name the exact treatment: hard cut, jump cut, film burn/light leak, exposure flash, lens flare, blur, wipe, fade, or another visible effect. If the reference stays on one setup, say that it uses a continuous stable shot.",
@@ -189,6 +190,15 @@ function buildDirectorBriefSkeleton() {
       lighting: "",
       action_description: "",
       actor_gesture: "",
+      visual_description: "what is visibly shown, including composition, foreground, background, subject or object placement, and physical action",
+      composition: "framing geometry and subject placement",
+      visible_objects: ["unbranded physical objects visible in this interval"],
+      visible_subject_role: "primary_presenter|silent_primary_subject|background_person|no_people|hands_only|object_only|unknown",
+      avatar_allowed: false,
+      source_role: "hook|presenter|environment_broll|product_broll|proof_broll|transition|ending|unknown",
+      transition_in: "hard cut or observed transition",
+      transition_out: "hard cut or observed transition",
+      adaptation_rule: "what visual role to preserve and what source-specific content may be replaced",
       speech_mode: "on_camera|voiceover_only|silent",
     }],
     camera: { shot_types: [""], angles: [""], movements: [""], stabilization: "" },

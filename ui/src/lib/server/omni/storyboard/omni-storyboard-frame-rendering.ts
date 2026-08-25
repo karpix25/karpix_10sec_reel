@@ -41,6 +41,9 @@ export function renderStoryboardWardrobe(input: {
   referenceFormatMode?: ReferenceFormatMode;
   referenceSceneMode?: ReferenceSceneMode;
 }) {
+  if (input.referenceProfile?.avatar_allowed === false) {
+    return "WARDROBE: not applicable to the featured avatar in this source interval";
+  }
   if (isObjectOnlyReferenceScene(input.referenceSceneMode)) {
     return "WARDROBE: not applicable; no person or hands are visible";
   }
@@ -67,6 +70,9 @@ export function renderReferenceWardrobe(input: {
   referenceFormatMode?: ReferenceFormatMode;
   referenceSceneMode?: ReferenceSceneMode;
 }) {
+  if (input.referenceProfile?.avatar_allowed === false) {
+    return "WARDROBE: not applicable to the featured avatar in this source interval";
+  }
   if (isObjectOnlyReferenceScene(input.referenceSceneMode) || resolveDirectorVisibleSubjectPolicy(input.brief) === "no_people") {
     return "WARDROBE: not applicable; no person or hands are visible";
   }

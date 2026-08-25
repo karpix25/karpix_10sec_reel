@@ -48,7 +48,7 @@ import {
 import { assertRussianSpeechGender, normalizeRussianSpeechGender } from "./russian-speech-gender-contract";
 import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
 import { countOmniScriptWords, getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
-import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
+import { resolveDirectorSegmentFormat } from "./director-analysis-timeline";
 import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -255,9 +255,7 @@ async function runDirectorSegmenter(
   onUsage: (usage: OpenRouterUsageRecord) => void
 ) {
   const segmentPlan = planOmniReelSegments(draft.script, { durationRange: input.durationRange });
-  const format = resolveDirectorVisibleSubjectPolicy(input.directorBrief) === "presenter"
-    ? "talking_head_cutaways"
-    : "voiceover_broll";
+  const format = resolveDirectorSegmentFormat(input.directorBrief);
   const basePrompt = buildDirectorSegmenterPrompt({ chainInput: input, draft, segmentPlan });
   const maxAttempts = DIRECTOR_TARGETED_REPAIR_ATTEMPTS + 2;
   let previousPlan: DirectorSegmentPlan | null = null;

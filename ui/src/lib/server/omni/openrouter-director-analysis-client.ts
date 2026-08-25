@@ -18,6 +18,11 @@ export type DirectorVideoAnalysisResult = {
   openRouterUsage: OpenRouterUsageRecord | null;
 };
 
+export type DirectorAnalysisEvidenceFrame = {
+  timestampSec: number;
+  body: Buffer;
+};
+
 export async function analyzeDirectorVideo(input: {
   videoUrl: string;
   transcript: string;
@@ -25,6 +30,7 @@ export async function analyzeDirectorVideo(input: {
   productDescription: string | null;
   productReferenceNotes: string | null;
   model?: string | null;
+  evidenceFrames?: readonly DirectorAnalysisEvidenceFrame[];
 }): Promise<DirectorVideoAnalysisResult> {
   const apiKey = process.env.OPENROUTER_API_KEY || "";
   if (!apiKey.trim()) throw new Error("OPENROUTER_API_KEY is not configured");
@@ -56,6 +62,7 @@ export async function analyzeDirectorVideo(input: {
               }),
             },
             { type: "video_url", video_url: { url: input.videoUrl } },
+            ...renderEvidenceFrames(input.evidenceFrames),
           ],
         },
       ],
@@ -93,6 +100,16 @@ export async function analyzeDirectorVideo(input: {
     },
     openRouterUsage,
   };
+}
+
+function renderEvidenceFrames(frames: readonly DirectorAnalysisEvidenceFrame[] | undefined) {
+  return (frames || []).flatMap((frame) => [
+    { type: "text" as const, text: `EVIDENCE FRAME ${frame.timestampSec}s: inspect this exact source moment and keep its visible subject, composition, objects, and action in the detailed camera_timeline.` },
+    {
+      type: "image_url" as const,
+      image_url: { url: `data:image/jpeg;base64,${frame.body.toString("base64")}` },
+    },
+  ]);
 }
 
 function readAssistantContent(data: Record<string, unknown>) {
