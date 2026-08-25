@@ -426,7 +426,9 @@ try {
   assert.ok(promptChainSource.includes("где естественно завершается рассказ о продукте"), "LLM chain CTA must be embedded at the natural product mention");
   assert.ok(promptChainSource.includes("финальная часть ролика не состояла только из призыва"), "link CTA must be followed by a real conclusion");
   assert.ok(promptChainSource.includes("вопросом, приказом или новым призывом"), "CTA conclusion must be declarative");
-  assert.ok(promptChainSource.includes("сохрани минимум два конкретных примера"), "concrete reference lists must survive adaptation");
+  assert.ok(promptChainSource.includes("Для подтверждения достаточно одного конкретного факта"), "one concrete reference fact must be enough");
+  assert.ok(promptChainSource.includes("Не переноси весь список ради формального совпадения"), "copywriter must not copy full reference lists");
+  assert.ok(!promptChainSource.includes("сохрани минимум два конкретных примера"), "copywriter must not require two examples");
   assert.ok(promptChainSource.includes("без такого действия не считаются пользой"), "product benefit must name an action from the product description");
   assert.ok(!promptChainSource.includes("CTA: последняя фраза должна"), "link CTA must not be forced into the last sentence");
   assert.ok(!promptChainSource.includes("CTA может быть отдельной последней фразой"), "base prompt must not allow CTA-only endings");
@@ -435,6 +437,8 @@ try {
     "utf8"
   );
   assert.ok(!creativeRepairSource.includes("CTA отдельной последней фразой"), "targeted repair must not reintroduce CTA-only endings");
+  assert.ok(creativeRepairSource.includes("достаточно одного конкретного факта или примера"), "targeted repair must preserve one supporting fact");
+  assert.ok(!creativeRepairSource.includes("сохрани минимум два конкретных примера"), "targeted repair must not restore the old strict gate");
   assert.ok(creativeRepairSource.includes("CTA перед полноценным финальным выводом"), "full rebuild must keep a conclusion after CTA");
   assert.ok(creativeRepairSource.includes("не является вопросом, приказом или призывом"), "full rebuild must reject imperative endings");
   assert.ok(creativeRepairSource.includes("до финального вывода попроси написать"), "comment CTA must precede the conclusion");
@@ -448,7 +452,7 @@ try {
   assert.ok(promptChainSource.includes("Первый segment сохраняет силу и макроформат хука reference"), "first segment must preserve the hook category without copying the source shot");
   assert.ok(promptChainSource.includes("Общая фраза только о пользе продукта не считается выводом reference"), "copywriter must conclude the reference thesis, not only the product benefit");
   assert.ok(semanticReviewerSource.includes("Не предлагай вопрос, приказ, CTA или императив"), "semantic repair feedback must not suggest forbidden imperative endings");
-  assert.ok(semanticReviewerSource.includes("даже если несколько перечислены в одном предложении"), "semantic review must count distinct examples inside one list");
+  assert.ok(semanticReviewerSource.includes("Не отклоняй полезный сценарий только потому"), "semantic review must allow concise reference adaptation");
   assert.ok(semanticReviewerSource.includes("сам рекламный переход не является ошибкой"), "semantic review must accept the mid-roll ad contract");
   assert.ok(promptChainSource.includes("десять секунд это пять кадров"), "prompt chain must preserve exact frame counts");
   assert.ok(promptChainSource.includes("точный материал, крой и цвет reference не являются контрактом"), "wardrobe must not trigger paid regeneration");

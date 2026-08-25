@@ -189,8 +189,9 @@ try {
   assert.ok(semanticReviewerSource.includes("Не оценивай длину, число слов"));
   assert.ok(semanticReviewerSource.includes("после последнего CTA"));
   assert.ok(semanticReviewerSource.includes("Вопрос, приказ или новый призыв"));
-  assert.ok(semanticReviewerSource.includes("минимум два конкретных примера"));
-  assert.ok(semanticReviewerSource.includes("Не требуй сохранить все примеры"));
+  assert.ok(semanticReviewerSource.includes("Одного конкретного факта или примера достаточно"));
+  assert.ok(semanticReviewerSource.includes("Не требуй сохранять весь список"));
+  assert.ok(!semanticReviewerSource.includes("минимум два конкретных примера"));
   assert.ok(semanticReviewerSource.includes("Не требуй сохранять чужой CTA"));
   assert.ok(semanticReviewerSource.includes("Если факт назван, нельзя писать, что он отсутствует"));
 
