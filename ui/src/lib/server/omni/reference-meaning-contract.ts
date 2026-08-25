@@ -47,9 +47,15 @@ const CRITICAL_MEANING_SIGNALS = [
 const GENERATED_MECHANISM_PATTERN =
   /(?<=^|[^a-zA-Zа-яА-ЯёЁ0-9])(как|почему|механизм|за счет|работает|сигнал|клетк|пептид|аминокис|исслед|доказ|синтез|активиру|стимулиру|потому что|то есть)(?=$|[^a-zA-Zа-яА-ЯёЁ0-9])/iu;
 
+const LIST_MARKER_PATTERN = /(?:\b(?:во-первых|во-вторых|во-третьих|во-четвертых|во-четвёртых|во-пятых)\b|\b(?:перв(?:ый|ая|ое)|втор(?:ой|ая|ое)|трет(?:ий|ья|ье)|четверт(?:ый|ая|ое)|четвёрт(?:ый|ая|ое)|пят(?:ый|ая|ое)|шест(?:ой|ая|ое))\b|(?:^|\s)\d+[.)])/iu;
+const LIST_CONTEXT_PATTERN = /\b(?:совет|совета|советов|шаг|шага|шагов|ошибк|причин|способ|способа|правил|признак|мест|пункт|вариант|секрет|факт)\w*/iu;
+const MAX_LIST_ITEMS = 6;
+
 export type ReferenceMeaningContract = {
   anchors: string[];
   criticalSignals: string[];
+  listItems: string[];
+  requiresListPreservation: boolean;
   requiresMechanism: boolean;
 };
 
@@ -73,6 +79,10 @@ export function buildReferenceMeaningGuidance(referenceScript: string) {
   if (contract.criticalSignals.length) {
     lines.push(`Механизм и доказательные сигналы, которые нельзя потерять по смыслу: ${contract.criticalSignals.join(", ")}.`);
   }
+  if (contract.requiresListPreservation) {
+    lines.push(`В reference есть список из ${contract.listItems.length} обязательных пунктов. Сохрани каждый пункт по смыслу, даже если рекламная вставка и CTA занимают место.`);
+    lines.push(`Обязательные пункты reference: ${contract.listItems.join(" / ")}`);
+  }
   return lines.join("\n");
 }
 
@@ -87,6 +97,9 @@ export function buildReferenceMeaningRepairGuidance(referenceScript: string) {
     contract.criticalSignals.length
       ? `Обязательные смысловые маркеры: ${contract.criticalSignals.join(", ")}.`
       : "Сохрани конкретный механизм или доказательство original reference.",
+    contract.requiresListPreservation
+      ? `Обязательные пункты списка reference: ${contract.listItems.join(" / ")}. Не заменяй их продуктом или CTA.`
+      : "Если reference содержит список, сохрани его обещанное количество и каждый пункт по смыслу.",
     "Это требование сохраняется даже при исправлении длины, CTA, хука или грамматики. Не добавляй новый CTA и не выдумывай новых обещаний.",
   ].join(" ");
 }
@@ -94,7 +107,9 @@ export function buildReferenceMeaningRepairGuidance(referenceScript: string) {
 export function buildReferenceMeaningContract(referenceScript: string): ReferenceMeaningContract {
   const normalized = normalizeText(referenceScript);
   const criticalSignals = CRITICAL_MEANING_SIGNALS.filter((signal) => normalized.includes(signal));
-  const anchors = getSentences(referenceScript)
+  const sentences = getSentences(referenceScript);
+  const listItems = extractListItems(sentences);
+  const anchors = sentences
     .map((sentence, index) => ({
       sentence: trimAnchor(sentence),
       score: scoreSentence(sentence, index),
@@ -106,6 +121,8 @@ export function buildReferenceMeaningContract(referenceScript: string): Referenc
   return {
     anchors,
     criticalSignals,
+    listItems,
+    requiresListPreservation: listItems.length >= 2,
     requiresMechanism: criticalSignals.length >= 2 || anchors.some((anchor) => /механизм|почему|как работает|исслед|доказ/iu.test(anchor)),
   };
 }
@@ -132,6 +149,18 @@ export function validateReferenceMeaningCoverage(input: {
       ? Math.round((coveredSignals.length / contract.criticalSignals.length) * 100)
       : 100,
   };
+}
+
+function extractListItems(sentences: readonly string[]) {
+  return sentences
+    .filter((sentence) => {
+      if (!LIST_MARKER_PATTERN.test(sentence)) return false;
+      return /\bво-(?:первых|вторых|третьих|четвертых|четвёртых|пятых)\b|(?:^|\s)\d+[.)]/iu.test(sentence)
+        || LIST_CONTEXT_PATTERN.test(sentence);
+    })
+    .map((sentence) => trimAnchor(sentence))
+    .filter((sentence, index, items) => items.indexOf(sentence) === index)
+    .slice(0, MAX_LIST_ITEMS);
 }
 
 function getSentences(text: string) {

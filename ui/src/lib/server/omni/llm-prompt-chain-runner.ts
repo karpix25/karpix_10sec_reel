@@ -49,7 +49,6 @@ import { assertRussianSpeechGender, normalizeRussianSpeechGender } from "./russi
 import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
 import { countOmniScriptWords, getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
 import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
-import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const CREATIVE_COPYWRITER_ATTEMPTS = 5;
@@ -199,15 +198,10 @@ async function runCreativeCopywriter(
       const maxWords = input.durationRange?.maxWords || getOmniMaxScriptWords();
       previousDraft = { ...draft, script: normalizedScript };
       const overWordBudget = countOmniScriptWords(normalizedScript) > maxWords;
-      if (creativeAttempt.mode === "targeted_repair" && overWordBudget && attempt < CREATIVE_COPYWRITER_ATTEMPTS) {
-        throw new Error(`Исправленный сценарий длиннее лимита: ${countOmniScriptWords(normalizedScript)} слов вместо ${maxWords}. Сократи второстепенные формулировки, не удаляя обязательные исправления.`);
+      if (overWordBudget) {
+        throw new Error(`Сценарий длиннее лимита: ${countOmniScriptWords(normalizedScript)} слов вместо ${maxWords}. Сократи второстепенные формулировки, не удаляя обязательные смысловые пункты.`);
       }
-      const script = creativeAttempt.mode === "targeted_repair" && !overWordBudget
-        ? normalizedScript
-        : compactOmniScriptToWordBudget(normalizedScript, maxWords, {
-          referenceScript: input.sourceScenario.script,
-          productName: input.productName,
-        });
+      const script = normalizedScript;
       previousDraft = { ...draft, script };
       lastSemanticReview = null;
       assertOmniScriptTextContract(script);

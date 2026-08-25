@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { DirectorSegmentPlan } from "./llm-prompt-chain-types";
-import type { PromptChainInput } from "./llm-prompt-chain-prompts";
+import {
+  buildCreativeCopywriterPrompt,
+  type PromptChainInput,
+} from "./llm-prompt-chain-prompts";
 import {
   buildCreativeCopywriterAttemptPrompt,
   resolveCreativeCopywriterAttemptMode,
 } from "./llm-prompt-chain-creative-repair";
+import { buildReferenceMeaningContract } from "./reference-meaning-contract";
 import { validateStoryboardDirectorPlan } from "./llm-prompt-chain-storyboard-validator";
 import { validateDirectorSegmentPlan } from "./provider-prompt-contract-validator";
 import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
@@ -123,6 +127,22 @@ test("creative semantic failures keep every retry targeted", () => {
   assert.equal(finalRepairAttempt.mode, "targeted_repair");
   assert.ok(finalRepairAttempt.prompt.includes("Rejected script:"));
   assert.ok(finalRepairAttempt.prompt.includes(rejectedScript));
+});
+
+test("reference list obligations are carried into the generator contract", () => {
+  const reference = "Вот три совета для поездки. Во-первых, проверьте страховку. Во-вторых, следите за вещами на пляже. В-третьих, планируйте маршрут по погоде.";
+  const contract = buildReferenceMeaningContract(reference);
+  assert.equal(contract.requiresListPreservation, true);
+  assert.equal(contract.listItems.length, 3);
+  assert.ok(contract.listItems[1].includes("следите за вещами"));
+
+  const prompt = buildCreativeCopywriterPrompt({
+    ...makeCreativeInput(),
+    sourceScenario: { ...makeCreativeInput().sourceScenario, script: reference },
+  });
+  assert.match(prompt, /сохрани каждый обязательный пункт по смыслу/iu);
+  assert.ok(prompt.includes("следите за вещами на пляже"));
+  assert.ok(prompt.includes("не упоминай описание, комментарии или кодовые слова"));
 });
 
 function makePlan(): DirectorSegmentPlan {
