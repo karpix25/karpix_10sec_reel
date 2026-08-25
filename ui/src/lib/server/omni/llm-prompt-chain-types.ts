@@ -33,6 +33,7 @@ export type ScriptSemanticReview = {
     product: string;
     value: string;
     answer: string;
+    transition: string;
   };
   issues: string[];
   repairInstructions: string[];

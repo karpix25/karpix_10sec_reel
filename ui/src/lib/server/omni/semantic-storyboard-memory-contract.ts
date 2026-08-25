@@ -23,7 +23,7 @@ const HARD_QA_MEMORY_CODES = /^(?:featured_identity_mismatch|identity_mismatch|w
 const POSITIVE_INSTRUCTIONS: Record<string, string> = {
   featured_identity_mismatch: "Любой главный или акцентный человек должен использовать сохранённый аватар.",
   product_form_mismatch: "Показывай продукт только в утверждённой физической или цифровой форме из product contract.",
-  product_missing: "Покажи клиентский продукт в запланированной рекламной вставке.",
+  product_missing: "Покажи клиентский продукт только в кадре, где текущая реплика объясняет его конкретное применение или пользу.",
   product_packaging_mismatch: "Сохраняй утвержденные форму, упаковку и маркировку продукта из product contract.",
   foreign_product: "Не заменяй клиентский продукт чужим рекламируемым товаром или брендом.",
   gross_visual_corruption: "Не допускай явно сломанных лиц, конечностей, смартфонов и физически невозможной геометрии.",

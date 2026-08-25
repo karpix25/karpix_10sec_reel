@@ -83,7 +83,7 @@ test("creative semantic failures keep every retry targeted", () => {
     finalAnswerPresent: false,
     productNaturallyIntegrated: false,
     referenceMeaningPreserved: true,
-    evidence: { product: "Плати по миру", value: "оплачивать поездки", answer: "" },
+    evidence: { product: "Плати по миру", value: "оплачивать поездки", answer: "", transition: "в поездке удобно использовать" },
     issues: ["Хук не получает ответа"],
     repairInstructions: ["Добавьте ответ перед CTA"],
   };
@@ -105,11 +105,11 @@ test("creative semantic failures keep every retry targeted", () => {
   assert.equal(repairAttempt.mode, "targeted_repair");
   assert.ok(repairAttempt.prompt.includes("Rejected script:"));
   assert.ok(repairAttempt.prompt.includes(rejectedScript));
-  assert.ok(repairAttempt.prompt.includes("ответ на хук, завершенный вывод, нативная интеграция продукта"));
+  assert.ok(repairAttempt.prompt.includes("ответ на хук, завершенный вывод, причинная и нативная связь продукта"));
   assert.ok(repairAttempt.prompt.includes("Добавьте ответ перед CTA"));
   assert.ok(repairAttempt.prompt.includes("ровно столько различимых пунктов из reference"));
   assert.ok(repairAttempt.prompt.includes("Не возвращай rejected script без фактического исправления"));
-  assert.ok(repairAttempt.prompt.includes("сначала произнеси полноценный вывод, затем CTA"));
+  assert.ok(repairAttempt.prompt.includes("CTA должен завершать мысль о применении продукта"));
 
   const finalRepairAttempt = buildCreativeCopywriterAttemptPrompt({
     chainInput: makeCreativeInput(),

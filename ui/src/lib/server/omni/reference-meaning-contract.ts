@@ -80,7 +80,7 @@ export function buildReferenceMeaningGuidance(referenceScript: string) {
     lines.push(`Механизм и доказательные сигналы, которые нельзя потерять по смыслу: ${contract.criticalSignals.join(", ")}.`);
   }
   if (contract.requiresListPreservation) {
-    lines.push(`В reference есть список из ${contract.listItems.length} обязательных пунктов. Сохрани каждый пункт по смыслу, даже если рекламная вставка и CTA занимают место.`);
+    lines.push(`В reference есть список из ${contract.listItems.length} обязательных пунктов. Сохрани каждый пункт по смыслу; продукт и CTA должны быть встроены в соответствующую потребность, а не вставлены отдельным рекламным блоком.`);
     lines.push(`Обязательные пункты reference: ${contract.listItems.join(" / ")}`);
   }
   return lines.join("\n");
