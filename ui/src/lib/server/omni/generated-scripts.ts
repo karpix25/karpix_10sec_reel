@@ -137,7 +137,11 @@ export async function buildGeneratedScriptPromptPreview(input: {
   const avatar = await getLatestOmniClientAvatar(input.projectId);
   const project = await getOmniProject(input.projectId);
   if (!project) throw new Error("Omni client project not found");
-  const durationRange = await resolveOmniDurationRange({ project, product });
+  const durationRange = await resolveOmniDurationRange({
+    project,
+    product,
+    legacyClientId: generatedScript.source_legacy_client_id,
+  });
   const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script, { durationRange });
   const referenceSourceDurationSeconds = readSourceDurationSeconds(resolvedGeneratedScript.source_snapshot);
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
@@ -279,7 +283,6 @@ export async function createGeneratedScriptFromLegacy(input: {
 
   const product = await requireOmniProductInProject(input.projectId, input.productId);
   const avatar = await getLatestOmniClientAvatar(input.projectId);
-  const durationRange = await resolveOmniDurationRange({ project, product });
   const { sourceScenario, sourceMode, directorAnalysis } = await resolveReadyGeneratedScriptReference({
     ...input,
     resolveSource: resolveGeneratedScriptSource,
@@ -292,6 +295,11 @@ export async function createGeneratedScriptFromLegacy(input: {
     ensureAnalysis: ensureDirectorAnalysis,
     requireVisibleAvatar: Boolean(avatar),
     warn: (message) => console.warn(message),
+  });
+  const durationRange = await resolveOmniDurationRange({
+    project,
+    product,
+    legacyClientId: sourceScenario.client_id,
   });
   const directorBrief =
     directorAnalysis?.director_analysis_status === "completed"

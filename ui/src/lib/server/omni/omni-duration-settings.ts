@@ -12,8 +12,11 @@ export async function resolveOmniDurationRange(input: {
   project: OmniProject;
   product: OmniProduct;
   requestTargetDurationSeconds?: unknown;
+  legacyClientId?: number | null;
 }): Promise<OmniDurationRange> {
-  const clientRange = await getLegacyClientDurationRange(input.project.legacy_client_id);
+  const clientRange = await getLegacyClientDurationRange(
+    input.legacyClientId ?? input.project.legacy_client_id
+  );
   if (clientRange) {
     return normalizeOmniDurationRange({
       requestedMinSeconds: clientRange.target_duration_min_seconds,

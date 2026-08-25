@@ -163,6 +163,7 @@ export async function createOmniReel(input: {
     project,
     product,
     requestTargetDurationSeconds: input.targetDurationSeconds,
+    legacyClientId: sourceScenario?.client_id ?? generatedScript?.source_legacy_client_id,
   });
   const segmentPlan = planOmniReelSegments(scriptText, { durationRange });
   const targetDuration = segmentPlan.durationSeconds;
