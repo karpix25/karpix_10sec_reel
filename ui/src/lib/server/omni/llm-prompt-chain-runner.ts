@@ -45,7 +45,7 @@ import {
   assertScriptSemanticReviewPassed,
   reviewScriptSemantics,
 } from "./script-semantic-reviewer";
-import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
+import { assertRussianSpeechGender, normalizeRussianSpeechGender } from "./russian-speech-gender-contract";
 import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
 import { countOmniScriptWords, getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
 import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
@@ -125,7 +125,10 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
       directorSegmentPlan: directorPlan,
     });
   }
-  const script = sanitizeOmniScriptText(formatScenarioScript(directorPlan.totalVoiceover));
+  const script = normalizeRussianSpeechGender(
+    sanitizeOmniScriptText(formatScenarioScript(directorPlan.totalVoiceover)),
+    input.avatarSpeechGender
+  );
   assertOmniScriptTextContract(script);
   assertRussianSpeechGender(script, input.avatarSpeechGender);
 
@@ -189,8 +192,9 @@ async function runCreativeCopywriter(
       });
       const draft = normalizeCreativeScriptDraft(content);
       if (!draft) throw new Error("Creative copywriter returned empty script");
-      const normalizedScript = spellPromptChainNumbersInText(
-        sanitizeOmniScriptText(formatScenarioScript(draft.script))
+      const normalizedScript = normalizeRussianSpeechGender(
+        spellPromptChainNumbersInText(sanitizeOmniScriptText(formatScenarioScript(draft.script))),
+        input.avatarSpeechGender
       );
       const maxWords = input.durationRange?.maxWords || getOmniMaxScriptWords();
       previousDraft = { ...draft, script: normalizedScript };
@@ -285,7 +289,10 @@ async function runDirectorSegmenter(
         segmentPlan.segmentDurationsSeconds,
         format
       );
-      const finalScript = sanitizeOmniScriptText(formatScenarioScript(plan.totalVoiceover));
+      const finalScript = normalizeRussianSpeechGender(
+        sanitizeOmniScriptText(formatScenarioScript(plan.totalVoiceover)),
+        input.avatarSpeechGender
+      );
       assertRussianSpeechGender(finalScript, input.avatarSpeechGender);
       const validationIssues = [
         ...validateDirectorSegmentPlan(plan),

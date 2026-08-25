@@ -37,7 +37,7 @@ import {
   reviewScriptSemantics,
 } from "./script-semantic-reviewer";
 import type { ScriptSemanticReview } from "./llm-prompt-chain-types";
-import { assertRussianSpeechGender } from "./russian-speech-gender-contract";
+import { assertRussianSpeechGender, normalizeRussianSpeechGender } from "./russian-speech-gender-contract";
 import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
 import { getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
 import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
@@ -236,6 +236,18 @@ async function requestScriptOnce(
     script = sanitizeOmniScriptText(boundaryRepair.scriptText);
   }
   assertOmniScriptTextContract(script);
+  script = normalizeRussianSpeechGender(script, input.avatarSpeechGender);
+  if (persistedScriptPlan) {
+    persistedScriptPlan = {
+      ...persistedScriptPlan,
+      hookOptions: persistedScriptPlan.hookOptions.map((hook) => normalizeRussianSpeechGender(hook, input.avatarSpeechGender)),
+      selectedHook: normalizeRussianSpeechGender(persistedScriptPlan.selectedHook, input.avatarSpeechGender),
+      beats: persistedScriptPlan.beats.map((beat) => ({
+        ...beat,
+        voiceover: normalizeRussianSpeechGender(beat.voiceover, input.avatarSpeechGender),
+      })),
+    };
+  }
   assertRussianSpeechGender(script, input.avatarSpeechGender);
 
   const clean = (value: unknown) => sanitizeOmniScriptText(String(value || ""));

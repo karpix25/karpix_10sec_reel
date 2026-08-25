@@ -59,6 +59,11 @@ try {
   assert.equal(russianContract.validateRussianSpeechGender("я заметила это сразу", "female").length, 0);
   assert.equal(russianContract.validateRussianSpeechGender("я заметил это сразу", "female")[0].matchedText, "я заметил");
   assert.equal(russianContract.validateRussianSpeechGender("я отец и это мой уход", "female")[0].matchedText, "я отец");
+  assert.equal(russianContract.normalizeRussianSpeechGender("Я нашла", "male"), "Я нашел");
+  assert.equal(russianContract.normalizeRussianSpeechGender("Я была готова", "male"), "Я был готова");
+  assert.equal(russianContract.normalizeRussianSpeechGender("Я сделал", "female"), "Я сделала");
+  assert.equal(russianContract.normalizeRussianSpeechGender("Я сначала проверил", "female"), "Я сначала проверил");
+  assert.equal(russianContract.normalizeRussianSpeechGender("Я мама и мой макияж поплыл", "male"), "Я мама и мой макияж поплыл");
   assert.throws(
     () => russianContract.assertRussianSpeechGender("я попробовала и поняла", "male"),
     /Russian speech gender mismatch/
