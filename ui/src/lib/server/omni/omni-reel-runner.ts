@@ -16,7 +16,6 @@ import { stitchAndStoreReel } from "./omni-segment-completion";
 import { detectKieOmniVoiceGender, resolveKieOmniAudioIds, type KieOmniVoiceGender } from "./kie-omni-audio";
 import { applyOmniStoryboardFileReference } from "./storyboard/omni-storyboard-file-reference";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
-import { getOmniSegmentRetryCount } from "./omni-segment-retry";
 import { syncOmniReelSegments } from "./omni-segment-sync";
 import { assertOmniPhysicalPreflight } from "./omni-physical-preflight";
 import { recordKieGenerationCost } from "./omni-generation-costs";
@@ -344,13 +343,6 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
       storyboard_plan: segment.storyboard_plan,
       storyboard_validation: segment.storyboard_validation,
       prompt_validation: segment.prompt_validation,
-      omni_retry_count: getOmniSegmentRetryCount(segment.request_payload),
-      ...(typeof segment.request_payload?.omni_retry_reason === "string"
-        ? { omni_retry_reason: segment.request_payload.omni_retry_reason }
-        : {}),
-      ...(segment.request_payload?.omni_kie_safety_storyboard_repaired === true
-        ? { omni_kie_safety_storyboard_repaired: true }
-        : {}),
     };
 
     let task: ProviderTask;
@@ -433,7 +425,7 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
 
 export async function syncOmniReel(reelId: number) {
   const { reel, segments } = await getReelBundle(reelId);
-  const syncResult = await syncOmniReelSegments({ reel, segments });
+  await syncOmniReelSegments({ reel, segments });
 
   const updated = await getReelBundle(reelId);
   const hasFailed = updated.segments.some((segment) => segment.status === "failed");
@@ -443,14 +435,7 @@ export async function syncOmniReel(reelId: number) {
   );
 
   let stitchedNow = false;
-  if (syncResult.retried) {
-    await submitOmniReel(reelId, getReelGenerationProvider(updated.segments));
-  } else if (syncResult.waitingForStoryboardRepair) {
-    await pool.query(
-      "UPDATE omni_reels SET status = 'generating', stitch_status = 'not_ready', error_message = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
-      [reelId]
-    );
-  } else if (hasFailed) {
+  if (hasFailed) {
     await pool.query(
       "UPDATE omni_reels SET status = 'failed', error_message = 'One or more segments failed', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
       [reelId]
