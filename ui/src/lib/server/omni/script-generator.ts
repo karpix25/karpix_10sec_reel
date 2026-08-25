@@ -102,7 +102,6 @@ export async function generateScript(input: {
       const referenceMeaningFailed = isReferenceMeaningScriptGenerationError(error);
       const feedback = buildScriptRetryFeedback(error, {
         referenceScript: input.sourceScenario.script,
-        adaptationPlan: input.adaptationPlan,
       });
       if (referenceMeaningFailed) referenceMeaningRepair = feedback;
       const maxAttempts = MAX_SCRIPT_GENERATION_ATTEMPTS +
@@ -156,7 +155,6 @@ async function requestPromptChainScript(input: Parameters<typeof generateScript>
     ctaValue: input.ctaValue,
     durationRange: input.durationRange,
     referenceScript: input.sourceScenario.script,
-    adaptationPlan: input.adaptationPlan,
   });
   return {
     payload,
@@ -231,7 +229,6 @@ async function requestScriptOnce(
   const scriptBudget = Math.min(input.durationRange?.maxWords || getOmniMaxScriptWords(), getOmniMaxScriptWords() - 4);
   const compactedScript = compactOmniScriptToWordBudget(script, scriptBudget, {
     referenceScript: input.sourceScenario.script,
-    adaptationMode: input.adaptationPlan?.mode,
     productName: input.productName,
   });
   const wasCompacted = compactedScript !== script;
@@ -283,7 +280,6 @@ async function requestScriptOnce(
     ctaValue: input.ctaValue,
     durationRange: input.durationRange,
     referenceScript: input.sourceScenario.script,
-    adaptationPlan: input.adaptationPlan,
   });
   try {
     planOmniReelSegments(script, { durationRange: input.durationRange });

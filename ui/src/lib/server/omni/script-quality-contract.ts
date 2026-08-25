@@ -8,7 +8,6 @@ import {
 } from "./omni-speech-density";
 import type { OmniDurationRange } from "./omni-duration-range";
 import { validateReferenceMeaningCoverage, type ReferenceMeaningCoverage } from "./reference-meaning-contract";
-import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
 
 const FORBIDDEN_SYMBOL_ERROR = "Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.";
 const DURATION_MIN_WORD_TOLERANCE = 2;
@@ -117,7 +116,6 @@ export function validateViralScriptContract(input: {
   ctaValue: string | null;
   durationRange?: OmniDurationRange;
   referenceScript?: string | null;
-  adaptationPlan?: ScriptAdaptationPlan;
 }): ScriptQualityResult {
   const warnings: string[] = [];
   const scriptText = input.script;
@@ -291,17 +289,12 @@ export function validateViralScriptContract(input: {
   const referenceMeaning = validateReferenceMeaningCoverage({
     referenceScript: input.referenceScript,
     generatedScript: scriptText,
-    adaptationMode: input.adaptationPlan?.mode,
   });
   if (!referenceMeaning.passed) {
-    throw new Error(
-      [
-        "Сценарий отклонен: потерян смысл reference-видео.",
-        "Оригинал держится на механизме или доказательстве, а новый сценарий стал слишком общим.",
-        referenceMeaning.missingSignals.length
-          ? `Верни по смыслу эти опоры: ${referenceMeaning.missingSignals.slice(0, 6).join(", ")}.`
-          : "Верни главный тезис, возражение, механизм и вывод.",
-      ].join(" ")
+    warnings.push(
+      referenceMeaning.missingSignals.length
+        ? `Reference содержит дополнительные смысловые сигналы, которые не перенесены: ${referenceMeaning.missingSignals.slice(0, 6).join(", ")}.`
+        : "Сценарий сохранил форму reference, но не все дополнительные смысловые сигналы.",
     );
   }
 

@@ -142,9 +142,32 @@ test("reference list obligations are carried into the generator contract", () =>
   });
   assert.ok(!prompt.includes("reference_format_mode"));
   assert.ok(!prompt.includes("voiceover montage"));
-  assert.match(prompt, /сохрани каждый обязательный пункт по смыслу/iu);
+  assert.match(prompt, /voiceover.*аватар или диктор.*talking head.*B-roll/iu);
+  assert.match(prompt, /не только хук, темп и структуру, но и тему/iu);
+  assert.match(prompt, /тему, главный вопрос или конфликт/iu);
+  assert.match(prompt, /естественный переход к реальной потребности/iu);
   assert.ok(prompt.includes("следите за вещами на пляже"));
-  assert.ok(prompt.includes("не упоминай описание, комментарии или кодовые слова"));
+  assert.ok(!prompt.includes("режим адаптации"));
+  assert.ok(!prompt.includes("adjacent_bridge"));
+});
+
+test("creative repairs keep the reference topic when product is adjacent", () => {
+  const repair = buildCreativeCopywriterAttemptPrompt({
+    chainInput: makeCreativeInput(),
+    attempt: 2,
+    maxAttempts: 4,
+    previousDraft: {
+      version: "llm-prompt-chain-v1",
+      script: "Ты бы уехал жить в другую страну? Плати по миру поможет оплачивать покупки. Ссылка в профиле.",
+      hookAngle: null,
+      creativeNotes: null,
+    },
+    semanticReview: null,
+    failureReason: "topic drift",
+  });
+
+  assert.match(repair.prompt, /Не выбрасывай тему reference ради продукта/iu);
+  assert.doesNotMatch(repair.prompt, /Не возвращай чужой механизм или предметную тему/iu);
 });
 
 function makePlan(): DirectorSegmentPlan {

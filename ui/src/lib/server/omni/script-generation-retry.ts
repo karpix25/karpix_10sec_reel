@@ -1,11 +1,6 @@
-import { buildReferenceMeaningRepairGuidance } from "./reference-meaning-contract";
-import {
-  renderScriptAdaptationRepairContract,
-  type ScriptAdaptationPlan,
-} from "./script-adaptation-contract";
 
-export const MAX_SCRIPT_GENERATION_ATTEMPTS = 5;
-export const MAX_REFERENCE_MEANING_REPAIR_ATTEMPTS = 2;
+export const MAX_SCRIPT_GENERATION_ATTEMPTS = 2;
+export const MAX_REFERENCE_MEANING_REPAIR_ATTEMPTS = 0;
 
 const RETRYABLE_MODEL_ERROR_FRAGMENTS = [
   "Сценарий отклонен:",
@@ -28,15 +23,16 @@ export function isReferenceMeaningScriptGenerationError(error: unknown) {
 
 export function buildScriptRetryFeedback(
   error: unknown,
-  input: { referenceScript?: string | null; adaptationPlan?: ScriptAdaptationPlan } = {}
+  input: { referenceScript?: string | null } = {}
 ) {
   const message = getErrorMessage(error);
 
   if (isReferenceMeaningScriptGenerationError(error)) {
     return input.referenceScript?.trim()
-      ? input.adaptationPlan && input.adaptationPlan.mode !== "preserve_reference"
-        ? renderScriptAdaptationRepairContract(input.adaptationPlan)
-        : buildReferenceMeaningRepairGuidance(input.referenceScript)
+      ? [
+          "Сохрани тему, форму хука и подачу reference, но перепиши предметную часть под наш продукт.",
+          "Назови продукт, объясни его подтвержденную пользу, поставь CTA после пользы и закончи новым продуктовым выводом.",
+        ].join(" ")
       : [
           "КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: предыдущий сценарий потерял смысл reference.",
           "Верни главный тезис, причинную связь, конкретный механизм или доказательство и вывод.",
