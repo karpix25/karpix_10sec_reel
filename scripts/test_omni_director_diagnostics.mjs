@@ -68,4 +68,40 @@ const parseFailure = diagnostics.diagnoseDirectorSegmenterOutput({
 });
 assert.equal(parseFailure.rootType, "missing");
 assert.equal(parseFailure.status, "parse_failed");
+
+const productionShapedPlan = {
+  format: "talking_head_cutaways",
+  title: "Тест",
+  total_voiceover: "Раз два три четыре пять шесть",
+  segments: [{
+    index: 1,
+    duration_seconds: 10,
+    voiceover: "Раз два три четыре пять шесть",
+    storyboard_frames: Array.from({ length: 5 }, (_, index) => ({
+      index: index + 1,
+      role: "hook",
+      spoken_words: "Раз два три",
+      visual_description: "конкретная наблюдаемая сцена",
+      camera: "средний план",
+      action: "персонаж смотрит в камеру",
+      product_state: "вне кадра",
+      sfx: "звук комнаты",
+      reference_role: "avatar",
+    })),
+  }],
+};
+const productionFailure = diagnostics.diagnoseDirectorSegmenterOutput({
+  attempt: 1,
+  model: "google/gemini-2.5-flash",
+  content: JSON.stringify(productionShapedPlan),
+  parsed: productionShapedPlan,
+  status: "schema_invalid",
+});
+assert.equal(productionFailure.segmentDiagnostics[0].validFrameCount, 0);
+assert.deepEqual(
+  productionFailure.segmentDiagnostics[0].invalidFrames[0].missingFields,
+  ["role"],
+  "the production-shaped response has all frame fields but an unsupported role value",
+);
+assert.match(diagnostics.formatDirectorSegmenterDiagnostic(productionFailure), /no_valid_storyboard_frames.*missing=role/u);
 console.log("director diagnostics smoke: ok");
