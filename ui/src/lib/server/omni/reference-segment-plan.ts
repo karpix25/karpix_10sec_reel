@@ -20,6 +20,23 @@ import {
 } from "./omni-reference-format-mode";
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 import type { DirectorSourceRole, DirectorVisibleSubjectRole } from "./director-source-interval";
+import { reconcileReferenceSegmentPlanToSpeech } from "./omni-speech-visual-alignment";
+
+export type ReferenceSpeechAlignmentDecision = {
+  sourceBeatIndex: number;
+  targetBeatIndex: number;
+  sourceStartSeconds: number;
+  sourceEndSeconds: number;
+  speechFrameIndexes: readonly number[];
+  spokenText: string;
+  reason: "unfinished_speech_unit";
+};
+
+export type ReferenceSpeechAlignment = {
+  version: "reference-speech-alignment-v1";
+  changed: boolean;
+  decisions: readonly ReferenceSpeechAlignmentDecision[];
+};
 
 export type ReferenceSegmentBeat = {
   startSeconds: number;
@@ -60,6 +77,7 @@ export type ReferenceSegmentPlan = {
   recommendedReferenceFrameCount: number;
   confidence: "high" | "medium";
   beats: readonly ReferenceSegmentBeat[];
+  speechAlignment?: ReferenceSpeechAlignment;
 };
 
 export function resolveReferenceSegmentBeatForFrame(
@@ -143,6 +161,7 @@ export function buildReferenceSegmentPlan(input: {
   outputStartSeconds?: number;
   outputTotalDurationSeconds?: number;
   sourceDurationSeconds?: number | null;
+  voiceoverText?: string;
 }): ReferenceSegmentPlan | null {
   const brief = input.brief;
   if (!brief || input.segmentCount <= 0 || input.segmentIndex <= 0) return null;
@@ -173,7 +192,7 @@ export function buildReferenceSegmentPlan(input: {
     renderMode,
   }).map((window) => buildBeat({ ...window, renderMode }));
 
-  return {
+  const plan: ReferenceSegmentPlan = {
     version: "reference-segment-plan-v1",
     segmentIndex: input.segmentIndex,
     segmentCount: input.segmentCount,
@@ -190,6 +209,13 @@ export function buildReferenceSegmentPlan(input: {
     confidence: resolveConfidence(brief),
     beats,
   };
+  return input.voiceoverText
+    ? reconcileReferenceSegmentPlanToSpeech({
+        plan,
+        voiceoverText: input.voiceoverText,
+        durationSeconds,
+      }).plan
+    : plan;
 }
 
 function buildReferenceBeatWindows(input: {
@@ -278,7 +304,11 @@ export function renderReferenceSegmentPlanForPrompt(plan: ReferenceSegmentPlan |
   if (!plan) return "";
   return [
     "REFERENCE SHOT CONTRACT: preserve the analyzed interval structure, visible-subject role, speech mode, avatar permission, composition, camera language, and cut rhythm. Replace source-specific people, wardrobe, location details, props, product, and spoken meaning only when the current product adaptation requires it.",
+    "SPEECH BOUNDARY CONTRACT: current storyboard speech units are authoritative for visual cuts. Merge or omit a source cut that lands inside an unfinished phrase, pause, or residual sound; never recreate an internal micro-cut only because the source interval is short.",
     `Segment ${plan.segmentIndex}/${plan.segmentCount || "?"}, ${plan.durationSeconds}s; render=${plan.renderMode}; motion=${plan.motionMode}.`,
+    plan.speechAlignment?.changed
+      ? `PRE-RENDER SPEECH ALIGNMENT: ${plan.speechAlignment.decisions.map((decision) => `source beat ${decision.sourceBeatIndex + 1} ${decision.sourceStartSeconds}-${decision.sourceEndSeconds}s merged into beat ${decision.targetBeatIndex + 1} over speech frame(s) ${decision.speechFrameIndexes.join(", ") || "unknown"}: ${compact(decision.spokenText)}`).join("; ")}. Do not restore the removed internal cut.`
+      : "",
     ...plan.beats.map((beat) => [
       `Beat ${beat.startSeconds}-${beat.endSeconds}s; source ${beat.sourceStartSeconds}-${beat.sourceEndSeconds}s`,
       `role=${beat.sourceRole || "unknown"}`,

@@ -187,6 +187,7 @@ export function buildStoryboardImagePrompt(input: {
       : montageReference
         ? "VOICEOVER MONTAGE: голос идёт за кадром или поверх независимых кадров; talking-head взгляд выбирай только когда он помогает новой раскадровке."
         : "В talking-head кадрах используй ясный естественный ракурс и взгляд, подходящий текущей реплике.",
+    "SPEECH-BOUNDARY VISUAL LOCK: current storyboard spokenText is the timing authority. Do not restore a source micro-cut inside an unfinished phrase, pause, or residual sound; keep one visual beat until the next complete speech boundary.",
     strictReferencePlan
       ? "Смысл реплики и content_adaptation задают только narrative meaning. Не меняй location, light, composition, camera, subject role, presenter/B-roll distribution или transitions из referenceSegmentPlan; исходное упоминание такси/Uber не создаёт автомобиль или B-roll в continuous presenter interval."
       : continuousPresenterWardrobe

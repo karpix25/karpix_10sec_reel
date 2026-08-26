@@ -5,9 +5,21 @@ import {
 } from "../../../omni/storyboard/omni-storyboard-types";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
 
+export type StoryboardSpeechChunk = {
+  text: string;
+  startWord: number;
+  endWord: number;
+  boundary: "sentence" | "segment_end" | "continuation";
+};
+
 export function splitStoryboardSpeech(text: string, frameCount: number) {
+  const chunks = splitStoryboardSpeechWithBoundaries(text, frameCount);
+  return chunks.map((chunk) => chunk.text);
+}
+
+export function splitStoryboardSpeechWithBoundaries(text: string, frameCount: number): StoryboardSpeechChunk[] {
   const words = text.trim().split(/\s+/u).filter(Boolean);
-  const chunks: string[] = [];
+  const chunks: StoryboardSpeechChunk[] = [];
   let cursor = 0;
   for (let index = 0; index < frameCount; index += 1) {
     const remainingFrames = frameCount - index;
@@ -21,7 +33,18 @@ export function splitStoryboardSpeech(text: string, frameCount: number) {
     }
     const selected = candidates.sort((left, right) => right.score - left.score || left.size - right.size)[0];
     const size = selected?.size || Math.min(OMNI_STORYBOARD_MAX_FRAME_WORDS, remainingWords);
-    chunks.push(words.slice(cursor, cursor + size).join(" "));
+    const endWord = cursor + size;
+    const previous = words[endWord - 1] || "";
+    chunks.push({
+      text: words.slice(cursor, endWord).join(" "),
+      startWord: cursor,
+      endWord,
+      boundary: SENTENCE_END_PATTERN.test(previous)
+        ? "sentence"
+        : endWord >= words.length
+          ? "segment_end"
+          : "continuation",
+    });
     cursor += size;
   }
   return chunks;
@@ -54,3 +77,4 @@ function boundaryScore(words: readonly string[], cursor: number, size: number) {
 
 const BAD_END_PATTERN = /^(?:и|а|но|что|в|на|по|для|из|к|с|у|это|вот|наш|наша|этот|эта|мой|моя)$/iu;
 const BAD_START_PATTERN = /^(?:и|а|но|что|в|на|по|для|из|к|с|у|это|вот|наш|наша|этот|эта|мой|моя)$/iu;
+const SENTENCE_END_PATTERN = /[.!?…]+$/u;

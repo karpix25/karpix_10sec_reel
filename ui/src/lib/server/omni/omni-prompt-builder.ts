@@ -202,7 +202,6 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   let previousContinuityState: OmniGenerationContinuityState | null = null;
   let outputStartSeconds = 0;
   const outputTotalDurationSeconds = segmentDurationsSeconds.reduce((sum, value) => sum + value, 0);
-
   for (let index = 0; index < voiceSegments.length; index += 1) {
     const segmentIntent = segmentIntents[index];
     const segmentIndex = index + 1;
@@ -214,6 +213,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentIndex,
       segmentCount: input.segmentCount,
       segmentSeconds,
+      voiceoverText: referencePolicy.mode === "full_reference" ? segmentIntent.spokenText : undefined,
       outputStartSeconds,
       outputTotalDurationSeconds,
       sourceDurationSeconds: input.referenceSourceDurationSeconds,
@@ -374,7 +374,6 @@ function buildStoredProviderPromptSegments(
   );
   const referenceFormatMode = resolveReferenceFormatMode(directorBrief);
   let previousContinuityState: OmniGenerationContinuityState | null = null;
-
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
     const segmentIntent = segmentIntents[index];
@@ -385,6 +384,7 @@ function buildStoredProviderPromptSegments(
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,
       segmentSeconds: segment.durationSeconds,
+      voiceoverText: referencePolicy.mode === "full_reference" ? voiceoverText : undefined,
       outputStartSeconds,
       outputTotalDurationSeconds,
       sourceDurationSeconds: input.referenceSourceDurationSeconds,
