@@ -53,6 +53,11 @@ import {
 import { countOmniScriptWords, getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
 import { resolveDirectorSegmentFormat } from "./director-analysis-timeline";
 import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
+import {
+  diagnoseDirectorSegmenterOutput,
+  formatDirectorSegmenterDiagnostic,
+  type DirectorSegmenterAttemptDiagnostic,
+} from "./llm-prompt-chain-diagnostics";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const CREATIVE_COPYWRITER_ATTEMPTS = 2;
@@ -70,7 +75,15 @@ export type LlmPromptChainPartialSnapshot = {
   creativeScriptDraft?: CreativeScriptDraft;
   semanticReview?: ScriptSemanticReview;
   directorSegmentPlan?: DirectorSegmentPlan;
+  directorSegmenterDiagnostics?: DirectorSegmenterAttemptDiagnostic[];
 };
+
+class DirectorSegmenterFailure extends Error {
+  constructor(message: string, readonly diagnostics: DirectorSegmenterAttemptDiagnostic[]) {
+    super(message);
+    this.name = "DirectorSegmenterFailure";
+  }
+}
 
 export class LlmPromptChainFailure extends Error {
   constructor(
@@ -108,10 +121,12 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   try {
       directorResult = await runDirectorSegmenter(chainInput, draft, onUsage);
   } catch (error) {
+    const directorFailure = error instanceof DirectorSegmenterFailure ? error : null;
     throw new LlmPromptChainFailure("director_segmenter", getErrorMessage(error), {
       adaptationPlan,
       creativeScriptDraft: draft,
       semanticReview: creativeResult.semanticReview,
+      ...(directorFailure ? { directorSegmenterDiagnostics: directorFailure.diagnostics } : {}),
     });
   }
   const directorPlan = directorResult.plan;
@@ -288,7 +303,9 @@ async function runDirectorSegmenter(
   const maxAttempts = DIRECTOR_TARGETED_REPAIR_ATTEMPTS + 2;
   let previousPlan: DirectorSegmentPlan | null = null;
   let lastError: unknown = null;
+  const diagnostics: DirectorSegmenterAttemptDiagnostic[] = [];
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    let attemptDiagnostic: DirectorSegmenterAttemptDiagnostic | null = null;
     try {
       const isFullRebuild = attempt === maxAttempts;
       const userPrompt = previousPlan && !isFullRebuild
@@ -310,8 +327,32 @@ async function runDirectorSegmenter(
         temperature: isFullRebuild ? 0.65 : attempt === 1 ? PROMPT_CHAIN_TEMPERATURE : 0.35,
         onUsage,
       });
-      const normalizedPlan = normalizeDirectorSegmentPlan(parseAndRepairJson(content));
-      if (!normalizedPlan) throw new Error("Director segmenter returned invalid JSON plan");
+      let parsed: unknown;
+      try {
+        parsed = parseAndRepairJson(content);
+      } catch (error) {
+        attemptDiagnostic = diagnoseDirectorSegmenterOutput({
+          attempt,
+          model: input.model,
+          content,
+          status: "parse_failed",
+          error: getErrorMessage(error),
+        });
+        throw error;
+      }
+      attemptDiagnostic = diagnoseDirectorSegmenterOutput({
+        attempt,
+        model: input.model,
+        content,
+        parsed,
+        status: "success",
+      });
+      const normalizedPlan = normalizeDirectorSegmentPlan(parsed);
+      if (!normalizedPlan) {
+        const reason = formatDirectorSegmenterDiagnostic({ ...attemptDiagnostic, status: "schema_invalid" });
+        attemptDiagnostic = { ...attemptDiagnostic, status: "schema_invalid", error: reason };
+        throw new Error(`Director segmenter returned invalid JSON plan: ${reason}`);
+      }
       previousPlan = normalizedPlan;
       const plan = lockDirectorPlanSpeech(
         normalizedPlan,
@@ -329,15 +370,33 @@ async function runDirectorSegmenter(
         ...validateStoryboardDirectorPlan(plan),
       ];
       const errors = validationIssues.filter((issue) => issue.severity === "error");
-      if (errors.length) throw new Error(formatPromptValidationIssues(errors));
+      if (errors.length) {
+        const reason = formatPromptValidationIssues(errors);
+        attemptDiagnostic = { ...attemptDiagnostic, status: "contract_invalid", error: reason };
+        throw new Error(reason);
+      }
       assertPromptChainScriptQuality(input, finalScript, plan.selectedHook);
+      attemptDiagnostic = { ...attemptDiagnostic, status: "success", error: null };
       return { plan, validationIssues };
     } catch (error) {
+      if (!attemptDiagnostic) {
+        attemptDiagnostic = diagnoseDirectorSegmenterOutput({
+          attempt,
+          model: input.model,
+          content: "",
+          status: "request_failed",
+          error: getErrorMessage(error),
+        });
+      } else if (!attemptDiagnostic.error) {
+        attemptDiagnostic = { ...attemptDiagnostic, status: "contract_invalid", error: getErrorMessage(error) };
+      }
+      diagnostics.push(attemptDiagnostic);
+      console.warn("Omni director segmenter attempt failed:", attemptDiagnostic);
       lastError = error;
       if (attempt === DIRECTOR_TARGETED_REPAIR_ATTEMPTS + 1) previousPlan = null;
     }
   }
-  throw new Error(`Director segmenter failed: ${getErrorMessage(lastError)}`);
+  throw new DirectorSegmenterFailure(`Director segmenter failed: ${getErrorMessage(lastError)}`, diagnostics);
 }
 
 async function requestOpenRouter(input: {
