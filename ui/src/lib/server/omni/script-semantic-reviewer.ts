@@ -6,7 +6,10 @@ import type { ScriptSemanticReview } from "./llm-prompt-chain-types";
 import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 import { parseAndRepairJson } from "./script-json-repair";
 import { assertCtaConclusionContract } from "./script-quality-contract";
-import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
+import {
+  renderScriptAdaptationReviewContract,
+  type ScriptAdaptationPlan,
+} from "./script-adaptation-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -192,6 +195,8 @@ function buildReviewPrompt(input: ScriptSemanticReviewInput) {
     "",
     "Исходный reference transcript:",
     input.referenceScript.trim() || "не предоставлен",
+    "",
+    renderScriptAdaptationReviewContract(input.adaptationPlan),
     "",
     "Сохрани тему, форму хука, главный конфликт, личную подачу, ключевые примеры и структуру reference. Если продукт не отвечает на исходный вопрос напрямую, проверь естественный переход от темы к проблеме, которую продукт действительно решает.",
     "",

@@ -152,8 +152,52 @@ test("reference list obligations are carried into the generator contract", () =>
 });
 
 test("creative repairs keep the reference topic when product is adjacent", () => {
+  const chainInput = makeCreativeInput();
+  const adjacentRepair = buildCreativeCopywriterAttemptPrompt({
+    chainInput: {
+      ...chainInput,
+      productName: "Плати по миру виртуальная карта",
+      sourceScenario: {
+        ...chainInput.sourceScenario,
+        script: "Как не платить за отели? Я неделю жил в Лондоне бесплатно, потому что присматривал за домом и питомцами.",
+      },
+      adaptationPlan: {
+        ...chainInput.adaptationPlan,
+        mode: "adjacent_bridge",
+        productBridge: "После бесплатного жилья карта помогает оплачивать остальные покупки и услуги за границей.",
+      },
+    },
+    attempt: 2,
+    maxAttempts: 2,
+    previousDraft: {
+      version: "llm-prompt-chain-v1",
+      script: "Как не платить за отели? Плати по миру виртуальная карта поможет в поездке. Ссылка в профиле.",
+      hookAngle: null,
+      creativeNotes: null,
+    },
+    semanticReview: {
+      version: "script-semantic-review-v1",
+      passed: false,
+      productNamed: true,
+      productValueStated: true,
+      hookAnswered: false,
+      finalAnswerPresent: true,
+      productNaturallyIntegrated: false,
+      referenceMeaningPreserved: false,
+      evidence: { product: "Плати по миру виртуальная карта", value: "оплачивать покупки", answer: "", transition: "" },
+      issues: ["Хук про бесплатное жильё не раскрыт"],
+      repairInstructions: ["Сначала раскройте способ получения бесплатного жилья"],
+    },
+    failureReason: "semantic review failed",
+  });
+
+  assert.match(adjacentRepair.prompt, /КРИТИЧЕСКИЙ ПОРЯДОК ДЛЯ СОСЕДНЕГО МОСТА/iu);
+  assert.match(adjacentRepair.prompt, /в этой части нельзя упоминать продукт или CTA/iu);
+  assert.match(adjacentRepair.prompt, /CTA не может идти перед названием и пользой продукта/iu);
+  assert.match(adjacentRepair.prompt, /карта не является причиной бесплатного жилья/iu);
+
   const repair = buildCreativeCopywriterAttemptPrompt({
-    chainInput: makeCreativeInput(),
+    chainInput,
     attempt: 2,
     maxAttempts: 4,
     previousDraft: {

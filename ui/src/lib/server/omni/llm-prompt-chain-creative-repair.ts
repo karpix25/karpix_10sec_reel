@@ -1,6 +1,7 @@
 import type { CreativeScriptDraft, ScriptSemanticReview } from "./llm-prompt-chain-types";
 import { buildCreativeCopywriterPrompt, type PromptChainInput } from "./llm-prompt-chain-prompts";
 import { formatPromptChainNumber, formatPromptChainRange } from "./llm-prompt-chain-number-words";
+import { renderScriptAdaptationRepairContract } from "./script-adaptation-contract";
 
 type CreativeRepairInput = {
   chainInput: PromptChainInput;
@@ -79,6 +80,8 @@ export function buildCreativeCopywriterRepairPrompt(input: CreativeRepairInput) 
     "Не выдумывай свойства продукта, способы оплаты, страны, цены или результаты, которых нет во входных данных.",
     renderWordBudget(chainInput),
     renderCtaRule(chainInput),
+    renderScriptAdaptationRepairContract(chainInput.adaptationPlan),
+    renderAdjacentBridgeRepairRule(chainInput),
     "Не выбрасывай тему reference ради продукта. Если продукт не отвечает на исходный вопрос напрямую, сохрани тему в начале и переведи сюжет к соседней реальной проблеме, которую продукт действительно решает.",
     "",
     `Не пройдены проверки: ${renderFailedChecks(semanticReview)}.`,
@@ -95,6 +98,18 @@ export function buildCreativeCopywriterRepairPrompt(input: CreativeRepairInput) 
     "Rejected script:",
     input.rejectedScript,
   ].filter((line) => line !== "").join("\n");
+}
+
+function renderAdjacentBridgeRepairRule(input: PromptChainInput) {
+  if (input.adaptationPlan.mode !== "adjacent_bridge") return "";
+  return [
+    "КРИТИЧЕСКИЙ ПОРЯДОК ДЛЯ СОСЕДНЕГО МОСТА.",
+    "Сначала ответь на исходный хук конкретным способом или фактом из reference; в этой части нельзя упоминать продукт или CTA.",
+    "Затем сделай один ясный переход: исходная проблема уже получила ответ, а продукт решает соседнюю потребность в той же ситуации.",
+    `Назови точное название продукта «${input.productName}», не заменяй его словами «эта карта» или «сервис».`,
+    "Сначала объясни подтвержденную пользу продукта, потом поставь выбранный CTA. CTA не может идти перед названием и пользой продукта.",
+    "Финальный вывод не должен приписывать продукту исходный результат reference: например, карта не является причиной бесплатного жилья.",
+  ].join(" ");
 }
 
 export function buildCreativeCopywriterRebuildFeedback(input: {
