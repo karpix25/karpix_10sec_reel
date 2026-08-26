@@ -20,7 +20,7 @@ RUN python3 -m venv "$VIRTUAL_ENV" \
 
 COPY ui/package.json ui/package-lock.json ./ui/
 WORKDIR /app/ui
-RUN npm ci --include=dev
+RUN npm ci --include=dev --include=optional
 
 WORKDIR /app
 ARG APP_VERSION=local
