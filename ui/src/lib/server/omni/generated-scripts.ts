@@ -349,7 +349,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     duration_range: durationRange,
     content_adaptation_plan: adaptationPlan,
   };
-  const model = process.env.SCENARIO_MODEL || "google/gemini-2.5-flash";
+  const model = process.env.SCENARIO_MODEL || "google/gemini-3.5-flash-lite";
   const pendingScript = await createGeneratedScriptGenerationRecord({
     projectId: input.projectId,
     productId: input.productId,
