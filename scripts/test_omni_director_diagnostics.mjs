@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
@@ -103,5 +103,11 @@ assert.deepEqual(
   ["role"],
   "the production-shaped response has all frame fields but an unsupported role value",
 );
-assert.match(diagnostics.formatDirectorSegmenterDiagnostic(productionFailure), /no_valid_storyboard_frames.*missing=role/u);
+assert.deepEqual(productionFailure.segmentDiagnostics[0].invalidFrames[0].invalidValues, { role: "hook" });
+assert.match(diagnostics.formatDirectorSegmenterDiagnostic(productionFailure), /no_valid_storyboard_frames.*missing=role invalid=role="hook"/u);
+
+const promptSource = readFileSync(join(ui, "src/lib/server/omni/llm-prompt-chain-prompts.ts"), "utf8");
+assert.match(promptSource, /source_role и storyboard_frames\[\]\.role — разные поля/u);
+assert.match(promptSource, /Разрешены ровно face_open, product_cutaway, environment_cutaway и face_return/u);
+assert.match(promptSource, /Никогда не копируй значения source_role в storyboard_frames\[\]\.role/u);
 console.log("director diagnostics smoke: ok");

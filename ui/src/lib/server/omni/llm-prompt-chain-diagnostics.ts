@@ -11,6 +11,7 @@ export type DirectorFrameDiagnostic = {
   arrayIndex: number;
   keys: string[];
   missingFields: string[];
+  invalidValues: Record<string, string>;
 };
 
 export type DirectorSegmentDiagnostic = {
@@ -90,7 +91,12 @@ export function formatDirectorSegmenterDiagnostic(diagnostic: DirectorSegmenterA
     .map((segment) => {
       const frameDetails = segment.invalidFrames
         .slice(0, 3)
-        .map((frame) => `frame[${frame.arrayIndex}] missing=${frame.missingFields.join(",") || "none"}`)
+        .map((frame) => {
+          const invalid = Object.entries(frame.invalidValues)
+            .map(([field, value]) => `${field}=${JSON.stringify(value)}`)
+            .join(",");
+          return `frame[${frame.arrayIndex}] missing=${frame.missingFields.join(",") || "none"}${invalid ? ` invalid=${invalid}` : ""}`;
+        })
         .join(" ");
       return `segment[${segment.arrayIndex}] ${segment.reasons.join(",") || "invalid_frame"}${frameDetails ? ` ${frameDetails}` : ""}`;
     });
@@ -151,12 +157,16 @@ function diagnoseSegment(raw: unknown, arrayIndex: number): DirectorSegmentDiagn
 function diagnoseFrame(raw: unknown, arrayIndex: number): DirectorFrameDiagnostic {
   const data = asRecord(raw);
   if (!data) {
-    return { arrayIndex, keys: [], missingFields: ["frame_not_object"] };
+    return { arrayIndex, keys: [], missingFields: ["frame_not_object"], invalidValues: {} };
   }
   const missingFields = FRAME_FIELDS
     .filter(([, isValid]) => !isValid(data))
     .map(([field]) => field);
-  return { arrayIndex, keys: Object.keys(data).slice(0, 30), missingFields };
+  const invalidValues: Record<string, string> = {};
+  if (missingFields.includes("role") && data.role !== undefined && data.role !== null) {
+    invalidValues.role = String(data.role).slice(0, 80);
+  }
+  return { arrayIndex, keys: Object.keys(data).slice(0, 30), missingFields, invalidValues };
 }
 
 function readFrameSpeech(rawFrames: unknown, arrayIndex: number) {

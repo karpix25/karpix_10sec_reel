@@ -138,6 +138,7 @@ export function buildDirectorSegmenterPrompt(input: {
 Верни только валидный JSON без markdown.
 
   Правила режиссуры:
+  ${STORYBOARD_FRAME_ROLE_CONTRACT}
   ${renderScriptAdaptationContract(adaptationPlan)}
   ${sourceVisualPriorityRule}
   Каждый segment строится storyboard first и может длиться четыре, шесть, восемь или десять секунд.
@@ -233,6 +234,7 @@ export function buildDirectorSegmentRepairPrompt(input: {
     "",
     `Точечная починка раскадровки, попытка ${input.repairAttempt}.`,
     `Ошибка проверки: ${input.validationError}`,
+    STORYBOARD_FRAME_ROLE_CONTRACT,
     "Исправь только поля, связанные с этой ошибкой.",
     "Верни ровно утвержденное количество segments с утвержденными index, duration_seconds и voiceover. Если текущий план потерял или продублировал segment, восстанови его по утвержденному списку выше.",
     "Не меняй title, hook_options, selected_hook или total_voiceover.",
@@ -243,6 +245,14 @@ export function buildDirectorSegmentRepairPrompt(input: {
     "Верни полный исправленный JSON плана.",
   ].join("\n");
 }
+
+const STORYBOARD_FRAME_ROLE_CONTRACT = [
+  "STORYBOARD FRAME ROLE CONTRACT: source_role и storyboard_frames[].role — разные поля.",
+  "source_role описывает функцию кадра в исходном видео и может быть hook, presenter, environment_broll, product_broll, proof_broll, transition, ending или unknown.",
+  "storyboard_frames[].role описывает только визуальный тип нового кадра. Разрешены ровно face_open, product_cutaway, environment_cutaway и face_return.",
+  "Никогда не копируй значения source_role в storyboard_frames[].role: hook — это функция хука, обычно первых одной-двух секунд, а не тип визуального кадра.",
+  "Для hook выбери визуальный тип по содержанию: лицо — face_open, продукт — product_cutaway, окружение — environment_cutaway.",
+].join(" ");
 
 function buildDurationLine(durationRange?: OmniDurationRange) {
   if (!durationRange) return "Итоговый сценарий обычно должен быть плотным и коротким.";
