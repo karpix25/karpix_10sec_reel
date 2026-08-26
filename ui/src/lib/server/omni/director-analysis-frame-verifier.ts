@@ -84,6 +84,11 @@ export async function verifyDirectorBriefAgainstReferenceFrames(input: {
   if (!status || !verifiedBrief || !Number.isFinite(confidence) || confidence < MIN_CONFIDENCE) {
     throw new Error("Director analysis frame verifier could not confirm the source setup");
   }
+  const timelineReasons = validateTimelineEvidenceCoverage(
+    verifiedBrief,
+    input.evidenceFrames?.length ? input.evidenceFrames : frames,
+  );
+  const verificationStatus = timelineReasons.length ? "repair" : status;
   const brief: DirectorBrief = {
     ...verifiedBrief,
     content_adaptation: input.brief.content_adaptation,
@@ -96,9 +101,9 @@ export async function verifyDirectorBriefAgainstReferenceFrames(input: {
   return {
     brief,
     verification: {
-      status,
+      status: verificationStatus,
       confidence,
-      reasons: stringArray(result.reasons),
+      reasons: [...timelineReasons, ...stringArray(result.reasons)].slice(0, 8),
       model: responseModel,
     },
     openRouterUsage: normalizeOpenRouterUsage({
@@ -122,10 +127,21 @@ const VERIFICATION_SYSTEM_PROMPT = [
 
 function buildVerificationPrompt(brief: DirectorBrief) {
   return [
-    "Current director brief:",
-    JSON.stringify(brief),
+    "Current director brief visual fields (content_adaptation is semantic-only and is intentionally excluded from visual verification):",
+    JSON.stringify({ ...brief, content_adaptation: undefined }),
+    "Never use content_adaptation to infer a location, vehicle, prop, camera setup, or B-roll. Verify those facts only from the source frames and camera_timeline.",
     "Return the complete corrected director_brief, keeping the same schema. Preserve the observed format mechanics, not the source creator identity, product brand or text overlays.",
   ].join("\n");
+}
+
+function validateTimelineEvidenceCoverage(brief: DirectorBrief, frames: readonly DirectorAnalysisEvidenceFrame[]) {
+  const timeline = brief.camera_timeline || [];
+  if (!timeline.length) return ["camera_timeline is missing; source evidence coverage could not be verified"];
+  return frames
+    .map((frame) => frame.timestampSec)
+    .filter((timestamp) => !timeline.some((item) => item.start_sec <= timestamp && timestamp <= item.end_sec))
+    .slice(0, 3)
+    .map((timestamp) => `camera_timeline does not cover source evidence at ${timestamp}s`);
 }
 
 function selectVerificationFrames(frames: readonly DirectorAnalysisEvidenceFrame[]) {

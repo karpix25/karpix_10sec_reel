@@ -44,20 +44,22 @@ export function renderScriptAdaptationContract(plan: ScriptAdaptationPlan): stri
   }[plan.mode];
   return [
     `РЕЖИМ АДАПТАЦИИ: ${modeLabel}.`,
-    `Почему выбран этот режим: ${plan.reason}`,
-    `Сохрани: ${plan.preserve.join(", ")}.`,
-    `Замени или не переноси: ${plan.replace.join(", ")}.`,
-    `Связь продукта: ${plan.productBridge}`,
+    `Почему выбран этот режим (только смысл): ${renderSemanticOnlyText(plan.reason)}`,
+    `Смысловые опоры сценария (только voiceover): ${plan.preserve.map(renderSemanticOnlyText).join(", ")}.`,
+    `Смысловые замены сценария (только voiceover): ${plan.replace.map(renderSemanticOnlyText).join(", ")}.`,
+    `Связь продукта (только смысл): ${renderSemanticOnlyText(plan.productBridge)}`,
+    "Этот блок управляет только смыслом voiceover и нарративной адаптацией: темой, хуком, углом, аргументами, примерами, product bridge и тоном подачи. Не используй reason, preserve, replace или productBridge как источник фактов о локации, транспорте, реквизите, камере, крупности, B-roll, роли персонажа, speech_mode, avatar_allowed или одежде.",
+    "Все визуальные факты бери только из проверенного SOURCE SHOT TIMELINE и REFERENCE SHOT CONTRACT. Если в тексте упоминаются taxi, Uber, машина или поездка, это само по себе не создает автомобильный кадр.",
     plan.mode === "format_transfer"
-      ? "Не пытайся отвечать на исходный предметный вопрос и не вставляй исходный механизм рядом с продуктом. Построй новый логичный сюжет под продукт, сохранив механику и подачу reference."
+      ? "Не пытайся отвечать на исходный предметный вопрос и не вставляй исходный механизм рядом с продуктом. Построй новый логичный сюжет под продукт, сохранив форму хука, темп и подачу reference."
       : "Не превращай продукт в отдельный рекламный блок: причинный переход должен следовать из текущей мысли.",
   ].join("\n");
 }
 
 export function renderScriptAdaptationRepairContract(plan: ScriptAdaptationPlan): string {
   return plan.mode === "format_transfer"
-    ? "Исправление: сохрани форму и механику reference, но полностью убери конфликтующий исходный тезис. Сделай продуктовую проблему и пользу карты центральной мыслью сценария."
-    : `Исправление: ${plan.productBridge} Сохрани обязательные смысловые опоры режима «${plan.mode}».`;
+    ? "Исправление только voiceover: сохрани форму хука, смысловую логику, темп и подачу reference, но полностью убери конфликтующий исходный тезис. Не переноси визуальные факты reference в этот сценарный контракт. Сделай продуктовую проблему и пользу карты центральной мыслью сценария."
+    : `Исправление только voiceover: ${renderSemanticOnlyText(plan.productBridge)} Сохрани обязательные смысловые опоры режима «${plan.mode}». Визуальные факты бери только из проверенного reference timeline.`;
 }
 
 export function renderScriptAdaptationReviewContract(plan: ScriptAdaptationPlan): string {
@@ -75,6 +77,15 @@ export function renderScriptAdaptationReviewContract(plan: ScriptAdaptationPlan)
 
 function readText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function renderSemanticOnlyText(value: string) {
+  const normalized = readText(value).replace(/\s+/gu, " ");
+  if (!normalized) return "смысловая опора reference";
+  return normalized.replace(
+    /\bcar\s+passenger(?:\s+(?:delivery|style|format))?\b/giu,
+    "conversational delivery"
+  );
 }
 
 function readTextArray(value: unknown) {

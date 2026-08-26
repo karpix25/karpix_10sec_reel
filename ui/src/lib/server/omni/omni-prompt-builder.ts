@@ -1,4 +1,4 @@
-import type { OmniClientAvatar, OmniGeneratedScript, OmniProduct, OmniReferenceAsset } from "@/lib/omni/types";
+import type { OmniClientAvatar, OmniGeneratedScript, OmniProduct } from "@/lib/omni/types";
 import type { OmniStoryboardSegment, OmniStoryboardValidationResult } from "@/lib/omni/storyboard/omni-storyboard-types";
 import type { OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type {
@@ -47,7 +47,6 @@ import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import {
   applyReferenceSceneModeToOmniPrompt,
   resolveReferenceSceneMode,
-  type ReferenceSceneMode,
 } from "./omni-reference-scene-mode";
 import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
@@ -68,8 +67,15 @@ import {
   repairPhysicalScenePrompt,
   validatePhysicalScene,
 } from "./physical-scene-validator";
+import { validateStoryboardFrameSourceInterval } from "./llm-prompt-chain-storyboard-validator";
 import {
-  buildReferenceSegmentPlan,
+  buildStoredCreativePlan,
+  getPrimaryReference,
+  getSegmentRole,
+  selectReferenceUrl,
+} from "./omni-prompt-segment-support";
+import {
+  applyReferenceSegmentPlanToFrames, applyReferenceSegmentPlanToStoryboard, buildReferenceSegmentPlan,
   renderReferenceSegmentPlanForPrompt,
   type ReferenceSegmentPlan,
 } from "./reference-segment-plan";
@@ -233,8 +239,10 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       talkingHead,
       referenceFormatMode,
       wardrobeContinuity: directorBrief?.wardrobe_continuity,
+      referencePolicy,
+      referenceSegmentPlan,
     });
-    const storyboardPlan = buildStoryboardFromCreativePlan({
+    const storyboardPlan = applyReferenceSegmentPlanToStoryboard(referenceSegmentPlan, buildStoryboardFromCreativePlan({
       plan,
       productName: input.product.name,
       productVisualPassport: segmentProductVisualPassport,
@@ -247,7 +255,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       wardrobeSource: input.wardrobeSource,
       referenceTransferPolicy: referencePolicy,
       referenceSceneMode,
-    });
+    }), referencePolicy.mode === "full_reference");
     const physicalValidation = validatePhysicalScene({
       storyboard: storyboardPlan,
       creativePlan: plan,
@@ -263,9 +271,8 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       directorBrief,
       referenceSceneMode,
     }), validation), referenceSceneMode, resolveDirectorVisibleSubjectPolicy(directorBrief));
-    const promptWithReferencePlan = [prompt, renderReferenceSegmentPlanForPrompt(referenceSegmentPlan)]
-      .filter(Boolean)
-      .join("\n\n");
+    const promptWithReferencePlan = [prompt, ...continuityDirection.promptLines, referencePolicy.mode === "full_reference" ? renderReferenceSegmentPlanForPrompt(referenceSegmentPlan) : ""]
+      .filter(Boolean).join("\n\n");
     prompts.push({
       index: segmentIndex,
       role: segmentRole,
@@ -365,6 +372,8 @@ function buildStoredProviderPromptSegments(
     (sum, segment) => sum + segment.durationSeconds,
     0
   );
+  const referenceFormatMode = resolveReferenceFormatMode(directorBrief);
+  let previousContinuityState: OmniGenerationContinuityState | null = null;
 
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
@@ -388,11 +397,46 @@ function buildStoredProviderPromptSegments(
       segmentSeconds: segment.durationSeconds,
       strategy,
     });
-    const storyboardPlan = buildStoryboardFromPromptChainFrames({
+    const alignedFrames = alignStoryboardFramesToVoiceover({
+      frames: segment.storyboardFrames,
+      voiceoverText,
+      durationSeconds: segment.durationSeconds,
+    });
+    const sourceFrames = referencePolicy.mode === "full_reference"
+      ? applyReferenceSegmentPlanToFrames(referenceSegmentPlan, alignedFrames, true)
+      : alignedFrames;
+    const sourceIssues = referencePolicy.mode === "full_reference" && referenceSegmentPlan
+      ? sourceFrames.flatMap((frame, frameIndex) => validateStoryboardFrameSourceInterval({
+        frame,
+        frameIndex,
+        frameCount: sourceFrames.length,
+        path: `provider.segmentPrompts.${index}.storyboardFrames.${frameIndex}`,
+        plan: referenceSegmentPlan,
+        productName: input.product.name,
+      }))
+      : [];
+    const sourceErrors = sourceIssues.filter((issue) => issue.severity === "error");
+    if (sourceErrors.length) {
+      throw new Error(`Stored provider plan violates the verified reference contract: ${sourceErrors.map((issue) => issue.code).join(", ")}`);
+    }
+    const talkingHead = isTalkingHeadCutawayFormat(strategy.lifeFormatId) && referenceSceneMode === "presenter";
+    const continuityDirection = buildOmniGenerationContinuityDirection({
+      plan: creativePlan,
+      productName: input.product.name,
+      segmentIndex,
+      segmentCount: providerPromptPlan.segmentPrompts.length,
+      previousState: previousContinuityState,
+      talkingHead,
+      referenceFormatMode,
+      wardrobeContinuity: directorBrief?.wardrobe_continuity,
+      referencePolicy,
+      referenceSegmentPlan,
+    });
+    const storyboardPlan = applyReferenceSegmentPlanToStoryboard(referenceSegmentPlan, buildStoryboardFromPromptChainFrames({
       segmentIndex,
       durationSeconds: segment.durationSeconds,
       voiceoverText,
-      frames: alignStoryboardFramesToVoiceover({ frames: segment.storyboardFrames, voiceoverText, durationSeconds: segment.durationSeconds }),
+      frames: sourceFrames,
       productName: input.product.name,
       productPhysicalHint: productRole === "digital_demo" ? null : productPhysicalHint,
       directorBrief,
@@ -401,7 +445,7 @@ function buildStoredProviderPromptSegments(
       productRole,
       referenceTransferPolicy: referencePolicy,
       referenceSceneMode,
-    });
+    }), referencePolicy.mode === "full_reference");
     const validation = validatePhysicalScene({
       storyboard: storyboardPlan,
       creativePlan,
@@ -416,10 +460,12 @@ function buildStoredProviderPromptSegments(
       directorBrief,
       referenceSceneMode,
     }), validation), referenceSceneMode, resolveDirectorVisibleSubjectPolicy(directorBrief));
-    const promptWithReferencePlan = [prompt, renderReferenceSegmentPlanForPrompt(referenceSegmentPlan)]
-      .filter(Boolean)
-      .join("\n\n");
+    const promptWithReferencePlan = [prompt, ...continuityDirection.promptLines, referencePolicy.mode === "full_reference" ? renderReferenceSegmentPlanForPrompt(referenceSegmentPlan) : ""]
+      .filter(Boolean).join("\n\n");
     outputStartSeconds += segment.durationSeconds;
+    previousContinuityState = referenceFormatMode === "voiceover_montage"
+      ? null
+      : continuityDirection.nextState;
     return {
       index: segmentIndex,
       role: getSegmentRole(segmentIndex, providerPromptPlan.segmentPrompts.length),
@@ -436,47 +482,6 @@ function buildStoredProviderPromptSegments(
     };
   });
 }
-
-function buildStoredCreativePlan(input: {
-  segmentIndex: number;
-  segmentCount: number;
-  voiceoverText: string;
-  productRole: ProductRole;
-  segmentSeconds: number;
-  strategy: OmniCreativeStrategy & { referenceSceneMode?: string };
-}): OmniSegmentCreativePlan {
-  const middleStart = roundOne(Math.max(1, input.segmentSeconds * 0.55));
-  const middleEnd = roundOne(Math.min(input.segmentSeconds - 1, input.segmentSeconds * 0.75));
-  return {
-    segmentIndex: input.segmentIndex,
-    lifeFormatId: input.strategy.lifeFormatId,
-    speechStartsAtSeconds: 0,
-    voiceoverText: input.voiceoverText,
-    productRole: input.productRole,
-    continuityProps: input.strategy.continuityProps,
-    referenceSceneMode: input.strategy.referenceSceneMode,
-    beats: [
-      { startSeconds: 0, endSeconds: middleStart, action: "LLM storyboard opening" },
-      { startSeconds: middleStart, endSeconds: middleEnd, action: "LLM storyboard middle beat" },
-      { startSeconds: middleEnd, endSeconds: input.segmentSeconds, action: "LLM storyboard closing beat" },
-    ],
-  };
-}
-
-function selectReferenceUrl(
-  role: ProductRole,
-  avatarReference: string | null,
-  productReference: OmniReferenceAsset | null,
-  referenceSceneMode: ReferenceSceneMode
-) {
-  if (role === "hidden") return referenceSceneMode === "presenter" ? avatarReference : null;
-  return productReference?.url || (referenceSceneMode === "presenter" ? avatarReference : null);
-}
-
-function getPrimaryReference(refs: OmniReferenceAsset[]) {
-  return refs.find((ref) => ref.is_primary && ref.kind === "image") || refs.find((ref) => ref.kind === "image") || null;
-}
-
 function resolveProductVisualProfile(input: {
   product: OmniProduct;
   generatedScript: OmniGeneratedScript | null;
@@ -489,14 +494,4 @@ function resolveProductVisualProfile(input: {
       notes: input.product.product_reference_notes,
     })
   );
-}
-
-function getSegmentRole(index: number, total: number) {
-  if (index === 1) return "hook";
-  if (index === total) return "cta_or_payoff";
-  return "body";
-}
-
-function roundOne(value: number) {
-  return Math.round(value * 10) / 10;
 }

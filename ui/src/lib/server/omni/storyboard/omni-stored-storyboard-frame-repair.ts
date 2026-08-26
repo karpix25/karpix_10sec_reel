@@ -97,7 +97,7 @@ export function buildStoredStoryboardFrame(input: {
   const camera = noPeopleReference
     ? "самостоятельный атмосферный B-roll ракурс по текущей реплике, без людей и рук"
     : renderReferenceCamera(input.frame.camera, input.referenceProfile, referenceTransfer.cameraComposition);
-  const environment = renderReferenceEnvironment(input.referenceProfile);
+  const environment = renderReferenceEnvironment(input.referenceProfile, input.referenceTransferPolicy);
   const sfxNotes = sanitizeSpeechSfx(input.frame.sfx, spokenText);
   const initialPhysicalPlan = buildPhysicalFramePlan({
     productName: input.productName,
@@ -168,8 +168,19 @@ function renderReferenceCamera(
   ].filter(Boolean).join("; ");
 }
 
-function renderReferenceEnvironment(profile?: DirectorSegmentProfile | null) {
+function renderReferenceEnvironment(
+  profile?: DirectorSegmentProfile | null,
+  referencePolicy?: ReferenceTransferPolicy,
+) {
   if (!profile) return "окружение и свет из режиссерского плана и storyboard image";
+  if (referencePolicy?.mode === "full_reference") {
+    return [
+      `SOURCE LOCATION: ${profile.setting || "verified source setting"}`,
+      `environment: ${profile.environment || "verified source environment"}`,
+      `light: ${profile.lighting || "verified source lighting"}`,
+      "preserve this source location, environment, and light for the interval",
+    ].join("; ");
+  }
   return ["LIGHT AND MOOD INSPIRATION", profile.lighting, "choose a new script-relevant location"]
     .filter(Boolean)
     .join("; ") || "окружение и свет из режиссерского плана и storyboard image";

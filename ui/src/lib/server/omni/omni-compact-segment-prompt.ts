@@ -71,20 +71,33 @@ export function renderCompactSegmentPrompt(input: {
   const voiceoverBrollReference = referenceSceneMode === "voiceover_broll";
   const timelineModes = new Set((input.directorBrief?.camera_timeline || []).map((item) => item.speech_mode));
   const hybridDelivery = timelineModes.has("on_camera") && timelineModes.has("voiceover_only");
-  const detailedTimeline = Boolean(input.directorBrief?.camera_timeline?.length);
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
   const wardrobeContinuity = input.directorBrief?.wardrobe_continuity || "unknown";
-  const wardrobeDirection = wardrobeContinuity === "not_visible"
+  const strictReference = input.referencePolicy.mode === "full_reference";
+  const detailedTimeline = strictReference;
+  const wardrobeDirection = strictReference
+    ? wardrobeContinuity === "not_visible"
+      ? "Одежду не выдумывай, если она не нужна текущей сцене; если reference показывает женскую одежду, для мужского аватара используй avatar-compatible equivalent, сохраняя цвет, материал, силуэт, посадку и формальность."
+      : "Сохраняй одежду из проверенного source interval; для мужского аватара замени женские предметы на avatar-compatible equivalent, сохранив цвет, материал, силуэт, посадку, слой и формальность."
+    : wardrobeContinuity === "not_visible"
     ? "Одежду не выдумывай, если она не нужна текущей сцене."
     : "Используй простой outfit из новой раскадровки; точное совпадение с reference не требуется.";
-  const continuity = montageReference
+  const continuity = strictReference
+    ? montageReference
+      ? "Preserve each analyzed source interval's location, light, camera, composition, and presenter-versus-B-roll distribution; independent changes are allowed only at explicit analyzed cuts."
+      : objectOnlyReferenceScene
+        ? "Keep the same approved surface, macro camera, light, and conceptual props; never introduce a person, hands, face, head, or avatar."
+        : facelessReferenceScene
+          ? "Keep the same approved hands, body crop, camera, light, and props; never introduce a face, head, or avatar."
+          : "Preserve the verified source location, light, camera, composition, presenter-versus-B-roll distribution, and physical state. Only explicit analyzed cuts may change them."
+    : montageReference
     ? "This is an original independent montage segment. Preserve the featured avatar identity and exact product form; room, camera, clothes, and props may change for the new scene."
     : objectOnlyReferenceScene
       ? "Keep the same approved surface, macro camera, light, and conceptual props; never introduce a person, hands, face, head, or avatar."
       : facelessReferenceScene
         ? "Keep the same approved hands, body crop, camera, light, and props; never introduce a face, head, or avatar."
       : voiceoverBrollReference
-        ? noPeopleReference
+      ? noPeopleReference
           ? "Create independent script-relevant B-roll without a featured person."
           : "Create independent script-relevant B-roll; any featured human uses the saved avatar, while background people and visible speaking are allowed."
     : input.segmentIndex < input.segmentCount
@@ -104,7 +117,9 @@ export function renderCompactSegmentPrompt(input: {
     referenceBrief.locationLine,
     referenceBrief.cameraLine,
     talkingHead
-      ? montageReference
+      ? strictReference && detailedTimeline
+        ? "FORMAT: SOURCE-LOCKED DELIVERY. Follow each verified source interval's presenter/B-roll role and speech mode; do not add cutaways or change the physical scene unless the timeline contains that cut."
+        : montageReference
         ? "FORMAT: VOICEOVER MONTAGE. Off-camera narration carries one idea across independent cutaways with the same presenter identity; do not force one physical scene across segments."
         : "FORMAT: ГОВОРЯЩАЯ ГОЛОВА С ПЕРЕБИВКАМИ. Face-to-camera with short product-relevant cutaways, not copied reference montage."
       : voiceoverBrollReference
@@ -116,7 +131,7 @@ export function renderCompactSegmentPrompt(input: {
       : null,
     renderVisibleSubjectPolicy(visibleSubjectPolicy),
     detailedTimeline
-      ? `${renderDirectorTimelineForPrompt(input.directorBrief)} Per-interval subject rules override all global avatar, wardrobe, and speech defaults. Current segment format fallback: ${resolveDirectorSegmentFormat(input.directorBrief)}.`
+      ? `${renderDirectorTimelineForPrompt(input.directorBrief)} ${strictReference ? "STRICT SOURCE INTERVAL PRIORITY: the matching interval is authoritative for location, environment, light, composition, camera, visible subject, speech mode, presenter-versus-B-roll distribution, and continuity. These facts override generic format, creative plan, content_adaptation, product mentions, and narration keywords. A taxi/Uber/travel mention is semantic only: if the source interval is continuous presenter/on_camera, do not create a car, vehicle interior, travel setting, environment_cutaway, or independent B-roll." : "Per-interval subject rules override global avatar, wardrobe, and speech defaults; use the timeline as visual guidance without requiring exact location or action continuity."} Current segment format fallback: ${resolveDirectorSegmentFormat(input.directorBrief)}.`
       : null,
     objectOnlyReferenceScene
       ? "VISIBLE SUBJECT: object-only macro scene; no person, hands, face, head, or avatar."
@@ -136,10 +151,13 @@ export function renderCompactSegmentPrompt(input: {
     ...input.plan.beats.map((beat) => `${beat.startSeconds.toFixed(1)}-${beat.endSeconds.toFixed(1)}s: ${beat.action}.`),
     scriptBeatGuidance || null,
     referenceBrief.actionLine,
+    strictReference
+      ? "CONTENT_ADAPTATION IS SEMANTIC ONLY: use it for the narrative meaning and product bridge, never to invent a location, camera setup, visible subject, B-roll shot, vehicle, prop, or action absent from the verified source interval."
+      : null,
     "SPEECH:",
     "Start speaking on frame 0. Use simple natural conversational Russian. Say only the current part once. Do not repeat, skip, restart, paraphrase, continue a neighbor part, or add subtitles.",
     `${voiceoverBrollReference || avatarFreeReferenceScene ? "The off-camera narrator says" : hybridDelivery ? "The avatar or off-camera narrator says according to each storyboard frame's speech_mode" : "The avatar says"}: ${input.plan.voiceoverText}`,
-    `CONTINUITY: preserve only featured avatar identity, exact approved product form, and the physical state needed inside the current action. Exact reference scene continuity is not required. ${wardrobeDirection} ${continuity}`,
+    `CONTINUITY: ${strictReference ? "the verified source interval and hard reference contract are authoritative; preserve location, light, composition, camera, subject distribution, and physical state, with changes only at analyzed cuts." : "preserve only featured avatar identity, exact approved product form, and the physical state needed inside the current action. Exact reference scene continuity is not required."} ${wardrobeDirection} ${continuity}`,
     "CLEAN FRAME: no on-screen text, subtitles, captions, progress bars, overlay icons, buttons, watermarks, logos, or app interface.",
     OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
   ].filter(Boolean).join("\n");

@@ -8,7 +8,8 @@ export type StoryboardRepairMode = "fresh" | "patch" | "metadata_only";
 
 const METADATA_ONLY_CODES = /(?:reference_(?:action|composition|camera)|camera(?:_|$)|composition|frame_?action|gesture|motion|timing|teleportation|face_?gesture|physical_?action|wardrobe|outfit|garment|sleeve|neckline|fabric|environment|lighting|room|location|background|mouth|lip)/iu;
 const SYSTEMIC_DRIFT_CODES = /(?:featured_identity_mismatch|identity_mismatch|wrong_(?:featured_)?(?:person|avatar)|gross_visual_corruption)/iu;
-const BLOCKING_VISUAL_CODES = /(?:featured_identity_mismatch|identity_mismatch|wrong_(?:featured_)?(?:person|avatar)|product_(?:form|packaging)_mismatch|product_missing|foreign_product|gross_visual_corruption|presenter_wardrobe_continuity_mismatch)/iu;
+const SOURCE_INTERVAL_CODES = /(?:storyboard_source_presenter_environment_cutaway|storyboard_source_avatar_forbidden_face|storyboard_source_broll_presenter|storyboard_product_cutaway_without_product_intent)/iu;
+const BLOCKING_VISUAL_CODES = /(?:featured_identity_mismatch|identity_mismatch|wrong_(?:featured_)?(?:person|avatar)|product_(?:form|packaging)_mismatch|product_missing|foreign_product|gross_visual_corruption|presenter_wardrobe_continuity_mismatch|storyboard_source_presenter_environment_cutaway|storyboard_source_avatar_forbidden_face|storyboard_source_broll_presenter|storyboard_product_cutaway_without_product_intent)/iu;
 const PRESENTER_WARDROBE_CONTINUITY_CODE = /^presenter_wardrobe_continuity_mismatch$/iu;
 const OFFSCREEN_EVIDENCE = /(?:not visible|outside (?:the )?crop|offscreen|cropped(?: out)?|cannot (?:see|verify|tell)|unclear|not enough (?:detail|evidence)|не видно|вне кадра|обрезан|не удается (?:увидеть|проверить)|недостаточно (?:деталей|данных))/iu;
 
@@ -20,13 +21,16 @@ export function normalizeStoryboardQaViolation<T extends StoryboardQaViolation>(
 }
 
 export function isStoryboardQaMetadataOnly(violation: Pick<StoryboardQaViolation, "code">) {
-  return !PRESENTER_WARDROBE_CONTINUITY_CODE.test(violation.code) && METADATA_ONLY_CODES.test(violation.code);
+  return !PRESENTER_WARDROBE_CONTINUITY_CODE.test(violation.code) &&
+    !isSourceIntervalViolation(violation.code) &&
+    METADATA_ONLY_CODES.test(violation.code);
 }
 
 export function isBlockingStoryboardQaViolation(violation: StoryboardQaViolation) {
-  if (violation.severity !== "error" || isStoryboardQaMetadataOnly(violation)) return false;
+  const sourceIntervalViolation = isSourceIntervalViolation(violation.code);
+  if ((!sourceIntervalViolation && violation.severity !== "error") || isStoryboardQaMetadataOnly(violation)) return false;
   if (!BLOCKING_VISUAL_CODES.test(violation.code)) return false;
-  if (OFFSCREEN_EVIDENCE.test(violation.evidence) && !isProductViolation(violation.code)) return false;
+  if (OFFSCREEN_EVIDENCE.test(violation.evidence) && !isProductViolation(violation.code) && !sourceIntervalViolation) return false;
   return true;
 }
 
@@ -41,4 +45,8 @@ export function resolveStoryboardRepairMode(
 
 function isProductViolation(code: string) {
   return /(?:product_(?:form|packaging)_mismatch|product_missing|foreign_product)/iu.test(code);
+}
+
+function isSourceIntervalViolation(code: string) {
+  return SOURCE_INTERVAL_CODES.test(code);
 }

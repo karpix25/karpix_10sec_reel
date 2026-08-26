@@ -46,7 +46,10 @@ import {
   reviewScriptSemantics,
 } from "./script-semantic-reviewer";
 import { assertRussianSpeechGender, normalizeRussianSpeechGender } from "./russian-speech-gender-contract";
-import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
+import {
+  formatPromptChainNumber,
+  spellPromptChainNumbersInText,
+} from "./llm-prompt-chain-number-words";
 import { countOmniScriptWords, getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
 import { resolveDirectorSegmentFormat } from "./director-analysis-timeline";
 import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
@@ -131,9 +134,10 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
     });
   }
   const script = normalizeRussianSpeechGender(
-    sanitizeOmniScriptText(formatScenarioScript(directorPlan.totalVoiceover)),
+    sanitizeOmniScriptText(spellPromptChainNumbersInText(formatScenarioScript(directorPlan.totalVoiceover))),
     input.avatarSpeechGender
   );
+  assertPromptChainNumericRangeIntegrity(input.sourceScenario.script, script);
   assertOmniScriptTextContract(script);
   assertRussianSpeechGender(script, input.avatarSpeechGender);
 
@@ -168,6 +172,29 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   };
 }
 
+export function assertPromptChainNumericRangeIntegrity(referenceScript: string, script: string) {
+  const normalizedScript = script.toLocaleLowerCase("ru-RU");
+  for (const range of findNumericRanges(referenceScript)) {
+    const collapsed = formatPromptChainNumber(Number(`${range.min}${range.max}`));
+    if (normalizedScript.includes(collapsed)) {
+      throw new Error(
+        `Сценарий схлопнул числовой диапазон ${range.min}-${range.max} в ${range.min}${range.max}; черновик нельзя сохранять.`
+      );
+    }
+  }
+}
+
+function findNumericRanges(value: string) {
+  const ranges: Array<{ min: string; max: string }> = [];
+  const rangePattern = /(?<!\d)(?:от\s+)?(\d{1,3}(?:[\u00A0\u202F ]\d{3})*)\s*(?:[-‐‑‒–—―−]|до)\s*(\d{1,3}(?:[\u00A0\u202F ]\d{3})*)(?!\d)/giu;
+  for (const match of value.matchAll(rangePattern)) {
+    const min = match[1].replace(/[\s\u00A0\u202F]/gu, "");
+    const max = match[2].replace(/[\s\u00A0\u202F]/gu, "");
+    if (Number.isSafeInteger(Number(min)) && Number.isSafeInteger(Number(max))) ranges.push({ min, max });
+  }
+  return ranges;
+}
+
 async function runCreativeCopywriter(
   input: PromptChainInput & { model: string },
   onUsage: (usage: OpenRouterUsageRecord) => void
@@ -199,7 +226,7 @@ async function runCreativeCopywriter(
       const draft = normalizeCreativeScriptDraft(content);
       if (!draft) throw new Error("Creative copywriter returned empty script");
       const normalizedScript = normalizeRussianSpeechGender(
-        spellPromptChainNumbersInText(sanitizeOmniScriptText(formatScenarioScript(draft.script))),
+        sanitizeOmniScriptText(spellPromptChainNumbersInText(formatScenarioScript(draft.script))),
         input.avatarSpeechGender
       );
       const maxWords = input.durationRange?.maxWords || getOmniMaxScriptWords();
@@ -210,6 +237,7 @@ async function runCreativeCopywriter(
       if (countOmniScriptWords(script) > maxWords) {
         throw new Error(`Сценарий длиннее лимита после автоматического сокращения: ${countOmniScriptWords(script)} слов вместо ${maxWords}.`);
       }
+      assertPromptChainNumericRangeIntegrity(input.sourceScenario.script, script);
       previousDraft = { ...draft, script };
       lastSemanticReview = null;
       assertOmniScriptTextContract(script);

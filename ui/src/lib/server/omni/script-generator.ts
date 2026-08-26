@@ -31,7 +31,11 @@ import {
   MAX_REFERENCE_MEANING_REPAIR_ATTEMPTS,
   MAX_SCRIPT_GENERATION_ATTEMPTS,
 } from "./script-generation-retry";
-import { isLlmPromptChainEnabled, runLlmPromptChain } from "./llm-prompt-chain-runner";
+import {
+  assertPromptChainNumericRangeIntegrity,
+  isLlmPromptChainEnabled,
+  runLlmPromptChain,
+} from "./llm-prompt-chain-runner";
 import {
   assertScriptSemanticReviewPassed,
   reviewScriptSemantics,
@@ -241,6 +245,7 @@ async function requestScriptOnce(
   }
   assertOmniScriptTextContract(script);
   script = normalizeRussianSpeechGender(script, input.avatarSpeechGender);
+  assertPromptChainNumericRangeIntegrity(input.sourceScenario.script, script);
   if (persistedScriptPlan) {
     persistedScriptPlan = {
       ...persistedScriptPlan,

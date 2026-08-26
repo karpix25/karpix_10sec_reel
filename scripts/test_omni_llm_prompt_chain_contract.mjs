@@ -65,6 +65,22 @@ try {
   const lengthGuard = require(findFile(output, "omni-script-length-guard.js"));
   const qualityContract = require(findFile(output, "script-quality-contract.js"));
   assert.ok(runner.runLlmPromptChain, "runner smoke import must expose runLlmPromptChain");
+  assert.equal(numberWords.spellPromptChainNumbersInText("Диапазон 200-300 рублей"), "Диапазон от двухсот до трехсот рублей");
+  assert.equal(numberWords.spellPromptChainNumbersInText("Диапазон 200–300 рублей"), "Диапазон от двухсот до трехсот рублей");
+  assert.equal(numberWords.spellPromptChainNumbersInText("Диапазон от 200 до 300 рублей"), "Диапазон от двухсот до трехсот рублей");
+  assert.equal(
+    numberWords.spellPromptChainNumbersInText("1 000, 20 000, 68 тысяч и 124 400"),
+    "одна тысяча, двадцать тысяч, шестьдесят восемь тысяч и сто двадцать четыре тысячи четыреста"
+  );
+  assert.throws(
+    () => runner.assertPromptChainNumericRangeIntegrity("Цена от 200 до 300 рублей", "Цена двести тысяч триста рублей"),
+    /схлопнул числовой диапазон 200-300/u,
+    "runner must reject a collapsed numeric range before saving the draft"
+  );
+  assert.doesNotThrow(
+    () => runner.assertPromptChainNumericRangeIntegrity("Цена от 200 до 300 рублей", "Цена от двухсот до трехсот рублей"),
+    "runner must accept a preserved spoken range"
+  );
   assert.equal(
     creativeRepair.resolveCreativeCopywriterAttemptMode({ attempt: 3, maxAttempts: 3, hasRejectedScript: true }),
     "targeted_repair",
@@ -85,12 +101,12 @@ try {
   );
   assert.match(
     runnerSource,
-    /const script = compactOmniScriptToWordBudget[\s\S]*adaptationMode/u,
-    "copywriter must compact the script before semantic review and respect the adaptation mode"
+    /assertPromptChainNumericRangeIntegrity/u,
+    "copywriter must reject collapsed numeric ranges before semantic review"
   );
   assert.match(
     runnerSource,
-    /CREATIVE_COPYWRITER_ATTEMPTS = 5/u,
+    /CREATIVE_COPYWRITER_ATTEMPTS = 2/u,
     "copywriter must retain bounded retries for semantic repair"
   );
   const compactedConclusion = lengthGuard.compactOmniScriptToWordBudget(
@@ -473,6 +489,7 @@ function requireRunnerWithStubs(runnerPath) {
   const originalLoad = Module._load;
   Module._load = function loadWithPromptChainStubs(request, parent, isMain) {
     if (request === "./llm-prompt-chain-types") return originalLoad.apply(this, arguments);
+    if (request === "./llm-prompt-chain-number-words") return originalLoad.apply(this, arguments);
     if (request.startsWith("@/") || request.startsWith("./")) return {};
     return originalLoad.call(this, request, parent, isMain);
   };

@@ -78,10 +78,7 @@ export const DEFAULT_REFERENCE_TRANSFER_POLICY: ReferenceTransferPolicy = {
   },
 };
 
-/**
- * Keeps the reusable world of a reference (camera, clothes, place, rhythm),
- * while making product and prop decisions only after the new spoken beat is known.
- */
+/** Uses the verified source timeline as a strict contract; incomplete analysis stays style-only. */
 export function buildReferenceTransferPolicy(input: {
   hasProductReference: boolean;
   directorBrief?: DirectorBrief | null;
@@ -89,17 +86,32 @@ export function buildReferenceTransferPolicy(input: {
   const productDecision: ReferenceTransferDecision = input.hasProductReference
     ? "replace_with_product"
     : "remove";
+  const mode = resolveReferenceTransferMode(input.directorBrief);
+  const decisions: ReferenceTransferDecisions = mode === "full_reference"
+    ? {
+      ...DEFAULT_REFERENCE_TRANSFER_POLICY.decisions,
+      camera: "preserve",
+      environment: "preserve",
+      presenterAction: "preserve",
+      sourceProduct: productDecision,
+      sourceProps: "preserve_as_support",
+    }
+    : { ...DEFAULT_REFERENCE_TRANSFER_POLICY.decisions, sourceProduct: productDecision };
+  const visualContract = buildReferenceVisualTransferContract(input.directorBrief);
 
   return {
     ...DEFAULT_REFERENCE_TRANSFER_POLICY,
-    decisions: { ...DEFAULT_REFERENCE_TRANSFER_POLICY.decisions, sourceProduct: productDecision },
-    visualContract: {
-      ...buildReferenceVisualTransferContract(input.directorBrief),
-      cameraComposition: null,
-      persistentSupportProps: [],
-      actionBeats: [],
-    },
+    mode,
+    omitRawDirectorGuidance: mode !== "full_reference",
+    decisions,
+    visualContract: mode === "full_reference"
+      ? visualContract
+      : { ...visualContract, cameraComposition: null, persistentSupportProps: [], actionBeats: [] },
   };
+}
+
+export function resolveReferenceTransferMode(brief?: DirectorBrief | null): ReferenceTransferMode {
+  return hasCompleteSourceTimeline(brief) ? "full_reference" : DEFAULT_REFERENCE_TRANSFER_POLICY.mode;
 }
 
 export function resolveReferenceTransferPolicy(policy: ReferenceTransferPolicy | null | undefined) {
@@ -140,9 +152,11 @@ export function buildReferenceTransferFramePlan(input: {
       sourceProduct: productMeaningfulBeat
         ? input.policy.decisions.sourceProduct
         : "remove",
-      // The reference action is adapted to the new line. Props can remain as
-      // natural context, but may not become the subject of a different claim.
-      presenterAction: "adapt_action",
+      // Strict source transfer preserves presenter/B-roll distribution while
+      // still adapting the action to the client's product and spoken line.
+      presenterAction: input.policy.mode === "full_reference"
+        ? input.policy.decisions.presenterAction
+        : "adapt_action",
     },
   };
 }
@@ -179,8 +193,13 @@ export function resolveReferenceTransferAction(input: {
   // The storyboard beat is the only hard action for this frame. Reference
   // movement is useful direction, but must never override a planned pickup,
   // gesture, or cutaway and create an impossible QA contract.
-  const primaryAction = visualCue || fallbackAction || requiredReferenceAction || referenceAction;
-  const contextLine = "сцена поставлена заново под текущую реплику и берет из reference только общий визуальный язык";
+  const strictSourceContract = input.framePlan.decisions.presenterAction === "preserve";
+  const primaryAction = strictSourceContract
+    ? requiredReferenceAction || referenceAction || visualCue || fallbackAction
+    : visualCue || fallbackAction || requiredReferenceAction || referenceAction;
+  const contextLine = strictSourceContract
+    ? "сохраняет проверенный source interval, роль presenter/B-roll, локацию, камеру, свет и continuity; адаптируются только реплика, source identity, source product и несовместимые детали"
+    : "сцена поставлена заново под текущую реплику и берет из reference только общий визуальный язык";
 
   if (input.framePlan.productMeaningfulBeat) {
     return `${primaryAction}; ${contextLine}; исходный рекламный предмет заменен нашим продуктом`;
@@ -204,17 +223,29 @@ export function renderRequiredReferenceSupport(framePlan: OmniStoryboardReferenc
 
 function buildReferenceVisualTransferContract(brief?: DirectorBrief | null): ReferenceVisualTransferContract {
   const explicit = brief?.visual_transfer;
+  const firstTimelineItem = brief?.camera_timeline?.[0];
+  const timelineCameraComposition = [
+    firstTimelineItem?.composition,
+    firstTimelineItem?.shot_types.join(", "),
+    firstTimelineItem?.angles.join(", "),
+    firstTimelineItem?.movements.join(", "),
+  ].filter(Boolean).join("; ");
   const fallbackProps = (brief?.prop_sources || [])
     .filter((item) => !/(?:^|\s)(?:no|not|none|нет|не\s+(?:показан|виден|введен|введён))/iu.test(item))
     .slice(0, 4)
     .map((description) => ({ description, visible_from_start: /(?:already|start|с\s+начала|в\s+начале)/iu.test(description) }));
   const source: DirectorVisualTransferContract = explicit || {
-    camera_composition: brief?.visual_hook.action || "",
+    camera_composition: timelineCameraComposition || brief?.visual_hook.action || "",
     props: fallbackProps.map((prop) => ({ role: "support_prop" as const, ...prop })),
-    action_beats: (brief?.action_beats || []).map((beat) => ({
-      timestamp_sec: beat.timestamp_sec,
-      action: [beat.action_description, beat.actor_gesture].filter(Boolean).join("; "),
-    })),
+    action_beats: brief?.camera_timeline?.length
+      ? brief.camera_timeline.map((item) => ({
+        timestamp_sec: item.start_sec,
+        action: [item.visual_description, item.action_description, item.actor_gesture].filter(Boolean).join("; "),
+      }))
+      : (brief?.action_beats || []).map((beat) => ({
+        timestamp_sec: beat.timestamp_sec,
+        action: [beat.action_description, beat.actor_gesture].filter(Boolean).join("; "),
+      })),
   };
   const sourceProductProps = uniqueCompact(source.props
     .filter((prop) => prop.role === "source_product")
@@ -320,4 +351,22 @@ function compactText(value: string) {
   if (text.length <= 220) return text;
   const clipped = text.slice(0, 220).replace(/\s+\S*$/u, "").trim();
   return clipped || text.slice(0, 220).trim();
+}
+
+export function hasCompleteSourceTimeline(brief?: DirectorBrief | null) {
+  const timeline = [...(brief?.camera_timeline || [])].sort((left, right) => left.start_sec - right.start_sec);
+  if (!timeline.length || timeline[0].start_sec > 0.5) return false;
+
+  return timeline.every((item, index) => {
+    const previous = timeline[index - 1];
+    const hasDuration = Number.isFinite(item.start_sec) && Number.isFinite(item.end_sec) && item.end_sec > item.start_sec;
+    const hasVisualFact = Boolean(compactText(item.visual_description || item.action_description));
+    const hasSceneFact = Boolean(compactText(item.setting || item.environment || item.lighting));
+    const hasCameraFact = Boolean(
+      compactText(item.composition || "") || item.shot_types.length || item.angles.length || item.movements.length ||
+      brief?.camera.shot_types.length
+    );
+    const hasNoGap = !previous || item.start_sec <= previous.end_sec + 0.75;
+    return hasDuration && hasVisualFact && hasSceneFact && hasCameraFact && hasNoGap;
+  }) && timeline[timeline.length - 1].end_sec > timeline[0].start_sec;
 }

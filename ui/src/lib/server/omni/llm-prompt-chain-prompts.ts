@@ -13,6 +13,7 @@ import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { renderDirectorTimelineForPrompt, resolveDirectorSegmentFormat } from "./director-analysis-timeline";
 import { requiresContinuousPresenterWardrobe } from "./director-wardrobe";
+import { resolveReferenceTransferMode } from "./omni-reference-transfer-policy";
 import {
   renderScriptAdaptationContract,
   type ScriptAdaptationPlan,
@@ -98,11 +99,11 @@ export function buildDirectorSegmenterPrompt(input: {
   const montageReference = isVoiceoverMontageReference(referenceFormatMode);
   const wardrobeContinuity = input.chainInput.directorBrief?.wardrobe_continuity || "unknown";
   const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(input.chainInput.directorBrief);
-  const hasDetailedTimeline = Boolean(input.chainInput.directorBrief?.camera_timeline?.length);
+  const hasDetailedTimeline = resolveReferenceTransferMode(input.chainInput.directorBrief) === "full_reference";
   const presenterReference = resolveDirectorSegmentFormat(input.chainInput.directorBrief) === "talking_head_cutaways";
   const segmentFormat = presenterReference ? "talking_head_cutaways" : "voiceover_broll";
   const frameRoleRule = hasDetailedTimeline
-    ? "Для каждого storyboard_frame соблюдай соответствующий interval из SOURCE SHOT TIMELINE. face_open и face_return разрешены только в interval с subject=primary_presenter и avatar_allowed=true; в interval с avatar_allowed=false не добавляй лицо, голову или говорящего аватара. Не переноси правила первого и последнего кадра на весь ролик."
+    ? "Для каждого storyboard_frame соблюдай соответствующий interval из SOURCE SHOT TIMELINE. source_role, subject, speech_mode и avatar_allowed — жесткие ограничения, а не подсказки: face_open и face_return разрешены только в interval с subject=primary_presenter и avatar_allowed=true; если interval является on_camera presenter-кадром, не заменяй его на environment_cutaway; в interval с avatar_allowed=false или subject=no_people не добавляй лицо, голову или говорящего аватара. Product_cutaway или environment_cutaway допустимы только там, где это явно допускает соответствующий source interval или REFERENCE SHOT CONTRACT. Не переноси правила первого и последнего кадра на весь ролик."
     : presenterReference
       ? "Первый frame обычно face_open. Последний frame обычно face_return."
       : "Роли storyboard_frames только environment_cutaway или product_cutaway. Не добавляй face_open или face_return.";
@@ -115,12 +116,21 @@ export function buildDirectorSegmenterPrompt(input: {
     requiresContinuousPresenterWardrobe({ referenceFormatMode, referenceSceneMode }),
   );
   const formatRule = hasDetailedTimeline
-    ? "Сохрани SOURCE SHOT TIMELINE как монтажный контракт: последовательность ролей, наличие человека, speech_mode, avatar_allowed, крупность, композицию, характер B-roll и переходы. Подмени только исходный сюжет, несовместимую одежду, локацию, реквизит и продукт под текущий сценарий."
+    ? "Сохрани SOURCE SHOT TIMELINE как жесткий визуальный контракт: последовательность ролей, наличие человека, speech_mode, avatar_allowed, локацию, крупность, композицию, реквизит, характер B-roll, камеру и переходы. Адаптируй только spoken meaning, исходную личность, несовместимую с аватаром одежду и identity продукта. Не меняй наблюдаемую локацию, камеру, композицию, реквизит или распределение presenter/B-roll под влиянием content_adaptation; product replacement допустим только в явно разрешенном source interval."
     : montageReference
     ? "Сохрани только макроформат montage и примерный темп смены планов. Сцены, действия, локации и порядок перебивок поставь заново под смысл текущего сценария."
-    : presenterReference
+      : presenterReference
       ? "Сохрани макроформат говорящей головы, но самостоятельно поставь сцену, жесты и короткие перебивки под новый сценарий."
       : `${renderVisibleSubjectPolicy(visibleSubjectPolicy)} Используй только общий визуальный язык reference и самостоятельно поставь сцены под новый сценарий.`;
+  const sourceVisualPriorityRule = hasDetailedTimeline
+    ? "ВИЗУАЛЬНЫЙ ПРИОРИТЕТ: verified SOURCE SHOT TIMELINE и REFERENCE SHOT CONTRACT имеют приоритет над готовым voiceover, content_adaptation, упоминаниями предметов и любыми творческими догадками. Если смысл реплики конфликтует с наблюдаемой сценой, оставь сцену из reference и передай новый смысл голосом, мимикой или разрешенной продуктовой заменой. Упоминание taxi, Uber, машины или поездки не является командой показать автомобиль."
+    : "content_adaptation определяет только смысл и нарратив. Не извлекай из него визуальные факты о локации, транспорте, реквизите, камере или B-roll; при наличии source timeline следуй ему, а без него используй только общий визуальный язык reference.";
+  const firstSegmentRule = hasDetailedTimeline
+    ? "Первый segment сохраняет силу и макроформат хука reference и визуальную сцену соответствующего source interval; не создавай новую локацию или отдельный B-roll только ради текущего текста."
+    : "Первый segment сохраняет силу и макроформат хука reference, но получает новую режиссерскую сцену под текущий текст.";
+  const cutawayRule = hasDetailedTimeline
+    ? "Если source interval или REFERENCE SHOT CONTRACT разрешает cutaway, опиши его конкретным наблюдаемым действием. Не создавай cutaway только потому, что spoken_words называют taxi, Uber, машину, поездку или другой предмет."
+    : "Cutaway должен содержать конкретное наблюдаемое действие, но взгляд персонажа и точная подача не являются обязательным совпадением с reference.";
   return `
 Ты режиссер монтажа для Gemini Omni.
 
@@ -129,19 +139,20 @@ export function buildDirectorSegmenterPrompt(input: {
 
   Правила режиссуры:
   ${renderScriptAdaptationContract(adaptationPlan)}
+  ${sourceVisualPriorityRule}
   Каждый segment строится storyboard first и может длиться четыре, шесть, восемь или десять секунд.
 Границы segments, duration_seconds и voiceover уже утверждены ниже. Копируй их дословно и не добавляй, не удаляй, не переставляй и не перефразируй слова.
 total_voiceover должен дословно совпадать с готовым сценарием.
 Количество storyboard frames зависит от duration_seconds: четыре секунды это два кадра, шесть секунд это три кадра, восемь секунд это четыре кадра, десять секунд это пять кадров.
 Каждый frame содержит ровно три, четыре или пять слов финальной русской речи в spoken_words.
 Склейка spoken_words всех frames должна дословно совпадать с voiceover segment.
-  ${frameRoleRule} Product_cutaway или environment_cutaway добавляй только там, где он помогает смыслу spoken_words. Точный момент перебивки из reference не является обязательным.
-${renderDirectorTimelineForPrompt(input.chainInput.directorBrief)}
+  ${frameRoleRule} Product_cutaway или environment_cutaway добавляй только там, где это разрешено соответствующим source interval или REFERENCE SHOT CONTRACT и где перебивка помогает смыслу spoken_words. Слова voiceover сами по себе не разрешают новую перебивку, локацию или транспорт.
+${hasDetailedTimeline ? renderDirectorTimelineForPrompt(input.chainInput.directorBrief) : "SOURCE SHOT TIMELINE: no verified detailed interval analysis is available."}
 ${subjectRule}
-Первый segment сохраняет силу и макроформат хука reference, но получает новую режиссерскую сцену под текущий текст. Продукт остается вне кадра, пока текущая реплика не создает конкретную потребность показать его применение или результат выбора.
+${firstSegmentRule} Продукт остается вне кадра, пока текущая реплика не создает конкретную потребность показать его применение или результат выбора.
 В итоговом voiceover каждого плана обязательно должно прозвучать точное название «${input.chainInput.productName}» и конкретная польза продукта. Фраза «ссылка в профиле», «ссылка в описании» или другой CTA не считается упоминанием продукта.
 ${buildProductTimingContract()}
-Cutaway должен содержать конкретное наблюдаемое действие, но взгляд персонажа и точная подача не являются обязательным совпадением с reference.
+${cutawayRule}
 ${presenterReference ? "В talking head кадрах главным героем остается сохраненный аватар; позу, взгляд и жест выбирай под текущую реплику." : renderVisibleSubjectPolicy(visibleSubjectPolicy)}
 В каждом frame опиши visual_description, camera, action, product_state, sfx и reference_role. Visual_description должен быть конкретной видимой сценой, которая прямо раскрывает смысл spoken_words этого frame, а не универсальной демонстрацией продукта.
 SFX это только естественные звуки кадра. Музыку для Omni не планируй: без фоновой музыки, джинглов и музыкальных эффектов.
@@ -149,9 +160,9 @@ SFX это только естественные звуки кадра. Музы
 В spoken_words не добавляй лишние слова: только точная реплика кадра, три, четыре или пять слов.
 Каждый frame описывает только физическую сцену, камеру, действие и естественный звук внутри кадра.
 Выбирай product_cutaway и удерживание продукта в руках только когда смысл spoken_words этого кадра прямо связан с продуктом, его свойствами или применением. Если фраза посвящена общей теме, проблеме или выводу без прямого контакта с продуктом, продукт должен быть вне кадра (product_state: "вне кадра"), а персонаж говорит с естественной жестикуляцией без товара в руках. В product_cutaway продукт обязан быть физически видимым и детально совпадать с product reference.
-Для непредметных кадров создавай самостоятельную сцену, которая наглядно раскрывает текущую реплику. Из reference бери только общий визуальный язык без чужого продукта.
+${hasDetailedTimeline ? "Для непредметных кадров используй физическую сцену соответствующего source interval и не создавай новую локацию или новый транспорт. Она должна наглядно раскрывать текущую реплику через речь, жест или разрешенную продуктовую замену. Из reference не переноси чужой продукт." : "Для непредметных кадров создавай самостоятельную сцену, которая наглядно раскрывает текущую реплику. Из reference бери только общий визуальный язык без чужого продукта."}
 ${formatRule} ${wardrobeRule}
-  ${hasDetailedTimeline ? "Камеру, переходы и тайминги адаптируй из SOURCE SHOT TIMELINE, сохраняя его визуальную механику и распределение человека/B-roll." : "Камеру, переходы и точные тайминги выбирай сам под ясность текущего сценария. Из reference сохрани только примерную энергетику, крупность и общий тип монтажа."}
+  ${hasDetailedTimeline ? "Камеру, переходы и тайминги бери из SOURCE SHOT TIMELINE и REFERENCE SHOT CONTRACT; не меняй их под влиянием content_adaptation или отдельных слов voiceover. Сохраняй визуальную механику и распределение человека/B-roll." : "Камеру, переходы и точные тайминги выбирай сам под ясность текущего сценария. Из reference сохрани только примерную энергетику, крупность и общий тип монтажа."}
 Мысль может естественно продолжаться между соседними segments. Не добавляй слова ради искусственного завершения фразы.
 ${renderRussianSpeechGenderRule(input.chainInput.avatarSpeechGender)}
 В segment без продуктовой демонстрации продукт остается либо вне кадра, либо в одном стабильном положении. В segment с демонстрацией опиши физическую последовательность: на поверхности, рука подходит, касается, берет, затем держит.

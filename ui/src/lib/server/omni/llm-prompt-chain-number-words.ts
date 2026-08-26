@@ -125,12 +125,33 @@ export function formatPromptChainNumber(value: number): string {
 }
 
 export function spellPromptChainNumbersInText(value: string) {
-  return value.replace(/\+?\d(?:[\d\u00A0\u202F ]*\d)?/gu, (match) => {
-    const positive = match.startsWith("+");
-    const number = Number(match.replace(/[+\s\u00A0\u202F]/gu, ""));
-    if (!Number.isSafeInteger(number) || number > 999_999_999) return match;
-    return `${positive ? "плюс " : ""}${formatPromptChainNumber(number)}`;
-  });
+  const rangeAwareText = value
+    .replace(/(^|\s)от\s+(\+?\d{1,3}(?:[\u00A0\u202F ]\d{3})*)\s+до\s+(\+?\d{1,3}(?:[\u00A0\u202F ]\d{3})*)/giu, (_match, prefix, min, max) =>
+      `${prefix}${formatSpokenRange(min, max)}`)
+    .replace(/(?<!\d)(\+?\d{1,3}(?:[\u00A0\u202F ]\d{3})*)\s*[-‐‑‒–—―−]\s*(\+?\d{1,3}(?:[\u00A0\u202F ]\d{3})*)(?!\d)/gu, (_match, min, max) =>
+      formatSpokenRange(min, max));
+
+  return rangeAwareText.replace(/\+?\d+(?:[\u00A0\u202F ]\d{3})*/gu, spellPromptChainNumber);
+}
+
+function spellPromptChainNumber(match: string) {
+  const positive = match.startsWith("+");
+  const number = Number(match.replace(/[+\s\u00A0\u202F]/gu, ""));
+  if (!Number.isSafeInteger(number) || number > 999_999_999) return match;
+  return `${positive ? "плюс " : ""}${formatPromptChainNumber(number)}`;
+}
+
+function formatSpokenRange(minText: string, maxText: string) {
+  const min = parsePromptChainNumber(minText);
+  const max = parsePromptChainNumber(maxText);
+  if (min === null || max === null) return `от ${minText} до ${maxText}`;
+  if (min <= 999 && max <= 999) return formatPromptChainRange(min, max);
+  return `от ${spellPromptChainNumber(minText)} до ${spellPromptChainNumber(maxText)}`;
+}
+
+function parsePromptChainNumber(value: string) {
+  const number = Number(value.replace(/[+\s\u00A0\u202F]/gu, ""));
+  return Number.isSafeInteger(number) && number <= 999_999_999 ? number : null;
 }
 
 function formatBelowThousand(value: number, feminine = false): string {

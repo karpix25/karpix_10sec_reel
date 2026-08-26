@@ -1,6 +1,11 @@
 import type { OmniCreativeStrategy } from "@/lib/omni/creative-contract";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
-import { selectDirectorSegmentProfile, type DirectorBrief, type DirectorLocationTimelineItem } from "./director-analysis-types";
+import {
+  selectDirectorSegmentProfile,
+  type DirectorBrief,
+  type DirectorLocationTimelineItem,
+  type DirectorSegmentProfile,
+} from "./director-analysis-types";
 import type { OmniCharacterContract } from "./omni-character-contract";
 import {
   resolveReferenceTransferPolicy,
@@ -37,6 +42,7 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
   const styleOnly = policy.mode === "style_only";
   const location = selectDirectorLocationForSegment(input);
   const montageReference = isVoiceoverMontageReference(resolveReferenceFormatMode(input.brief));
+  const strictReference = policy.mode === "full_reference";
   const wardrobeContinuity = input.brief.wardrobe_continuity || "unknown";
   const referenceProfile = selectDirectorSegmentProfile({
     brief: input.brief,
@@ -65,7 +71,11 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
               : `REFERENCE: voiceover B-roll part ${input.segmentIndex}/${input.segmentCount}; preserve independent cutaways and off-camera narration while keeping the saved avatar as the silent visual protagonist.`
           : montageReference
         ? `REFERENCE: independent montage part ${input.segmentIndex}/${input.segmentCount}; preserve the same avatar identity and product story, but use the matching reference cut for this part.`
-        : `REFERENCE: part ${input.segmentIndex}/${input.segmentCount}; continue the same avatar identity and product story.`,
+        : `REFERENCE: part ${input.segmentIndex}/${input.segmentCount}; continue the verified source scene, presenter role, and visual continuity.`,
+      "STRICT SOURCE CONTRACT: the verified director timeline is the visual source of truth for this segment.",
+      renderReferenceIntervalContract(referenceProfile),
+      "Content adaptation supplies semantic meaning and spoken narrative only; it cannot create a new location, vehicle, environment cutaway, prop, presenter/B-roll switch, or edit beat.",
+      "Replace only source identity, source product, incompatible wardrobe, and irrelevant source-specific details; preserve location, light, composition, camera, presenter/B-roll distribution, and continuity.",
       objectOnlyReferenceScene
         ? "Use the reference video for macro surface, environment, lighting, camera framing, conceptual props, and physical action only."
         : facelessReferenceScene
@@ -78,18 +88,13 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
       objectOnlyReferenceScene || wardrobeContinuity === "changes_between_cuts" || wardrobeContinuity === "unknown"
         ? "Do not force wardrobe, location, prop position, or physical action continuity where the director analysis marks independent cuts."
         : "",
-      policy.mode === "style_only"
-        ? voiceoverBrollReference
-          ? "Use only the independent B-roll visual feel, camera, and light quality; omit unrelated reference-world objects, workflows, uniforms, and product category details."
-          : "Use only the main presenter setup, visual feel, and light quality; omit unrelated reference-world objects, workflows, uniforms, and product category details."
-        : "",
     ].filter(Boolean).join(" "),
     locationLine: styleOnly
       ? "LOCATION: choose a believable product- and narration-relevant location; borrow only the broad color and light mood from the reference."
-      : renderLocationLine(input.brief, location),
+      : renderLocationLine(input.brief, location, referenceProfile),
     cameraLine: styleOnly
       ? "CAMERA/LIGHT: choose clear natural vertical framing for the current beat; reference shot scale and movement are optional inspiration."
-      : renderCameraLine(input.brief),
+      : renderCameraLine(input.brief, referenceProfile, strictReference),
     wardrobeLine: styleOnly
       ? objectOnlyReferenceScene || facelessReferenceScene || noPeopleReference
         ? "WARDROBE: not applicable to the approved visible-subject crop."
@@ -103,7 +108,7 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
             ? "WARDROBE: not applicable; no person or hands are visible."
             : shouldUseAvatarWardrobe(wardrobeSource)
               ? `Wardrobe: use the avatar outfit only; ${input.characterContract?.clothingLine || "keep the avatar reference outfit unchanged"}; ignore clothing from the reference video.`
-              : renderReferenceWardrobe({
+              : renderStrictReferenceWardrobe({
                 brief: input.brief,
                 referenceProfile,
                 referenceFormatMode: resolveReferenceFormatMode(input.brief),
@@ -111,7 +116,7 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
               })
         : shouldUseAvatarWardrobe(wardrobeSource)
       ? `Wardrobe: use the avatar outfit only; ${input.characterContract?.clothingLine || "keep the avatar reference outfit unchanged"}; ignore clothing from the reference video.`
-          : renderReferenceWardrobe({
+          : renderStrictReferenceWardrobe({
             brief: input.brief,
             referenceProfile,
             referenceFormatMode: resolveReferenceFormatMode(input.brief),
@@ -126,10 +131,10 @@ export function buildCompactReferenceBrief(input: CompactReferenceBriefInput) {
       : objectOnlyReferenceScene
       ? "REFERENCE ACTION: preserve the macro surface, conceptual props, and simple treatment beat; no human presence or hand interaction."
       : voiceoverBrollReference
-        ? noPeopleReference
-          ? "REFERENCE ACTION: preserve independent B-roll actions and off-camera narration; show only the observed locations, objects, approved product screens, and natural movement."
-          : "REFERENCE ACTION: preserve independent B-roll actions and off-camera narration; the saved avatar performs the visible actions without lip-sync."
-      : renderActionLine(input.brief, policy),
+          ? noPeopleReference
+            ? "REFERENCE ACTION: preserve independent B-roll actions and off-camera narration; show only the observed locations, objects, approved product screens, and natural movement."
+            : "REFERENCE ACTION: preserve independent B-roll actions and off-camera narration; the saved avatar performs the visible actions without lip-sync."
+      : renderActionLine(input.brief, policy, referenceProfile),
   };
 }
 
@@ -198,35 +203,59 @@ function fallbackReferenceBrief(input: CompactReferenceBriefInput) {
   };
 }
 
-function renderLocationLine(brief: DirectorBrief, location: DirectorLocationRange | null) {
+function renderLocationLine(
+  brief: DirectorBrief,
+  location: DirectorLocationRange | null,
+  referenceProfile: DirectorSegmentProfile | null
+) {
   const setting = sanitizeReferenceWorldText(
-    location?.setting || brief.atmosphere.setting,
+    referenceProfile?.setting || location?.setting || brief.atmosphere.setting,
     "the matching reference-video setting for this time range"
   );
   const environment = sanitizeReferenceWorldText(
-    location?.environment || brief.atmosphere.mood,
+    referenceProfile?.environment || location?.environment || brief.atmosphere.mood,
     "the matching reference-video environment"
   );
   const lighting = sanitizeReferenceWorldText(
-    location?.lighting || brief.atmosphere.lighting,
+    referenceProfile?.lighting || location?.lighting || brief.atmosphere.lighting,
     "the matching reference-video light quality"
   );
-  return `LOCATION NOW: ${setting}; environment: ${environment}; light: ${lighting}.`;
+  return `LOCATION NOW: ${setting}; environment: ${environment}; light: ${lighting}; preserve this source location and light for the interval; do not replace it with a new environment because of the spoken words.`;
 }
 
-function renderCameraLine(brief: DirectorBrief) {
+function renderCameraLine(
+  brief: DirectorBrief,
+  referenceProfile: DirectorSegmentProfile | null,
+  strictReference: boolean
+) {
+  const cameraProfile = strictReference && referenceProfile ? referenceProfile.camera : brief.camera;
   const camera = [
-    brief.camera.shot_types.join(", "),
-    brief.camera.angles.length ? `angles ${brief.camera.angles.join(", ")}` : "",
-    brief.camera.movements.length ? `movement ${brief.camera.movements.join(", ")}` : "",
-    sanitizeCameraStabilizationForPrompt(brief.camera.stabilization),
+    cameraProfile.shot_types.join(", "),
+    cameraProfile.angles.length ? `angles ${cameraProfile.angles.join(", ")}` : "",
+    cameraProfile.movements.length ? `movement ${cameraProfile.movements.join(", ")}` : "",
+    sanitizeCameraStabilizationForPrompt(cameraProfile.stabilization),
   ].filter(Boolean).join("; ");
-  return `CAMERA/LIGHT: ${camera || "natural phone footage, simple framing, believable room light"}.`;
+  const composition = strictReference ? compactReferenceText(referenceProfile?.composition || "") : "";
+  return strictReference
+    ? `REFERENCE CAMERA/LIGHT: ${camera || "matching source camera"}; composition: ${composition || "matching source composition"}; preserve this shot scale, angle, movement, and light.`
+    : `CAMERA/LIGHT: ${camera || "natural phone footage, simple framing, believable room light"}.`;
 }
 
-function renderActionLine(brief: DirectorBrief, policy: ReferenceTransferPolicy) {
+function renderActionLine(
+  brief: DirectorBrief,
+  policy: ReferenceTransferPolicy,
+  referenceProfile: DirectorSegmentProfile | null
+) {
   if (policy.mode === "style_only") {
     return "DIRECTOR ACTION: create an original product-relevant beat for the current line; follow the approved digital or physical product contract.";
+  }
+  const intervalAction = compactReferenceText([
+    referenceProfile?.visual_description,
+    referenceProfile?.action_description,
+    referenceProfile?.actor_gesture,
+  ].filter(Boolean).join("; "));
+  if (intervalAction) {
+    return `REFERENCE ACTION: preserve the verified source interval action: ${intervalAction}; keep its presenter/B-roll role and continuity; adapt only the spoken narrative, source identity, source product, incompatible wardrobe, and irrelevant source-specific details.`;
   }
   const actions = brief.action_beats
     .slice(0, 2)
@@ -239,6 +268,38 @@ function renderActionLine(brief: DirectorBrief, policy: ReferenceTransferPolicy)
     "simple presenter confidence with product-relevant show-and-tell only"
   );
   return safe ? `REFERENCE ACTION: ${safe}.` : "";
+}
+
+function renderReferenceIntervalContract(referenceProfile: DirectorSegmentProfile | null) {
+  if (!referenceProfile) {
+    return "Use the matching verified source interval and do not invent a new presenter/B-roll role or environment cutaway.";
+  }
+  const delivery = referenceProfile.speech_mode === "on_camera"
+    ? "presenter on camera"
+    : referenceProfile.speech_mode === "voiceover_only"
+      ? "independent B-roll with off-camera narration"
+      : "silent source visual";
+  const subject = referenceProfile.visible_subject_role || "the analyzed visible-subject role";
+  const sourceRole = referenceProfile.source_role || "the analyzed source role";
+  const avatar = referenceProfile.avatar_allowed === false ? "avatar not allowed in this interval" : "use the saved avatar for the featured subject";
+  return `MATCHED SOURCE INTERVAL: ${delivery}; subject=${subject}; source role=${sourceRole}; ${avatar}; preserve this interval's presenter/B-roll distribution and continuity.`;
+}
+
+function compactReferenceText(value: string) {
+  const text = value.replace(/\s+/gu, " ").trim();
+  if (text.length <= 220) return text;
+  return `${text.slice(0, 219).replace(/\s+\S*$/u, "").trim()}…`;
+}
+
+function renderStrictReferenceWardrobe(input: {
+  brief: DirectorBrief;
+  referenceProfile: DirectorSegmentProfile | null;
+  referenceFormatMode: ReturnType<typeof resolveReferenceFormatMode>;
+  referenceSceneMode?: ReferenceSceneMode;
+}) {
+  const wardrobe = renderReferenceWardrobe(input);
+  if (!wardrobe || /not applicable/iu.test(wardrobe)) return wardrobe;
+  return `${wardrobe.replace(/^WARDROBE INSPIRATION:/iu, "REFERENCE WARDROBE:")}; preserve source color, material, silhouette, sleeve length, neckline, and formality; if a gender-specific source garment is incompatible with the saved avatar, use an avatar-compatible equivalent with the same visible color, material, and silhouette.`;
 }
 
 function getOverlapSeconds(item: DirectorLocationRange, segmentStart: number, segmentEnd: number) {

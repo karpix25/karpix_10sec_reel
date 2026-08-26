@@ -6,6 +6,12 @@ import {
   type ProviderPromptPlan,
   type StoryboardFrame,
 } from "./llm-prompt-chain-types";
+import { mentionsOmniProduct } from "./omni-intro-product-contract";
+import {
+  resolveReferenceSegmentBeatForFrame,
+  type ReferenceSegmentBeat,
+  type ReferenceSegmentPlan,
+} from "./reference-segment-plan";
 import {
   getOmniStoryboardFrameCount,
   isOmniStoryboardDuration,
@@ -27,8 +33,24 @@ const STORYBOARD_FRAME_ROLES: ReadonlySet<string> = new Set([
   "environment_cutaway",
   "face_return",
 ]);
+const NO_FACE_PATTERN = /(?:без\s+(?:лица|лиц)|no\s+(?:face|head)|hands?\s+only|только\s+руки)/iu;
+const FACE_PATTERN = /(?:\b(?:лицо|лицом|лица|портрет|аватар|голов\p{L}*|head|avatar)\b|лиц[оа]\s+(?:крупн\p{L}*|в\s+камеру)|(?:human|person(?:'s)?|close[- ]up\s+of)\s+face|говорит\s+в\s+камеру|смотрит\s+в\s+камеру|face\s*[- ]?to\s*[- ]?camera|talking\s+head|on[- ]camera)/iu;
+const PRESENTER_PATTERN = /(?:\b(?:ведущ\p{L}*|презентер|presenter|аватар|avatar)\b|говорит\s+в\s+камеру|смотрит\s+в\s+камеру|face\s*[- ]?to\s*[- ]?camera|talking\s+head|on[- ]camera)/iu;
+const PRODUCT_INTENT_PATTERN = /(?:продукт|товар|сервис|услуг\p{L}*|приложени\p{L}*|карт\p{L}*|оплат\p{L}*|покуп\p{L}*|использу\p{L}*|держу|нанос\p{L}*|принима\p{L}*|показыва\p{L}*|средств\p{L}*|баноч\p{L}*|упаковк\p{L}*|флакон|тюбик|коллаген|витамин|крем|сыворотк\p{L}*)/iu;
+const PRODUCT_SOURCE_ROLES = new Set(["product_broll"]);
+const BROLL_SOURCE_ROLES = new Set(["environment_broll", "product_broll", "proof_broll", "transition"]);
+const NON_PRESENTER_SUBJECT_ROLES = new Set(["background_person", "no_people", "hands_only", "object_only"]);
 
-export function validateStoryboardDirectorPlan(plan: DirectorSegmentPlan): PromptValidationIssue[] {
+export type StoryboardReferenceValidationOptions = {
+  referenceSegmentPlan?: ReferenceSegmentPlan | null;
+  referenceSegmentPlans?: readonly ReferenceSegmentPlan[];
+  productName?: string | null;
+};
+
+export function validateStoryboardDirectorPlan(
+  plan: DirectorSegmentPlan,
+  options: StoryboardReferenceValidationOptions = {}
+): PromptValidationIssue[] {
   const issues: PromptValidationIssue[] = [];
   if (normalize(plan.segments.map((segment) => segment.voiceover).join(" ")) !== normalize(plan.totalVoiceover)) {
     issues.push({
@@ -40,7 +62,7 @@ export function validateStoryboardDirectorPlan(plan: DirectorSegmentPlan): Promp
   }
   plan.segments.forEach((segment, segmentIndex) => {
     const path = `director.segments.${segmentIndex}.storyboardFrames`;
-    validateStoryboardFrames(segment.storyboardFrames, segment.durationSeconds, path, issues);
+    validateStoryboardFrames(segment.storyboardFrames, segment.durationSeconds, path, issues, segment.index, options);
     if (normalize(joinStoryboardSpeech(segment.storyboardFrames)) !== normalize(segment.voiceover)) {
       issues.push({
         path,
@@ -53,11 +75,14 @@ export function validateStoryboardDirectorPlan(plan: DirectorSegmentPlan): Promp
   return issues;
 }
 
-export function validateStoryboardProviderPlan(plan: ProviderPromptPlan): PromptValidationIssue[] {
+export function validateStoryboardProviderPlan(
+  plan: ProviderPromptPlan,
+  options: StoryboardReferenceValidationOptions = {}
+): PromptValidationIssue[] {
   const issues: PromptValidationIssue[] = [];
   plan.segmentPrompts.forEach((prompt, index) => {
     const path = `provider.segmentPrompts.${index}.storyboardFrames`;
-    validateStoryboardFrames(prompt.storyboardFrames, prompt.durationSeconds, path, issues);
+    validateStoryboardFrames(prompt.storyboardFrames, prompt.durationSeconds, path, issues, prompt.index, options);
     if (normalize(joinStoryboardSpeech(prompt.storyboardFrames)) !== normalize(prompt.voiceover)) {
       issues.push({
         path,
@@ -118,7 +143,9 @@ function validateStoryboardFrames(
   frames: readonly StoryboardFrame[],
   durationSeconds: number,
   path: string,
-  issues: PromptValidationIssue[]
+  issues: PromptValidationIssue[],
+  segmentIndex: number,
+  options: StoryboardReferenceValidationOptions,
 ) {
   const expectedFrameCount = getOmniStoryboardFrameCount(durationSeconds);
   if (!isOmniStoryboardDuration(durationSeconds)) {
@@ -197,7 +224,105 @@ function validateStoryboardFrames(
         severity: "error",
       });
     }
+    const referencePlan = resolveReferenceSegmentPlan(options, segmentIndex);
+    if (referencePlan) {
+      issues.push(...validateStoryboardFrameSourceInterval({
+        frame,
+        frameIndex,
+        frameCount: frames.length,
+        path: `${path}.${frameIndex}`,
+        plan: referencePlan,
+        productName: options.productName,
+      }));
+    }
   });
+}
+
+export function validateStoryboardFrameSourceInterval(input: {
+  frame: StoryboardFrame;
+  frameIndex: number;
+  frameCount: number;
+  path: string;
+  plan: ReferenceSegmentPlan;
+  productName?: string | null;
+}): PromptValidationIssue[] {
+  const beat = resolveReferenceSegmentBeatForFrame(input.plan, input.frameIndex + 1, input.frameCount);
+  if (!beat) return [];
+
+  const issues: PromptValidationIssue[] = [];
+  const frameText = [input.frame.visualDescription, input.frame.camera, input.frame.action].join(" ");
+  const interval = `${beat.sourceStartSeconds}-${beat.sourceEndSeconds}s source interval`;
+  if (isPresenterSource(beat) && input.frame.role === "environment_cutaway") {
+    issues.push({
+      path: `${input.path}.role`,
+      code: "storyboard_source_presenter_environment_cutaway",
+      message: `${interval} is presenter/on_camera, but this stored frame is environment_cutaway. Keep the source presenter/face policy for this interval; repair the frame role and visual action.`,
+      severity: "error",
+    });
+  }
+  if (beat.avatarAllowed === false && hasFace(input.frame)) {
+    issues.push({
+      path: input.path,
+      code: "storyboard_source_avatar_forbidden_face",
+      message: `${interval} has avatar_allowed=false, but this stored frame describes a face or presenter. Repair it to the approved non-face B-roll subject.`,
+      severity: "error",
+    });
+  }
+  if (isBrollSource(beat) && isPresenterFrame(input.frame)) {
+    issues.push({
+      path: input.path,
+      code: "storyboard_source_broll_presenter",
+      message: `${interval} is source B-roll/voiceover-only, but this stored frame becomes a presenter shot. Repair it to the source B-roll subject and delivery mode.`,
+      severity: "error",
+    });
+  }
+  if (input.frame.role === "product_cutaway" && !hasProductIntent(input.frame, beat, input.productName)) {
+    issues.push({
+      path: `${input.path}.role`,
+      code: "storyboard_product_cutaway_without_product_intent",
+      message: `${interval} has no product intent in the stored frame or source beat, but the frame is product_cutaway. Repair it to an environment cutaway or add only an explicitly product-led frame.`,
+      severity: "error",
+    });
+  }
+  return issues;
+
+  function hasFace(frame: StoryboardFrame) {
+    if (frame.role === "face_open" || frame.role === "face_return") return true;
+    return !NO_FACE_PATTERN.test(frameText) && FACE_PATTERN.test(frameText);
+  }
+}
+
+function resolveReferenceSegmentPlan(
+  options: StoryboardReferenceValidationOptions,
+  segmentIndex: number,
+) {
+  return options.referenceSegmentPlans?.find((plan) => plan.segmentIndex === segmentIndex) ||
+    (options.referenceSegmentPlan?.segmentIndex === segmentIndex ? options.referenceSegmentPlan : null);
+}
+
+function isPresenterSource(beat: ReferenceSegmentBeat) {
+  const onCamera = beat.speechMode === "on_camera";
+  const primaryPresenter = beat.visibleSubjectRole === "primary_presenter";
+  return onCamera || primaryPresenter || (beat.sourceRole === "presenter" && beat.avatarAllowed === true);
+}
+
+function isBrollSource(beat: ReferenceSegmentBeat) {
+  return BROLL_SOURCE_ROLES.has(beat.sourceRole || "") ||
+    beat.speechMode === "voiceover_only" ||
+    beat.avatarAllowed === false ||
+    NON_PRESENTER_SUBJECT_ROLES.has(beat.visibleSubjectRole || "");
+}
+
+function isPresenterFrame(frame: StoryboardFrame) {
+  if (frame.role === "face_open" || frame.role === "face_return") return true;
+  const text = [frame.visualDescription, frame.camera, frame.action].join(" ");
+  return !NO_FACE_PATTERN.test(text) && PRESENTER_PATTERN.test(text);
+}
+
+function hasProductIntent(frame: StoryboardFrame, beat: ReferenceSegmentBeat, productName?: string | null) {
+  if (frame.referenceRole === "product" || beat.sourceRole && PRODUCT_SOURCE_ROLES.has(beat.sourceRole)) return true;
+  const spokenWords = frame.spokenWords || "";
+  return mentionsOmniProduct(spokenWords, productName || "") || PRODUCT_INTENT_PATTERN.test(spokenWords);
 }
 
 function hasPhysicalHandObjectConflict(text: string) {

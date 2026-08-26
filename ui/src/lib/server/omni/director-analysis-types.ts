@@ -268,9 +268,7 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
     location_timeline: Array.isArray(candidate.location_timeline)
       ? candidate.location_timeline.map(normalizeLocationTimelineItem).filter((item): item is DirectorLocationTimelineItem => Boolean(item))
       : [],
-    camera_timeline: Array.isArray(candidate.camera_timeline)
-      ? candidate.camera_timeline.map(normalizeCameraTimelineItem).filter((item): item is DirectorCameraTimelineItem => Boolean(item))
-      : [],
+    camera_timeline: normalizeCameraTimeline(candidate.camera_timeline),
     camera: {
       shot_types: stringArray(camera.shot_types),
       angles: stringArray(camera.angles),
@@ -365,6 +363,15 @@ function normalizeCameraTimelineItem(value: unknown) {
   return item.shot_types.length || item.angles.length || item.movements.length || item.setting || item.action_description
     ? item
     : null;
+}
+
+function normalizeCameraTimeline(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const items = value
+    .map(normalizeCameraTimelineItem)
+    .filter((item): item is DirectorCameraTimelineItem => Boolean(item))
+    .sort((left, right) => left.start_sec - right.start_sec || left.end_sec - right.end_sec);
+  return items;
 }
 
 function normalizeSpeechMode(value: unknown): PhysicalSpeechMode | null {

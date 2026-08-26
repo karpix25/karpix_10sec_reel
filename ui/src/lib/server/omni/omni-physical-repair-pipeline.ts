@@ -11,6 +11,7 @@ import { normalizePhysicalStoryboardSegment } from "./physical-storyboard-normal
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
 import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { renderReferenceSegmentPlanForPrompt } from "./reference-segment-plan";
+import { resolveReferenceTransferMode } from "./omni-reference-transfer-policy";
 
 const MAX_AI_REPAIR_ATTEMPTS_PER_SEGMENT = 1;
 
@@ -146,7 +147,9 @@ function buildRepairedSegment(input: {
   }), input.validation);
   return {
     ...input.segment,
-    prompt: [prompt, renderReferenceSegmentPlanForPrompt(input.segment.referenceSegmentPlan)]
+    prompt: [prompt, resolveReferenceTransferMode(input.directorBrief) === "full_reference"
+      ? renderReferenceSegmentPlanForPrompt(input.segment.referenceSegmentPlan)
+      : ""]
       .filter(Boolean)
       .join("\n\n"),
     storyboardPlan: input.storyboard,

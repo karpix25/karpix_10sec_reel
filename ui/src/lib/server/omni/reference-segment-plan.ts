@@ -1,4 +1,6 @@
 import type { PhysicalSpeechMode } from "../../omni/physical-scene-types";
+import type { OmniStoryboardSegment } from "../../omni/storyboard/omni-storyboard-types";
+import type { StoryboardFrame } from "./llm-prompt-chain-types";
 import {
   selectDirectorSegmentProfile,
   type DirectorBrief,
@@ -60,6 +62,79 @@ export type ReferenceSegmentPlan = {
   beats: readonly ReferenceSegmentBeat[];
 };
 
+export function resolveReferenceSegmentBeatForFrame(
+  plan: ReferenceSegmentPlan | null | undefined,
+  frameIndex: number,
+  frameCount: number,
+): ReferenceSegmentBeat | null {
+  if (!plan || frameIndex <= 0 || frameCount <= 0) return null;
+  const frameCenterSeconds = ((frameIndex - 0.5) / frameCount) * plan.durationSeconds;
+  return plan.beats.find((beat) =>
+    frameCenterSeconds >= beat.startSeconds && frameCenterSeconds < beat.endSeconds
+  ) || plan.beats[plan.beats.length - 1] || null;
+}
+
+export function applyReferenceSegmentPlanToFrames<T extends {
+  role: StoryboardFrame["role"];
+  action: string;
+  camera: string;
+  visualDescription: string;
+}>(plan: ReferenceSegmentPlan | null | undefined, frames: readonly T[], enabled = false) {
+  if (!plan || !enabled) return frames;
+  return frames.map((frame, index) => {
+    const beat = resolveReferenceSegmentBeatForFrame(plan, index + 1, frames.length);
+    if (!beat) return frame;
+    const visualDescription = beat.visualDescription || beat.action;
+    const role = resolveReferenceFrameRole(beat, frame.role, index, frames.length);
+    return { ...frame, role, action: beat.action, camera: beat.camera, visualDescription };
+  });
+}
+
+export function applyReferenceSegmentPlanToStoryboard(
+  plan: ReferenceSegmentPlan | null | undefined,
+  storyboard: OmniStoryboardSegment,
+  enabled = false,
+): OmniStoryboardSegment {
+  if (!plan || !enabled) return storyboard;
+  return {
+    ...storyboard,
+    frames: storyboard.frames.map((frame, index) => {
+      const beat = resolveReferenceSegmentBeatForFrame(plan, index + 1, storyboard.frames.length);
+      if (!beat) return frame;
+      const environment = [beat.setting, beat.environment, beat.lighting].filter(Boolean).join("; ");
+      return {
+        ...frame,
+        camera: [beat.camera, beat.composition ? `composition ${beat.composition}` : ""].filter(Boolean).join("; "),
+        environment: environment || frame.environment,
+        speechMode: beat.speechMode,
+        physicalPlan: frame.physicalPlan
+          ? { ...frame.physicalPlan, speechMode: beat.speechMode }
+          : frame.physicalPlan,
+      };
+    }),
+  };
+}
+
+function resolveReferenceFrameRole(
+  beat: ReferenceSegmentBeat,
+  currentRole: StoryboardFrame["role"],
+  frameIndex: number,
+  frameCount: number,
+) {
+  const presenterSource = beat.speechMode === "on_camera" &&
+    (beat.visibleSubjectRole === "primary_presenter" || beat.sourceRole === "presenter");
+  if (presenterSource && currentRole === "environment_cutaway") {
+    return frameIndex === frameCount - 1 ? "face_return" : "face_open";
+  }
+  const brollSource = beat.speechMode === "voiceover_only" || beat.avatarAllowed === false ||
+    beat.visibleSubjectRole === "no_people" || beat.visibleSubjectRole === "hands_only" ||
+    beat.visibleSubjectRole === "object_only";
+  if (brollSource && (currentRole === "face_open" || currentRole === "face_return")) {
+    return "environment_cutaway";
+  }
+  return currentRole;
+}
+
 export function buildReferenceSegmentPlan(input: {
   brief?: DirectorBrief | null;
   segmentIndex: number;
@@ -87,28 +162,16 @@ export function buildReferenceSegmentPlan(input: {
   const formatMode = resolveReferenceFormatMode(brief);
   const renderMode = resolveReferenceRenderMode({ brief, sceneMode, formatMode });
   const motionMode = resolveReferenceMotionMode(brief.reference_motion_mode, renderMode);
-  const beatCount = resolveBeatCount(renderMode);
-  const beats = Array.from({ length: beatCount }, (_, index) => {
-    const profile = selectDirectorSegmentProfile({
-      brief,
-      segmentIndex: input.segmentIndex,
-      segmentCount: input.segmentCount,
-      frameIndex: index + 1,
-      frameCount: beatCount,
-    });
-    const startSeconds = round((index * durationSeconds) / beatCount);
-    const endSeconds = round(((index + 1) * durationSeconds) / beatCount);
-    const sourceStart = round(sourceStartSeconds + ((sourceEndSeconds - sourceStartSeconds) * index) / beatCount);
-    const sourceEnd = round(sourceStartSeconds + ((sourceEndSeconds - sourceStartSeconds) * (index + 1)) / beatCount);
-    return buildBeat({
-      profile,
-      startSeconds,
-      endSeconds,
-      sourceStartSeconds: sourceStart,
-      sourceEndSeconds: sourceEnd,
-      renderMode,
-    });
-  });
+  const beats = buildReferenceBeatWindows({
+    brief,
+    segmentIndex: input.segmentIndex,
+    segmentCount: input.segmentCount,
+    durationSeconds,
+    sourceDurationSeconds,
+    sourceStartSeconds,
+    sourceEndSeconds,
+    renderMode,
+  }).map((window) => buildBeat({ ...window, renderMode }));
 
   return {
     version: "reference-segment-plan-v1",
@@ -127,6 +190,60 @@ export function buildReferenceSegmentPlan(input: {
     confidence: resolveConfidence(brief),
     beats,
   };
+}
+
+function buildReferenceBeatWindows(input: {
+  brief: DirectorBrief;
+  segmentIndex: number;
+  segmentCount: number;
+  durationSeconds: number;
+  sourceDurationSeconds: number;
+  sourceStartSeconds: number;
+  sourceEndSeconds: number;
+  renderMode: ReferenceRenderMode;
+}) {
+  const timeline = [...(input.brief.camera_timeline || [])].sort((left, right) => left.start_sec - right.start_sec);
+  const sourceSpan = Math.max(0.01, input.sourceEndSeconds - input.sourceStartSeconds);
+  const timelineStart = timeline[0]?.start_sec || 0;
+  const timelineEnd = timeline[timeline.length - 1]?.end_sec || input.sourceDurationSeconds;
+  const timelineSpan = Math.max(0.01, timelineEnd - timelineStart);
+  const timelineWindows = timeline.flatMap((item) => {
+    const sourceStart = Math.max(input.sourceStartSeconds, item.start_sec);
+    const sourceEnd = Math.min(input.sourceEndSeconds, item.end_sec);
+    if (sourceEnd <= sourceStart) return [];
+    const midpoint = (sourceStart + sourceEnd) / 2;
+    const sourcePosition = Math.max(0, Math.min(1, (midpoint - timelineStart) / timelineSpan));
+    const profile = selectDirectorSegmentProfile({
+      brief: input.brief,
+      segmentIndex: 1,
+      segmentCount: 1,
+      frameIndex: Math.min(100, Math.max(1, Math.floor(sourcePosition * 99) + 1)),
+      frameCount: 100,
+    });
+    return [{
+      profile,
+      startSeconds: round(((sourceStart - input.sourceStartSeconds) / sourceSpan) * input.durationSeconds),
+      endSeconds: round(((sourceEnd - input.sourceStartSeconds) / sourceSpan) * input.durationSeconds),
+      sourceStartSeconds: round(sourceStart),
+      sourceEndSeconds: round(sourceEnd),
+    }];
+  });
+  if (timelineWindows.length) return timelineWindows;
+
+  const beatCount = resolveBeatCount(input.renderMode);
+  return Array.from({ length: beatCount }, (_, index) => ({
+    profile: selectDirectorSegmentProfile({
+      brief: input.brief,
+      segmentIndex: input.segmentIndex,
+      segmentCount: input.segmentCount,
+      frameIndex: index + 1,
+      frameCount: beatCount,
+    }),
+    startSeconds: round((index * input.durationSeconds) / beatCount),
+    endSeconds: round(((index + 1) * input.durationSeconds) / beatCount),
+    sourceStartSeconds: round(input.sourceStartSeconds + ((input.sourceEndSeconds - input.sourceStartSeconds) * index) / beatCount),
+    sourceEndSeconds: round(input.sourceStartSeconds + ((input.sourceEndSeconds - input.sourceStartSeconds) * (index + 1)) / beatCount),
+  }));
 }
 
 export function resolveReferenceRenderMode(input: {

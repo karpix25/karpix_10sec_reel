@@ -6,6 +6,7 @@ import type { DirectorBrief } from "./director-analysis-types";
 import { applyReferenceSceneModeToOmniPrompt, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { renderReferenceSegmentPlanForPrompt } from "./reference-segment-plan";
+import { resolveReferenceTransferMode } from "./omni-reference-transfer-policy";
 import { repairPhysicalScenePrompt, validatePhysicalScene } from "./physical-scene-validator";
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
 import {
@@ -374,7 +375,9 @@ function applySemanticRepairResponse(input: {
         ...segment.creativePlan,
         voiceoverText,
       },
-      prompt: [prompt, renderReferenceSegmentPlanForPrompt(segment.referenceSegmentPlan)]
+      prompt: [prompt, resolveReferenceTransferMode(input.directorBrief) === "full_reference"
+        ? renderReferenceSegmentPlanForPrompt(segment.referenceSegmentPlan)
+        : ""]
         .filter(Boolean)
         .join("\n\n"),
       storyboardPlan: storyboard,
