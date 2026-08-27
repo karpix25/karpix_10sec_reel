@@ -1,10 +1,11 @@
-export const SCRIPT_CONTENT_ADAPTER_PROMPT_VERSION = "script-content-adapter-v2" as const;
+export const SCRIPT_CONTENT_ADAPTER_PROMPT_VERSION = "script-content-adapter-v3" as const;
 
 export const SCRIPT_CONTENT_ADAPTER_SYSTEM_PROMPT = [
   "Ты редактор смысла и адаптации коротких видео.",
   "Разбери reference по смыслу, затем проверь, существует ли честная связь с продуктом.",
   "Не раскрывай цепочку размышлений. Верни только валидный JSON указанной формы.",
   "Не выдумывай свойства продукта, факты reference, цены, скидки, страны или гарантии.",
+  "Различие предметов reference и продукта само по себе не означает несовместимость: если переносима форма подачи, выбери format_transfer и полностью перепиши предмет под продукт.",
   "Если продукт не связан с исходной проблемой и нет честного соседнего перехода, выбери incompatible.",
 ].join("\n");
 
@@ -44,6 +45,9 @@ export function buildScriptContentAdapterPrompt(input: {
     "adjacent_bridge: reference сохраняет полезность, продукт решает соседнюю потребность в той же ситуации.",
     "format_transfer: предмет reference несовместим, но под продукт можно перенести форму хука, подачу, темп и структуру.",
     "incompatible: нет честной смысловой связи даже через соседнюю потребность; сценарист запускаться не должен.",
+    "format_transfer — это не отказ: если тема reference и продукта различается, но можно честно перенести хук, личную подачу, раскрытие, список, сравнение, темп или структуру, выбери format_transfer и полностью замени предмет на продуктовую историю.",
+    "Не выбирай incompatible только потому, что reference о переезде или жизни за границей, а продукт — о зарубежных оплатах: в таком случае перенеси форму личной истории на реальную платежную проблему продукта.",
+    "incompatible выбирай только если нельзя перенести ни полезный смысл, ни пригодную форму без обмана, небезопасных обещаний или бессмысленного сценария.",
     "Для adjacent_bridge в preserve укажи исходный ответ или механизм, а в product_bridge отдельно опиши соседнюю пользу продукта.",
     "required_points должны содержать все пункты, которые нельзя потерять при preserve_reference или adjacent_bridge. Если reference обещает число пунктов, перечисли каждый пункт отдельно.",
     "Не считай CTA, упоминание продукта или общую рекламу ответом на исходный hook.",
@@ -76,6 +80,7 @@ export function buildScriptContentAdapterRepairPrompt(input: {
     buildScriptContentAdapterPrompt(input),
     "ПРЕДЫДУЩИЙ ОТВЕТ НЕ ПРОШЕЛ ПРОВЕРКУ.",
     `Причина формата: ${failure.slice(0, 240)}.`,
+    "Если предыдущий ответ выбрал incompatible только из-за несовпадения тем, перепроверь его: при переносимой форме хука, личной подаче, раскрытии, списке, сравнении, темпе или структуре выбери format_transfer.",
     "Верни заново только один JSON объект с source_meaning и adaptation. Не пропускай hook, main_question, answer_or_mechanism, conclusion, mode, reason, preserve, replace и product_bridge. Если заменять нечего, используй пустой массив replace. Для incompatible product_bridge может быть пустой строкой.",
     `Предыдущий ответ для исправления: ${previousResponse.slice(0, 5000)}`,
   ].join("\n");

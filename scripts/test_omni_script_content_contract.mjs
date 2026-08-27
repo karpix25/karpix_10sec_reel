@@ -113,8 +113,11 @@ try {
   });
   assert.match(prompt, /source_meaning/u);
   assert.match(prompt, /incompatible/u);
+  assert.match(prompt, /format_transfer — это не отказ/u);
+  assert.match(prompt, /переезде или жизни за границей/u);
   assert.match(prompt, /replace может быть пустым массивом/u);
   assert.match(adapterPrompt.SCRIPT_CONTENT_ADAPTER_SYSTEM_PROMPT, /Не раскрывай цепочку размышлений/u);
+  assert.match(adapterPrompt.SCRIPT_CONTENT_ADAPTER_SYSTEM_PROMPT, /само по себе не означает несовместимость/u);
 
   const repairPrompt = adapterPrompt.buildScriptContentAdapterRepairPrompt(
     {
@@ -129,6 +132,7 @@ try {
     "контракт не прошел схему",
   );
   assert.match(repairPrompt, /пустой массив replace/u);
+  assert.match(repairPrompt, /перепроверь его/u);
   assert.match(repairPrompt, /source_meaning и adaptation/u);
 
   console.log("Omni script content contract checks passed");

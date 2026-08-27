@@ -59,6 +59,7 @@ export function buildCreativeCopywriterAttemptPrompt(input: {
     prompt: `${basePrompt}\n\nПовторная попытка:\n${buildCreativeCopywriterRebuildFeedback({
       semanticReview: input.semanticReview,
       failureReason: input.failureReason,
+      adaptationMode: input.chainInput.adaptationPlan.mode,
     })}`,
   };
 }
@@ -66,6 +67,13 @@ export function buildCreativeCopywriterAttemptPrompt(input: {
 export function buildCreativeCopywriterRepairPrompt(input: CreativeRepairInput) {
   const { chainInput, semanticReview } = input;
   const contentContract = resolveScriptContentContract(chainInput);
+  const isFormatTransfer = contentContract.adaptation.mode === "format_transfer";
+  const referenceRepairRule = isFormatTransfer
+    ? "Reference нужен для формы хука, личной подачи, темпа и структуры. Полностью замени исходный предмет новым честным продуктовым сюжетом и не возвращай чужой механизм."
+    : "Reference нужен для темы, хука, конфликта, примеров, подачи и структуры. Перепиши его под продукт, не копируя текст дословно. Если продукт не отвечает на исходный вопрос напрямую, сохрани тему как контекст и переведи её к реальной потребности, которую продукт решает.";
+  const subjectRepairRule = isFormatTransfer
+    ? "Для format_transfer не сохраняй исходную тему ради формального совпадения. Сохрани только переносимую форму и сделай продуктовую проблему центральной мыслью."
+    : "Не выбрасывай тему reference ради продукта. Если продукт не отвечает на исходный вопрос напрямую, сохрани тему в начале и переведи сюжет к соседней реальной проблеме, которую продукт действительно решает.";
   return [
     "Ты редактор готового voiceover сценария короткого вертикального видео.",
     `Это точечная смысловая починка, попытка ${formatPromptChainNumber(input.repairAttempt)}.`,
@@ -75,7 +83,7 @@ export function buildCreativeCopywriterRepairPrompt(input: CreativeRepairInput) 
     "Каждое точное указание проверки обязательно. Не возвращай rejected script без фактического исправления всех перечисленных ошибок.",
     "Если хук обещает конкретное число пунктов, итоговый сценарий обязан содержать ровно столько различимых пунктов из reference. Продукт и CTA не заменяют ни один пункт.",
     "Если для обязательного пункта не хватает лимита слов, сократи второстепенные пояснения продукта или повторяющиеся формулировки, но сохрани название продукта, наблюдаемую пользу, CTA и финальный вывод.",
-    "Reference нужен для темы, хука, конфликта, примеров, подачи и структуры. Перепиши его под продукт, не копируя текст дословно. Если продукт не отвечает на исходный вопрос напрямую, сохрани тему как контекст и переведи её к реальной потребности, которую продукт решает.",
+    referenceRepairRule,
     "Если продукт вставлен как отдельная реклама, не просто переставляй его. Найди в текущем сюжете конкретную потребность, выбор или проблему, добавь короткий причинный мостик, назови точный продукт и свяжи его подтвержденную пользу именно с этой ситуацией. Если фразу о продукте можно удалить без потери логики, перепиши ее. CTA должен завершать мысль о применении продукта, а не обрывать payoff reference.",
     "Пользу продукта возьми только из его описания и назови наблюдаемое действие зрителя. Общие слова «без проблем», «проще», «удобнее» и «без ограничений» без такого действия не считаются пользой.",
     "Если CTA обязателен, произнеси его до финальной полезной мысли, затем закончи отдельной утвердительной смысловой фразой. Вопрос, приказ или новый призыв не считаются выводом.",
@@ -87,7 +95,7 @@ export function buildCreativeCopywriterRepairPrompt(input: CreativeRepairInput) 
     renderCtaRule(chainInput),
     renderScriptContentRepairContract(contentContract),
     renderAdjacentBridgeRepairRule(chainInput),
-    "Не выбрасывай тему reference ради продукта. Если продукт не отвечает на исходный вопрос напрямую, сохрани тему в начале и переведи сюжет к соседней реальной проблеме, которую продукт действительно решает.",
+    subjectRepairRule,
     "",
     `Не пройдены проверки: ${renderFailedChecks(semanticReview)}.`,
     `Замечания проверки: ${semanticReview?.issues.join("; ") || input.failureReason}.`,
@@ -120,13 +128,17 @@ function renderAdjacentBridgeRepairRule(input: PromptChainInput) {
 export function buildCreativeCopywriterRebuildFeedback(input: {
   semanticReview: ScriptSemanticReview | null;
   failureReason: string;
+  adaptationMode: PromptChainInput["adaptationPlan"]["mode"];
 }) {
+  const referenceRule = input.adaptationMode === "format_transfer"
+    ? "Сохрани форму хука и подачу reference, но полностью замени его предмет новым продуктовым сюжетом."
+    : "Сохрани тему, форму хука и подачу reference, но напиши новый продуктовый сюжет.";
   return [
     "Полностью напиши новый сценарий с чистого листа по исходному reference.",
     "Не пытайся латать или продолжать отвергнутый текст и не повторяй его формулировки.",
     `Особенно проверь: ${renderFailedChecks(input.semanticReview)}.`,
     `Последняя причина отказа: ${input.failureReason}`,
-    "Сохрани тему, форму хука и подачу reference, но напиши новый продуктовый сюжет. Назови продукт, объясни его подтвержденную пользу, поставь CTA после этой пользы и закончи полезным выводом.",
+    `${referenceRule} Назови продукт, объясни его подтвержденную пользу, поставь CTA после этой пользы и закончи полезным выводом.`,
   ].join(" ");
 }
 

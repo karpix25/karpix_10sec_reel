@@ -43,6 +43,7 @@ export async function analyzeScriptContentAndAdapt(input: {
   let previousResponse = "";
   let failureReason = "";
   let lastError: unknown = null;
+  let incompatibleReviewUsed = false;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     try {
@@ -81,8 +82,17 @@ export async function analyzeScriptContentAndAdapt(input: {
       }
       const contract = normalizeScriptContentContract(parsed);
       if (contract) {
+        if (contract.adaptation.mode === "incompatible" && !incompatibleReviewUsed) {
+          incompatibleReviewUsed = true;
+          failureReason = "модель выбрала incompatible; перепроверь, можно ли перенести форму reference через format_transfer";
+          lastError = new Error("Script content adapter requires incompatible-reference review");
+          continue;
+        }
+        const resolvedContract = contract.adaptation.mode === "incompatible"
+          ? fallbackIncompatibleContract(contract)
+          : contract;
         return {
-          contract,
+          contract: resolvedContract,
           model: responseModel,
           promptVersion: SCRIPT_CONTENT_ADAPTER_PROMPT_VERSION,
           openRouterUsage: usage,
@@ -149,4 +159,19 @@ function readAssistantContent(data: Record<string, unknown>) {
 function describeKeys(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return typeof value;
   return Object.keys(value).slice(0, 12).join(",") || "none";
+}
+
+function fallbackIncompatibleContract(contract: ScriptContentContract): ScriptContentContract {
+  const adaptation = contract.adaptation;
+  return {
+    ...contract,
+    adaptation: {
+      ...adaptation,
+      mode: "format_transfer",
+      reason: `${adaptation.reason} Предмет reference заменен на новый продуктовый сюжет, сохранена форма подачи.`,
+      preserve: adaptation.preserve.length ? adaptation.preserve : ["форма хука и личная подача reference"],
+      replace: adaptation.replace.length ? adaptation.replace : ["исходный предметный тезис и механизм"],
+      productBridge: adaptation.productBridge || "Построй новый сюжет вокруг подтвержденной пользы продукта.",
+    },
+  };
 }

@@ -101,6 +101,58 @@ try {
   );
   assert.equal(chatRequestCount, 5);
 
+  const incompatibleResponse = JSON.stringify({
+    source_meaning: {
+      hook: "Я никогда не мечтала о Мальдивах.",
+      main_question: "Как сложилась жизнь за границей?",
+      answer_or_mechanism: "Переезд и работа привели меня к жизни на островах.",
+      required_points: [],
+      proof_examples: [],
+      conclusion: "Теперь я живу здесь уже два года.",
+    },
+    adaptation: {
+      mode: "incompatible",
+      reason: "История о жизни на Мальдивах не связана с виртуальной картой.",
+      preserve: [],
+      replace: [],
+      product_bridge: "",
+    },
+  });
+  const formatTransferResponse = JSON.stringify({
+    source_meaning: {
+      hook: "Я никогда не думала, что буду оплачивать всё одной картой.",
+      main_question: "Как платить за границей без лишних сложностей?",
+      answer_or_mechanism: "Виртуальная карта помогает оплачивать зарубежные расходы.",
+      required_points: [],
+      proof_examples: [],
+      conclusion: "Теперь платежи за границей проходят проще.",
+    },
+    adaptation: {
+      mode: "format_transfer",
+      reason: "Переносим личную форму истории на реальную платежную задачу продукта.",
+      preserve: ["личный хук", "постепенное раскрытие"],
+      replace: ["история о Мальдивах", "переезд и работа"],
+      product_bridge: "Новая история раскрывает пользу виртуальной карты для зарубежных оплат.",
+    },
+  });
+  chatResponses = [incompatibleResponse, formatTransferResponse];
+  chatRequestCount = 0;
+  requestBodies.length = 0;
+  const reviewed = await analyzeScriptContentAndAdapt(input("test/adapter-incompatible-review"));
+  assert.equal(reviewed.contract.adaptation.mode, "format_transfer");
+  assert.equal(reviewed.attemptCount, 2);
+  assert.equal(chatRequestCount, 2);
+  assert.match(requestBodies[1].messages[1].content, /Если предыдущий ответ выбрал incompatible/u);
+
+  chatResponses = [incompatibleResponse, incompatibleResponse];
+  chatRequestCount = 0;
+  requestBodies.length = 0;
+  const fallback = await analyzeScriptContentAndAdapt(input("test/adapter-incompatible-fallback"));
+  assert.equal(fallback.contract.adaptation.mode, "format_transfer");
+  assert.equal(fallback.attemptCount, 2);
+  assert.equal(chatRequestCount, 2);
+  assert.match(fallback.contract.adaptation.reason, /сохранена форма подачи/u);
+
   console.log("Omni script content adapter retry and strict validation checks passed");
 } finally {
   global.fetch = originalFetch;

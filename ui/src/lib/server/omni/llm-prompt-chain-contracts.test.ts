@@ -139,6 +139,10 @@ test("reference list obligations are carried into the generator contract", () =>
   const prompt = buildCreativeCopywriterPrompt({
     ...makeCreativeInput(),
     sourceScenario: { ...makeCreativeInput().sourceScenario, script: reference },
+    adaptationPlan: {
+      ...makeCreativeInput().adaptationPlan,
+      mode: "preserve_reference",
+    },
   });
   assert.ok(!prompt.includes("reference_format_mode"));
   assert.ok(!prompt.includes("voiceover montage"));
@@ -152,7 +156,13 @@ test("reference list obligations are carried into the generator contract", () =>
 });
 
 test("creative repairs keep the reference topic when product is adjacent", () => {
-  const chainInput = makeCreativeInput();
+  const chainInput = {
+    ...makeCreativeInput(),
+    adaptationPlan: {
+      ...makeCreativeInput().adaptationPlan,
+      mode: "adjacent_bridge" as const,
+    },
+  };
   const adjacentRepair = buildCreativeCopywriterAttemptPrompt({
     chainInput: {
       ...chainInput,
@@ -212,6 +222,23 @@ test("creative repairs keep the reference topic when product is adjacent", () =>
 
   assert.match(repair.prompt, /Не выбрасывай тему reference ради продукта/iu);
   assert.doesNotMatch(repair.prompt, /Не возвращай чужой механизм или предметную тему/iu);
+});
+
+test("format transfer does not inherit source-topic requirements", () => {
+  const formatTransferPrompt = buildCreativeCopywriterPrompt(makeCreativeInput());
+  assert.match(formatTransferPrompt, /Полностью замени исходный предмет новым честным сюжетом о продукте/u);
+  assert.match(formatTransferPrompt, /Не отвечай на исходный предметный вопрос/u);
+  assert.doesNotMatch(formatTransferPrompt, /напиши новый сценарий на ту же тему/u);
+
+  const adjacentPrompt = buildCreativeCopywriterPrompt({
+    ...makeCreativeInput(),
+    adaptationPlan: {
+      ...makeCreativeInput().adaptationPlan,
+      mode: "adjacent_bridge",
+    },
+  });
+  assert.match(adjacentPrompt, /напиши новый сценарий на ту же тему/u);
+  assert.match(adjacentPrompt, /в рамках темы reference/u);
 });
 
 function makePlan(): DirectorSegmentPlan {
