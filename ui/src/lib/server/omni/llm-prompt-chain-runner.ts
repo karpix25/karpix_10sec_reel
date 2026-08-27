@@ -245,7 +245,7 @@ async function runCreativeCopywriter(
         sanitizeOmniScriptText(spellPromptChainNumbersInText(formatScenarioScript(draft.script))),
         input.avatarSpeechGender
       );
-      const maxWords = input.durationRange?.maxWords || getOmniMaxScriptWords();
+      const maxWords = getOmniMaxScriptWords();
       const script = compactOmniScriptToWordBudget(normalizedScript, maxWords, {
         referenceScript: input.sourceScenario.script,
         productName: input.productName,

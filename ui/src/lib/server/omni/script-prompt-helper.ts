@@ -139,7 +139,7 @@ function buildDurationInstruction(durationRange?: OmniDurationRange) {
     ? ` Настройка клиента ${durationRange.requestedMinSeconds}-${durationRange.requestedMaxSeconds} сек выходит за текущий Omni-лимит 8-40 сек, поэтому пиши под ${durationRange.minSeconds}-${durationRange.maxSeconds} сек.`
     : "";
   const exactDurationNote = durationRange.minSeconds === durationRange.maxSeconds
-    ? ` Это точная настройка: итоговый voiceover не может быть короче ${durationRange.minWords} слов.`
+    ? ` Это точная настройка: сначала стремись к ${durationRange.minWords} словам, но не выбрасывай смысл, если естественный текст получается длиннее.`
     : "";
   const targetMinWords = Math.max(
     durationRange.minWords,
@@ -150,7 +150,7 @@ function buildDurationInstruction(durationRange?: OmniDurationRange) {
     `Ориентир длины произносимого текста: ${durationRange.minWords}-${durationRange.maxWords} слов.${exactDurationNote}${clampedNote} ` +
     `Для плотной подачи ориентир: ${targetMinWords}-${durationRange.maxWords} слов. ` +
     `Перед ответом проверь: сумма всех beats.voiceover и поле script должны совпадать по смыслу дословно. Количество слов должно делиться на четыре без остатка, чтобы каждый двухсекундный кадр содержал ровно четыре слова. ` +
-    "Система сама выберет 2-5 частей. Если исходник длиннее лимита, сожми формулировки до верхней границы диапазона, сохранив хук, смысл продукта, ключевые аргументы и CTA. Не добавляй дополнительные части и не пытайся сохранить исходные фразы дословно."
+    "Система сама выберет 2-5 частей. Диапазон длительности задает цель, а не жесткий лимит текста: если для сохранения смысла нужно больше слов, не сжимай сценарий, система добавит раскадровку до общего лимита 100 слов. Не добавляй пустые фразы и не пытайся сохранить исходные фразы дословно."
   );
 }
 

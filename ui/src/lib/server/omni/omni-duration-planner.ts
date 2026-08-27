@@ -6,6 +6,7 @@ import {
   OMNI_MAX_SEGMENT_COUNT,
   OMNI_MIN_SEGMENT_COUNT,
   OMNI_SEGMENT_SECONDS,
+  OMNI_ALLOWED_SEGMENT_SECONDS,
   OMNI_TARGET_SEGMENT_WORDS_MIN,
   describeOmniDensityGap,
   getOmniSegmentDurationForWordCount,
@@ -96,25 +97,57 @@ function buildCandidate(
   maxWordsPerSegment: number,
   durationRange?: OmniDurationRange
 ): PlanCandidate | null {
-  try {
-    const segments = splitScriptIntoVoiceSegments(
-      script,
-      segmentCount,
-      maxWordsPerSegment,
-      OMNI_TARGET_SEGMENT_WORDS_MIN,
-      (wordCount) => getOmniSegmentDurationForWordCount(wordCount) !== null
-    );
-    if (segments.length !== segmentCount) return null;
-    const segmentDurationsSeconds = resolveSegmentDurations(segments, durationRange);
-    if (!segmentDurationsSeconds) return null;
-    return {
-      segments,
-      segmentDurationsSeconds,
-      score: scoreSegments(segments, segmentDurationsSeconds, durationRange),
-    };
-  } catch {
-    return null;
+  for (const allowAwkwardBoundaries of [false, true]) {
+    for (const targetWordCounts of findTargetWordCountOptions(countOmniScriptWords(script), segmentCount)) {
+      try {
+        const segments = splitScriptIntoVoiceSegments(
+          script,
+          segmentCount,
+          maxWordsPerSegment,
+          OMNI_TARGET_SEGMENT_WORDS_MIN,
+          (wordCount) => getOmniSegmentDurationForWordCount(wordCount) !== null,
+          targetWordCounts,
+          allowAwkwardBoundaries
+        );
+        if (segments.length !== segmentCount) continue;
+        const segmentDurationsSeconds = resolveSegmentDurations(segments, durationRange);
+        if (!segmentDurationsSeconds) continue;
+        return {
+          segments,
+          segmentDurationsSeconds,
+          score: scoreSegments(segments, segmentDurationsSeconds, durationRange) + (allowAwkwardBoundaries ? 500 : 0),
+        };
+      } catch {
+        continue;
+      }
+    }
   }
+  return null;
+}
+
+function findTargetWordCountOptions(wordCount: number, segmentCount: number): number[][] {
+  const segmentWordCounts = [...OMNI_ALLOWED_SEGMENT_SECONDS]
+    .map((seconds) => getOmniSegmentWordBudget(seconds))
+    .sort((left, right) => right - left);
+  const options: number[][] = [];
+
+  function visit(remainingWords: number, remainingSegments: number, prefix: number[]) {
+    if (remainingSegments === 0) {
+      if (remainingWords === 0) options.push(prefix);
+      return;
+    }
+    if (
+      remainingWords < remainingSegments * segmentWordCounts[segmentWordCounts.length - 1] ||
+      remainingWords > remainingSegments * segmentWordCounts[0]
+    ) return;
+
+    for (const segmentWords of segmentWordCounts) {
+      visit(remainingWords - segmentWords, remainingSegments - 1, [...prefix, segmentWords]);
+    }
+  }
+
+  visit(wordCount, segmentCount, []);
+  return options;
 }
 
 function isAnySegmentCountViable(wordCount: number) {

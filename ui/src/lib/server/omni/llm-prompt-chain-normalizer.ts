@@ -39,7 +39,7 @@ export function normalizeDirectorSegmentPlan(raw: unknown): DirectorSegmentPlan 
     format: normalizePlanFormat(data.format),
     title: clean(data.title) || "Новый сценарий",
     hookOptions: arrayOfStrings(data.hook_options || data.hookOptions),
-    selectedHook: clean(data.selected_hook || data.selectedHook || data.hook) || firstSentence(totalVoiceover),
+    selectedHook: firstSentence(clean(data.selected_hook || data.selectedHook || data.hook) || totalVoiceover),
     segments,
     totalVoiceover,
     notes: clean(data.notes) || null,

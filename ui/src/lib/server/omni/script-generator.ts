@@ -243,7 +243,7 @@ async function requestScriptOnce(
   const rawScript = spellPromptChainNumbersInText(sanitizeOmniScriptText(formatScenarioScript(rawScriptSource)));
   if (!rawScript) throw new Error("Script model returned empty script");
   let script = ensureOmniScriptCta(rawScript, input.ctaMode, input.ctaValue);
-  const scriptBudget = Math.min(input.durationRange?.maxWords || getOmniMaxScriptWords(), getOmniMaxScriptWords() - 4);
+  const scriptBudget = getOmniMaxScriptWords();
   const compactedScript = compactOmniScriptToWordBudget(script, scriptBudget, {
     referenceScript: input.sourceScenario.script,
     productName: input.productName,

@@ -11,7 +11,6 @@ import { validateReferenceMeaningCoverage, type ReferenceMeaningCoverage } from 
 import type { ScriptAdaptationMode } from "./script-adaptation-contract";
 
 const FORBIDDEN_SYMBOL_ERROR = "Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.";
-const DURATION_MIN_WORD_TOLERANCE = 2;
 const CTA_SENTENCE_PATTERN = /артикул|описани|коммент|кодово.*слов|ссылк|профил/iu;
 const IMPERATIVE_CONCLUSION_PATTERN = /^(?:так\s+что\s+)?(?:не\s+)?(?:забудь(?:те)?|слушай(?:те)?|наслаждай(?:ся|тесь)|путешествуй(?:те)?|попробуй(?:те)?|используй(?:те)?|выбирай(?:те)?|плати(?:те)?|лети(?:те)?|будь(?:те)?|ознакомь(?:ся|тесь)|подпишись|подпишитесь|пиши(?:те)?|хочешь\s+так\s+же)(?=$|[^\p{L}\p{N}])/iu;
 
@@ -99,6 +98,11 @@ function getSentences(text: string): string[] {
     .filter((s) => s.length > 0);
 }
 
+function extractOpeningHook(text: string) {
+  const normalized = text.trim();
+  return normalized.match(/^.+?[.!?](?:\s|$)/u)?.[0].trim() || normalized.split(/\s+/u).slice(0, 8).join(" ");
+}
+
 function countWords(text: string): number {
   return text.split(/\s+/).filter((w) => w.length > 0).length;
 }
@@ -129,8 +133,7 @@ export function validateViralScriptContract(input: {
   assertGeneratedScriptSymbolContract(rawModelScript);
 
   // 2. Hook/first sentence check
-  const firstSentence = getSentences(scriptText)[0] || "";
-  const hookToEvaluate = input.hook?.trim() || firstSentence;
+  const hookToEvaluate = extractOpeningHook(input.hook?.trim() || scriptText);
   const hookWordCount = countWords(hookToEvaluate);
   const hookCharCount = hookToEvaluate.length;
 
@@ -155,23 +158,14 @@ export function validateViralScriptContract(input: {
     );
   }
   if (input.durationRange) {
-    const toleratedMinWords = Math.max(
-      OMNI_MIN_SCRIPT_WORDS,
-      input.durationRange.minWords - DURATION_MIN_WORD_TOLERANCE
-    );
-    if (totalWordCount < toleratedMinWords) {
-      throw new Error(
-        `Сценарий отклонен: слишком короткий для выбранной длины ролика (${totalWordCount} слов). Нужно ${input.durationRange.minWords}-${input.durationRange.maxWords} слов для ${input.durationRange.minSeconds}-${input.durationRange.maxSeconds} сек.`
-      );
-    }
     if (totalWordCount < input.durationRange.minWords) {
       warnings.push(
-        `Сценарий чуть короче настройки (${totalWordCount} слов вместо ${input.durationRange.minWords}-${input.durationRange.maxWords}), принят в пределах допуска ${DURATION_MIN_WORD_TOLERANCE} слова.`
+        `Сценарий короче целевой настройки (${totalWordCount} слов вместо ${input.durationRange.minWords}-${input.durationRange.maxWords}); сохраняем текст без добавления пустых фраз.`
       );
     }
     if (totalWordCount > input.durationRange.maxWords) {
       warnings.push(
-        `Сценарий длиннее целевой настройки (${totalWordCount} слов вместо ${input.durationRange.minWords}-${input.durationRange.maxWords}); перед генерацией его нужно сжать до лимита доступных частей.`
+        `Сценарий длиннее целевой настройки (${totalWordCount} слов вместо ${input.durationRange.minWords}-${input.durationRange.maxWords}); раскадровка будет расширена дополнительной частью.`
       );
     }
   }

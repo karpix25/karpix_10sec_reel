@@ -199,6 +199,16 @@ try {
   assert.equal(exactThirtyPlan.durationSeconds, 30);
   assert.equal(exactThirtyPlan.segmentDurationsSeconds.reduce((sum, duration) => sum + duration, 0), 30);
 
+  const expandedPlan = planOmniReelSegments(makeScript(72), { durationRange: exactThirty });
+  assert.deepEqual(expandedPlan.segmentWordCounts, [20, 20, 20, 12]);
+  assert.deepEqual(expandedPlan.segmentDurationsSeconds, [10, 10, 10, 6]);
+  assert.equal(expandedPlan.durationSeconds, 36);
+  assert.throws(
+    () => planOmniReelSegments(makeScript(74), { durationRange: exactThirty }),
+    (error) => error instanceof Error && /делиться на четыре/u.test(error.message),
+    "non-multiple-of-four scripts must be regenerated instead of silently truncated"
+  );
+
   console.log("Omni segment planner regression checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });

@@ -20,7 +20,7 @@ export function normalizeGeneratedScriptPlan(raw: unknown): GeneratedScriptPlan 
   if (!source) return null;
 
   const hookOptions = normalizeStringArray(source.hook_options ?? source.hookOptions).slice(0, 3);
-  const selectedHook = clean(source.selected_hook ?? source.selectedHook ?? source.hook ?? hookOptions[0] ?? "");
+  const selectedHook = firstSentence(clean(source.selected_hook ?? source.selectedHook ?? source.hook ?? hookOptions[0] ?? ""));
   const beats = normalizeBeats(source.beats);
 
   if (!beats.length) return null;
@@ -51,6 +51,10 @@ export const extractGeneratedScriptBeatPlanFromSnapshot = extractGeneratedScript
 
 export function buildScriptTextFromBeats(beats: readonly GeneratedScriptBeat[]) {
   return beats.map((beat) => beat.voiceover).filter(Boolean).join(" ");
+}
+
+function firstSentence(text: string) {
+  return text.split(/(?<=[.!?])\s+/u)[0]?.trim() || text.split(/\s+/u).slice(0, 8).join(" ");
 }
 
 export function deriveVoiceoverScriptFromPlan(plan: GeneratedScriptPlan | null) {
