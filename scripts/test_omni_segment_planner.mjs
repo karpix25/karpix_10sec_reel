@@ -31,15 +31,14 @@ try {
   const { reconstructVoiceSegments, splitScriptIntoVoiceSegments } = require(findFile(output, "omni-script-segmentation.js"));
 
   assert.equal(getOmniSegmentDurationForWordCount(5), null, "segments below the storyboard speech floor are invalid");
-  assert.equal(getOmniSegmentDurationForWordCount(7), 4);
   assert.equal(getOmniSegmentDurationForWordCount(8), 4);
-  assert.equal(getOmniSegmentDurationForWordCount(10), 4);
-  assert.equal(getOmniSegmentDurationForWordCount(11), 6);
+  assert.equal(getOmniSegmentDurationForWordCount(10), null);
+  assert.equal(getOmniSegmentDurationForWordCount(11), null);
   assert.equal(getOmniSegmentDurationForWordCount(12), 6);
   assert.equal(getOmniSegmentDurationForWordCount(16), 8);
-  assert.equal(getOmniSegmentDurationForWordCount(20), 8);
-  assert.equal(getOmniSegmentDurationForWordCount(21), 10);
-  assert.equal(getOmniSegmentDurationForWordCount(25), 10);
+  assert.equal(getOmniSegmentDurationForWordCount(20), 10);
+  assert.equal(getOmniSegmentDurationForWordCount(21), null);
+  assert.equal(getOmniSegmentDurationForWordCount(25), null);
   assert.equal(getOmniSegmentDurationForWordCount(26), null);
 
   const exactThirty = normalizeOmniDurationRange({
@@ -50,8 +49,8 @@ try {
   });
   assert.equal(exactThirty.minSeconds, 30);
   assert.equal(exactThirty.maxSeconds, 30);
-  assert.equal(exactThirty.minWords, 62);
-  assert.equal(exactThirty.maxWords, 75);
+  assert.equal(exactThirty.minWords, 60);
+  assert.equal(exactThirty.maxWords, 60);
 
   const configuredRange = normalizeOmniDurationRange({
     requestedMinSeconds: 30,
@@ -61,7 +60,7 @@ try {
   });
   assert.equal(configuredRange.minSeconds, 30);
   assert.equal(configuredRange.maxSeconds, 40);
-  assert.equal(configuredRange.maxWords, 100);
+  assert.equal(configuredRange.maxWords, 80);
 
   const overLimit = normalizeOmniDurationRange({
     requestedMinSeconds: 50,
@@ -72,25 +71,22 @@ try {
   assert.equal(overLimit.minSeconds, 50);
   assert.equal(overLimit.maxSeconds, 50);
   assert.equal(overLimit.wasClamped, false);
-  assert.equal(overLimit.minWords, 103);
-  assert.equal(overLimit.maxWords, 125);
+  assert.equal(overLimit.minWords, 100);
+  assert.equal(overLimit.maxWords, 100);
 
   const allowedDurations = new Set([4, 6, 8, 10]);
   for (const [wordCount, expectedSegments] of [
     [16, 2],
     [20, 2],
-    [22, 2],
     [24, 2],
-    [31, 2],
+    [32, 2],
     [40, 2],
-    [50, 2],
-    [51, 3],
+    [48, 3],
     [60, 3],
-    [75, 3],
-    [76, 4],
-    [100, 4],
-    [101, 5],
-    [125, 5],
+    [64, 4],
+    [80, 4],
+    [84, 5],
+    [100, 5],
   ]) {
     const script = makeScript(wordCount);
     const plan = planOmniReelSegments(script);
@@ -114,12 +110,12 @@ try {
   const denseBoundaryPlan = planOmniReelSegments(makeScript(40));
   assert.deepEqual(
     denseBoundaryPlan.segmentDurationsSeconds,
-    [8, 8],
-    "twenty-word segments must use the shorter dense timing instead of being stretched to ten seconds"
+    [10, 10],
+    "twenty-word segments must use the exact four-words-per-frame timing"
   );
 
   const cta = [
-    "Этот предмет помогает быстро навести порядок дома без лишних движений и сложных привычек.",
+    "Этот предмет помогает навести порядок дома без лишних движений и сложных привычек.",
     "Напишите кодовое слово ХОЧУ в комментариях.",
     "Я отправлю подробности и покажу простой способ применения сегодня.",
     "Это экономит время каждый день и делает привычку простой.",
@@ -136,7 +132,7 @@ try {
     "Да, если пить коллаген.",
     "Он улучшает состояние кожи, делая её упругой и сияющей.",
     "Волосы становятся крепче, а ногти перестают слоиться.",
-    "Наш апельсиновый коллаген в желеобразной форме усваивается максимально эффективно, принося пользу всему организму.",
+    "Наш апельсиновый коллаген в желеобразной форме усваивается эффективно, принося пользу организму.",
     "Артикул этого чудо средства вы найдете в описании под видео.",
   ].join(" ");
   const naturalBoundaryPlan = planOmniReelSegments(naturalBoundaryTrap);
@@ -146,7 +142,7 @@ try {
   );
   assert.equal(reconstructVoiceSegments(naturalBoundaryPlan.segments), naturalBoundaryTrap);
 
-  const geodemikaIngredients = "Я нашел решение для чистой кожи без раздражения и черных точек. Эта энзимная пенка для умывания Geodemika с протеазой и протеинами шелка эффективно борется с жирностью и черными точками. Она уменьшает высыпания, покраснения, снимает ощущение стянутости, не сушит кожу. Специальные компоненты гинкго билоба и аллантоин способствуют обновлению клеток и глубокому увлажнению. Это идеальное средство для чувствительной, проблемной и обезвоженной кожи. Оцените результат сами. Артикул в описании.";
+  const geodemikaIngredients = "Нашел решение для чистой кожи без раздражения и черных точек. Эта пенка для умывания Geodemika с протеазой и протеинами шелка эффективно борется с жирностью и черными точками. Она уменьшает высыпания, покраснения, снимает стянутость, не сушит кожу. Компоненты гинкго билоба и аллантоин способствуют обновлению клеток и увлажнению. Это средство для чувствительной, проблемной и обезвоженной кожи. Оцените результат. Артикул в описании ежедневно.";
   const geodemikaIngredientPlan = planOmniReelSegments(geodemikaIngredients, { durationRange: exactThirty });
   assert.equal(geodemikaIngredientPlan.segmentCount, 4);
   assert.ok(
@@ -158,7 +154,7 @@ try {
     "spoken segments should not end on a comma when a sentence boundary plan is viable"
   );
 
-  const geodemikaRoutine = "Не ждите чуда от ухода за кожей без понимания одного важного правила. Даже если вы используете люксовые средства, результат не всегда идентичен, ведь кожа у каждого своя. Важно очищать кожу регулярно, поддерживая её баланс каждый день. Энзимная пенка Geodemika бережно очищает, борется с черными точками и покраснениями, не стягивая кожу. Это не просто очищение, а полноценный уход, который работает. Попробуйте сами. Артикул в описании.";
+  const geodemikaRoutine = "Не ждите чуда от ухода за кожей без одного важного правила. Даже люксовые средства не гарантируют одинаковый результат, ведь кожа у каждого своя. Очищайте кожу регулярно, поддерживая баланс каждый день. Энзимная пенка Geodemika бережно очищает, борется с черными точками и покраснениями, не стягивая кожу. Это полноценный уход для кожи, который работает. Попробуйте сами. Артикул в описании.";
   const exactTwentyEight = normalizeOmniDurationRange({
     requestedMinSeconds: 28,
     requestedMaxSeconds: 28,
@@ -166,7 +162,7 @@ try {
     source: "client_settings",
   });
   const geodemikaRoutinePlan = planOmniReelSegments(geodemikaRoutine, { durationRange: exactTwentyEight });
-  assert.equal(geodemikaRoutinePlan.segmentCount, 4);
+  assert.equal(geodemikaRoutinePlan.segmentCount, 3);
   assert.ok(
     geodemikaRoutinePlan.segments.some((segment) => /бережно очищает, борется/iu.test(segment.text)),
     "verb-object phrase around the product benefit must not be split across Omni tasks"
@@ -189,7 +185,7 @@ try {
 
   assert.throws(
     () => planOmniReelSegments(makeScript(126)),
-    (error) => error instanceof Error && /Максимум 125 слов/u.test(error.message),
+    (error) => error instanceof Error && /Максимум 100 слов/u.test(error.message),
     "scripts above the five-part limit must be rejected instead of creating a sixth segment"
   );
 
@@ -199,7 +195,7 @@ try {
     "plans below two useful segments should be rejected"
   );
 
-  const exactThirtyPlan = planOmniReelSegments(makeScript(69), { durationRange: exactThirty });
+  const exactThirtyPlan = planOmniReelSegments(makeScript(60), { durationRange: exactThirty });
   assert.equal(exactThirtyPlan.durationSeconds, 30);
   assert.equal(exactThirtyPlan.segmentDurationsSeconds.reduce((sum, duration) => sum + duration, 0), 30);
 

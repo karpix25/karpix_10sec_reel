@@ -1,5 +1,4 @@
 import {
-  OMNI_STORYBOARD_WORDS_PER_FRAME_MAX,
   OMNI_STORYBOARD_WORDS_PER_FRAME_MIN,
   type DirectorSegmentPlan,
   type PromptValidationIssue,
@@ -176,11 +175,11 @@ function validateStoryboardFrames(
       });
     }
     const wordCount = countWords(frame.spokenWords);
-    if (wordCount < OMNI_STORYBOARD_WORDS_PER_FRAME_MIN || wordCount > OMNI_STORYBOARD_WORDS_PER_FRAME_MAX) {
+    if (wordCount !== OMNI_STORYBOARD_WORDS_PER_FRAME_MIN) {
       issues.push({
         path: `${path}.${frameIndex}.spokenWords`,
         code: "storyboard_spoken_word_count",
-        message: "Each storyboard frame must contain three to five final spoken Russian words.",
+        message: "Each storyboard frame must contain exactly four final spoken Russian words.",
         severity: "error",
       });
     }
@@ -245,6 +244,7 @@ export function validateStoryboardFrameSourceInterval(input: {
   path: string;
   plan: ReferenceSegmentPlan;
   productName?: string | null;
+  productVisible?: boolean;
 }): PromptValidationIssue[] {
   const beat = resolveReferenceSegmentBeatForFrame(input.plan, input.frameIndex + 1, input.frameCount);
   if (!beat) return [];
@@ -276,7 +276,7 @@ export function validateStoryboardFrameSourceInterval(input: {
       severity: "error",
     });
   }
-  if (input.frame.role === "product_cutaway" && !hasProductIntent(input.frame, beat, input.productName)) {
+  if (input.frame.role === "product_cutaway" && !hasProductIntent(input.frame, beat, input.productName, input.productVisible)) {
     issues.push({
       path: `${input.path}.role`,
       code: "storyboard_product_cutaway_without_product_intent",
@@ -319,7 +319,13 @@ function isPresenterFrame(frame: StoryboardFrame) {
   return !NO_FACE_PATTERN.test(text) && PRESENTER_PATTERN.test(text);
 }
 
-function hasProductIntent(frame: StoryboardFrame, beat: ReferenceSegmentBeat, productName?: string | null) {
+function hasProductIntent(
+  frame: StoryboardFrame,
+  beat: ReferenceSegmentBeat,
+  productName?: string | null,
+  productVisible = false,
+) {
+  if (productVisible) return true;
   if (frame.referenceRole === "product" || beat.sourceRole && PRODUCT_SOURCE_ROLES.has(beat.sourceRole)) return true;
   const spokenWords = frame.spokenWords || "";
   return mentionsOmniProduct(spokenWords, productName || "") || PRODUCT_INTENT_PATTERN.test(spokenWords);

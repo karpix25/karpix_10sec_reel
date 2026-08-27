@@ -7,6 +7,7 @@ export function buildStoredCreativePlan(input: {
   voiceoverText: string;
   productRole: ProductRole;
   segmentSeconds: number;
+  productVisibleByFrame?: readonly boolean[];
   strategy: OmniCreativeStrategy & { referenceSceneMode?: string };
 }): OmniSegmentCreativePlan {
   const middleStart = roundOne(Math.max(1, input.segmentSeconds * 0.55));
@@ -17,6 +18,7 @@ export function buildStoredCreativePlan(input: {
     speechStartsAtSeconds: 0,
     voiceoverText: input.voiceoverText,
     productRole: input.productRole,
+    productVisibleByFrame: input.productVisibleByFrame,
     continuityProps: input.strategy.continuityProps,
     referenceSceneMode: input.strategy.referenceSceneMode,
     beats: [

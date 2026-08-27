@@ -221,16 +221,16 @@ function makePlan(): DirectorSegmentPlan {
     title: "Универсальная раскадровка",
     hookOptions: ["Как упростить поездки"],
     selectedHook: "Как упростить поездки",
-    totalVoiceover: "С этим новым сервисом вы сможете экономить время в поездках каждый день",
+    totalVoiceover: "С этим новым сервисом вы сможете экономить время в поездках каждый день без лишних сложностей сегодня",
     notes: null,
     segments: [
       {
         index: 1,
         durationSeconds: 4,
-        voiceover: "С этим новым сервисом вы сможете",
+        voiceover: "С этим новым сервисом вы сможете экономить время",
         storyboardFrames: [
-          makeFrame(1, "environment_cutaway", "С этим новым"),
-          makeFrame(2, "product_cutaway", "сервисом вы сможете"),
+          makeFrame(1, "environment_cutaway", "С этим новым сервисом"),
+          makeFrame(2, "product_cutaway", "вы сможете экономить время"),
         ],
         shots: [{ role: "cutaway", action: "Ведущий смотрит в камеру — кадр 1" }],
         productState: "сервис показан в кадре",
@@ -239,10 +239,10 @@ function makePlan(): DirectorSegmentPlan {
       {
         index: 2,
         durationSeconds: 4,
-        voiceover: "экономить время в поездках каждый день",
+        voiceover: "в поездках каждый день без лишних сложностей сегодня",
         storyboardFrames: [
-          makeFrame(1, "product_cutaway", "экономить время в"),
-          makeFrame(2, "environment_cutaway", "поездках каждый день"),
+          makeFrame(1, "product_cutaway", "в поездках каждый день"),
+          makeFrame(2, "environment_cutaway", "без лишних сложностей сегодня"),
         ],
         shots: [],
         productState: "сервис показан в кадре",

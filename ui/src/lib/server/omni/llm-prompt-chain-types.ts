@@ -3,6 +3,7 @@ import {
   OMNI_STORYBOARD_MIN_FRAME_WORDS,
 } from "../../omni/storyboard/omni-storyboard-timing";
 import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
+import type { ScriptContentContract } from "./script-content-contract";
 
 export const LLM_PROMPT_CHAIN_VERSION = "llm-prompt-chain-v1";
 export const OMNI_STORYBOARD_WORDS_PER_FRAME_MIN = OMNI_STORYBOARD_MIN_FRAME_WORDS;
@@ -108,6 +109,7 @@ export type PromptValidationIssue = {
 export type LlmPromptChainSnapshot = {
   version: typeof LLM_PROMPT_CHAIN_VERSION;
   adaptationPlan: ScriptAdaptationPlan;
+  contentContract?: ScriptContentContract;
   creativeScriptDraft: CreativeScriptDraft;
   directorSegmentPlan: DirectorSegmentPlan;
   providerPromptPlan: ProviderPromptPlan;

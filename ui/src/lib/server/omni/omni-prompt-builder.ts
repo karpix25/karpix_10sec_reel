@@ -62,6 +62,7 @@ import {
   resolveProductPhysicalContract,
 } from "./product-physical-contract";
 import { deriveOmniSegmentIntents } from "./omni-segment-intent";
+import { buildOmniProductVisualIntent } from "./omni-product-visual-intent";
 import { alignStoryboardFramesToVoiceover } from "./storyboard/omni-storyboard-speech";
 import {
   repairPhysicalScenePrompt,
@@ -219,7 +220,6 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       sourceDurationSeconds: input.referenceSourceDurationSeconds,
     });
     const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole, Boolean(segmentIntent.productMentioned));
-    const segmentProductVisualPassport = productVisualPassport;
     const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
       segmentIndex,
       voiceoverText: segmentIntent.spokenText,
@@ -229,6 +229,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       segmentSeconds,
       scriptBeats: segmentScriptBeats,
     }), layoutContract);
+    plan.productVisibleByFrame = buildOmniProductVisualIntent({ voiceoverText: segmentIntent.spokenText, durationSeconds: segmentSeconds, productName: input.product.name, productRole, referenceSegmentPlan }).visibleByFrame;
     const talkingHead = isTalkingHeadCutawayFormat(strategy.lifeFormatId) && referenceSceneMode === "presenter";
     const continuityDirection = buildOmniGenerationContinuityDirection({
       plan,
@@ -245,7 +246,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     const storyboardPlan = applyReferenceSegmentPlanToStoryboard(referenceSegmentPlan, buildStoryboardFromCreativePlan({
       plan,
       productName: input.product.name,
-      productVisualPassport: segmentProductVisualPassport,
+      productVisualPassport,
       productPhysicalHint: productRole === "digital_demo" ? null : productPhysicalHint,
       characterContract,
       segmentIndex,
@@ -256,12 +257,11 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       referenceTransferPolicy: referencePolicy,
       referenceSceneMode,
     }), referencePolicy.mode === "full_reference");
-    const physicalValidation = validatePhysicalScene({
+    const validation = validatePhysicalScene({
       storyboard: storyboardPlan,
       creativePlan: plan,
       productName: input.product.name,
     });
-    const validation = physicalValidation;
     const prompt = applyReferenceSceneModeToOmniPrompt(repairPhysicalScenePrompt(renderCompactRussianOmniStoryboardPrompt({
       storyboard: storyboardPlan,
       productName: input.product.name,
@@ -389,12 +389,14 @@ function buildStoredProviderPromptSegments(
       outputTotalDurationSeconds,
       sourceDurationSeconds: input.referenceSourceDurationSeconds,
     });
+    const productVisibleByFrame = buildOmniProductVisualIntent({ voiceoverText, durationSeconds: segment.durationSeconds, productName: input.product.name, productRole, referenceSegmentPlan }).visibleByFrame;
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,
       voiceoverText,
       productRole,
       segmentSeconds: segment.durationSeconds,
+      productVisibleByFrame,
       strategy,
     });
     const alignedFrames = alignStoryboardFramesToVoiceover({
@@ -403,7 +405,7 @@ function buildStoredProviderPromptSegments(
       durationSeconds: segment.durationSeconds,
     });
     const sourceFrames = referencePolicy.mode === "full_reference"
-      ? applyReferenceSegmentPlanToFrames(referenceSegmentPlan, alignedFrames, true)
+      ? applyReferenceSegmentPlanToFrames(referenceSegmentPlan, alignedFrames, true, { productVisibleByFrame })
       : alignedFrames;
     const sourceIssues = referencePolicy.mode === "full_reference" && referenceSegmentPlan
       ? sourceFrames.flatMap((frame, frameIndex) => validateStoryboardFrameSourceInterval({
@@ -413,6 +415,7 @@ function buildStoredProviderPromptSegments(
         path: `provider.segmentPrompts.${index}.storyboardFrames.${frameIndex}`,
         plan: referenceSegmentPlan,
         productName: input.product.name,
+        productVisible: productVisibleByFrame[frameIndex],
       }))
       : [];
     const sourceErrors = sourceIssues.filter((issue) => issue.severity === "error");
@@ -441,7 +444,7 @@ function buildStoredProviderPromptSegments(
       productPhysicalHint: productRole === "digital_demo" ? null : productPhysicalHint,
       directorBrief,
       segmentCount: providerPromptPlan.segmentPrompts.length,
-      productVisible: productRole !== "hidden",
+      productVisible: productVisibleByFrame,
       productRole,
       referenceTransferPolicy: referencePolicy,
       referenceSceneMode,

@@ -18,6 +18,7 @@ import { requestSemanticStoryboardJson } from "./omni-storyboard-semantic-llm";
 import { normalizeOmniPromptPlanWithPhysicalRules } from "./omni-physical-repair-pipeline";
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 import { assertStoryboardPromptContracts } from "./storyboard/storyboard-contract-validator";
+import { buildOmniProductVisualIntent } from "./omni-product-visual-intent";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 import {
   loadSemanticStoryboardMemory,
@@ -374,6 +375,7 @@ function applySemanticRepairResponse(input: {
       creativePlan: {
         ...segment.creativePlan,
         voiceoverText,
+        productVisibleByFrame: buildOmniProductVisualIntent({ voiceoverText, durationSeconds: segment.storyboardPlan.durationSeconds, productName: input.productName, productRole: segment.creativePlan.productRole, referenceSegmentPlan: segment.referenceSegmentPlan }).visibleByFrame,
       },
       prompt: [prompt, resolveReferenceTransferMode(input.directorBrief) === "full_reference"
         ? renderReferenceSegmentPlanForPrompt(segment.referenceSegmentPlan)

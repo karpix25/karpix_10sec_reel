@@ -59,7 +59,7 @@ try {
   };
   const microBeat = alignment.reconcileReferenceSegmentPlanToSpeech({
     plan: microBeatPlan,
-    voiceoverText: "Ссылка в профиле. Так что, нажми прямо сейчас и смотри",
+    voiceoverText: "Ссылка в профиле. Нажми прямо сейчас и смотри",
     durationSeconds: 4,
   });
   assert.equal(microBeat.alignment.changed, true);
@@ -81,7 +81,7 @@ try {
         beat(2, 4, 33.7, 36.4, "ending", "on_camera", "primary_presenter", "presenter closes"),
       ],
     },
-    voiceoverText: "Ссылка в профиле. Так что, нажми прямо сейчас и смотри",
+    voiceoverText: "Ссылка в профиле. Нажми прямо сейчас и смотри",
     durationSeconds: 4,
   });
   assert.equal(frameAligned.alignment, null);
@@ -89,17 +89,22 @@ try {
 
   const completePhrase = alignment.reconcileReferenceSegmentPlanToSpeech({
     plan: microBeatPlan,
-    voiceoverText: "Ссылка в профиле. Так что, нажми прямо сейчас",
+    voiceoverText: "Ссылка в профиле сейчас. Нажми прямо сейчас сегодня",
     durationSeconds: 4,
   });
   assert.equal(completePhrase.alignment, null);
   assert.equal(completePhrase.plan.beats.length, 3);
 
   assert.deepEqual(
-    speech.splitStoryboardSpeech("Ссылка в профиле. Так что, нажми прямо сейчас и смотри", 2),
-    ["Ссылка в профиле. Так что,", "нажми прямо сейчас и смотри"],
+    speech.splitStoryboardSpeech("Ссылка в профиле. Нажми прямо сейчас и смотри", 2),
+    ["Ссылка в профиле. Нажми", "прямо сейчас и смотри"],
   );
-  const chunks = speech.splitStoryboardSpeechWithBoundaries("Ссылка в профиле. Так что, нажми прямо сейчас и смотри", 2);
+  assert.deepEqual(
+    speech.splitStoryboardSpeech("Ссылка в профиле. Нажми прямо сейчас", 2),
+    [],
+    "speech splitter must reject a segment that cannot form exact four-word frames",
+  );
+  const chunks = speech.splitStoryboardSpeechWithBoundaries("Ссылка в профиле. Нажми прямо сейчас и смотри", 2);
   assert.equal(chunks[0].boundary, "continuation");
   assert.equal(chunks[1].boundary, "segment_end");
 

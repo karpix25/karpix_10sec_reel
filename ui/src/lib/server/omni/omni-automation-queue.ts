@@ -1,6 +1,8 @@
 import pool from "@/lib/db";
 import { normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
+import { planOmniAutomationQueue } from "./omni-automation-limits";
 import { ensureOmniSchema } from "./schema";
+import type { PoolClient } from "pg";
 
 export type OmniAutomationJobStatus = "queued" | "processing" | "completed" | "failed";
 export type OmniAutomationStage = "script" | "reel" | "submit" | "sync";
@@ -19,6 +21,7 @@ export type OmniAutomationJob = {
   attempt_count: number;
   max_attempts: number;
   scheduled_for: string;
+  quota_day: string;
   lease_until: string | null;
   worker_id: string | null;
   last_error: string | null;
@@ -26,6 +29,7 @@ export type OmniAutomationJob = {
   started_at: string | null;
   updated_at: string;
   completed_at: string | null;
+  success_verified_at: string | null;
 };
 
 function normalizeJob(row: OmniAutomationJob): OmniAutomationJob {
@@ -39,6 +43,192 @@ function normalizeJob(row: OmniAutomationJob): OmniAutomationJob {
   };
 }
 
+async function getOmniAutomationJob(jobId: number) {
+  const { rows } = await pool.query<OmniAutomationJob>(
+    "SELECT * FROM omni_automation_jobs WHERE id = $1",
+    [jobId]
+  );
+  if (!rows[0]) throw new Error("Omni automation job not found");
+  return normalizeJob(rows[0]);
+}
+
+type QuotaCounts = {
+  successful_today: number;
+  successful_project: number;
+  reserved_today: number;
+  reserved_project: number;
+};
+
+async function readQuotaCounts(client: PoolClient, projectId: number) {
+  const { rows } = await client.query<QuotaCounts>(
+    `SELECT
+       COUNT(*) FILTER (
+         WHERE job.status = 'completed'
+           AND job.success_verified_at IS NOT NULL
+           AND job.quota_day = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')::date
+       )::int AS successful_today,
+       COUNT(*) FILTER (
+         WHERE job.status = 'completed'
+           AND job.success_verified_at IS NOT NULL
+       )::int AS successful_project,
+       COUNT(*) FILTER (
+         WHERE job.status IN ('queued', 'processing')
+           AND job.quota_day = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')::date
+       )::int AS reserved_today,
+       COUNT(*) FILTER (
+         WHERE job.status IN ('queued', 'processing')
+       )::int AS reserved_project
+     FROM omni_automation_jobs job
+     WHERE job.project_id = $1`,
+    [projectId]
+  );
+  return {
+    successfulToday: Number(rows[0]?.successful_today || 0),
+    successfulProject: Number(rows[0]?.successful_project || 0),
+    reservedToday: Number(rows[0]?.reserved_today || 0),
+    reservedProject: Number(rows[0]?.reserved_project || 0),
+  };
+}
+
+async function selectNextProduct(client: PoolClient, projectId: number, excludedProductIds: number[]) {
+  const { rows } = await client.query<{ id: number }>(
+    `SELECT product.id
+     FROM omni_products product
+     LEFT JOIN omni_automation_jobs recent_job
+       ON recent_job.project_id = product.project_id
+      AND recent_job.product_id = product.id
+     WHERE product.project_id = $1
+       AND NOT (product.id = ANY($2::bigint[]))
+     GROUP BY product.id
+     ORDER BY MAX(recent_job.created_at) ASC NULLS FIRST, product.id ASC
+     LIMIT 1`,
+    [projectId, excludedProductIds]
+  );
+  return rows[0]?.id || null;
+}
+
+export async function reserveOmniAutomationJobs(input: {
+  projectId: number;
+  count: number;
+  provider?: unknown;
+  productId?: number | null;
+  priority?: number;
+  sourceLegacyScenarioId?: number | null;
+  generatedScriptId?: number | null;
+  maxBacklogPerProject?: number;
+  requireAutomationEnabled?: boolean;
+}) {
+  await ensureOmniSchema();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const projectResult = await client.query<{
+      id: number;
+      auto_generate_reels: boolean;
+      daily_reel_limit: number;
+      project_reel_limit: number;
+    }>(
+      `SELECT id, auto_generate_reels, daily_reel_limit, project_reel_limit
+       FROM omni_projects
+       WHERE id = $1 AND status = 'active'
+       FOR UPDATE`,
+      [input.projectId]
+    );
+    const project = projectResult.rows[0];
+    if (!project) throw new Error("Omni client project not found");
+
+    const counts = await readQuotaCounts(client, input.projectId);
+    const projectLimit = Math.max(0, Number(project.project_reel_limit || 0));
+    if (counts.successfulProject >= projectLimit && projectLimit > 0) {
+      await client.query(
+        `UPDATE omni_projects
+         SET auto_generate_reels = FALSE,
+             automation_stopped_at = CURRENT_TIMESTAMP,
+             automation_stop_reason = 'Достигнут лимит проекта',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [input.projectId]
+      );
+      await client.query("COMMIT");
+      return { jobs: [], stopped: true, counts, projectLimit };
+    }
+
+    if (input.requireAutomationEnabled && !project.auto_generate_reels) {
+      await client.query("COMMIT");
+      return { jobs: [], stopped: false, counts, projectLimit };
+    }
+
+    const plan = planOmniAutomationQueue({
+      dailyLimit: Number(project.daily_reel_limit || 0),
+      projectLimit,
+      dailyJobCount: counts.successfulToday + counts.reservedToday,
+      projectJobCount: counts.successfulProject + counts.reservedProject,
+      successfulProjectCount: counts.successfulProject,
+      openJobs: counts.reservedProject,
+      maxBatchPerProject: Math.max(1, Math.floor(input.count || 0)),
+      maxBacklogPerProject: Math.max(1, Math.floor(input.maxBacklogPerProject || 3)),
+    });
+
+    const provider = normalizeOmniGenerationProvider(input.provider);
+    const jobs: OmniAutomationJob[] = [];
+    const reservationCount = input.generatedScriptId ? Math.min(1, plan.toEnqueue) : plan.toEnqueue;
+    const selectedProductIds = new Set<number>();
+    for (let index = 0; index < reservationCount; index += 1) {
+      let productId = input.productId || null;
+      if (productId) {
+        const productResult = await client.query<{ id: number }>(
+          `SELECT id FROM omni_products WHERE id = $1 AND project_id = $2 FOR SHARE`,
+          [productId, input.projectId]
+        );
+        if (!productResult.rows[0]) throw new Error("Omni product does not belong to project");
+      } else {
+        productId = await selectNextProduct(client, input.projectId, [...selectedProductIds]);
+        if (!productId && selectedProductIds.size) {
+          selectedProductIds.clear();
+          productId = await selectNextProduct(client, input.projectId, []);
+        }
+      }
+      if (!productId) break;
+      if (!input.productId) selectedProductIds.add(productId);
+
+      const { rows } = await client.query<OmniAutomationJob>(
+        `INSERT INTO omni_automation_jobs (
+           project_id,
+           product_id,
+           source_legacy_scenario_id,
+           generated_script_id,
+           generation_provider,
+           priority,
+           quota_day
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')::date)
+         ON CONFLICT (generated_script_id)
+         WHERE generated_script_id IS NOT NULL
+           AND status IN ('queued', 'processing')
+         DO UPDATE SET updated_at = CURRENT_TIMESTAMP
+         RETURNING *`,
+        [
+          input.projectId,
+          productId,
+          input.sourceLegacyScenarioId || null,
+          input.generatedScriptId || null,
+          provider,
+          Math.max(0, Math.floor(input.priority || 0)),
+        ]
+      );
+      if (rows[0]) jobs.push(normalizeJob(rows[0]));
+    }
+
+    await client.query("COMMIT");
+    return { jobs, stopped: false, counts, projectLimit };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function enqueueOmniAutomationJob(input: {
   projectId: number;
   productId: number;
@@ -47,33 +237,12 @@ export async function enqueueOmniAutomationJob(input: {
   sourceLegacyScenarioId?: number | null;
   generatedScriptId?: number | null;
 }) {
-  await ensureOmniSchema();
-  const provider = normalizeOmniGenerationProvider(input.provider);
-  const { rows } = await pool.query<OmniAutomationJob>(
-    `INSERT INTO omni_automation_jobs (
-       project_id,
-       product_id,
-       source_legacy_scenario_id,
-       generated_script_id,
-       generation_provider,
-       priority
-     )
-     VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT (generated_script_id)
-     WHERE generated_script_id IS NOT NULL
-       AND status IN ('queued', 'processing')
-     DO UPDATE SET updated_at = CURRENT_TIMESTAMP
-     RETURNING *`,
-    [
-      input.projectId,
-      input.productId,
-      input.sourceLegacyScenarioId || null,
-      input.generatedScriptId || null,
-      provider,
-      Math.max(0, Math.floor(input.priority || 0)),
-    ]
-  );
-  return normalizeJob(rows[0]);
+  const reservation = await reserveOmniAutomationJobs({
+    ...input,
+    count: 1,
+    maxBacklogPerProject: 3,
+  });
+  return reservation.jobs[0] || null;
 }
 
 export async function claimNextOmniAutomationJob(input: {
@@ -157,10 +326,11 @@ export async function updateOmniAutomationJobStage(input: {
          last_error = NULL,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1
-     RETURNING *`,
+       AND status NOT IN ('completed', 'failed')
+       RETURNING *`,
     [input.jobId, input.stage, input.generatedScriptId || null, input.reelId || null]
   );
-  return normalizeJob(rows[0]);
+  return rows[0] ? normalizeJob(rows[0]) : getOmniAutomationJob(input.jobId);
 }
 
 export async function requeueOmniAutomationJob(input: {
@@ -181,7 +351,8 @@ export async function requeueOmniAutomationJob(input: {
          last_error = $4,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1
-     RETURNING *`,
+       AND status NOT IN ('completed', 'failed')
+       RETURNING *`,
     [
       input.jobId,
       input.stage || null,
@@ -190,23 +361,93 @@ export async function requeueOmniAutomationJob(input: {
       Boolean(input.refundAttempt),
     ]
   );
-  return normalizeJob(rows[0]);
+  return rows[0] ? normalizeJob(rows[0]) : getOmniAutomationJob(input.jobId);
 }
 
 export async function completeOmniAutomationJob(jobId: number) {
-  const { rows } = await pool.query<OmniAutomationJob>(
-    `UPDATE omni_automation_jobs
-     SET status = 'completed',
-         lease_until = NULL,
-         worker_id = NULL,
-         last_error = NULL,
-         completed_at = CURRENT_TIMESTAMP,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $1
-     RETURNING *`,
-    [jobId]
-  );
-  return normalizeJob(rows[0]);
+  await ensureOmniSchema();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const jobRef = await client.query<{ project_id: number }>(
+      "SELECT project_id FROM omni_automation_jobs WHERE id = $1",
+      [jobId]
+    );
+    const projectId = jobRef.rows[0]?.project_id;
+    if (!projectId) throw new Error("Omni automation job not found");
+
+    const projectResult = await client.query<{ project_reel_limit: number }>(
+      "SELECT project_reel_limit FROM omni_projects WHERE id = $1 FOR UPDATE",
+      [projectId]
+    );
+    const jobResult = await client.query<{
+      project_id: number;
+      reel_id: number | null;
+      status: OmniAutomationJobStatus;
+      success_verified_at: string | null;
+      final_video_verified_at: string | null;
+    }>(
+      `SELECT job.*, reel.final_video_verified_at
+       FROM omni_automation_jobs job
+       LEFT JOIN omni_reels reel ON reel.id = job.reel_id
+       WHERE job.id = $1
+       FOR UPDATE OF job`,
+      [jobId]
+    );
+    const job = jobResult.rows[0];
+    if (!job) throw new Error("Omni automation job not found");
+    if (job.status === "failed") {
+      throw new Error("Cannot complete failed Omni automation job");
+    }
+    if (!job.success_verified_at && !job.final_video_verified_at) {
+      throw new Error("Cannot complete Omni automation job before final video verification");
+    }
+
+    const { rows } = await client.query<OmniAutomationJob>(
+      `UPDATE omni_automation_jobs
+       SET status = 'completed',
+           lease_until = NULL,
+           worker_id = NULL,
+           last_error = NULL,
+           completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+           success_verified_at = COALESCE(success_verified_at, CURRENT_TIMESTAMP),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+       RETURNING *`,
+      [jobId]
+    );
+
+    const projectLimit = Number(projectResult.rows[0]?.project_reel_limit || 0);
+    if (projectLimit > 0) {
+      const successResult = await client.query<{ count: number }>(
+        `SELECT COUNT(*)::int AS count
+         FROM omni_automation_jobs
+         WHERE project_id = $1
+           AND status = 'completed'
+           AND success_verified_at IS NOT NULL`,
+        [projectId]
+      );
+      if (Number(successResult.rows[0]?.count || 0) >= projectLimit) {
+        await client.query(
+          `UPDATE omni_projects
+           SET auto_generate_reels = FALSE,
+               automation_stopped_at = CURRENT_TIMESTAMP,
+               automation_stop_reason = 'Достигнут лимит проекта',
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [projectId]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+    return normalizeJob(rows[0]);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function failOmniAutomationJob(input: { jobId: number; errorMessage: string }) {
@@ -219,8 +460,9 @@ export async function failOmniAutomationJob(input: { jobId: number; errorMessage
          completed_at = CURRENT_TIMESTAMP,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1
-     RETURNING *`,
+       AND status NOT IN ('completed', 'failed')
+       RETURNING *`,
     [input.jobId, input.errorMessage]
   );
-  return normalizeJob(rows[0]);
+  return rows[0] ? normalizeJob(rows[0]) : getOmniAutomationJob(input.jobId);
 }

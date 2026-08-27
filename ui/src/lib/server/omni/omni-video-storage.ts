@@ -1,12 +1,13 @@
 import { readFile } from "fs/promises";
 import pool from "@/lib/db";
-import { getS3Config, putObjectToS3 } from "@/lib/server/s3-storage";
+import { getReadableS3Url, getS3Config, putObjectToS3 } from "@/lib/server/s3-storage";
 import { isYandexDiskConfigured, uploadVideoFileToYandexFolder } from "@/lib/server/yandex-disk";
 import type { OmniProduct, OmniProject, OmniReel } from "@/lib/omni/types";
 import { buildOmniStorageKey } from "./omni-storage-path";
 
 const YANDEX_VIDEO_ROOT = "ВИДЕО";
 const OMNI_CONTENT_FOLDER = "omni";
+const STORED_VIDEO_PROBE_TIMEOUT_MS = 15000;
 
 function sanitizePathSegment(value: string) {
   return value
@@ -152,6 +153,9 @@ export async function uploadOmniFinalVideo(input: {
     fileName,
     body: finalBuffer,
   });
+  if (!(await isOmniStoredVideoAvailable(s3Url))) {
+    throw new Error("Stored Omni final video is not readable after upload");
+  }
 
   if (!isYandexDiskConfigured()) {
     return { fileName, s3Url, yandexStatus: "skipped" as const, yandexPath: null, yandexPublicUrl: null, yandexError: null };
@@ -182,4 +186,38 @@ export async function uploadOmniFinalVideo(input: {
       yandexError: error instanceof Error ? error.message : "Yandex Disk upload failed",
     };
   }
+}
+
+export async function isOmniStoredVideoAvailable(sourceUrl: string | null | undefined) {
+  if (!sourceUrl) return false;
+  try {
+    const readableUrl = await getReadableS3Url(sourceUrl);
+    const response = await fetch(readableUrl || sourceUrl, {
+      method: "GET",
+      headers: { Range: "bytes=0-15" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(STORED_VIDEO_PROBE_TIMEOUT_MS),
+    });
+    await response.body?.cancel();
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function verifyAndMarkOmniFinalVideo(input: {
+  reelId: number;
+  sourceUrl: string | null | undefined;
+}) {
+  if (!(await isOmniStoredVideoAvailable(input.sourceUrl))) return false;
+  const { rowCount } = await pool.query(
+    `UPDATE omni_reels
+     SET final_video_verified_at = COALESCE(final_video_verified_at, CURRENT_TIMESTAMP),
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1
+       AND final_video_url = $2
+       AND stitch_status = 'completed'`,
+    [input.reelId, input.sourceUrl]
+  );
+  return Boolean(rowCount);
 }

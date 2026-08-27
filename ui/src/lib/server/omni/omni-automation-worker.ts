@@ -1,5 +1,6 @@
 import { createGeneratedScriptFromLegacy } from "./generated-scripts";
 import { LlmPromptChainFailure } from "./llm-prompt-chain-runner";
+import { IncompatibleReferenceError } from "./script-content-contract";
 import pool from "@/lib/db";
 import {
   claimNextOmniAutomationJob,
@@ -30,6 +31,7 @@ import {
   StoryboardKieSubmissionStalledError,
 } from "./storyboard-kie-submission-state";
 import { markOmniReelPreflightFailure } from "./omni-reel-preflight-failure";
+import { verifyAndMarkOmniFinalVideo } from "./omni-video-storage";
 
 function envInt(name: string, fallback: number, min = 1) {
   const parsed = Number.parseInt(process.env[name] || "", 10);
@@ -68,6 +70,13 @@ async function failAutomationJob(job: OmniAutomationJob, message: string) {
 async function handleJobError(job: OmniAutomationJob, error: unknown) {
   const message = getErrorMessage(error);
   if (error instanceof LlmPromptChainFailure) {
+    return {
+      action: "failed",
+      job: await failAutomationJob(job, message),
+      error: message,
+    };
+  }
+  if (error instanceof IncompatibleReferenceError) {
     return {
       action: "failed",
       job: await failAutomationJob(job, message),
@@ -246,7 +255,13 @@ async function runSyncStage(job: OmniAutomationJob) {
 
   const bundle = await syncOmniReel(job.reel_id);
   if (bundle.reel.status === "completed" && bundle.reel.final_video_url) {
-    return completeOmniAutomationJob(job.id);
+    const verified = bundle.reel.final_video_verified_at
+      ? true
+      : await verifyAndMarkOmniFinalVideo({
+        reelId: bundle.reel.id,
+        sourceUrl: bundle.reel.final_video_url,
+      });
+    if (verified) return completeOmniAutomationJob(job.id);
   }
   if (bundle.reel.status === "failed") {
     throw new Error(bundle.reel.error_message || "Omni reel failed");

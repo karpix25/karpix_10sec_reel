@@ -147,6 +147,8 @@ export interface OmniSegmentCreativePlan {
   speechStartsAtSeconds: 0;
   voiceoverText: string;
   productRole: ProductRole;
+  /** Optional frame-level product window; absent on legacy saved plans. */
+  productVisibleByFrame?: readonly boolean[];
   continuityProps: readonly OmniContinuityProp[];
   scriptBeats?: readonly OmniScriptBeatCue[];
   beats: readonly [OmniCreativeBeat, OmniCreativeBeat, OmniCreativeBeat];

@@ -1,7 +1,11 @@
 import type { CreativeScriptDraft, ScriptSemanticReview } from "./llm-prompt-chain-types";
-import { buildCreativeCopywriterPrompt, type PromptChainInput } from "./llm-prompt-chain-prompts";
+import {
+  buildCreativeCopywriterPrompt,
+  resolveScriptContentContract,
+  type PromptChainInput,
+} from "./llm-prompt-chain-prompts";
 import { formatPromptChainNumber, formatPromptChainRange } from "./llm-prompt-chain-number-words";
-import { renderScriptAdaptationRepairContract } from "./script-adaptation-contract";
+import { renderScriptContentRepairContract } from "./script-content-contract";
 
 type CreativeRepairInput = {
   chainInput: PromptChainInput;
@@ -61,6 +65,7 @@ export function buildCreativeCopywriterAttemptPrompt(input: {
 
 export function buildCreativeCopywriterRepairPrompt(input: CreativeRepairInput) {
   const { chainInput, semanticReview } = input;
+  const contentContract = resolveScriptContentContract(chainInput);
   return [
     "Ты редактор готового voiceover сценария короткого вертикального видео.",
     `Это точечная смысловая починка, попытка ${formatPromptChainNumber(input.repairAttempt)}.`,
@@ -80,7 +85,7 @@ export function buildCreativeCopywriterRepairPrompt(input: CreativeRepairInput) 
     "Не выдумывай свойства продукта, способы оплаты, страны, цены или результаты, которых нет во входных данных.",
     renderWordBudget(chainInput),
     renderCtaRule(chainInput),
-    renderScriptAdaptationRepairContract(chainInput.adaptationPlan),
+    renderScriptContentRepairContract(contentContract),
     renderAdjacentBridgeRepairRule(chainInput),
     "Не выбрасывай тему reference ради продукта. Если продукт не отвечает на исходный вопрос напрямую, сохрани тему в начале и переведи сюжет к соседней реальной проблеме, которую продукт действительно решает.",
     "",
@@ -101,7 +106,7 @@ export function buildCreativeCopywriterRepairPrompt(input: CreativeRepairInput) 
 }
 
 function renderAdjacentBridgeRepairRule(input: PromptChainInput) {
-  if (input.adaptationPlan.mode !== "adjacent_bridge") return "";
+  if (resolveScriptContentContract(input).adaptation.mode !== "adjacent_bridge") return "";
   return [
     "КРИТИЧЕСКИЙ ПОРЯДОК ДЛЯ СОСЕДНЕГО МОСТА.",
     "Сначала ответь на исходный хук конкретным способом или фактом из reference; в этой части нельзя упоминать продукт или CTA.",
@@ -139,8 +144,9 @@ function renderFailedChecks(review: ScriptSemanticReview | null) {
 }
 
 function renderWordBudget(input: PromptChainInput) {
-  if (!input.durationRange) return "Сохрани плотную длину исходного rejected script.";
-  return `Итоговая длина: ${formatPromptChainRange(input.durationRange.minWords, input.durationRange.maxWords)} слов.`;
+  const exactFrameRule = "Общее количество слов должно делиться на четыре без остатка: каждый двухсекундный кадр содержит ровно четыре слова.";
+  if (!input.durationRange) return `Сохрани плотную длину исходного rejected script. ${exactFrameRule}`;
+  return `Итоговая длина: ${formatPromptChainRange(input.durationRange.minWords, input.durationRange.maxWords)} слов. ${exactFrameRule}`;
 }
 
 function renderCtaRule(input: PromptChainInput) {

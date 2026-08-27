@@ -52,6 +52,7 @@ export async function POST(request: Request) {
         generatedScriptId: sourceGeneratedScriptId,
         priority: 100,
       });
+      if (!job) return jsonError("Project quota is exhausted or the queue backlog is full", 409);
       return NextResponse.json({ job }, { status: 202 });
     }
 

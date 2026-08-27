@@ -10,6 +10,11 @@ import {
   renderScriptAdaptationReviewContract,
   type ScriptAdaptationPlan,
 } from "./script-adaptation-contract";
+import {
+  buildLegacyScriptContentContract,
+  renderScriptContentContract,
+  type ScriptContentContract,
+} from "./script-content-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -40,6 +45,7 @@ export type ScriptSemanticReviewInput = {
   ctaValue: string | null;
   directorBrief?: DirectorBrief | null;
   adaptationPlan: ScriptAdaptationPlan;
+  contentContract?: ScriptContentContract;
 };
 
 export async function reviewScriptSemantics(
@@ -180,6 +186,7 @@ export const SEMANTIC_REVIEW_SYSTEM_PROMPT = [
 ].join("\n");
 
 function buildReviewPrompt(input: ScriptSemanticReviewInput) {
+  const contentContract = input.contentContract || buildLegacyScriptContentContract(input.referenceScript, input.adaptationPlan);
   return [
     "Проверь этот сценарий.",
     "Верни JSON строго с полями: passed, productNamed, productValueStated, hookAnswered, finalAnswerPresent, productNaturallyIntegrated, referenceMeaningPreserved, evidence, issues, repairInstructions.",
@@ -196,7 +203,8 @@ function buildReviewPrompt(input: ScriptSemanticReviewInput) {
     "Исходный reference transcript:",
     input.referenceScript.trim() || "не предоставлен",
     "",
-    renderScriptAdaptationReviewContract(input.adaptationPlan),
+    renderScriptContentContract(contentContract),
+    renderScriptAdaptationReviewContract(contentContract.adaptation),
     "",
     "Сохрани тему, форму хука, главный конфликт, личную подачу, ключевые примеры и структуру reference. Если продукт не отвечает на исходный вопрос напрямую, проверь естественный переход от темы к проблеме, которую продукт действительно решает.",
     "",

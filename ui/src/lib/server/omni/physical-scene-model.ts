@@ -225,6 +225,23 @@ export function buildPhysicalProductDemoStep(input: {
   };
 }
 
+/** Maps a visible run to its local physical sequence so hidden source frames do not cause pickup teleports. */
+export function resolveProductDemoFrame(
+  visibility: boolean | readonly boolean[] | undefined,
+  frameIndex: number,
+  frameCount: number,
+) {
+  const visible = Array.isArray(visibility)
+    ? visibility
+    : Array.from({ length: frameCount }, () => Boolean(visibility));
+  if (!visible[frameIndex]) return null;
+  let start = frameIndex;
+  let end = frameIndex;
+  while (start > 0 && visible[start - 1]) start -= 1;
+  while (end + 1 < visible.length && visible[end + 1]) end += 1;
+  return { frameIndex: frameIndex - start + 1, frameCount: end - start + 1 };
+}
+
 function detectAction(value: string): PhysicalActionKind {
   if (BOTH_CHEEKS_PATTERN.test(value)) return "touch_both_cheeks";
   if (HANDS_TO_FACE_PATTERN.test(value)) return "hands_to_face";

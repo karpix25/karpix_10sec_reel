@@ -97,13 +97,24 @@ export function applyReferenceSegmentPlanToFrames<T extends {
   action: string;
   camera: string;
   visualDescription: string;
-}>(plan: ReferenceSegmentPlan | null | undefined, frames: readonly T[], enabled = false) {
+}>(
+  plan: ReferenceSegmentPlan | null | undefined,
+  frames: readonly T[],
+  enabled = false,
+  options: { productVisibleByFrame?: readonly boolean[] } = {},
+) {
   if (!plan || !enabled) return frames;
   return frames.map((frame, index) => {
     const beat = resolveReferenceSegmentBeatForFrame(plan, index + 1, frames.length);
     if (!beat) return frame;
     const visualDescription = beat.visualDescription || beat.action;
-    const role = resolveReferenceFrameRole(beat, frame.role, index, frames.length);
+    const role = resolveReferenceFrameRole(
+      beat,
+      frame.role,
+      index,
+      frames.length,
+      options.productVisibleByFrame?.[index] === true,
+    );
     return { ...frame, role, action: beat.action, camera: beat.camera, visualDescription };
   });
 }
@@ -138,17 +149,21 @@ function resolveReferenceFrameRole(
   currentRole: StoryboardFrame["role"],
   frameIndex: number,
   frameCount: number,
+  productVisible: boolean,
 ) {
   const presenterSource = beat.speechMode === "on_camera" &&
     (beat.visibleSubjectRole === "primary_presenter" || beat.sourceRole === "presenter");
-  if (presenterSource && currentRole === "environment_cutaway") {
+  if (presenterSource && (currentRole === "environment_cutaway" || currentRole === "product_cutaway")) {
     return frameIndex === frameCount - 1 ? "face_return" : "face_open";
   }
   const brollSource = beat.speechMode === "voiceover_only" || beat.avatarAllowed === false ||
     beat.visibleSubjectRole === "no_people" || beat.visibleSubjectRole === "hands_only" ||
     beat.visibleSubjectRole === "object_only";
-  if (brollSource && (currentRole === "face_open" || currentRole === "face_return")) {
-    return "environment_cutaway";
+  if (brollSource) {
+    if (productVisible || beat.sourceRole === "product_broll") return "product_cutaway";
+    if (currentRole === "face_open" || currentRole === "face_return" || currentRole === "product_cutaway") {
+      return "environment_cutaway";
+    }
   }
   return currentRole;
 }

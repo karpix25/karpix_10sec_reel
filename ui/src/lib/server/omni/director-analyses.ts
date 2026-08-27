@@ -49,20 +49,20 @@ export async function ensureDirectorAnalysis(input: {
   sourceScenario: OmniLegacyScenario;
 }) {
   await ensureOmniSchema();
-  const product = await requireOmniProductInProject(input.projectId, input.productId);
+  await requireOmniProductInProject(input.projectId, input.productId);
   const existing = await getDirectorAnalysisForLegacy({ legacyScenarioId: input.sourceScenario.id });
   const existingBrief = existing ? normalizeDirectorBrief(existing.director_analysis_json) : null;
-  if (existing?.director_analysis_status === "completed" && existingBrief?.content_adaptation) {
+  if (existing?.director_analysis_status === "completed" && existingBrief) {
     if (!existing.stored_video_url || await isStoredDirectorVideoAvailable(existing.stored_video_url)) {
       return existing;
     }
 
     await resetDirectorAnalysisForRetry(existing.id);
-    return runDirectorAnalysis(existing.id, input.sourceScenario, product);
+    return runDirectorAnalysis(existing.id, input.sourceScenario);
   }
 
   const row = await upsertPendingAnalysis(input);
-  return runDirectorAnalysis(row.id, input.sourceScenario, product);
+  return runDirectorAnalysis(row.id, input.sourceScenario);
 }
 
 async function isStoredDirectorVideoAvailable(sourceUrl: string) {
@@ -185,7 +185,6 @@ async function upsertPendingAnalysis(input: {
 async function runDirectorAnalysis(
   analysisId: number,
   sourceScenario: OmniLegacyScenario,
-  product: { name: string; description: string | null; product_reference_notes: string | null },
 ) {
   await markProcessing(analysisId);
 
@@ -209,18 +208,11 @@ async function runDirectorAnalysis(
     }
 
     const videoUrlForAnalysis = storedVideoUrl || resolved.videoUrl;
-    const evidenceFrames = await extractDirectorEvidenceFrames(videoUrlForAnalysis, sourceScenario.duration_seconds);
     const analyzed = await analyzeDirectorVideo({
       videoUrl: videoUrlForAnalysis,
       transcript: sourceScenario.script,
-      productName: product.name,
-      productDescription: product.description,
-      productReferenceNotes: product.product_reference_notes,
-      evidenceFrames,
     });
-    if (!analyzed.brief.content_adaptation) {
-      throw new Error("Director analysis returned no content adaptation plan");
-    }
+    const evidenceFrames = await extractDirectorEvidenceFrames(videoUrlForAnalysis, sourceScenario.duration_seconds);
     const verified = await verifyDirectorBriefAgainstReferenceFrames({
       videoUrl: videoUrlForAnalysis,
       brief: analyzed.brief,
@@ -245,9 +237,14 @@ async function runDirectorAnalysis(
            analysis_verification = $8::jsonb,
            analysis_model = $9,
            source_snapshot = jsonb_set(
-             jsonb_set(COALESCE(source_snapshot, '{}'::jsonb), '{openrouter_usage}', $10::jsonb, true),
-             '{openrouter_cost}',
-             $11::jsonb,
+             jsonb_set(
+               jsonb_set(COALESCE(source_snapshot, '{}'::jsonb), '{openrouter_usage}', $10::jsonb, true),
+               '{openrouter_cost}',
+               $11::jsonb,
+               true
+             ),
+             '{reference_transcript}',
+             $12::jsonb,
              true
            ),
            analysis_error = NULL,
@@ -267,6 +264,7 @@ async function runDirectorAnalysis(
         analyzed.model,
         JSON.stringify(openRouterUsage),
         JSON.stringify(openRouterCost),
+        JSON.stringify(analyzed.transcript || sourceScenario.script.trim() || null),
       ]
     );
     return normalizeAnalysis(rows[0]);

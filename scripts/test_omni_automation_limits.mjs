@@ -53,6 +53,14 @@ try {
   assert.equal(planOmniAutomationQueue(base({ dailyJobCount: 2, maxBatchPerProject: 3 })).toEnqueue, 1);
   assert.equal(planOmniAutomationQueue(base({ projectJobCount: 29, maxBatchPerProject: 3 })).toEnqueue, 1);
   assert.equal(planOmniAutomationQueue(base({ projectJobCount: 29, maxBatchPerProject: 3 })).shouldStopAfterQueue, true);
+  assert.equal(
+    planOmniAutomationQueue(base({ projectJobCount: 30, successfulProjectCount: 29 })).shouldStop,
+    false
+  );
+  assert.equal(
+    planOmniAutomationQueue(base({ dailyJobCount: 3, successfulTodayCount: 2 })).toEnqueue,
+    0
+  );
   assert.equal(planOmniAutomationQueue(base({ dailyLimit: 0 })).toEnqueue, 0);
   assert.equal(planOmniAutomationQueue(base({ projectLimit: 0 })).toEnqueue, 0);
 

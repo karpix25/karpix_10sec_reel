@@ -1,5 +1,4 @@
 import {
-  OMNI_STORYBOARD_MAX_FRAME_WORDS,
   OMNI_STORYBOARD_MIN_FRAME_WORDS,
   getOmniStoryboardFrameCount,
 } from "../../../omni/storyboard/omni-storyboard-types";
@@ -19,20 +18,11 @@ export function splitStoryboardSpeech(text: string, frameCount: number) {
 
 export function splitStoryboardSpeechWithBoundaries(text: string, frameCount: number): StoryboardSpeechChunk[] {
   const words = text.trim().split(/\s+/u).filter(Boolean);
+  if (frameCount < 1 || words.length !== frameCount * OMNI_STORYBOARD_MIN_FRAME_WORDS) return [];
   const chunks: StoryboardSpeechChunk[] = [];
   let cursor = 0;
   for (let index = 0; index < frameCount; index += 1) {
-    const remainingFrames = frameCount - index;
-    const remainingWords = words.length - cursor;
-    const candidates = [];
-    for (let size = OMNI_STORYBOARD_MIN_FRAME_WORDS; size <= OMNI_STORYBOARD_MAX_FRAME_WORDS; size += 1) {
-      const nextRemaining = remainingWords - size;
-      if (nextRemaining < (remainingFrames - 1) * OMNI_STORYBOARD_MIN_FRAME_WORDS) continue;
-      if (nextRemaining > (remainingFrames - 1) * OMNI_STORYBOARD_MAX_FRAME_WORDS) continue;
-      candidates.push({ size, score: boundaryScore(words, cursor, size) });
-    }
-    const selected = candidates.sort((left, right) => right.score - left.score || left.size - right.size)[0];
-    const size = selected?.size || Math.min(OMNI_STORYBOARD_MAX_FRAME_WORDS, remainingWords);
+    const size = OMNI_STORYBOARD_MIN_FRAME_WORDS;
     const endWord = cursor + size;
     const previous = words[endWord - 1] || "";
     chunks.push({
@@ -64,17 +54,4 @@ export function alignStoryboardFramesToVoiceover(input: {
   }));
 }
 
-function boundaryScore(words: readonly string[], cursor: number, size: number) {
-  const previous = words[cursor + size - 1] || "";
-  const next = words[cursor + size] || "";
-  let score = 0;
-  if (/[.!?]$/u.test(previous)) score += 8;
-  else if (/[,:;]$/u.test(previous)) score += 3;
-  if (BAD_END_PATTERN.test(previous)) score -= 20;
-  if (BAD_START_PATTERN.test(next)) score -= 5;
-  return score;
-}
-
-const BAD_END_PATTERN = /^(?:и|а|но|что|в|на|по|для|из|к|с|у|это|вот|наш|наша|этот|эта|мой|моя)$/iu;
-const BAD_START_PATTERN = /^(?:и|а|но|что|в|на|по|для|из|к|с|у|это|вот|наш|наша|этот|эта|мой|моя)$/iu;
 const SENTENCE_END_PATTERN = /[.!?…]+$/u;

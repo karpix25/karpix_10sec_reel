@@ -4,7 +4,7 @@ import { renderReferenceSceneModeForDirectorPrompt, resolveReferenceSceneMode } 
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { renderReferenceFormatContract, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v15-detailed-shot-timeline";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v16-visual-shot-timeline";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
@@ -12,7 +12,7 @@ export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "Treat visible frames as the factual source of truth: verify the opening, middle, and ending setup before using the transcript. A vehicle cabin, handheld phone shake, visible food, or a passenger seat must never be rewritten as a home or studio.",
   "Return only valid JSON. Do not include markdown, prose, comments, or extra keys.",
   "Do not describe or request application interfaces, social app overlays, buttons, like/share icons, comments, subtitles, captions, progress bars, brand logos, or UI elements.",
-    "Focus only on raw footage: subject actions, visual hook, detailed shot-by-shot visual descriptions, location timeline, atmosphere, clothing style, camera language, lighting, reusable scene mechanics, and the audible music layer.",
+    "Focus only on raw footage: the spoken transcript as a technical audio layer, subject actions, visual hook, detailed shot-by-shot visual descriptions, location timeline, atmosphere, clothing style, camera language, lighting, reusable scene mechanics, and the audible music layer.",
   "Listen to the attached video's audio when supported. Distinguish spoken voice, background music, natural production sound, and sound effects. Do not confuse speech or ambient noise with music.",
   "Do not turn the reference speaker's speech tempo or pauses into generation instructions. Do extract visible camera changes, cuts, and transitions exactly as observed, including film burn, light leak, exposure flash, lens flare, blur, wipe, fade, or other edit treatment.",
     "Extract reusable direction without copying the creator identity, face, brand, exact location, logos, protected marks, or platform interface. Describe the physical placement and visual role of phones or screens without transcribing interface text, logos, or branded UI.",
@@ -20,14 +20,12 @@ export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
 
 export function buildDirectorAnalysisUserPrompt(input: {
   transcript: string;
-  productName: string;
-  productDescription: string | null;
-  productReferenceNotes: string | null;
 }) {
   return [
-    "Analyze the attached video and transcript.",
+    "Analyze the attached video and the supplied transcript when present.",
+    "If the supplied transcript is empty or marked as unavailable, transcribe only the audible spoken words into spoken_transcript. Do not summarize or interpret the meaning in that field.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "content_adaptation, reference_subject_mode, visible_subject_policy, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, wardrobe_continuity, subject_continuity, wardrobe_timeline, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
+    "spoken_transcript, reference_subject_mode, visible_subject_policy, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, wardrobe_continuity, subject_continuity, wardrobe_timeline, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -37,16 +35,9 @@ export function buildDirectorAnalysisUserPrompt(input: {
     input.transcript.trim() || "No transcript provided.",
     '"""',
     "",
-    "Product context:",
-    `Product name: ${input.productName}`,
-    `Product description: ${input.productDescription || "not provided"}`,
-    `Product reference notes: ${input.productReferenceNotes || "not provided"}`,
-    "",
     "Important constraints:",
     "- Values must be descriptive but compact.",
-    "- content_adaptation MUST be chosen from the relationship between the reference transcript, visible video evidence, and the supplied product context. Do not choose it from keywords alone and do not use reference_format_mode as a substitute for content adaptation.",
-    "- content_adaptation.mode MUST be exactly preserve_reference, adjacent_bridge, or format_transfer. Use preserve_reference when the product solves the same problem as the reference. Use adjacent_bridge when the reference remains useful and the product solves a neighboring need in the same situation. Use format_transfer when the reference subject is incompatible with the product and only the hook mechanics, personal delivery, pacing, structure, and conclusion pattern should transfer.",
-    "- content_adaptation.reason MUST explain the semantic relationship in one sentence. preserve and replace MUST list concrete meaning anchors, not visual camera details. product_bridge MUST describe the causal transition from the current viewer need to the product benefit. confidence MUST be a number from 0 to 1.",
+    "- spoken_transcript is a technical transcription only. Do not turn it into a summary, content strategy, product recommendation, or adaptation decision.",
     "- reference_subject_mode MUST be classified from visible frames and narration, not transcript alone: presenter, voiceover_broll, faceless_hands, body_crop, or object_only. Use voiceover_broll when the meaning is carried by off-camera voiceover over independent B-roll cutaways; the saved avatar may remain the silent visual protagonist, but there is no stable talking-head performance. Use faceless_hands only when only hands/props are visible; never invent a face or avatar.",
     "- visible_subject_policy MUST be classified from visible frames: presenter when a person speaks to camera, silent_avatar when the same person appears but narration is off-camera, no_people when no person or hands are visible, hands_only when only hands/body crop are visible, object_only when only an object or surface is visible, and animation when the source is illustrated or animated. Never choose silent_avatar for a reference that contains no person.",
     "- reference_format_mode MUST be classified from the visible edit and narration: continuous_story when one scene and physical state continue between segments; voiceover_montage when one narrator carries the meaning across independent cutaways where location, action, camera setup, or outfit can change while the main presenter remains the same.",
@@ -142,14 +133,7 @@ function renderWardrobeTimelineForPrompt(brief: DirectorBrief) {
 
 function buildDirectorBriefSkeleton() {
   return {
-    content_adaptation: {
-      mode: "preserve_reference|adjacent_bridge|format_transfer",
-      reason: "semantic reason for the selected adaptation mode",
-      preserve: ["hook or delivery mechanic"],
-      replace: ["incompatible subject or source product"],
-      product_bridge: "causal bridge from the viewer need to the product benefit",
-      confidence: 0,
-    },
+    spoken_transcript: "",
     reference_subject_mode: "presenter|voiceover_broll|faceless_hands|body_crop|object_only",
     visible_subject_policy: "presenter|silent_avatar|no_people|hands_only|object_only|animation",
     reference_format_mode: "continuous_story|voiceover_montage",

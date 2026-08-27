@@ -39,6 +39,7 @@ export function normalizeOmniPromptPlanWithPhysicalRules(input: {
         : segment.storyboardPlan,
       productName: input.productName,
       productVisible: segment.creativePlan.productRole !== "hidden",
+      productVisibleByFrame: segment.creativePlan.productVisibleByFrame,
       productRole: segment.creativePlan.productRole,
       referenceSceneMode: input.referenceSceneMode,
     });
@@ -95,6 +96,7 @@ export async function repairOmniPromptPlanWithAi(input: {
         storyboard: applyPatch(storyboard, result.patch.frames),
         productName: input.productName,
         productVisible: segment.creativePlan.productRole !== "hidden",
+        productVisibleByFrame: segment.creativePlan.productVisibleByFrame,
         productRole: segment.creativePlan.productRole,
         referenceSceneMode: input.referenceSceneMode,
       });

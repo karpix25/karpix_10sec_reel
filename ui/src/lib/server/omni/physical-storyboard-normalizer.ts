@@ -34,6 +34,7 @@ export function normalizePhysicalStoryboardSegment(input: {
   storyboard: OmniStoryboardSegment;
   productName: string;
   productVisible: boolean;
+  productVisibleByFrame?: readonly boolean[];
   productRole?: ProductRole;
   referenceSceneMode?: ReferenceSceneMode;
 }): OmniStoryboardSegment {
@@ -43,6 +44,7 @@ export function normalizePhysicalStoryboardSegment(input: {
       frame,
       productName: input.productName,
       productVisible: Boolean(input.productVisible),
+      productVisibleByFrame: input.productVisibleByFrame,
       frameIndex: index + 1,
       frameCount: input.storyboard.frames.length,
       productRole: input.productRole,
@@ -71,6 +73,7 @@ function normalizeFrame(input: {
   frame: OmniStoryboardFrame;
   productName: string;
   productVisible: boolean;
+  productVisibleByFrame?: readonly boolean[];
   frameIndex: number;
   frameCount: number;
   productRole?: ProductRole;
@@ -83,7 +86,7 @@ function normalizeFrame(input: {
     ? "voiceover_only"
     : frame.speechMode || frame.physicalPlan?.speechMode;
   const sourceText = `${frame.visualAction} ${frame.productPlacement} ${frame.sfxNotes} ${frame.effectNotes || ""}`;
-  const visibleInFrame = productVisible;
+  const visibleInFrame = input.productVisibleByFrame?.[input.frameIndex - 1] ?? productVisible;
   const productDemo = visibleInFrame && (input.productRole === undefined || input.productRole === "brief_demo") && input.frameCount > 1
     ? buildPhysicalProductDemoStep({
         productName: product,

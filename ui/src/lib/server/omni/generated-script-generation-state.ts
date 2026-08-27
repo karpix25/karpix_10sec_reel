@@ -51,12 +51,22 @@ export async function createGeneratedScriptGenerationRecord(input: {
       input.sourceLegacyClientId,
       input.directorAnalysisId,
       input.title,
-      JSON.stringify({ ...input.sourceSnapshot, generation_stage: "llm_prompt_chain", generation_error: null }),
+      JSON.stringify({ ...input.sourceSnapshot, generation_stage: "content_adaptation", generation_error: null }),
       JSON.stringify(input.productSnapshot),
       input.model,
     ]
   );
   return rows[0];
+}
+
+export async function updateGeneratedScriptGenerationSnapshot(scriptId: number, patch: Record<string, unknown>) {
+  await pool.query(
+    `UPDATE omni_generated_scripts
+     SET source_snapshot = COALESCE(source_snapshot, '{}'::jsonb) || $2::jsonb,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [scriptId, JSON.stringify(patch)]
+  );
 }
 
 export async function failGeneratedScriptGeneration(scriptId: number, error: unknown) {
@@ -82,6 +92,7 @@ export async function failGeneratedScriptGeneration(scriptId: number, error: unk
 }
 
 function inferGenerationStage(message: string) {
+  if (message.startsWith("Reference нельзя честно адаптировать")) return "content_adaptation";
   if (message.startsWith("Creative copywriter failed")) return "creative_copywriter";
   if (message.startsWith("Director segmenter failed")) return "director_segmenter";
   if (message.startsWith("Сценарий отклонен")) return "script_validation";

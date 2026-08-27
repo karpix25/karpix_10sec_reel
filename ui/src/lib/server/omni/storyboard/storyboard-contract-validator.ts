@@ -9,6 +9,7 @@ import type { DirectorWardrobeContinuity } from "../director-wardrobe";
 export type StoryboardSegmentContract = {
   productName: string;
   productVisibility: "hidden" | "visible";
+  productVisibleByFrame?: readonly boolean[];
   fixedWardrobe?: string;
   wardrobeContinuity?: DirectorWardrobeContinuity;
 };
@@ -22,7 +23,7 @@ type StoryboardPromptContractInput = {
   index: number;
   voiceoverText: string;
   storyboardPlan: OmniStoryboardSegment | null;
-  creativePlan: { productRole: string };
+  creativePlan: { productRole: string; productVisibleByFrame?: readonly boolean[] };
 };
 
 const PRODUCT_ACTION_PATTERN =
@@ -46,10 +47,11 @@ export function validateStoryboardSegmentContract(input: {
     const productAction = hasProductAction(frame.visualAction, input.contract.productName);
     const transfer = frame.referenceTransfer;
 
-    if (input.contract.productVisibility === "hidden" && productVisible) {
+    const expectedProductVisible = input.contract.productVisibleByFrame?.[index] ?? input.contract.productVisibility === "visible";
+    if (!expectedProductVisible && productVisible) {
       errors.push(`frame_${frameNumber}_product_visible_when_contract_hidden`);
     }
-    if (input.contract.productVisibility === "visible" && !productVisible) {
+    if (expectedProductVisible && !productVisible) {
       errors.push(`frame_${frameNumber}_product_missing_from_physical_demo`);
     }
     if (wardrobeContinuity === "stable" && fixedWardrobe && normalize(frame.wardrobe) !== fixedWardrobe) {
@@ -77,15 +79,15 @@ export function validateStoryboardSegmentContract(input: {
       }
     }
     if (!productAction) return;
-    if (input.contract.productVisibility === "hidden") {
+    if (!expectedProductVisible) {
       errors.push(`frame_${frameNumber}_product_action_when_contract_hidden`);
     } else if (!productVisible) {
       errors.push(`frame_${frameNumber}_product_action_without_visible_product`);
     }
   });
 
-  if (input.contract.productVisibility === "visible" &&
-      !mentionsOmniProduct(input.storyboard.voiceoverText, input.contract.productName)) {
+  const expectedAnyProductVisible = input.contract.productVisibleByFrame?.some(Boolean) ?? input.contract.productVisibility === "visible";
+  if (expectedAnyProductVisible && !mentionsOmniProduct(input.storyboard.voiceoverText, input.contract.productName)) {
     errors.push("product_demo_without_product_voiceover");
   }
 
@@ -119,6 +121,7 @@ export function assertStoryboardPromptContracts(
       contract: {
         productName,
         productVisibility: segment.creativePlan.productRole === "hidden" ? "hidden" : "visible",
+        productVisibleByFrame: segment.creativePlan.productVisibleByFrame,
         fixedWardrobe: globalFixedWardrobe,
         wardrobeContinuity,
       },

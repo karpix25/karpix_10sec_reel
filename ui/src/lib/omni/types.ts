@@ -274,6 +274,7 @@ export interface OmniReel {
   stitch_status: "not_ready" | "ready" | "queued" | "stitching" | "completed" | "failed";
   final_video_url: string | null;
   final_s3_url?: string | null;
+  final_video_verified_at?: string | null;
   subtitles_status?: OmniSubtitleStatus | null;
   subtitled_video_url?: string | null;
   subtitles_error?: string | null;

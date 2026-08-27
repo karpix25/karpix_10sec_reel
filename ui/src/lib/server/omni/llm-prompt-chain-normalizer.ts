@@ -14,6 +14,7 @@ import {
   getOmniStoryboardDurationForWordCount,
   getOmniStoryboardFrameCount,
 } from "../../omni/storyboard/omni-storyboard-timing";
+import { splitStoryboardSpeech } from "./storyboard/omni-storyboard-speech";
 
 export function normalizeCreativeScriptDraft(raw: unknown): CreativeScriptDraft | null {
   const script = typeof raw === "string" ? clean(raw) : clean(asRecord(raw)?.script);
@@ -244,8 +245,7 @@ function repairStoryboardFrames(
       : Math.round(index * (frames.length - 1) / (expectedFrameCount - 1));
     return frames[sourceIndex];
   });
-  const words = voiceover.split(/\s+/u).filter(Boolean);
-  const chunks = splitWords(words, expectedFrameCount);
+  const chunks = splitStoryboardSpeech(voiceover, expectedFrameCount);
   if (!chunks.length) return [...frames];
   return chunks.map((spokenWords, index) => {
     const source = fittedFrames[index];
@@ -256,20 +256,6 @@ function repairStoryboardFrames(
       productState: source.productState || "продукт вне кадра",
     };
   });
-}
-
-function splitWords(words: readonly string[], frameCount: number) {
-  if (!words.length || frameCount < 1) return [] as string[];
-  const chunks: string[] = [];
-  let offset = 0;
-  for (let index = 0; index < frameCount; index += 1) {
-    const remainingWords = words.length - offset;
-    const remainingFrames = frameCount - index;
-    const count = Math.ceil(remainingWords / remainingFrames);
-    chunks.push(words.slice(offset, offset + count).join(" "));
-    offset += count;
-  }
-  return chunks;
 }
 
 function countWords(text: string) {

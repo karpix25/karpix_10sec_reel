@@ -10,6 +10,7 @@ import { createContinuityFrameAsset } from "./omni-frame-continuity";
 import { downloadProviderVideo, type ProviderTask } from "./omni-provider-tasks";
 import { startOmniReelSubtitlesIfEnabled } from "./omni-reel-subtitles";
 import { mixBackgroundAudioForReel } from "./omni-background-audio";
+import { runOmniFfprobeDuration } from "./omni-ffmpeg";
 
 export async function storeCompletedSegment(input: {
   projectId: number;
@@ -91,6 +92,11 @@ export async function stitchAndStoreReel(input: {
       sourceVideoPath: stitched.outputPath,
       workdir: stitched.workdir,
     });
+    const finalDuration = await runOmniFfprobeDuration(audio.outputPath);
+    if (!(finalDuration > 0)) {
+      throw new Error("Omni final video has no readable duration");
+    }
+
     const stored = await uploadOmniFinalVideo({
       project,
       product,
@@ -98,6 +104,9 @@ export async function stitchAndStoreReel(input: {
       reelId: input.reel.id,
       localFilePath: audio.outputPath,
     });
+    if (stored.yandexStatus === "failed") {
+      throw new Error(stored.yandexError || "Yandex final video upload failed");
+    }
 
     await pool.query(
       `UPDATE omni_reels
@@ -105,6 +114,7 @@ export async function stitchAndStoreReel(input: {
            stitch_status = 'completed',
            final_video_url = $3,
            final_s3_url = $3,
+           final_video_verified_at = CURRENT_TIMESTAMP,
            yandex_disk_path = $4,
            yandex_public_url = $5,
            yandex_status = $6,

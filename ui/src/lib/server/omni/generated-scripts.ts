@@ -42,6 +42,10 @@ import { resolveReferenceFrameCount } from "./reference-segment-plan";
 import {
   prepareOmniPromptPlanWithSemanticRepair,
 } from "./omni-storyboard-semantic-repair";
+import {
+  prepareGeneratedScriptContent,
+  resolveGeneratedScriptReferenceTranscript,
+} from "./generated-script-content";
 
 const PROMPT_REPAIR_TIMEOUT_MS = 15_000;
 
@@ -314,11 +318,10 @@ export async function createGeneratedScriptFromLegacy(input: {
     hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),
     directorBrief,
   });
-  const adaptationPlan = directorBrief?.content_adaptation;
-  if (!adaptationPlan) {
-    throw new Error("Не удалось определить режим адаптации: video analyzer не вернул content_adaptation.");
-  }
-
+  const referenceTranscript = resolveGeneratedScriptReferenceTranscript(
+    sourceScenario,
+    directorAnalysis?.source_snapshot,
+  );
   const sourceSnapshotBase = {
     id: sourceScenario.id,
     source_selection_mode: sourceMode,
@@ -328,7 +331,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     title: sourceScenario.title,
     topic: sourceScenario.topic,
     source_kind: "legacy_reference_transcript",
-    transcript: sourceScenario.script,
+    transcript: referenceTranscript,
     reels_url: sourceScenario.reels_url,
     word_count: sourceScenario.word_count,
     duration_seconds: sourceScenario.duration_seconds,
@@ -347,7 +350,8 @@ export async function createGeneratedScriptFromLegacy(input: {
     director_analysis_error: directorAnalysis?.analysis_error || null,
     generated_script_plan_version: "reels-script-writer-v1",
     duration_range: durationRange,
-    content_adaptation_plan: adaptationPlan,
+    content_adaptation_plan: null,
+    content_contract: null,
   };
   const model = process.env.SCENARIO_MODEL || "google/gemini-3.5-flash-lite";
   const pendingScript = await createGeneratedScriptGenerationRecord({
@@ -361,7 +365,21 @@ export async function createGeneratedScriptFromLegacy(input: {
     productSnapshot: { id: product.id, name: product.name },
     model,
   });
-
+  let contentAdaptation: Awaited<ReturnType<typeof prepareGeneratedScriptContent>>;
+  try {
+    contentAdaptation = await prepareGeneratedScriptContent({
+      scriptId: pendingScript.id,
+      sourceScenario,
+      referenceTranscript,
+      productName: product.name,
+      productDescription: product.description,
+      productReferenceNotes: product.product_reference_notes,
+      model,
+    });
+  } catch (error) {
+    await failGeneratedScriptGeneration(pendingScript.id, error);
+    throw error;
+  }
   let generated: Awaited<ReturnType<typeof generateScript>>;
   try {
     generated = await generateScript({
@@ -374,23 +392,32 @@ export async function createGeneratedScriptFromLegacy(input: {
       productReferenceNotes: product.product_reference_notes,
       ctaMode: product.cta_mode,
       ctaValue: product.cta_value,
-      sourceScenario,
+      sourceScenario: { ...sourceScenario, script: referenceTranscript },
       directorBrief,
       wardrobeSource: project.wardrobe_source,
       durationRange,
       avatarSpeechGender,
-      adaptationPlan,
+      adaptationPlan: contentAdaptation.contract.adaptation,
+      contentContract: contentAdaptation.contract,
     });
   } catch (error) {
     await failGeneratedScriptGeneration(pendingScript.id, error);
     throw error;
   }
   const directorCost = extractOpenRouterCostSummaryFromSnapshot(directorAnalysis?.source_snapshot);
-  const openRouterUsage = [...(directorCost?.layers || []), ...generated.openRouterUsage];
+  const openRouterUsage = [
+    ...(directorCost?.layers || []),
+    contentAdaptation.openRouterUsage,
+    ...generated.openRouterUsage,
+  ];
   const openRouterCost = summarizeOpenRouterUsage(openRouterUsage);
 
   const sourceSnapshot = {
     ...sourceSnapshotBase,
+    content_contract: contentAdaptation.contract,
+    content_adaptation_plan: contentAdaptation.contract.adaptation,
+    content_adapter_model: contentAdaptation.model,
+    content_adapter_prompt_version: contentAdaptation.promptVersion,
     generation_stage: "completed",
     generation_error: null,
     quality_check: generated.qualityCheck,

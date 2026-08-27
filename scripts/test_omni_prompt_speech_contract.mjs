@@ -314,9 +314,9 @@ try {
 
 function buildInput() {
   const voiceSegments = [
-    "Вот этот аэрогриль готовит ужин быстрее, с хрустящей корочкой и без лишнего масла.",
-    "Я ставлю его на стол показываю чашу и спокойно объясняю почему дома это экономит силы.",
-    "Если нужен такой помощник артикул аэрогриля можно найти в описании и сравнить перед покупкой самостоятельно.",
+    "Вот аэрогриль готовит ужин быстро, с хрустящей корочкой и без лишнего масла.",
+    "Ставлю аэрогриль на стол, показываю чашу и объясняю, как он экономит силы.",
+    "Если нужен помощник, артикул аэрогриля в описании, сравни варианты перед покупкой сам.",
   ];
   return {
     generatedScript: {
@@ -431,7 +431,7 @@ function makeStoredStoryboardFrames(voiceover, segmentIndex) {
   return [0, 1, 2].map((index) => ({
     index: index + 1,
     role: index === 0 ? "face_open" : index === 2 ? "face_return" : segmentIndex === 0 ? "environment_cutaway" : "product_cutaway",
-    spokenWords: words.slice(index * 5, index * 5 + 5).join(" "),
+    spokenWords: words.slice(index * 4, index * 4 + 4).join(" "),
     visualDescription: segmentIndex === 0
       ? "живая кухня с тем же человеком и свободными руками"
       : "живая кухня с тем же человеком и продуктом",

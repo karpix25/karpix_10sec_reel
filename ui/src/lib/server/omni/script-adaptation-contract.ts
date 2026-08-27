@@ -1,7 +1,8 @@
 export type ScriptAdaptationMode =
   | "preserve_reference"
   | "adjacent_bridge"
-  | "format_transfer";
+  | "format_transfer"
+  | "incompatible";
 
 export type ScriptAdaptationPlan = {
   version: "script-adaptation-v1";
@@ -17,7 +18,12 @@ export function normalizeScriptAdaptationPlan(value: unknown): ScriptAdaptationP
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = value as Record<string, unknown>;
   const mode = candidate.mode;
-  if (mode !== "preserve_reference" && mode !== "adjacent_bridge" && mode !== "format_transfer") return null;
+  if (
+    mode !== "preserve_reference" &&
+    mode !== "adjacent_bridge" &&
+    mode !== "format_transfer" &&
+    mode !== "incompatible"
+  ) return null;
   const reason = readText(candidate.reason);
   const productBridge = readText(candidate.product_bridge ?? candidate.productBridge);
   if (!reason || !productBridge) return null;
@@ -41,6 +47,7 @@ export function renderScriptAdaptationContract(plan: ScriptAdaptationPlan): stri
     preserve_reference: "СОХРАНЕНИЕ СМЫСЛА",
     adjacent_bridge: "СОСЕДНИЙ НАТИВНЫЙ МОСТ",
     format_transfer: "ПЕРЕНОС ФОРМАТА",
+    incompatible: "НЕСОВМЕСТИМЫЙ REFERENCE",
   }[plan.mode];
   return [
     `РЕЖИМ АДАПТАЦИИ: ${modeLabel}.`,
@@ -52,17 +59,25 @@ export function renderScriptAdaptationContract(plan: ScriptAdaptationPlan): stri
     "Все визуальные факты бери только из проверенного SOURCE SHOT TIMELINE и REFERENCE SHOT CONTRACT. Если в тексте упоминаются taxi, Uber, машина или поездка, это само по себе не создает автомобильный кадр.",
     plan.mode === "format_transfer"
       ? "Не пытайся отвечать на исходный предметный вопрос и не вставляй исходный механизм рядом с продуктом. Построй новый логичный сюжет под продукт, сохранив форму хука, темп и подачу reference."
+      : plan.mode === "incompatible"
+        ? "Этот reference нельзя честно адаптировать под продукт. Не запускай сценарист, reviewer или repair; верни понятную причину отказа."
       : "Не превращай продукт в отдельный рекламный блок: причинный переход должен следовать из текущей мысли.",
   ].join("\n");
 }
 
 export function renderScriptAdaptationRepairContract(plan: ScriptAdaptationPlan): string {
+  if (plan.mode === "incompatible") {
+    return "Починка не запускается: reference нельзя честно адаптировать под продукт. Верни понятную причину отказа без сценария.";
+  }
   return plan.mode === "format_transfer"
     ? "Исправление только voiceover: сохрани форму хука, смысловую логику, темп и подачу reference, но полностью убери конфликтующий исходный тезис. Не переноси визуальные факты reference в этот сценарный контракт. Сделай продуктовую проблему и пользу карты центральной мыслью сценария."
     : `Исправление только voiceover: ${renderSemanticOnlyText(plan.productBridge)} Сохрани обязательные смысловые опоры режима «${plan.mode}». Визуальные факты бери только из проверенного reference timeline.`;
 }
 
 export function renderScriptAdaptationReviewContract(plan: ScriptAdaptationPlan): string {
+  if (plan.mode === "incompatible") {
+    return "Reference несовместим с продуктом: сценарий не должен запускаться на смысловую проверку.";
+  }
   if (plan.mode === "format_transfer") {
     return [
       "Для referenceMeaningPreserved в режиме «перенос формата» не требуй сохранения исходного предметного тезиса.",

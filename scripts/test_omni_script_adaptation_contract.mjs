@@ -72,6 +72,17 @@ try {
   assert.ok(adjacent);
   assert.equal(adjacent.mode, "adjacent_bridge");
 
+  const incompatible = normalizeScriptAdaptationPlan({
+    mode: "incompatible",
+    reason: "Reference explains a medical treatment and the product has no related use.",
+    preserve: ["direct explanatory hook"],
+    replace: ["medical treatment mechanism"],
+    product_bridge: "No honest product bridge exists.",
+  });
+  assert.ok(incompatible);
+  assert.match(renderScriptAdaptationContract(incompatible), /НЕСОВМЕСТИМЫЙ REFERENCE/u);
+  assert.match(renderScriptAdaptationContract(incompatible), /Не запускай сценарист/u);
+
   console.log("Omni script adaptation contract checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });

@@ -1,6 +1,5 @@
 import type { OmniPromptValidationResult, OmniSegmentCreativePlan, ProductRole } from "../../../omni/creative-contract";
 import {
-  OMNI_STORYBOARD_MAX_FRAME_WORDS,
   OMNI_STORYBOARD_MIN_FRAME_WORDS,
   getOmniStoryboardFrameCount,
   type OmniStoryboardFrame,
@@ -24,6 +23,7 @@ import {
   normalizeVehicleContext,
   repairReferenceAction,
   repairPhysicalFrameAction,
+  resolveProductDemoFrame,
 } from "../physical-scene-model";
 import { splitStoryboardSpeech } from "./omni-storyboard-speech";
 import { renderStoryboardProductPlacement } from "./omni-storyboard-product-placement";
@@ -63,9 +63,8 @@ export function buildStoryboardFromCreativePlan(input: {
   if (!frameCount) throw new Error(`Storyboard segment ${input.segmentIndex} has unsupported duration ${input.durationSeconds}`);
   const words = input.plan.voiceoverText.trim().split(/\s+/u).filter(Boolean);
   const minWords = frameCount * OMNI_STORYBOARD_MIN_FRAME_WORDS;
-  const maxWords = frameCount * OMNI_STORYBOARD_MAX_FRAME_WORDS;
-  if (words.length < minWords || words.length > maxWords) {
-    throw new Error(`Storyboard segment ${input.segmentIndex} needs ${minWords}-${maxWords} words, got ${words.length}`);
+  if (words.length !== minWords) {
+    throw new Error(`Storyboard segment ${input.segmentIndex} needs exactly ${minWords} words, got ${words.length}`);
   }
 
   const chunks = splitStoryboardSpeech(input.plan.voiceoverText, frameCount);
@@ -104,18 +103,20 @@ export function buildStoryboardFromPromptChainFrames(input: {
   productPhysicalHint?: string | null;
   directorBrief?: DirectorBrief | null;
   segmentCount?: number;
-  productVisible?: boolean;
+  productVisible?: boolean | readonly boolean[];
   productRole?: ProductRole;
   referenceTransferPolicy?: ReferenceTransferPolicy;
   referenceSceneMode?: ReferenceSceneMode;
 }): OmniStoryboardSegment {
   if (!input.frames.length) throw new Error(`Storyboard segment ${input.segmentIndex} has no frames`);
+  const speechChunks = splitStoryboardSpeech(input.voiceoverText, input.frames.length);
+  if (speechChunks.length !== input.frames.length || input.frames.some((frame, index) => frame.spokenWords !== speechChunks[index])) throw new Error(`Storyboard segment ${input.segmentIndex} must contain exactly four spoken words per frame`);
   return {
     segmentIndex: input.segmentIndex,
     durationSeconds: input.durationSeconds,
     voiceoverText: input.voiceoverText,
     frames: input.frames.map((frame, index) => {
-      const productVisible = Boolean(input.productVisible);
+      const productVisible = Array.isArray(input.productVisible) ? Boolean(input.productVisible[index]) : Boolean(input.productVisible);
       const referenceProfile = selectDirectorSegmentProfile({
         brief: input.directorBrief,
         segmentIndex: input.segmentIndex,
@@ -129,9 +130,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
         productPhysicalHint: input.productPhysicalHint,
         productVisible,
         productRole: input.productRole,
-        productDemoFrame: productVisible
-          ? { frameIndex: index + 1, frameCount: input.frames.length }
-          : undefined,
+        productDemoFrame: productVisible ? resolveProductDemoFrame(input.productVisible, index, input.frames.length) || undefined : undefined,
         referenceProfile,
         directorBrief: input.directorBrief,
         referenceTransferPolicy: input.referenceTransferPolicy,
@@ -197,7 +196,8 @@ function buildFrame(input: {
   const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
     input.plan.beats[0];
   const layoutLocked = !noPeopleReference && /REFERENCE LAYOUT|collage\/PIP/iu.test(beat?.action || "");
-  const productVisible = input.plan.productRole !== "hidden";
+  const productVisible = input.plan.productVisibleByFrame?.[input.frameIndex - 1] ?? input.plan.productRole !== "hidden";
+  const demoFrame = productVisible ? resolveProductDemoFrame(input.plan.productVisibleByFrame, input.frameIndex - 1, input.frameCount) : null;
   const speechMode = noPeopleReference ? "voiceover_only" : referenceProfile?.speech_mode || "on_camera";
   const referencePolicy = resolveReferenceTransferPolicy(input.referenceTransferPolicy);
   const referenceAction = layoutLocked || referencePolicy.mode === "style_only"
@@ -230,15 +230,15 @@ function buildFrame(input: {
   const productDemo = productVisible && !noPeopleReference && input.plan.productRole === "brief_demo"
     ? buildPhysicalProductDemoStep({
         productName: input.productName,
-        frameIndex: input.frameIndex,
-        frameCount: input.frameCount,
+        frameIndex: demoFrame?.frameIndex || input.frameIndex,
+        frameCount: demoFrame?.frameCount || input.frameCount,
       })
     : null;
   const digitalProductDemo = productVisible && input.plan.productRole === "digital_demo"
     ? buildDigitalProductDemoStep({
         productName: input.productName,
-        frameIndex: input.frameIndex,
-        frameCount: input.frameCount,
+        frameIndex: demoFrame?.frameIndex || input.frameIndex,
+        frameCount: demoFrame?.frameCount || input.frameCount,
         noPeopleReference,
       })
     : null;

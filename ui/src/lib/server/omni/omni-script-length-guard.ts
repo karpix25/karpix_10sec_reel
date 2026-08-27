@@ -11,14 +11,18 @@ export function compactOmniScriptToWordBudget(
     referenceScript?: string | null;
     productName?: string | null;
     adaptationMode?: ScriptAdaptationMode;
+    requiredMeaning?: readonly string[];
   } = {}
 ) {
   if (countOmniScriptWords(script) <= maxWords) return script;
 
   const sentences = splitSentences(script);
-  const protectedMeaningSignals = options.adaptationMode === "preserve_reference"
-    ? buildReferenceMeaningContract(options.referenceScript || "").criticalSignals
-    : [];
+  const protectedMeaningSignals = [
+    ...(options.adaptationMode === "preserve_reference"
+      ? buildReferenceMeaningContract(options.referenceScript || "").criticalSignals
+      : []),
+    ...(options.requiredMeaning || []),
+  ];
   while (countWords(sentences) > maxWords) {
     const overflow = countWords(sentences) - maxWords;
     const ctaIndex = findLastCtaSentence(sentences);

@@ -48,7 +48,7 @@ try {
     const storyboard = {
       segmentIndex,
       durationSeconds: 4,
-      voiceoverText: "Рассказываю о составе продукта и показываю его",
+      voiceoverText: "Рассказываю о составе продукта и показываю его сейчас",
       frames: [{
         spokenText: "Рассказываю о составе продукта",
         visualAction: "обе руки у лица, герой кусает морковь и ведет машину",
@@ -58,7 +58,7 @@ try {
         productPlacement: "держит сыр и Коллаген в руках",
         sfxNotes: "слышно жевание",
       }, {
-        spokenText: "и показываю его",
+        spokenText: "и показываю его сейчас",
         visualAction: "обе руки у лица, герой кусает морковь и ведет машину",
         camera: "средний план в движущейся машине",
         environment: "машина едет",

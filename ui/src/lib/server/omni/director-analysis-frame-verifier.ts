@@ -89,9 +89,10 @@ export async function verifyDirectorBriefAgainstReferenceFrames(input: {
     input.evidenceFrames?.length ? input.evidenceFrames : frames,
   );
   const verificationStatus = timelineReasons.length ? "repair" : status;
+  const visualBrief = { ...verifiedBrief };
+  delete visualBrief.content_adaptation;
   const brief: DirectorBrief = {
-    ...verifiedBrief,
-    content_adaptation: input.brief.content_adaptation,
+    ...visualBrief,
     audio_profile: input.brief.audio_profile,
   };
 
@@ -126,10 +127,12 @@ const VERIFICATION_SYSTEM_PROMPT = [
 ].join(" ");
 
 function buildVerificationPrompt(brief: DirectorBrief) {
+  const visualBrief = { ...brief };
+  delete visualBrief.content_adaptation;
   return [
-    "Current director brief visual fields (content_adaptation is semantic-only and is intentionally excluded from visual verification):",
-    JSON.stringify({ ...brief, content_adaptation: undefined }),
-    "Never use content_adaptation to infer a location, vehicle, prop, camera setup, or B-roll. Verify those facts only from the source frames and camera_timeline.",
+    "Current director brief visual fields (semantic content fields are intentionally excluded from visual verification):",
+    JSON.stringify(visualBrief),
+    "Never use semantic meaning or product adaptation to infer a location, vehicle, prop, camera setup, or B-roll. Verify those facts only from the source frames and camera_timeline.",
     "Return the complete corrected director_brief, keeping the same schema. Preserve the observed format mechanics, not the source creator identity, product brand or text overlays.",
   ].join("\n");
 }

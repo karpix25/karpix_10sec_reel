@@ -224,7 +224,7 @@ try {
       segmentIndex: 1,
       lifeFormatId: "talking_head_cutaways",
       speechStartsAtSeconds: 0,
-      voiceoverText: "Сначала объясняю проблему а затем показываю решение",
+      voiceoverText: "Сначала объясняю проблему а затем показываю простое решение",
       productRole: "hidden",
       continuityProps: [],
       beats: [
@@ -367,7 +367,7 @@ try {
       segmentIndex: 1,
       lifeFormatId: "talking_head_cutaways",
       speechStartsAtSeconds: 0,
-      voiceoverText: "Покажу мобильное приложение чтобы спокойно платить за границей без лишних сложностей и заранее проверить всё перед поездкой",
+      voiceoverText: "Покажу мобильное приложение чтобы спокойно платить за границей без лишних сложностей и заранее проверить всё перед поездкой без спешки самостоятельно",
       productRole: "digital_demo",
       continuityProps: [],
       beats: [
@@ -405,7 +405,7 @@ try {
       durationSeconds: 10,
       voiceoverText: digitalStoryboard.voiceoverText,
       storyboardPlan: storyboard([1, 2].map((index) => frame(
-        "Рассказываю о приложении",
+        "Рассказываю о приложении сейчас",
         "герой держит смартфон в одной руке",
         "смартфон в одной руке"
       ))),

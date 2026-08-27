@@ -58,7 +58,7 @@ import {
   formatDirectorSegmenterDiagnostic,
   type DirectorSegmenterAttemptDiagnostic,
 } from "./llm-prompt-chain-diagnostics";
-
+import { getScriptContentMeaningSignals } from "./script-content-contract";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const CREATIVE_COPYWRITER_ATTEMPTS = 2;
 const DIRECTOR_TARGETED_REPAIR_ATTEMPTS = 2;
@@ -72,6 +72,7 @@ export type LlmPromptChainFailureStage =
 
 export type LlmPromptChainPartialSnapshot = {
   adaptationPlan?: PromptChainInput["adaptationPlan"];
+  contentContract?: PromptChainInput["contentContract"];
   creativeScriptDraft?: CreativeScriptDraft;
   semanticReview?: ScriptSemanticReview;
   directorSegmentPlan?: DirectorSegmentPlan;
@@ -99,22 +100,21 @@ export class LlmPromptChainFailure extends Error {
 export function isLlmPromptChainEnabled() {
   return process.env.OMNI_LLM_PROMPT_CHAIN !== "false";
 }
-
 export async function runLlmPromptChain(input: PromptChainInput & { model: string }): Promise<{
   result: LlmPromptChainResult;
   openRouterUsage: OpenRouterUsageRecord[];
 }> {
   const adaptationPlan = input.adaptationPlan;
+  const contentContract = input.contentContract;
   const chainInput = input;
   const openRouterUsage: OpenRouterUsageRecord[] = [];
   const onUsage = (usage: OpenRouterUsageRecord) => openRouterUsage.push(usage);
-
   let creativeResult: Awaited<ReturnType<typeof runCreativeCopywriter>>;
   try {
     creativeResult = await runCreativeCopywriter(chainInput, onUsage);
   } catch (error) {
     if (error instanceof LlmPromptChainFailure) throw error;
-    throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), { adaptationPlan });
+    throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), { adaptationPlan, contentContract });
   }
   const draft = creativeResult.draft;
   let directorResult: Awaited<ReturnType<typeof runDirectorSegmenter>>;
@@ -124,6 +124,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
     const directorFailure = error instanceof DirectorSegmenterFailure ? error : null;
     throw new LlmPromptChainFailure("director_segmenter", getErrorMessage(error), {
       adaptationPlan,
+      contentContract,
       creativeScriptDraft: draft,
       semanticReview: creativeResult.semanticReview,
       ...(directorFailure ? { directorSegmenterDiagnostics: directorFailure.diagnostics } : {}),
@@ -143,6 +144,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   } catch (error) {
     throw new LlmPromptChainFailure("provider_plan_validation", getErrorMessage(error), {
       adaptationPlan,
+      contentContract,
       creativeScriptDraft: draft,
       semanticReview: creativeResult.semanticReview,
       directorSegmentPlan: directorPlan,
@@ -155,7 +157,6 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   assertPromptChainNumericRangeIntegrity(input.sourceScenario.script, script);
   assertOmniScriptTextContract(script);
   assertRussianSpeechGender(script, input.avatarSpeechGender);
-
   return {
     result: {
       title: directorPlan.title,
@@ -176,6 +177,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
       snapshot: {
         version: LLM_PROMPT_CHAIN_VERSION,
         adaptationPlan,
+        contentContract,
         creativeScriptDraft: draft,
         directorSegmentPlan: directorPlan,
         providerPromptPlan: providerPlan,
@@ -186,7 +188,6 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
     openRouterUsage,
   };
 }
-
 export function assertPromptChainNumericRangeIntegrity(referenceScript: string, script: string) {
   const normalizedScript = script.toLocaleLowerCase("ru-RU");
   for (const range of findNumericRanges(referenceScript)) {
@@ -248,6 +249,8 @@ async function runCreativeCopywriter(
       const script = compactOmniScriptToWordBudget(normalizedScript, maxWords, {
         referenceScript: input.sourceScenario.script,
         productName: input.productName,
+        adaptationMode: input.adaptationPlan.mode,
+        requiredMeaning: input.contentContract ? getScriptContentMeaningSignals(input.contentContract) : undefined,
       });
       if (countOmniScriptWords(script) > maxWords) {
         throw new Error(`Сценарий длиннее лимита после автоматического сокращения: ${countOmniScriptWords(script)} слов вместо ${maxWords}.`);
@@ -270,6 +273,7 @@ async function runCreativeCopywriter(
         ctaValue: input.ctaValue,
         directorBrief: input.directorBrief,
         adaptationPlan: input.adaptationPlan,
+        contentContract: input.contentContract,
       }, onUsage, attempt);
       lastSemanticReview = semanticReview;
       assertScriptSemanticReviewPassed(semanticReview);
@@ -286,6 +290,7 @@ async function runCreativeCopywriter(
     `Creative copywriter failed: ${getErrorMessage(lastError)}`,
     {
       adaptationPlan: input.adaptationPlan,
+      contentContract: input.contentContract,
       ...(previousDraft ? { creativeScriptDraft: previousDraft } : {}),
       ...(lastSemanticReview ? { semanticReview: lastSemanticReview } : {}),
     }
@@ -468,6 +473,7 @@ function assertPromptChainScriptQuality(
     ctaValue: input.ctaValue,
     durationRange: input.durationRange,
     referenceScript: input.sourceScenario.script,
+    adaptationMode: input.adaptationPlan.mode,
   });
 }
 

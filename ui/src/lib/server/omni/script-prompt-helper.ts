@@ -7,6 +7,11 @@ import { renderDirectorBriefForScriptPrompt } from "./director-analysis-prompt";
 import type { OmniDurationRange } from "./omni-duration-range";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
 import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
+import {
+  buildLegacyScriptContentContract,
+  renderScriptContentContract,
+  type ScriptContentContract,
+} from "./script-content-contract";
 
 export function buildPrompt(input: {
   projectName: string;
@@ -24,7 +29,9 @@ export function buildPrompt(input: {
   avatarSpeechGender: OmniAvatarSpeechGender;
   retryFeedback?: string | null;
   adaptationPlan: ScriptAdaptationPlan;
+  contentContract?: ScriptContentContract;
 }) {
+  const contentContract = input.contentContract || buildLegacyScriptContentContract(input.sourceScenario.script, input.adaptationPlan);
   const durationInstruction = buildDurationInstruction(input.durationRange);
   const wardrobeSource = normalizeOmniWardrobeSource(input.wardrobeSource);
   const directorGuidance = wardrobeSource === "avatar_reference"
@@ -39,6 +46,7 @@ export function buildPrompt(input: {
 Voiceover это текст, который произносит аватар или диктор; визуально ролик может быть talking head, B-roll или их сочетанием.
 
 Правила:
+${renderScriptContentContract(contentContract)}
 1. Reference передаёт не только хук, темп и структуру, но и тему, главный вопрос или конфликт, угол подачи, смысловую логику, аргументы и конкретные примеры. Возьми reference целиком и напиши новый сценарий на ту же тему, но адаптируй его под наш продукт. Не копируй текст дословно.
 1а. Перед написанием внутренне определи, чем цепляет хук, какую тему и проблему раскрывает reference, какие примеры поддерживают мысль и в какой момент зрителю становится понятен ответ. Не показывай этот разбор в ответе.
 1б. Если нужно сократить текст до пяти частей, сокращай повторы, вводные слова и длинные формулировки, а не идеи. Объединяй близкие предложения в один плотный beat. Не заменяй конкретный механизм, пример или доказательство общей фразой вроде "это полезно" или "помогает лучше себя чувствовать".
@@ -60,7 +68,7 @@ Voiceover это текст, который произносит аватар и
 13. Пиши бытовым русским языком. Одна мысль в одной строке.
 14. ${renderRussianSpeechGenderRule(input.avatarSpeechGender)}
 15. ${durationInstruction}
-16. Планируй речь по фактической скорости KIE Gemini Omni около 2.45 полезных слов в секунду: 4с до 9 слов, 6с до 14 слов, 8с до 19 слов, 10с до 24 слов.
+16. Планируй речь жесткими блоками по ровно четыре слова на каждые две секунды: 4с это 8 слов, 6с это 12 слов, 8с это 16 слов, 10с это 20 слов. Общее количество слов должно делиться на четыре без остатка.
 17. Не пиши псевдовопросы без ответа и фальшивую эмпатию вроде "я знаю, как тебе сложно".
 18. Сначала придумай 3 разных кульминационных hook_options, затем выбери strongest selected_hook.
 19. Разбей сценарий на 2-4 beats. В каждом beat должны быть:
@@ -124,7 +132,7 @@ ${input.retryFeedback ? `\nПовторная попытка:\n${input.retryFeed
 
 function buildDurationInstruction(durationRange?: OmniDurationRange) {
   if (!durationRange) {
-    return "Целевая длина сценария: обычно 48-72 слова. Система сама выберет длительность 2-5 частей из 4, 6, 8 или 10 секунд. Никогда не превышай 125 слов: если исходник длиннее, сожми его, сохранив хук, смысл продукта и CTA.";
+    return "Целевая длина сценария: обычно 48-72 слова. Система сама выберет длительность 2-5 частей из 4, 6, 8 или 10 секунд. Каждый двухсекундный кадр должен содержать ровно четыре слова, поэтому общее количество слов должно делиться на четыре без остатка. Никогда не превышай 100 слов: если исходник длиннее, сожми его, сохранив хук, смысл продукта и CTA.";
   }
 
   const clampedNote = durationRange.wasClamped
@@ -141,7 +149,7 @@ function buildDurationInstruction(durationRange?: OmniDurationRange) {
     `Целевая длительность итогового ролика: ${durationRange.minSeconds}-${durationRange.maxSeconds} сек. ` +
     `Ориентир длины произносимого текста: ${durationRange.minWords}-${durationRange.maxWords} слов.${exactDurationNote}${clampedNote} ` +
     `Для плотной подачи ориентир: ${targetMinWords}-${durationRange.maxWords} слов. ` +
-    `Перед ответом проверь: сумма всех beats.voiceover и поле script должны совпадать по смыслу дословно. ` +
+    `Перед ответом проверь: сумма всех beats.voiceover и поле script должны совпадать по смыслу дословно. Количество слов должно делиться на четыре без остатка, чтобы каждый двухсекундный кадр содержал ровно четыре слова. ` +
     "Система сама выберет 2-5 частей. Если исходник длиннее лимита, сожми формулировки до верхней границы диапазона, сохранив хук, смысл продукта, ключевые аргументы и CTA. Не добавляй дополнительные части и не пытайся сохранить исходные фразы дословно."
   );
 }

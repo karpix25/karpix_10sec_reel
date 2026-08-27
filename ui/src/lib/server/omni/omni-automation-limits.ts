@@ -3,6 +3,7 @@ export type OmniAutomationLimitInput = {
   projectLimit: number;
   dailyJobCount: number;
   projectJobCount: number;
+  successfulProjectCount?: number;
   openJobs: number;
   maxBatchPerProject: number;
   maxBacklogPerProject: number;
@@ -44,7 +45,11 @@ export function planOmniAutomationQueue(input: OmniAutomationLimitInput): OmniAu
   const remainingToday = Math.max(0, dailyLimit - dailyJobCount);
   const remainingProject = Math.max(0, projectLimit - projectJobCount);
   const backlogRoom = Math.max(0, maxBacklogPerProject - openJobs);
-  const shouldStop = remainingProject <= 0;
+  const successfulProjectCount = Math.max(
+    0,
+    Math.floor((input.successfulProjectCount ?? input.projectJobCount) || 0)
+  );
+  const shouldStop = successfulProjectCount >= projectLimit;
   const toEnqueue = shouldStop
     ? 0
     : Math.min(maxBatchPerProject, remainingToday, remainingProject, backlogRoom);

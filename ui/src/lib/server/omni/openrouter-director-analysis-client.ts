@@ -13,6 +13,7 @@ const DIRECTOR_ANALYSIS_REQUEST_TIMEOUT_MS = 120_000;
 
 export type DirectorVideoAnalysisResult = {
   brief: DirectorBrief;
+  transcript: string | null;
   model: string;
   responseMetadata: Record<string, unknown>;
   openRouterUsage: OpenRouterUsageRecord | null;
@@ -26,11 +27,7 @@ export type DirectorAnalysisEvidenceFrame = {
 export async function analyzeDirectorVideo(input: {
   videoUrl: string;
   transcript: string;
-  productName: string;
-  productDescription: string | null;
-  productReferenceNotes: string | null;
   model?: string | null;
-  evidenceFrames?: readonly DirectorAnalysisEvidenceFrame[];
 }): Promise<DirectorVideoAnalysisResult> {
   const apiKey = process.env.OPENROUTER_API_KEY || "";
   if (!apiKey.trim()) throw new Error("OPENROUTER_API_KEY is not configured");
@@ -56,13 +53,9 @@ export async function analyzeDirectorVideo(input: {
               type: "text",
               text: buildDirectorAnalysisUserPrompt({
                 transcript: input.transcript,
-                productName: input.productName,
-                productDescription: input.productDescription,
-                productReferenceNotes: input.productReferenceNotes,
               }),
             },
             { type: "video_url", video_url: { url: input.videoUrl } },
-            ...renderEvidenceFrames(input.evidenceFrames),
           ],
         },
       ],
@@ -80,6 +73,7 @@ export async function analyzeDirectorVideo(input: {
   const parsed = parseAndRepairJson(content);
   const brief = normalizeDirectorBrief(parsed);
   if (!brief) throw new Error("Director analysis model returned invalid director_brief JSON");
+  const transcript = readTranscript(parsed);
   const responseModel = String(data.model || model);
   const pricing = await getOpenRouterPricingSnapshot(responseModel);
   const openRouterUsage = normalizeOpenRouterUsage({
@@ -91,6 +85,7 @@ export async function analyzeDirectorVideo(input: {
 
   return {
     brief,
+    transcript,
     model,
     responseMetadata: {
       id: data.id || null,
@@ -102,14 +97,18 @@ export async function analyzeDirectorVideo(input: {
   };
 }
 
-function renderEvidenceFrames(frames: readonly DirectorAnalysisEvidenceFrame[] | undefined) {
-  return (frames || []).flatMap((frame) => [
-    { type: "text" as const, text: `EVIDENCE FRAME ${frame.timestampSec}s: inspect this exact source moment and keep its visible subject, composition, objects, and action in the detailed camera_timeline.` },
-    {
-      type: "image_url" as const,
-      image_url: { url: `data:image/jpeg;base64,${frame.body.toString("base64")}` },
-    },
-  ]);
+function readTranscript(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const nested = record.director_brief || record.director_analysis;
+  const nestedRecord = nested && typeof nested === "object" && !Array.isArray(nested)
+    ? nested as Record<string, unknown>
+    : null;
+  const transcript = record.spoken_transcript
+    ?? record.spokenTranscript
+    ?? nestedRecord?.spoken_transcript
+    ?? nestedRecord?.spokenTranscript;
+  return typeof transcript === "string" && transcript.trim() ? transcript.trim() : null;
 }
 
 function readAssistantContent(data: Record<string, unknown>) {

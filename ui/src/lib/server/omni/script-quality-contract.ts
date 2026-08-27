@@ -8,6 +8,7 @@ import {
 } from "./omni-speech-density";
 import type { OmniDurationRange } from "./omni-duration-range";
 import { validateReferenceMeaningCoverage, type ReferenceMeaningCoverage } from "./reference-meaning-contract";
+import type { ScriptAdaptationMode } from "./script-adaptation-contract";
 
 const FORBIDDEN_SYMBOL_ERROR = "Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.";
 const DURATION_MIN_WORD_TOLERANCE = 2;
@@ -116,6 +117,7 @@ export function validateViralScriptContract(input: {
   ctaValue: string | null;
   durationRange?: OmniDurationRange;
   referenceScript?: string | null;
+  adaptationMode?: ScriptAdaptationMode;
 }): ScriptQualityResult {
   const warnings: string[] = [];
   const scriptText = input.script;
@@ -289,6 +291,7 @@ export function validateViralScriptContract(input: {
   const referenceMeaning = validateReferenceMeaningCoverage({
     referenceScript: input.referenceScript,
     generatedScript: scriptText,
+    adaptationMode: input.adaptationMode,
   });
   if (!referenceMeaning.passed) {
     warnings.push(

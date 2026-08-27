@@ -183,15 +183,13 @@ try {
   assert.equal(laterProfile.wardrobe.description, "sage overshirt");
   const analysisPrompt = buildDirectorAnalysisUserPrompt({
     transcript: "Тест",
-    productName: "Плати по миру",
-    productDescription: "Виртуальная карта для оплаты за границей.",
-    productReferenceNotes: "Выпускается в приложении.",
   });
   assert.ok(analysisPrompt.includes("camera_timeline"));
   assert.ok(analysisPrompt.includes("reference_render_mode"));
   assert.ok(analysisPrompt.includes("reference_motion_mode"));
-  assert.ok(analysisPrompt.includes("content_adaptation"));
-  assert.ok(analysisPrompt.includes("Плати по миру"));
+  assert.ok(analysisPrompt.includes("spoken_transcript"));
+  assert.ok(!analysisPrompt.includes("content_adaptation"));
+  assert.ok(!analysisPrompt.includes("Плати по миру"));
   assert.ok(analysisPrompt.includes("wardrobe_timeline"));
   assert.ok(analysisPrompt.includes("wardrobe_continuity MUST be observed from the video independently"));
   assert.ok(analysisPrompt.includes("raw smartphone texture"));
@@ -495,7 +493,7 @@ try {
       json: async () => ({
         id: "gen-director-1",
         model: "minimax/minimax-m3",
-        choices: [{ message: { content: JSON.stringify({ director_brief: brief }) } }],
+        choices: [{ message: { content: JSON.stringify({ director_brief: brief, spoken_transcript: "Распознанная реплика." }) } }],
         usage: { prompt_tokens: 100, completion_tokens: 23, total_tokens: 123, cost: 0.000146 },
       }),
     };
@@ -503,9 +501,6 @@ try {
   const analyzed = await analyzeDirectorVideo({
     videoUrl: "https://cdn.example.com/direct.mp4",
     transcript: "Тестовая русская реплика.",
-    productName: "Плати по миру",
-    productDescription: "Виртуальная карта для оплаты за границей.",
-    productReferenceNotes: null,
   });
   assert.equal(analyzed.model, "minimax/minimax-m3");
   assert.ok(requestSignal, "director analysis request must have a timeout signal");
@@ -513,6 +508,8 @@ try {
   assert.equal(requestPayload.model, "minimax/minimax-m3");
   assert.equal(requestPayload.messages[1].content[1].type, "video_url");
   assert.equal(requestPayload.messages[1].content[1].video_url.url, "https://cdn.example.com/direct.mp4");
+  assert.equal(requestPayload.messages[1].content.some((item) => item.type === "image_url"), false);
+  assert.equal(analyzed.transcript, "Распознанная реплика.");
   assert.equal(analyzed.openRouterUsage.totalTokens, 123);
   assert.equal(analyzed.openRouterUsage.costUsd, 0.000146);
   assert.equal(analyzed.responseMetadata.openrouter_usage.generationId, "gen-director-1");

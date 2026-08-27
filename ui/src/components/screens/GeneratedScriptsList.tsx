@@ -416,6 +416,7 @@ function GeneratedScriptCard({
 }
 
 function getScriptGenerationStageLabel(stage: string | null) {
+  if (stage === "content_adaptation") return "анализ смысла и адаптация";
   if (stage === "creative_copywriter") return "создание текста";
   if (stage === "director_segmenter") return "раскадровка и режиссура";
   if (stage === "provider_plan_validation") return "проверка плана генерации";

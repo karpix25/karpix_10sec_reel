@@ -1,5 +1,4 @@
 import {
-  OMNI_STORYBOARD_MAX_FRAME_WORDS,
   OMNI_STORYBOARD_MIN_FRAME_WORDS,
   getOmniStoryboardFrameCount,
   isOmniStoryboardDuration,
@@ -123,8 +122,8 @@ function validateRequiredFrameFields(
 
 function validateFrameSpeech(frame: OmniStoryboardFrame, frameIndex: number, errors: string[]) {
   const wordCount = countOmniStoryboardSpokenWords(frame.spokenText);
-  if (wordCount < OMNI_STORYBOARD_MIN_FRAME_WORDS || wordCount > OMNI_STORYBOARD_MAX_FRAME_WORDS) {
-    errors.push(`frame_${frameIndex + 1}_spoken_words_must_be_3_to_5`);
+  if (wordCount !== OMNI_STORYBOARD_MIN_FRAME_WORDS) {
+    errors.push(`frame_${frameIndex + 1}_spoken_words_must_be_exactly_4`);
   }
 }
 

@@ -18,6 +18,11 @@ import {
   renderScriptAdaptationContract,
   type ScriptAdaptationPlan,
 } from "./script-adaptation-contract";
+import {
+  buildLegacyScriptContentContract,
+  renderScriptContentContract,
+  type ScriptContentContract,
+} from "./script-content-contract";
 
 export type PromptChainInput = {
   projectName: string;
@@ -34,9 +39,11 @@ export type PromptChainInput = {
   durationRange?: OmniDurationRange;
   avatarSpeechGender: OmniAvatarSpeechGender;
   adaptationPlan: ScriptAdaptationPlan;
+  contentContract?: ScriptContentContract;
 };
 
 export function buildCreativeCopywriterPrompt(input: PromptChainInput) {
+  const contentContract = resolveScriptContentContract(input);
   return `
 Ты креативный сценарист коротких вертикальных видео.
 
@@ -44,6 +51,7 @@ export function buildCreativeCopywriterPrompt(input: PromptChainInput) {
 Не возвращай JSON. Не добавляй заголовки, пояснения, markdown или варианты.
 
 Критерии:
+${renderScriptContentContract(contentContract)}
 Пиши как человек записывает короткое видео другу, без канцелярита.
 Сначала определи форму хука reference. Сохрани её: утверждение остаётся утверждением, список остаётся списком, вопрос остаётся вопросом. Не превращай любой reference в шаблонный вопрос или универсальный кликбейт.
 Первая часть сценария повторяет хук и механику reference без нашего продукта.
@@ -93,7 +101,7 @@ export function buildDirectorSegmenterPrompt(input: {
   draft: CreativeScriptDraft;
   segmentPlan: OmniReelSegmentPlan;
 }) {
-  const adaptationPlan = input.chainInput.adaptationPlan;
+  const adaptationPlan = resolveScriptContentContract(input.chainInput).adaptation;
   const referenceFormatMode = resolveReferenceFormatMode(input.chainInput.directorBrief);
   const referenceSceneMode = resolveReferenceSceneMode(input.chainInput.directorBrief);
   const montageReference = isVoiceoverMontageReference(referenceFormatMode);
@@ -145,7 +153,7 @@ export function buildDirectorSegmenterPrompt(input: {
 Границы segments, duration_seconds и voiceover уже утверждены ниже. Копируй их дословно и не добавляй, не удаляй, не переставляй и не перефразируй слова.
 total_voiceover должен дословно совпадать с готовым сценарием.
 Количество storyboard frames зависит от duration_seconds: четыре секунды это два кадра, шесть секунд это три кадра, восемь секунд это четыре кадра, десять секунд это пять кадров.
-Каждый frame содержит ровно три, четыре или пять слов финальной русской речи в spoken_words.
+Каждый frame содержит ровно четыре слова финальной русской речи в spoken_words.
 Склейка spoken_words всех frames должна дословно совпадать с voiceover segment.
   ${frameRoleRule} Product_cutaway или environment_cutaway добавляй только там, где это разрешено соответствующим source interval или REFERENCE SHOT CONTRACT и где перебивка помогает смыслу spoken_words. Слова voiceover сами по себе не разрешают новую перебивку, локацию или транспорт. Границы source interval не должны разрывать spoken_words: если короткий interval попадает внутрь незавершённой фразы или на остаток звука, объедини его с соседним interval и не создавай отдельный micro-cut.
 ${hasDetailedTimeline ? renderDirectorTimelineForPrompt(input.chainInput.directorBrief) : "SOURCE SHOT TIMELINE: no verified detailed interval analysis is available."}
@@ -158,7 +166,7 @@ ${presenterReference ? "В talking head кадрах главным героем
 В каждом frame опиши visual_description, camera, action, product_state, sfx и reference_role. Visual_description должен быть конкретной видимой сценой, которая прямо раскрывает смысл spoken_words этого frame, а не универсальной демонстрацией продукта.
 SFX это только естественные звуки кадра. Музыку для Omni не планируй: без фоновой музыки, джинглов и музыкальных эффектов.
 Слова spoken_words будут написаны прямо на визуальном кадре storyboard image и станут единственным источником русской речи для Omni.
-В spoken_words не добавляй лишние слова: только точная реплика кадра, три, четыре или пять слов.
+В spoken_words не добавляй лишние слова: только точная реплика кадра, ровно четыре слова.
 Каждый frame описывает только физическую сцену, камеру, действие и естественный звук внутри кадра.
 Выбирай product_cutaway и удерживание продукта в руках только когда смысл spoken_words этого кадра прямо связан с продуктом, его свойствами или применением. Если фраза посвящена общей теме, проблеме или выводу без прямого контакта с продуктом, продукт должен быть вне кадра (product_state: "вне кадра"), а персонаж говорит с естественной жестикуляцией без товара в руках. В product_cutaway продукт обязан быть физически видимым и детально совпадать с product reference.
 ${hasDetailedTimeline ? "Для непредметных кадров используй физическую сцену соответствующего source interval и не создавай новую локацию или новый транспорт. Она должна наглядно раскрывать текущую реплику через речь, жест или разрешенную продуктовую замену. Из reference не переноси чужой продукт." : "Для непредметных кадров создавай самостоятельную сцену, которая наглядно раскрывает текущую реплику. Из reference бери только общий визуальный язык без чужого продукта."}
@@ -206,7 +214,7 @@ ${JSON.stringify(input.segmentPlan.segments.map((segment, index) => ({
         {
           "index": 1,
           "role": "${exampleFrameRole}",
-          "spoken_words": "три, четыре или пять слов",
+          "spoken_words": "ровно четыре слова в кадре",
           "visual_description": "детальное описание кадра, света, окружения и ${presenterReference ? "персонажа" : "наблюдаемого объекта, среды или визуального героя"}",
           "camera": "крупность, движение и ракурс камеры",
           "action": "${exampleFrameAction}",
@@ -255,13 +263,13 @@ const STORYBOARD_FRAME_ROLE_CONTRACT = [
 ].join(" ");
 
 function buildDurationLine(durationRange?: OmniDurationRange) {
-  if (!durationRange) return "Итоговый сценарий обычно должен быть плотным и коротким.";
+  if (!durationRange) return "Итоговый сценарий обычно должен быть плотным и коротким. Общее количество слов должно делиться на четыре без остатка, чтобы каждый двухсекундный кадр получил ровно четыре слова.";
   const secondsRange = formatPromptChainRange(durationRange.minSeconds, durationRange.maxSeconds);
   const wordsRange = formatPromptChainRange(durationRange.minWords, durationRange.maxWords);
   return [
     `Цель по ролику: ${secondsRange} секунд.`,
     `Текст: ${wordsRange} слов.`,
-    "Не делай сценарий короче нижней границы. Не превышай доступный лимит слов и не создавай больше пяти частей.",
+    "Не делай сценарий короче нижней границы. Используй только количество слов, кратное четырем. Не превышай доступный лимит слов и не создавай больше пяти частей.",
   ].join(" ");
 }
 
@@ -274,6 +282,10 @@ function buildCtaLine(mode: CtaMode, value: string | null) {
 
 function buildProductTimingContract(): string {
   return "Единый контракт интеграции продукта: найди в reference конкретную ситуацию, потребность, выбор или проблему, где продукт уместен как инструмент, пример или решение. Перед упоминанием сформулируй короткий причинный мостик от текущей мысли к этой потребности; затем назови продукт и покажи только подтвержденную пользу именно для нее. Упоминание может быть в любой естественной точке, не обязательно в середине. Если предложение о продукте можно удалить без потери логики, перепиши его. В director storyboard показывай продукт только в кадрах этой причинной интеграции, без отдельного рекламного блока.";
+}
+
+export function resolveScriptContentContract(input: PromptChainInput): ScriptContentContract {
+  return input.contentContract || buildLegacyScriptContentContract(input.sourceScenario.script, input.adaptationPlan);
 }
 
 function renderPromptChainWardrobeRule(

@@ -14,14 +14,14 @@ import {
 test("locks approved speech while preserving director visuals", () => {
   const director = normalizeDirectorSegmentPlan({
     format: "voiceover_broll",
-    total_voiceover: "модель переписала текст",
+    total_voiceover: "модель переписала текст для двух точных кадров сегодня",
     segments: [{
       index: 1,
       duration_seconds: 4,
-      voiceover: "модель переписала текст",
+      voiceover: "модель переписала текст для двух точных кадров сегодня",
       storyboard_frames: [
-        frame(1, "environment_cutaway", "модель переписала"),
-        frame(2, "product_cutaway", "текст сейчас"),
+        frame(1, "environment_cutaway", "модель переписала текст для"),
+        frame(2, "product_cutaway", "двух точных кадров сегодня"),
       ],
     }],
   });
