@@ -32,12 +32,12 @@ try {
 
   assert.equal(getOmniSegmentDurationForWordCount(5), null, "segments below the storyboard speech floor are invalid");
   assert.equal(getOmniSegmentDurationForWordCount(8), 4);
-  assert.equal(getOmniSegmentDurationForWordCount(10), null);
+  assert.equal(getOmniSegmentDurationForWordCount(10), 4);
   assert.equal(getOmniSegmentDurationForWordCount(11), null);
   assert.equal(getOmniSegmentDurationForWordCount(12), 6);
   assert.equal(getOmniSegmentDurationForWordCount(16), 8);
   assert.equal(getOmniSegmentDurationForWordCount(20), 10);
-  assert.equal(getOmniSegmentDurationForWordCount(21), null);
+  assert.equal(getOmniSegmentDurationForWordCount(21), 10);
   assert.equal(getOmniSegmentDurationForWordCount(25), null);
   assert.equal(getOmniSegmentDurationForWordCount(26), null);
 
@@ -203,10 +203,14 @@ try {
   assert.deepEqual(expandedPlan.segmentWordCounts, [20, 20, 20, 12]);
   assert.deepEqual(expandedPlan.segmentDurationsSeconds, [10, 10, 10, 6]);
   assert.equal(expandedPlan.durationSeconds, 36);
+  const tailPlan = planOmniReelSegments(makeScript(74), { durationRange: exactThirty });
+  assert.deepEqual(tailPlan.segmentWordCounts, [20, 20, 20, 14]);
+  assert.deepEqual(tailPlan.segmentDurationsSeconds, [10, 10, 10, 6]);
+  assert.equal(tailPlan.durationSeconds, 36);
   assert.throws(
-    () => planOmniReelSegments(makeScript(74), { durationRange: exactThirty }),
-    (error) => error instanceof Error && /делиться на четыре/u.test(error.message),
-    "non-multiple-of-four scripts must be regenerated instead of silently truncated"
+    () => planOmniReelSegments(makeScript(75), { durationRange: exactThirty }),
+    (error) => error instanceof Error && /остаток только в одно или два/u.test(error.message),
+    "a three-word tail must still be rejected instead of silently redistributed"
   );
 
   console.log("Omni segment planner regression checks passed");

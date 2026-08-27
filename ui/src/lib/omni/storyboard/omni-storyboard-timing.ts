@@ -27,6 +27,23 @@ export function getOmniStoryboardWordRange(durationSeconds: number) {
 export function getOmniStoryboardDurationForWordCount(wordCount: number) {
   return OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS.find((durationSeconds) => {
     const range = getOmniStoryboardWordRange(durationSeconds);
-    return range ? wordCount >= range.minWords && wordCount <= range.maxWords : false;
+    if (!range) return false;
+    const tailWords = getOmniStoryboardTailWordCount(wordCount);
+    return wordCount >= range.minWords && wordCount <= range.maxWords + (tailWords || 0);
   }) || null;
+}
+
+export function getOmniStoryboardTailWordCount(wordCount: number) {
+  const remainder = wordCount % OMNI_STORYBOARD_MIN_FRAME_WORDS;
+  return remainder === 1 || remainder === 2 ? remainder : 0;
+}
+
+export function getOmniStoryboardFrameWordCounts(wordCount: number, durationSeconds: number) {
+  const frameCount = getOmniStoryboardFrameCount(durationSeconds);
+  const range = getOmniStoryboardWordRange(durationSeconds);
+  const tailWords = getOmniStoryboardTailWordCount(wordCount);
+  if (!frameCount || !range || wordCount < range.minWords || wordCount > range.maxWords + tailWords) return null;
+  return Array.from({ length: frameCount }, (_, index) =>
+    OMNI_STORYBOARD_MIN_FRAME_WORDS + (index >= frameCount - tailWords ? 1 : 0)
+  );
 }

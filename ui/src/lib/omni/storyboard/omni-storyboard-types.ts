@@ -4,6 +4,7 @@ export {
   OMNI_STORYBOARD_MIN_FRAME_WORDS,
   OMNI_STORYBOARD_SECONDS_PER_FRAME,
   getOmniStoryboardDurationForWordCount,
+  getOmniStoryboardFrameWordCounts,
   getOmniStoryboardFrameCount,
   getOmniStoryboardWordRange,
   isOmniStoryboardDuration,

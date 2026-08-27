@@ -108,6 +108,19 @@ try {
   assert.equal(chunks[0].boundary, "continuation");
   assert.equal(chunks[1].boundary, "segment_end");
 
+  assert.deepEqual(
+    speech.splitStoryboardSpeech(Array.from({ length: 21 }, (_, index) => `слово${index + 1}`).join(" "), 5)
+      .map((text) => text.split(/\s+/u).length),
+    [4, 4, 4, 4, 5],
+    "one-word tail must be placed into the last storyboard frame"
+  );
+  assert.deepEqual(
+    speech.splitStoryboardSpeech(Array.from({ length: 22 }, (_, index) => `слово${index + 1}`).join(" "), 5)
+      .map((text) => text.split(/\s+/u).length),
+    [4, 4, 4, 5, 5],
+    "two-word tail must be distributed across the last storyboard frames"
+  );
+
   console.log("Omni speech visual alignment checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });

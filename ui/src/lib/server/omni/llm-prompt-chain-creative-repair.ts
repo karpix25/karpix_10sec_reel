@@ -156,7 +156,7 @@ function renderFailedChecks(review: ScriptSemanticReview | null) {
 }
 
 function renderWordBudget(input: PromptChainInput) {
-  const exactFrameRule = "Общее количество слов должно делиться на четыре без остатка: каждый двухсекундный кадр содержит ровно четыре слова.";
+  const exactFrameRule = "Держи примерно четыре слова на двухсекундный кадр; остаток в одно или два слова допустим только в последних кадрах последней части.";
   if (!input.durationRange) return `Сохрани плотную длину исходного rejected script. ${exactFrameRule}`;
   return `Целевая длина: ${formatPromptChainRange(input.durationRange.minWords, input.durationRange.maxWords)} слов. Не урезай смысл ради диапазона: при необходимости сохрани текст до общего лимита 100 слов, а раскадровка добавит часть. ${exactFrameRule}`;
 }

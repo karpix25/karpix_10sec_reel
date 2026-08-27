@@ -18,6 +18,7 @@ import {
   type OmniAllowedSegmentSeconds,
 } from "./omni-speech-density";
 import type { OmniDurationRange } from "./omni-duration-range";
+import { getOmniStoryboardTailWordCount } from "../../omni/storyboard/omni-storyboard-timing";
 
 export {
   OMNI_MAX_SEGMENT_COUNT,
@@ -126,6 +127,8 @@ function buildCandidate(
 }
 
 function findTargetWordCountOptions(wordCount: number, segmentCount: number): number[][] {
+  const tailWords = getOmniStoryboardTailWordCount(wordCount);
+  const baseWordCount = wordCount - tailWords;
   const segmentWordCounts = [...OMNI_ALLOWED_SEGMENT_SECONDS]
     .map((seconds) => getOmniSegmentWordBudget(seconds))
     .sort((left, right) => right - left);
@@ -146,8 +149,12 @@ function findTargetWordCountOptions(wordCount: number, segmentCount: number): nu
     }
   }
 
-  visit(wordCount, segmentCount, []);
-  return options;
+  visit(baseWordCount, segmentCount, []);
+  return options.map((option) => {
+    if (!tailWords) return option;
+    const lastIndex = option.length - 1;
+    return [...option.slice(0, lastIndex), option[lastIndex] + tailWords];
+  });
 }
 
 function isAnySegmentCountViable(wordCount: number) {
@@ -192,9 +199,10 @@ function scoreSegments(
   return segmentCountPenalty + durationRangePenalty + segments.reduce((score, segment, index) => {
     const duration = durations[index] || OMNI_SEGMENT_SECONDS;
     const budget = getOmniSegmentWordBudget(duration);
-    const densityRatio = segment.wordCount / budget;
+    const segmentBudget = budget + getOmniStoryboardTailWordCount(segment.wordCount);
+    const densityRatio = segment.wordCount / segmentBudget;
     const sparsePenalty = densityRatio < 0.72 ? Math.pow((0.72 - densityRatio) * 10, 2) : 0;
-    const overflowPenalty = segment.wordCount > budget ? Math.pow(segment.wordCount - budget, 2) * 20 : 0;
+    const overflowPenalty = segment.wordCount > segmentBudget ? Math.pow(segment.wordCount - segmentBudget, 2) * 20 : 0;
     const durationPenalty = duration * 0.5;
     return score + sparsePenalty + overflowPenalty + durationPenalty + (index < segments.length - 1 ? endingPenalty(segment.text) : 0);
   }, 0);
@@ -229,7 +237,7 @@ function buildPlanReason(
     .filter((segment) => /[.!?,;:][»"]?$/.test(segment.text)).length;
   const density = counts.every((count, index) => {
     const budget = getOmniSegmentWordBudget(durations[index] || OMNI_SEGMENT_SECONDS);
-    return count >= OMNI_TARGET_SEGMENT_WORDS_MIN && count <= budget;
+    return count >= OMNI_TARGET_SEGMENT_WORDS_MIN && count <= budget + getOmniStoryboardTailWordCount(count);
   }) ? "плотная речь без пауз" : "безопасная плотность речи";
   const boundaries = naturalBoundaryCount > 0 ? " и естественные границы фраз" : "";
   const target = durationRange ? `; цель ${durationRange.minSeconds}-${durationRange.maxSeconds}с` : "";

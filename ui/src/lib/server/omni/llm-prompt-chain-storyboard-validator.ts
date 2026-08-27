@@ -12,6 +12,7 @@ import {
   type ReferenceSegmentPlan,
 } from "./reference-segment-plan";
 import {
+  getOmniStoryboardFrameWordCounts,
   getOmniStoryboardFrameCount,
   isOmniStoryboardDuration,
 } from "../../omni/storyboard/omni-storyboard-timing";
@@ -165,6 +166,10 @@ function validateStoryboardFrames(
     });
     return;
   }
+  const expectedWordCounts = getOmniStoryboardFrameWordCounts(
+    countWords(frames.map((frame) => frame.spokenWords).join(" ")),
+    durationSeconds
+  );
   frames.forEach((frame, frameIndex) => {
     if (!STORYBOARD_FRAME_ROLES.has(frame.role)) {
       issues.push({
@@ -175,11 +180,14 @@ function validateStoryboardFrames(
       });
     }
     const wordCount = countWords(frame.spokenWords);
-    if (wordCount !== OMNI_STORYBOARD_WORDS_PER_FRAME_MIN) {
+    const expectedWordCount = expectedWordCounts?.[frameIndex] || OMNI_STORYBOARD_WORDS_PER_FRAME_MIN;
+    if (wordCount !== expectedWordCount) {
       issues.push({
         path: `${path}.${frameIndex}.spokenWords`,
         code: "storyboard_spoken_word_count",
-        message: "Each storyboard frame must contain exactly four final spoken Russian words.",
+        message: expectedWordCount === OMNI_STORYBOARD_WORDS_PER_FRAME_MIN
+          ? "Each storyboard frame must contain exactly four final spoken Russian words."
+          : `The final storyboard frame may contain ${expectedWordCount} words for a one or two word tail.`,
         severity: "error",
       });
     }

@@ -1,5 +1,6 @@
 import {
   OMNI_STORYBOARD_MIN_FRAME_WORDS,
+  getOmniStoryboardFrameWordCounts,
   getOmniStoryboardFrameCount,
 } from "../../../omni/storyboard/omni-storyboard-types";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
@@ -18,11 +19,12 @@ export function splitStoryboardSpeech(text: string, frameCount: number) {
 
 export function splitStoryboardSpeechWithBoundaries(text: string, frameCount: number): StoryboardSpeechChunk[] {
   const words = text.trim().split(/\s+/u).filter(Boolean);
-  if (frameCount < 1 || words.length !== frameCount * OMNI_STORYBOARD_MIN_FRAME_WORDS) return [];
+  const frameWordCounts = getOmniStoryboardFrameWordCounts(words.length, frameCount * 2);
+  if (frameCount < 1 || !frameWordCounts) return [];
   const chunks: StoryboardSpeechChunk[] = [];
   let cursor = 0;
   for (let index = 0; index < frameCount; index += 1) {
-    const size = OMNI_STORYBOARD_MIN_FRAME_WORDS;
+    const size = frameWordCounts[index] || OMNI_STORYBOARD_MIN_FRAME_WORDS;
     const endWord = cursor + size;
     const previous = words[endWord - 1] || "";
     chunks.push({

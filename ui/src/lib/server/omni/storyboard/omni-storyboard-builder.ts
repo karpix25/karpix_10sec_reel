@@ -1,6 +1,6 @@
 import type { OmniPromptValidationResult, OmniSegmentCreativePlan, ProductRole } from "../../../omni/creative-contract";
 import {
-  OMNI_STORYBOARD_MIN_FRAME_WORDS,
+  getOmniStoryboardFrameWordCounts,
   getOmniStoryboardFrameCount,
   type OmniStoryboardFrame,
   type OmniStoryboardSegment,
@@ -62,9 +62,8 @@ export function buildStoryboardFromCreativePlan(input: {
   const frameCount = getOmniStoryboardFrameCount(input.durationSeconds);
   if (!frameCount) throw new Error(`Storyboard segment ${input.segmentIndex} has unsupported duration ${input.durationSeconds}`);
   const words = input.plan.voiceoverText.trim().split(/\s+/u).filter(Boolean);
-  const minWords = frameCount * OMNI_STORYBOARD_MIN_FRAME_WORDS;
-  if (words.length !== minWords) {
-    throw new Error(`Storyboard segment ${input.segmentIndex} needs exactly ${minWords} words, got ${words.length}`);
+  if (!getOmniStoryboardFrameWordCounts(words.length, input.durationSeconds)) {
+    throw new Error(`Storyboard segment ${input.segmentIndex} word count does not match the supported frame distribution`);
   }
 
   const chunks = splitStoryboardSpeech(input.plan.voiceoverText, frameCount);
@@ -110,7 +109,7 @@ export function buildStoryboardFromPromptChainFrames(input: {
 }): OmniStoryboardSegment {
   if (!input.frames.length) throw new Error(`Storyboard segment ${input.segmentIndex} has no frames`);
   const speechChunks = splitStoryboardSpeech(input.voiceoverText, input.frames.length);
-  if (speechChunks.length !== input.frames.length || input.frames.some((frame, index) => frame.spokenWords !== speechChunks[index])) throw new Error(`Storyboard segment ${input.segmentIndex} must contain exactly four spoken words per frame`);
+  if (speechChunks.length !== input.frames.length || input.frames.some((frame, index) => frame.spokenWords !== speechChunks[index])) throw new Error(`Storyboard segment ${input.segmentIndex} spoken words do not match the canonical frame distribution`);
   return {
     segmentIndex: input.segmentIndex,
     durationSeconds: input.durationSeconds,

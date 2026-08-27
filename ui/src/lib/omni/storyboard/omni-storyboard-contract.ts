@@ -1,5 +1,6 @@
 import {
   OMNI_STORYBOARD_MIN_FRAME_WORDS,
+  getOmniStoryboardFrameWordCounts,
   getOmniStoryboardFrameCount,
   isOmniStoryboardDuration,
   type OmniStoryboardFrame,
@@ -46,9 +47,13 @@ export function validateOmniStoryboardSegment(input: OmniStoryboardSegment): Omn
     errors.push(`segment_must_have_exactly_${expectedFrameCount}_storyboard_frames`);
   }
 
+  const expectedFrameWordCounts = getOmniStoryboardFrameWordCounts(
+    countOmniStoryboardSpokenWords(normalizedSegment.voiceoverText),
+    normalizedSegment.durationSeconds
+  );
   normalizedSegment.frames.forEach((frame, frameIndex) => {
     validateRequiredFrameFields(frame, frameIndex, errors);
-    validateFrameSpeech(frame, frameIndex, errors);
+    validateFrameSpeech(frame, frameIndex, errors, expectedFrameWordCounts?.[frameIndex]);
     validateNoModelMusicCues(frame, frameIndex, errors);
   });
 
@@ -120,10 +125,17 @@ function validateRequiredFrameFields(
   }
 }
 
-function validateFrameSpeech(frame: OmniStoryboardFrame, frameIndex: number, errors: string[]) {
+function validateFrameSpeech(
+  frame: OmniStoryboardFrame,
+  frameIndex: number,
+  errors: string[],
+  expectedWordCount = OMNI_STORYBOARD_MIN_FRAME_WORDS
+) {
   const wordCount = countOmniStoryboardSpokenWords(frame.spokenText);
-  if (wordCount !== OMNI_STORYBOARD_MIN_FRAME_WORDS) {
-    errors.push(`frame_${frameIndex + 1}_spoken_words_must_be_exactly_4`);
+  if (wordCount !== expectedWordCount) {
+    errors.push(expectedWordCount === OMNI_STORYBOARD_MIN_FRAME_WORDS
+      ? `frame_${frameIndex + 1}_spoken_words_must_be_exactly_4`
+      : `frame_${frameIndex + 1}_spoken_words_must_be_${expectedWordCount}`);
   }
 }
 
