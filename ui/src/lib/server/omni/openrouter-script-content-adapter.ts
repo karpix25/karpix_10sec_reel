@@ -6,6 +6,7 @@ import {
 } from "./script-content-contract";
 import {
   buildScriptContentAdapterPrompt,
+  buildScriptContentAdapterRepairPrompt,
   SCRIPT_CONTENT_ADAPTER_PROMPT_VERSION,
   SCRIPT_CONTENT_ADAPTER_SYSTEM_PROMPT,
 } from "./script-content-adapter-prompt";
@@ -14,12 +15,14 @@ import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "google/gemini-3.5-flash-lite";
 const REQUEST_TIMEOUT_MS = 90_000;
+const MAX_ATTEMPTS = 5;
 
 export type ScriptContentAdapterResult = {
   contract: ScriptContentContract;
   model: string;
   promptVersion: typeof SCRIPT_CONTENT_ADAPTER_PROMPT_VERSION;
-  openRouterUsage: OpenRouterUsageRecord;
+  openRouterUsage: OpenRouterUsageRecord[];
+  attemptCount: number;
 };
 
 export async function analyzeScriptContentAndAdapt(input: {
@@ -36,21 +39,89 @@ export async function analyzeScriptContentAndAdapt(input: {
   if (!input.transcript.trim()) throw new Error("Контентная адаптация невозможна без транскрипта reference");
 
   const model = input.model || process.env.SCENARIO_MODEL || DEFAULT_MODEL;
+  const usage: OpenRouterUsageRecord[] = [];
+  let previousResponse = "";
+  let failureReason = "";
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const data = await requestContentAdapterResponse({
+        apiKey,
+        model,
+        userPrompt: attempt === 1 && !previousResponse && !failureReason
+          ? buildScriptContentAdapterPrompt(input)
+          : buildScriptContentAdapterRepairPrompt(input, previousResponse, failureReason),
+      });
+      let content: string;
+      try {
+        content = readAssistantContent(data);
+      } catch (error) {
+        failureReason = "модель вернула пустой ответ";
+        lastError = error;
+        continue;
+      }
+      previousResponse = content;
+      const responseModel = String(data.model || model);
+      const pricing = await getOpenRouterPricingSnapshot(responseModel);
+      usage.push(normalizeOpenRouterUsage({
+        layer: "content_adapter",
+        model,
+        response: data,
+        attempt,
+        pricing,
+      }));
+      let parsed: unknown;
+      try {
+        parsed = parseAndRepairJson(content);
+      } catch {
+        failureReason = "модель вернула невалидный JSON";
+        lastError = new Error("Script content adapter returned invalid JSON");
+        continue;
+      }
+      const contract = normalizeScriptContentContract(parsed);
+      if (contract) {
+        return {
+          contract,
+          model: responseModel,
+          promptVersion: SCRIPT_CONTENT_ADAPTER_PROMPT_VERSION,
+          openRouterUsage: usage,
+          attemptCount: attempt,
+        };
+      }
+      failureReason = `контракт не прошел схему, поля верхнего уровня: ${describeKeys(parsed)}`;
+      lastError = new Error("Script content adapter returned invalid content contract JSON");
+    } catch (error) {
+      lastError = error;
+      if (attempt === MAX_ATTEMPTS) break;
+    }
+  }
+
+  const message = lastError instanceof Error ? lastError.message : String(lastError || "unknown error");
+  throw new Error(`Script content adapter failed after ${MAX_ATTEMPTS} attempts: ${message}. Последняя причина: ${failureReason || "запрос не завершился"}`);
+}
+
+async function requestContentAdapterResponse(input: {
+  apiKey: string;
+  model: string;
+  userPrompt: string;
+}) {
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${input.apiKey}`,
       "Content-Type": "application/json",
       "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://n8n-omnireels.ap2dy7.easypanel.host",
       "X-Title": "Omni Reels Script Content Adapter",
     },
     body: JSON.stringify({
-      model,
+      model: input.model,
       temperature: 0,
+      max_tokens: 4000,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SCRIPT_CONTENT_ADAPTER_SYSTEM_PROMPT },
-        { role: "user", content: buildScriptContentAdapterPrompt(input) },
+        { role: "user", content: input.userPrompt },
       ],
     }),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -59,24 +130,7 @@ export async function analyzeScriptContentAndAdapt(input: {
     const text = await response.text().catch(() => "");
     throw new Error(`Script content adapter failed: ${response.status} ${text.slice(0, 240)}`);
   }
-
-  const data = (await response.json()) as Record<string, unknown>;
-  const contract = normalizeScriptContentContract(parseAndRepairJson(readAssistantContent(data)));
-  if (!contract) throw new Error("Script content adapter returned invalid content contract JSON");
-  const responseModel = String(data.model || model);
-  const pricing = await getOpenRouterPricingSnapshot(responseModel);
-  return {
-    contract,
-    model: responseModel,
-    promptVersion: SCRIPT_CONTENT_ADAPTER_PROMPT_VERSION,
-    openRouterUsage: normalizeOpenRouterUsage({
-      layer: "content_adapter",
-      model,
-      response: data,
-      attempt: 1,
-      pricing,
-    }),
-  };
+  return (await response.json()) as Record<string, unknown>;
 }
 
 function readAssistantContent(data: Record<string, unknown>) {
@@ -90,4 +144,9 @@ function readAssistantContent(data: Record<string, unknown>) {
     if (typeof content === "string" && content.trim()) return content;
   }
   throw new Error("Script content adapter returned empty content");
+}
+
+function describeKeys(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return typeof value;
+  return Object.keys(value).slice(0, 12).join(",") || "none";
 }

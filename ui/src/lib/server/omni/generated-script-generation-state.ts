@@ -92,6 +92,7 @@ export async function failGeneratedScriptGeneration(scriptId: number, error: unk
 }
 
 function inferGenerationStage(message: string) {
+  if (message.startsWith("Script content adapter")) return "content_adaptation";
   if (message.startsWith("Reference нельзя честно адаптировать")) return "content_adaptation";
   if (message.startsWith("Creative copywriter failed")) return "creative_copywriter";
   if (message.startsWith("Director segmenter failed")) return "director_segmenter";

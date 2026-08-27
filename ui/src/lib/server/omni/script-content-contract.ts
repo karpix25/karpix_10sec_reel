@@ -140,7 +140,9 @@ function readText(value: unknown) {
 }
 
 function readTextArray(value: unknown) {
-  return Array.isArray(value) ? value.map(readText).filter(Boolean) : [];
+  if (Array.isArray(value)) return value.map(readText).filter(Boolean);
+  const text = readText(value);
+  return text ? [text] : [];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -26,10 +26,10 @@ export function normalizeScriptAdaptationPlan(value: unknown): ScriptAdaptationP
   ) return null;
   const reason = readText(candidate.reason);
   const productBridge = readText(candidate.product_bridge ?? candidate.productBridge);
-  if (!reason || !productBridge) return null;
-  const preserve = readTextArray(candidate.preserve);
-  const replace = readTextArray(candidate.replace);
-  if (!preserve.length || !replace.length) return null;
+  if (!reason || (mode !== "incompatible" && !productBridge)) return null;
+  const preserve = readTextArray(candidate.preserve ?? candidate.must_preserve);
+  const replace = readTextArray(candidate.replace ?? candidate.may_replace);
+  if (mode !== "incompatible" && !preserve.length) return null;
   const confidence = Number(candidate.confidence);
   return {
     version: "script-adaptation-v1",
@@ -104,5 +104,7 @@ function renderSemanticOnlyText(value: string) {
 }
 
 function readTextArray(value: unknown) {
-  return Array.isArray(value) ? value.map(readText).filter(Boolean) : [];
+  if (Array.isArray(value)) return value.map(readText).filter(Boolean);
+  const text = readText(value);
+  return text ? [text] : [];
 }

@@ -59,6 +59,44 @@ try {
   assert.match(rendered, /оплату остальных расходов картой/u);
   assert.match(rendered, /Смысловые пункты проверяй по значению/u);
 
+  const emptyReplacement = contract.normalizeScriptContentContract({
+    source_meaning: {
+      hook: "Я неделю жил бесплатно.",
+      main_question: "Как путешествовать дешевле?",
+      answer_or_mechanism: "Через обмен жильем.",
+      required_points: [],
+      proof_examples: [],
+      conclusion: "Так поездка обходится дешевле.",
+    },
+    adaptation: {
+      mode: "preserve_reference",
+      reason: "Продукт решает ту же платежную задачу.",
+      preserve: ["ответ reference"],
+      replace: [],
+      product_bridge: "После ответа показать оплату картой.",
+    },
+  });
+  assert.ok(emptyReplacement, "Пустой список замен допустим, когда заменять нечего");
+
+  const incompatibleWithoutBridge = contract.normalizeScriptContentContract({
+    source_meaning: {
+      hook: "Тестовый хук.",
+      main_question: "Тестовый вопрос.",
+      answer_or_mechanism: "Тестовый механизм.",
+      required_points: [],
+      proof_examples: [],
+      conclusion: "Тестовый вывод.",
+    },
+    adaptation: {
+      mode: "incompatible",
+      reason: "Честной связи нет.",
+      preserve: [],
+      replace: [],
+      product_bridge: "",
+    },
+  });
+  assert.ok(incompatibleWithoutBridge, "Несовместимый reference не требует продуктового моста");
+
   const incompatible = new contract.IncompatibleReferenceError({
     ...normalized,
     adaptation: { ...normalized.adaptation, mode: "incompatible", reason: "Честной связи нет." },
@@ -75,7 +113,23 @@ try {
   });
   assert.match(prompt, /source_meaning/u);
   assert.match(prompt, /incompatible/u);
+  assert.match(prompt, /replace может быть пустым массивом/u);
   assert.match(adapterPrompt.SCRIPT_CONTENT_ADAPTER_SYSTEM_PROMPT, /Не раскрывай цепочку размышлений/u);
+
+  const repairPrompt = adapterPrompt.buildScriptContentAdapterRepairPrompt(
+    {
+      transcript: "Я неделю жил бесплатно.",
+      title: "Как не платить за отель",
+      topic: "Путешествия",
+      productName: "Плати по миру",
+      productDescription: "Виртуальная карта для оплаты за границей.",
+      productReferenceNotes: null,
+    },
+    '{"source_meaning":{}}',
+    "контракт не прошел схему",
+  );
+  assert.match(repairPrompt, /пустой массив replace/u);
+  assert.match(repairPrompt, /source_meaning и adaptation/u);
 
   console.log("Omni script content contract checks passed");
 } finally {

@@ -407,7 +407,7 @@ export async function createGeneratedScriptFromLegacy(input: {
   const directorCost = extractOpenRouterCostSummaryFromSnapshot(directorAnalysis?.source_snapshot);
   const openRouterUsage = [
     ...(directorCost?.layers || []),
-    contentAdaptation.openRouterUsage,
+    ...contentAdaptation.openRouterUsage,
     ...generated.openRouterUsage,
   ];
   const openRouterCost = summarizeOpenRouterUsage(openRouterUsage);
@@ -418,6 +418,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     content_adaptation_plan: contentAdaptation.contract.adaptation,
     content_adapter_model: contentAdaptation.model,
     content_adapter_prompt_version: contentAdaptation.promptVersion,
+    content_adapter_attempt_count: contentAdaptation.attemptCount,
     generation_stage: "completed",
     generation_error: null,
     quality_check: generated.qualityCheck,

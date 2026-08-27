@@ -36,9 +36,10 @@ export async function prepareGeneratedScriptContent(input: {
     content_adaptation_plan: contentAdaptation.contract.adaptation,
     content_adapter_model: contentAdaptation.model,
     content_adapter_prompt_version: contentAdaptation.promptVersion,
+    content_adapter_attempt_count: contentAdaptation.attemptCount,
     reference_transcript: input.referenceTranscript,
-    openrouter_usage: [contentAdaptation.openRouterUsage],
-    openrouter_cost: summarizeOpenRouterUsage([contentAdaptation.openRouterUsage]),
+    openrouter_usage: contentAdaptation.openRouterUsage,
+    openrouter_cost: summarizeOpenRouterUsage(contentAdaptation.openRouterUsage),
   });
   if (contentAdaptation.contract.adaptation.mode === "incompatible") {
     throw new IncompatibleReferenceError(contentAdaptation.contract);
