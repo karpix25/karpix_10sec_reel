@@ -51,12 +51,12 @@ try {
     productRole: "brief_demo",
   });
 
-  assert.deepEqual(plan.visibleByFrame, [true, true, false, false, false]);
+  assert.deepEqual(plan.visibleByFrame, [true, true, true, true, true]);
   assert.equal(plan.firstVisibleFrame, 1);
-  assert.equal(plan.lastVisibleFrame, 2);
+  assert.equal(plan.lastVisibleFrame, 5);
   assert.deepEqual(
     physical.resolveProductDemoFrame(plan.visibleByFrame, 1, 5),
-    { frameIndex: 2, frameCount: 2 },
+    { frameIndex: 2, frameCount: 5 },
   );
   assert.deepEqual(
     physical.resolveProductDemoFrame([false, false, true, true, false], 2, 5),
