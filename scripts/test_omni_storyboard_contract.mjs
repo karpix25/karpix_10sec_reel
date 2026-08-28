@@ -79,7 +79,7 @@ try {
   assert.ok(prompt.includes("WARDROBE CONTINUITY") || prompt.includes("один и тот же полный комплект одежды"));
   assert.ok(prompt.includes("смотрит прямо в объектив"));
   assert.ok(prompt.includes("CAMERA AUTHORITY"));
-  assert.ok(prompt.includes("follow each panel camera"));
+  assert.ok(prompt.includes("follow the new panels"));
   assert.ok(prompt.includes("no left-right/front-rear, seat"));
   const vehiclePrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
     storyboard: buildValidStoryboard(),
@@ -101,6 +101,7 @@ try {
   });
   assert.ok(movingVehiclePrompt.includes("handheld micro-vibration"));
   assert.ok(movingVehiclePrompt.includes("presenter is a passenger"));
+  assert.ok(prompt.includes("PRODUCT FRAME CONTRACT"));
   assert.ok(prompt.includes("Состояние продукта держи одинаковым"));
   assert.ok(prompt.includes("Ровно 5 живых эпизодов"));
   assert.ok(prompt.includes("Артикул есть в описании!"));
@@ -127,7 +128,7 @@ try {
   assert.ok(finalPrompt.includes("Артикул есть в описании!"));
   assert.ok(finalPrompt.includes("@product_file"));
   assert.ok(finalPrompt.includes("Продукт из"));
-  assert.ok(finalPrompt.includes("неизменная упаковка"));
+  assert.ok(finalPrompt.includes("одну и ту же утвержденную форму продукта"));
   assert.ok(finalPrompt.includes("Состояние продукта держи одинаковым"));
 
   const physicalContract = "The product remains a cohesive soft translucent jelly dessert with a glossy surface and gentle elastic wobble. It keeps the same reference shape as one intact semi-solid mass.";
@@ -153,7 +154,8 @@ try {
     productName: "Пенка",
   });
   assert.ok(mixedProductPrompt.includes("кадрах 2"));
-  assert.ok(mixedProductPrompt.includes("в остальных кадрах вне кадра"));
+  assert.ok(mixedProductPrompt.includes("FRAME 1: продукт вне кадра"));
+  assert.ok(mixedProductPrompt.includes("FRAME 2: продукт видим"));
 
   const visualCueProductPlan = builder.buildStoryboardFromCreativePlan({
     plan: {

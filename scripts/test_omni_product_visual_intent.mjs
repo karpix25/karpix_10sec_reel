@@ -42,6 +42,7 @@ try {
 
   const intent = require(findFile(compiled, "omni-product-visual-intent.js"));
   const physical = require(findFile(compiled, "physical-scene-model.js"));
+  const reference = require(findFile(compiled, "reference-segment-plan.js"));
   const sourceValidator = require(findFile(compiled, "llm-prompt-chain-storyboard-validator.js"));
   const plan = intent.buildOmniProductVisualIntent({
     voiceoverText: "Вот Хлорофилл для ежедневного приема. Он остается рядом пока я объясняю пользу. Потом возвращаемся к режиму сна и отдыху сегодня.",
@@ -91,7 +92,7 @@ try {
     sfx: null,
     referenceRole: "product",
   };
-  const repairedFrames = require(findFile(compiled, "reference-segment-plan.js")).applyReferenceSegmentPlanToFrames(
+  const repairedFrames = reference.applyReferenceSegmentPlanToFrames(
     sourcePlan,
     [staleProductFrame],
     true,
@@ -107,6 +108,50 @@ try {
     productName: "Хлорофилл",
     productVisible: false,
   }).some((issue) => issue.code === "storyboard_product_cutaway_without_product_intent"), false);
+
+  const consistencyCases = [
+    { speechMode: "on_camera", expectedPresenter: true, expectedBroll: false, currentRole: "environment_cutaway", expectedRole: "face_return" },
+    { speechMode: "on_camera", avatarAllowed: false, expectedPresenter: false, expectedBroll: true, currentRole: "environment_cutaway", expectedRole: "environment_cutaway" },
+    { speechMode: "voiceover_only", expectedPresenter: false, expectedBroll: true, currentRole: "face_open", expectedRole: "environment_cutaway" },
+  ];
+  for (const testCase of consistencyCases) {
+    const beat = {
+      startSeconds: 0,
+      endSeconds: 2,
+      sourceStartSeconds: 0,
+      sourceEndSeconds: 2,
+      action: "тестовый source beat",
+      gesture: "естественное движение",
+      camera: "средний план",
+      setting: "комната",
+      environment: "стол",
+      lighting: "мягкий свет",
+      ...testCase,
+    };
+    assert.equal(reference.isReferencePresenterSource(beat), testCase.expectedPresenter);
+    assert.equal(reference.isReferenceBrollSource(beat), testCase.expectedBroll);
+    const plan = { segmentIndex: 1, durationSeconds: 2, beats: [beat] };
+    const frame = {
+      index: 1,
+      role: testCase.currentRole,
+      spokenWords: "Проверяем роли",
+      visualDescription: "нейтральная тестовая сцена",
+      camera: "средний план",
+      action: "нейтральное действие",
+      productState: "продукт вне кадра",
+      sfx: null,
+      referenceRole: "avatar",
+    };
+    const aligned = reference.applyReferenceSegmentPlanToFrames(plan, [frame], true);
+    assert.equal(aligned[0].role, testCase.expectedRole);
+    assert.equal(sourceValidator.validateStoryboardFrameSourceInterval({
+      frame: aligned[0],
+      frameIndex: 0,
+      frameCount: 1,
+      path: "frame.0",
+      plan,
+    }).length, 0);
+  }
 
   console.log("Omni product visual intent checks passed");
 } finally {

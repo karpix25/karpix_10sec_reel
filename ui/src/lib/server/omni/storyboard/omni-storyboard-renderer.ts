@@ -54,9 +54,6 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName || "") ? index + 1 : null)
     .filter((index): index is number => index !== null);
   const productAppearsInThisSegment = productFrameNumbers.length > 0;
-  const hiddenProductFrames = productAppearsInThisSegment && productFrameNumbers.length < frameCount
-    ? "; в остальных кадрах вне кадра"
-    : "";
 
   return [
     `Динамичный разговорный ролик по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; сохрани визуал.`,
@@ -123,16 +120,12 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       : montageReference
         ? "VOICEOVER MONTAGE: голос может идти за кадром поверх независимых кадров; talking-head взгляд выбирай только когда он помогает новой раскадровке."
         : "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
-    productAppearsInThisSegment
-      ? input.productRole === "digital_demo"
-        ? `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: утвержденный экран мобильного продукта на смартфоне в кадрах ${productFrameNumbers.join(", ")}${hiddenProductFrames}; не превращай его в пластиковую карту или упаковку.`
-        : `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: неизменная упаковка в кадрах ${productFrameNumbers.join(", ")}${hiddenProductFrames}; оживи утвержденную последовательность без телепортаций.`
-      : "В этом сегменте продукт вне кадра; не переноси его из reference-кадра.",
-    productAppearsInThisSegment
-      ? input.productRole === "digital_demo"
-        ? "Сохраняй один и тот же утвержденный экран продукта и положение смартфона в пределах действия."
-        : "Состояние продукта держи одинаковым по утвержденной физической последовательности."
-      : "",
+    renderProductFrameContract({
+      storyboard: input.storyboard,
+      productName: input.productName || "продукт",
+      productRole: input.productRole,
+      productFrameNumbers,
+    }),
     productAppearsInThisSegment && input.productRole !== "digital_demo" ? renderProductPhysicalContractForOmni(input.productPhysicalContract) : "",
     productAppearsInThisSegment && input.productRole !== "digital_demo" ? OMNI_PHYSICAL_ACTION_CONTRACT : "",
     productAppearsInThisSegment && input.productRole === "digital_demo"
@@ -164,6 +157,34 @@ function renderStoryboardCameraLock(montageReference = false) {
   return montageReference
     ? `CAMERA AUTHORITY: follow each new panel in ${OMNI_STORYBOARD_FILE_PLACEHOLDER}. Independent montage panels may choose different setups, locations, and backgrounds; keep motion coherent inside one panel.`
     : `CAMERA AUTHORITY: follow the new panels in ${OMNI_STORYBOARD_FILE_PLACEHOLDER}. Keep each planned setup coherent until the storyboard introduces a cut.`;
+}
+
+function renderProductFrameContract(input: {
+  storyboard: OmniStoryboardSegment;
+  productName: string;
+  productRole?: ProductRole;
+  productFrameNumbers: readonly number[];
+}) {
+  if (!input.productFrameNumbers.length) {
+    return "В этом сегменте продукт вне кадра; не переноси его из reference-кадра.";
+  }
+
+  const visibleFrames = new Set(input.productFrameNumbers);
+  const stateLines = input.storyboard.frames.map((frame, index) => {
+    const frameNumber = index + 1;
+    const visibility = visibleFrames.has(frameNumber) ? "видим" : "вне кадра";
+    return `FRAME ${frameNumber}: продукт ${visibility}; ${frame.productPlacement}`;
+  });
+  const productIdentity = input.productRole === "digital_demo"
+    ? `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: утвержденный экран мобильного продукта на одном и том же смартфоне; не превращай его в пластиковую карту или упаковку.`
+    : `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: сохраняй одну и ту же утвержденную форму продукта без подмены другими товарами.`;
+
+  return [
+    productIdentity,
+    "PRODUCT FRAME CONTRACT: состояние продукта в каждой строке FRAME обязательно. Не меняй видимость продукта по собственной инициативе.",
+    ...stateLines,
+    "Состояние продукта держи одинаковым по утвержденной физической последовательности. После появления продукта сохраняй тот же объект и его положение в руке в каждом следующем видимом кадре. Возврат продукта вне кадра разрешен только при явно показанном действии: положил, передал или убрал. Не допускай исчезновения, левитации или замены объекта между соседними кадрами.",
+  ].join("\n");
 }
 
 function renderVehicleCameraLock(brief?: DirectorBrief | null, montageReference = false) {

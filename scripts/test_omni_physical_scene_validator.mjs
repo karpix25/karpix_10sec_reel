@@ -647,6 +647,39 @@ try {
   assert.match(canonicalDemo.frames[4].visualAction, /держит Коллаген.*поворачивает/iu);
   assert.doesNotMatch(canonicalDemo.frames[0].visualAction, /держит Коллаген/iu);
 
+  const lateBriefDemo = normalizer.normalizePhysicalStoryboardSegment({
+    productName: "Коллаген",
+    productVisible: true,
+    productVisibleByFrame: [false, false, false, true, true],
+    productRole: "brief_demo",
+    storyboard: storyboard([
+      frame("Объясняю проблему", "герой говорит в камеру", "продукт вне кадра"),
+      frame("Объясняю причину", "герой говорит в камеру", "продукт вне кадра"),
+      frame("Привожу контекст", "герой говорит в камеру", "продукт вне кадра"),
+      frame("Показываю решение", "герой говорит в камеру", "Коллаген в кадре"),
+      frame("Объясняю действие", "герой говорит в камеру", "Коллаген в кадре"),
+    ]),
+  });
+  assert.match(lateBriefDemo.frames[3].visualAction, /не касаются упаковки/iu);
+  assert.match(lateBriefDemo.frames[3].productPlacement, /стоит на видимой поверхности/iu);
+  assert.match(lateBriefDemo.frames[4].visualAction, /берет Коллаген.*поднимает/iu);
+
+  const lateDigitalDemo = normalizer.normalizePhysicalStoryboardSegment({
+    productName: "Плати по миру виртуальная карта",
+    productVisible: true,
+    productVisibleByFrame: [false, false, false, true, true],
+    productRole: "digital_demo",
+    storyboard: storyboard([
+      frame("Объясняю проблему", "герой говорит в камеру", "продукт вне кадра"),
+      frame("Объясняю причину", "герой говорит в камеру", "продукт вне кадра"),
+      frame("Привожу контекст", "герой говорит в камеру", "продукт вне кадра"),
+      frame("Показываю решение", "герой показывает экран смартфона", "продукт в кадре"),
+      frame("Объясняю действие", "герой показывает экран смартфона", "продукт в кадре"),
+    ]),
+  });
+  assert.match(lateDigitalDemo.frames[3].visualAction, /пока вне кадра/iu);
+  assert.match(lateDigitalDemo.frames[4].visualAction, /поднимает смартфон/iu);
+
   const hiddenCtaTransfer = normalizer.normalizePhysicalStoryboardSegment({
     productName: "Geodemika Enzyme Cleansing Foam",
     productVisible: false,

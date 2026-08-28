@@ -10,6 +10,7 @@ import {
   normalizeVehicleContext,
   repairPhysicalFrameAction,
   repairReferenceAction,
+  resolveProductDemoFrame,
 } from "./physical-scene-model";
 import {
   renderRequiredReferenceSupport,
@@ -87,18 +88,25 @@ function normalizeFrame(input: {
     : frame.speechMode || frame.physicalPlan?.speechMode;
   const sourceText = `${frame.visualAction} ${frame.productPlacement} ${frame.sfxNotes} ${frame.effectNotes || ""}`;
   const visibleInFrame = input.productVisibleByFrame?.[input.frameIndex - 1] ?? productVisible;
-  const productDemo = visibleInFrame && (input.productRole === undefined || input.productRole === "brief_demo") && input.frameCount > 1
+  const demoFrame = visibleInFrame
+    ? resolveProductDemoFrame(
+        input.productVisibleByFrame ?? input.productVisible,
+        input.frameIndex - 1,
+        input.frameCount,
+      )
+    : null;
+  const productDemo = visibleInFrame && (input.productRole === undefined || input.productRole === "brief_demo") && (demoFrame?.frameCount ?? input.frameCount) > 1
     ? buildPhysicalProductDemoStep({
         productName: product,
-        frameIndex: input.frameIndex,
-        frameCount: input.frameCount,
+        frameIndex: demoFrame?.frameIndex ?? input.frameIndex,
+        frameCount: demoFrame?.frameCount ?? input.frameCount,
       })
     : null;
   const digitalProductDemo = visibleInFrame && input.productRole === "digital_demo"
     ? buildDigitalProductDemoStep({
         productName: product,
-        frameIndex: input.frameIndex,
-        frameCount: input.frameCount,
+        frameIndex: demoFrame?.frameIndex ?? input.frameIndex,
+        frameCount: demoFrame?.frameCount ?? input.frameCount,
       })
     : null;
   const demo = productDemo || digitalProductDemo;

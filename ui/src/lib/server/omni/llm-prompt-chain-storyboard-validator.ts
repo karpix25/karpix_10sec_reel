@@ -7,6 +7,8 @@ import {
 } from "./llm-prompt-chain-types";
 import { mentionsOmniProduct } from "./omni-intro-product-contract";
 import {
+  isReferenceBrollSource,
+  isReferencePresenterSource,
   resolveReferenceSegmentBeatForFrame,
   type ReferenceSegmentBeat,
   type ReferenceSegmentPlan,
@@ -38,8 +40,6 @@ const FACE_PATTERN = /(?:\b(?:лицо|лицом|лица|портрет|ава
 const PRESENTER_PATTERN = /(?:\b(?:ведущ\p{L}*|презентер|presenter|аватар|avatar)\b|говорит\s+в\s+камеру|смотрит\s+в\s+камеру|face\s*[- ]?to\s*[- ]?camera|talking\s+head|on[- ]camera)/iu;
 const PRODUCT_INTENT_PATTERN = /(?:продукт|товар|сервис|услуг\p{L}*|приложени\p{L}*|карт\p{L}*|оплат\p{L}*|покуп\p{L}*|использу\p{L}*|держу|нанос\p{L}*|принима\p{L}*|показыва\p{L}*|средств\p{L}*|баноч\p{L}*|упаковк\p{L}*|флакон|тюбик|коллаген|витамин|крем|сыворотк\p{L}*)/iu;
 const PRODUCT_SOURCE_ROLES = new Set(["product_broll"]);
-const BROLL_SOURCE_ROLES = new Set(["environment_broll", "product_broll", "proof_broll", "transition"]);
-const NON_PRESENTER_SUBJECT_ROLES = new Set(["background_person", "no_people", "hands_only", "object_only"]);
 
 export type StoryboardReferenceValidationOptions = {
   referenceSegmentPlan?: ReferenceSegmentPlan | null;
@@ -309,16 +309,11 @@ function resolveReferenceSegmentPlan(
 }
 
 function isPresenterSource(beat: ReferenceSegmentBeat) {
-  const onCamera = beat.speechMode === "on_camera";
-  const primaryPresenter = beat.visibleSubjectRole === "primary_presenter";
-  return onCamera || primaryPresenter || (beat.sourceRole === "presenter" && beat.avatarAllowed === true);
+  return isReferencePresenterSource(beat);
 }
 
 function isBrollSource(beat: ReferenceSegmentBeat) {
-  return BROLL_SOURCE_ROLES.has(beat.sourceRole || "") ||
-    beat.speechMode === "voiceover_only" ||
-    beat.avatarAllowed === false ||
-    NON_PRESENTER_SUBJECT_ROLES.has(beat.visibleSubjectRole || "");
+  return isReferenceBrollSource(beat);
 }
 
 function isPresenterFrame(frame: StoryboardFrame) {

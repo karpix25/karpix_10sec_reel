@@ -80,6 +80,23 @@ export type ReferenceSegmentPlan = {
   speechAlignment?: ReferenceSpeechAlignment;
 };
 
+const BROLL_SOURCE_ROLES = new Set(["environment_broll", "product_broll", "proof_broll", "transition"]);
+const NON_PRESENTER_SUBJECT_ROLES = new Set(["background_person", "no_people", "hands_only", "object_only"]);
+
+export function isReferencePresenterSource(beat: ReferenceSegmentBeat) {
+  if (beat.avatarAllowed === false) return false;
+  return beat.speechMode === "on_camera" ||
+    beat.visibleSubjectRole === "primary_presenter" ||
+    (beat.sourceRole === "presenter" && beat.avatarAllowed === true);
+}
+
+export function isReferenceBrollSource(beat: ReferenceSegmentBeat) {
+  return BROLL_SOURCE_ROLES.has(beat.sourceRole || "") ||
+    beat.speechMode === "voiceover_only" ||
+    beat.avatarAllowed === false ||
+    NON_PRESENTER_SUBJECT_ROLES.has(beat.visibleSubjectRole || "");
+}
+
 export function resolveReferenceSegmentBeatForFrame(
   plan: ReferenceSegmentPlan | null | undefined,
   frameIndex: number,
@@ -151,14 +168,11 @@ function resolveReferenceFrameRole(
   frameCount: number,
   productVisible: boolean,
 ) {
-  const presenterSource = beat.speechMode === "on_camera" &&
-    (beat.visibleSubjectRole === "primary_presenter" || beat.sourceRole === "presenter");
+  const presenterSource = isReferencePresenterSource(beat);
   if (presenterSource && (currentRole === "environment_cutaway" || currentRole === "product_cutaway")) {
     return frameIndex === frameCount - 1 ? "face_return" : "face_open";
   }
-  const brollSource = beat.speechMode === "voiceover_only" || beat.avatarAllowed === false ||
-    beat.visibleSubjectRole === "no_people" || beat.visibleSubjectRole === "hands_only" ||
-    beat.visibleSubjectRole === "object_only";
+  const brollSource = isReferenceBrollSource(beat);
   if (brollSource) {
     if (productVisible || beat.sourceRole === "product_broll") return "product_cutaway";
     if (currentRole === "face_open" || currentRole === "face_return" || currentRole === "product_cutaway") {

@@ -48,7 +48,7 @@ try {
   const success = await runScenario(prepareOmniPromptPlanWithSemanticRepair, { changedVoiceover: false, suffix: "success" });
   assert.equal(success.result[0].durationSeconds, 4);
   assert.equal(success.result[0].storyboardPlan.frames.length, 2);
-  assert.equal(success.result[0].voiceoverText, "Это тестовая реплика для нового ролика");
+  assert.equal(success.result[0].voiceoverText, "Это тестовая реплика для нового короткого ролика сегодня");
   assert.equal(success.result[0].storyboardPlan.frames[0].visualAction, "Полная пересборка: герой спокойно смотрит в объектив");
   assert.equal(success.calls, 7, "bounded success path must use exactly 7 LLM calls");
   assert.equal(success.fullRebuildCalls, 1, "full rebuild must run once");
@@ -81,7 +81,7 @@ async function runScenario(prepare, options) {
     projectId: 1,
     productId: 1,
     promptPlan,
-    script: "Это тестовая реплика для нового ролика",
+    script: "Это тестовая реплика для нового короткого ролика сегодня",
     productName: "Тестовый продукт",
     productDescription: null,
     productPhysicalContract: null,
@@ -110,7 +110,7 @@ async function runScenario(prepare, options) {
       return response({ choices: [{ message: { content: JSON.stringify({
         segments: [{
           index: 1,
-          voiceoverText: options.changedVoiceover ? "Другая реплика" : "Это тестовая реплика для нового ролика",
+          voiceoverText: options.changedVoiceover ? "Другая реплика" : "Это тестовая реплика для нового короткого ролика сегодня",
           storyboardPlan: storyboard(options.changedVoiceover ? "Другая реплика" : undefined, "Полная пересборка: герой спокойно смотрит в объектив"),
         }],
       }) } }] });
@@ -137,7 +137,7 @@ function buildPromptPlan(suffix) {
     prompt: `Исходный prompt ${suffix}`,
     referenceUrl: null,
     durationSeconds: 4,
-    voiceoverText: "Это тестовая реплика для нового ролика",
+    voiceoverText: "Это тестовая реплика для нового короткого ролика сегодня",
     storyboardPlan: storyboard(),
     storyboardValidation: null,
     creativeStrategy: {},
@@ -147,14 +147,14 @@ function buildPromptPlan(suffix) {
   };
 }
 
-function storyboard(voiceoverText = "Это тестовая реплика для нового ролика", action = "Герой спокойно смотрит в камеру") {
+function storyboard(voiceoverText = "Это тестовая реплика для нового короткого ролика сегодня", action = "Герой спокойно смотрит в камеру") {
   return {
     segmentIndex: 1,
     durationSeconds: 4,
     voiceoverText,
     frames: [
-      frame("Это тестовая реплика", action),
-      frame("для нового ролика", action),
+      frame("Это тестовая реплика для", action),
+      frame("нового короткого ролика сегодня", action),
     ],
   };
 }

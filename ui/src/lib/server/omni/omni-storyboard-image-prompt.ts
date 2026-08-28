@@ -193,13 +193,14 @@ export function buildStoryboardImagePrompt(input: {
       : continuousPresenterWardrobe
       ? "Смысл реплики определяет сцену, главный предмет и действие. Ракурс, свет, жест и точные переходы поставь заново; точную одежду сохраняй во всём ролике. Reference задаёт только общий визуальный язык. Исходный рекламный товар не копируй."
       : "Смысл реплики определяет сцену, главный предмет и действие. Ракурс, свет, одежду, жест и точные переходы поставь заново; reference задаёт только общий визуальный язык. Исходный рекламный товар не копируй.",
+    productAppearsInThisSegment ? renderStoryboardImageProductContract({
+      storyboard: input.storyboard,
+      productName: input.productName,
+      productRole: input.productRole,
+      productFrameNumbers,
+      productRevealFrame,
+    }) : "",
     productAppearsInThisSegment && input.productRole !== "digital_demo" ? OMNI_PHYSICAL_ACTION_CONTRACT : "",
-    productAppearsInThisSegment
-      ? `Продукт впервые появляется только в панели ${productRevealFrame || "по смыслу реплики"}; точно по product reference, без смены формы, упаковки и положения.`
-      : "",
-    productAppearsInThisSegment
-      ? "Показывай продукт естественно, без рекламного close-up, дублей и телепортации."
-      : "",
     productPhysicalHint && input.productRole !== "digital_demo" ? compactText(productPhysicalHint, 180) : "",
     productAppearsInThisSegment && input.productRole === "digital_demo"
       ? "DIGITAL PRODUCT: показывай только утвержденный экран продукта на смартфоне; не изображай пластиковую карту, упаковку или физический товар."
@@ -246,6 +247,29 @@ export function buildStoryboardImagePrompt(input: {
       ].join(" ");
     }),
   ].filter(Boolean).join("\n");
+}
+
+function renderStoryboardImageProductContract(input: {
+  storyboard: OmniStoryboardSegment;
+  productName: string;
+  productRole?: ProductRole;
+  productFrameNumbers: readonly number[];
+  productRevealFrame: number | null;
+}) {
+  const visibleFrames = new Set(input.productFrameNumbers);
+  const frameLines = input.storyboard.frames.map((frame, index) => {
+    const frameNumber = index + 1;
+    return `FRAME ${frameNumber}: продукт ${visibleFrames.has(frameNumber) ? "видим" : "вне кадра"}; ${compactText(frame.productPlacement, 90)}.`;
+  });
+  const identity = input.productRole === "digital_demo"
+    ? `Утвержденный цифровой продукт «${input.productName}» показывай только на одном и том же смартфоне.`
+    : `Утвержденный продукт «${input.productName}» сохраняй как один и тот же физический объект без подмены.`;
+  return [
+    identity,
+    `PRODUCT FRAME CONTRACT: Продукт впервые появляется только в панели ${input.productRevealFrame}; соблюдай видимость из каждой строки FRAME и не добавляй продукт в скрытые панели.`,
+    ...frameLines,
+    "После reveal сохраняй тот же объект и положение в руке в каждом следующем видимом кадре. Возврат вне кадра допустим только после явного действия положить, передать или убрать продукт. Не допускай исчезновения, левитации или замены между соседними панелями.",
+  ].join("\n");
 }
 
 function compactText(value: unknown, maxLength = 45) {
