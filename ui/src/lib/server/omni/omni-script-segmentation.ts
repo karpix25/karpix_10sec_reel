@@ -104,7 +104,8 @@ export function splitScriptIntoVoiceSegments(
   minWordsPerSegment?: number,
   isSegmentWordCountAllowed?: (wordCount: number) => boolean,
   targetWordCounts?: readonly number[],
-  allowAwkwardBoundaries = false
+  allowAwkwardBoundaries = false,
+  requireSentenceBoundaries = false
 ): VoiceSegment[] {
   const normalized = normalizeScriptText(script);
   if (!normalized || segmentCount <= 0) return [];
@@ -134,7 +135,8 @@ export function splitScriptIntoVoiceSegments(
     minWordsPerSegment,
     isSegmentWordCountAllowed,
     targetWordCounts,
-    allowAwkwardBoundaries
+    allowAwkwardBoundaries,
+    requireSentenceBoundaries
   );
   const chunks: VoiceSegment[] = [];
 
@@ -149,6 +151,10 @@ export function splitScriptIntoVoiceSegments(
   }
 
   return chunks;
+}
+
+export function hasCompletedSentenceBoundary(text: string) {
+  return /[.!?…]+[»”"']?$/u.test(text.trim());
 }
 
 export function normalizeScriptText(script: string) {
@@ -198,7 +204,8 @@ function findBestBoundaries(
   minWordsPerSegment?: number,
   isSegmentWordCountAllowed?: (wordCount: number) => boolean,
   targetWordCounts?: readonly number[],
-  allowAwkwardBoundaries = false
+  allowAwkwardBoundaries = false,
+  requireSentenceBoundaries = false
 ) {
   if (count === 1) return [0, tokens.length];
   const target = tokens.length / count;
@@ -213,7 +220,8 @@ function findBestBoundaries(
     minWordsPerSegment,
     isSegmentWordCountAllowed,
     targetWordCounts,
-    allowAwkwardBoundaries
+    allowAwkwardBoundaries,
+    requireSentenceBoundaries
   );
 
   if (!boundaries) {
@@ -227,7 +235,8 @@ function findBestBoundaries(
       minWordsPerSegment,
       isSegmentWordCountAllowed,
       targetWordCounts,
-      allowAwkwardBoundaries
+      allowAwkwardBoundaries,
+      requireSentenceBoundaries
     );
   }
 
@@ -241,7 +250,8 @@ function findBestBoundaries(
       minWordsPerSegment,
       isSegmentWordCountAllowed,
       targetWordCounts,
-      true
+      true,
+      requireSentenceBoundaries
     );
   }
 
@@ -258,7 +268,8 @@ function solveBoundaries(
   minWordsPerSegment?: number,
   isSegmentWordCountAllowed?: (wordCount: number) => boolean,
   targetWordCounts?: readonly number[],
-  allowAwkwardBoundaries = false
+  allowAwkwardBoundaries = false,
+  requireSentenceBoundaries = false
 ) {
   const memo = new Map<string, { score: number; boundaries: number[] } | null>();
   const minWords = minWordsPerSegment && minWordsPerSegment > 0 ? minWordsPerSegment : 1;
@@ -287,6 +298,7 @@ function solveBoundaries(
       : minEnd;
     for (let end = minEnd; end <= maxEnd; end += 1) {
       if (protectedBoundaries.has(end)) continue;
+      if (requireSentenceBoundaries && !hasCompletedSentenceBoundary(tokens[end - 1].value)) continue;
       if (!allowAwkwardBoundaries && BAD_ENDINGS.has(normalizeBoundaryWord(tokens[end - 1].value))) continue;
       if (maxWordsPerSegment && end - start > maxWordsPerSegment) break;
       if (isSegmentWordCountAllowed && !isSegmentWordCountAllowed(end - start)) continue;

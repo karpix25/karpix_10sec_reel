@@ -259,7 +259,7 @@ async function runCreativeCopywriter(
       assertOmniScriptTextContract(script);
       assertPromptChainScriptQuality(input, script, null);
       assertRussianSpeechGender(script, input.avatarSpeechGender);
-      planOmniReelSegments(script, { durationRange: input.durationRange });
+      planOmniReelSegments(script, { durationRange: input.durationRange, requireSentenceBoundaries: true });
       const semanticReview = await reviewScriptSemantics({
         model: input.model,
         script,
@@ -300,7 +300,7 @@ async function runDirectorSegmenter(
   draft: CreativeScriptDraft,
   onUsage: (usage: OpenRouterUsageRecord) => void
 ) {
-  const segmentPlan = planOmniReelSegments(draft.script, { durationRange: input.durationRange });
+  const segmentPlan = planOmniReelSegments(draft.script, { durationRange: input.durationRange, requireSentenceBoundaries: true });
   const format = resolveDirectorSegmentFormat(input.directorBrief);
   const basePrompt = buildDirectorSegmenterPrompt({ chainInput: input, draft, segmentPlan });
   const maxAttempts = DIRECTOR_TARGETED_REPAIR_ATTEMPTS + 2;

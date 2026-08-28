@@ -292,7 +292,10 @@ async function requestScriptOnce(
     adaptationMode: input.adaptationPlan.mode,
   });
   try {
-    planOmniReelSegments(script, { durationRange: input.durationRange });
+    planOmniReelSegments(script, {
+      durationRange: input.durationRange,
+      requireSentenceBoundaries: true,
+    });
   } catch (error) {
     throw new Error(`Сценарий отклонен: ${error instanceof Error ? error.message : String(error)}`);
   }

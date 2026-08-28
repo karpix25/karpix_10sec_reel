@@ -12,7 +12,8 @@ import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
 import { listRecentLifeFormatIds } from "./omni-creative-history";
-import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
+import { OMNI_SEGMENT_SECONDS } from "./omni-duration-planner";
+import { resolveOmniTimedVoiceoverPlan } from "./omni-timed-voiceover-plan";
 import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import {
@@ -165,9 +166,13 @@ export async function createOmniReel(input: {
     requestTargetDurationSeconds: input.targetDurationSeconds,
     legacyClientId: sourceScenario?.client_id ?? generatedScript?.source_legacy_client_id,
   });
-  const segmentPlan = planOmniReelSegments(scriptText, { durationRange });
-  const targetDuration = segmentPlan.durationSeconds;
-  const segmentCount = segmentPlan.segmentCount;
+  const timedVoiceoverPlan = resolveOmniTimedVoiceoverPlan({
+    script: scriptText,
+    sourceSnapshot: resolvedGeneratedScript?.source_snapshot,
+    durationRange,
+  });
+  const targetDuration = timedVoiceoverPlan.durationSeconds;
+  const segmentCount = timedVoiceoverPlan.segmentCount;
   const referenceSourceDurationSeconds = sourceScenario?.duration_seconds
     || readSourceDurationSeconds(resolvedGeneratedScript?.source_snapshot);
   const latestAvatar = await getLatestOmniClientAvatar(input.projectId);
@@ -196,6 +201,7 @@ export async function createOmniReel(input: {
         director_reference_image_urls: directorReferenceImageUrls,
         reference_transfer_plan: referenceTransferPlan,
         wardrobe_source: project.wardrobe_source,
+        timed_voiceover_plan: timedVoiceoverPlan,
       }
     : sourceScenario
       ? {
@@ -219,6 +225,7 @@ export async function createOmniReel(input: {
         director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
         director_reference_image_urls: directorReferenceImageUrls,
         wardrobe_source: project.wardrobe_source,
+        timed_voiceover_plan: timedVoiceoverPlan,
       }
     : null;
   const productSnapshot = {
@@ -263,8 +270,7 @@ export async function createOmniReel(input: {
       avatar: avatarForPrompt,
       segmentCount,
       segmentSeconds: OMNI_SEGMENT_SECONDS,
-      voiceSegments: segmentPlan.segments,
-      segmentDurationsSeconds: segmentPlan.segmentDurationsSeconds,
+      timedVoiceoverPlan,
       brief,
       directorBrief,
       targetAudience: project.target_audience,
@@ -326,7 +332,7 @@ export async function createOmniReel(input: {
     segments: promptPlan.map((segment) => ({
       index: segment.index,
       durationSeconds: segment.durationSeconds,
-      wordCount: segmentPlan.segments[segment.index - 1]?.wordCount,
+      wordCount: timedVoiceoverPlan.segments[segment.index - 1]?.wordCount,
     })),
   });
   let storyboardReferenceUrls: (string | null)[];

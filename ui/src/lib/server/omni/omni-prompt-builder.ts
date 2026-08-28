@@ -7,7 +7,6 @@ import type {
   OmniCreativeStrategy,
   OmniPromptValidationResult,
   OmniSegmentCreativePlan,
-  ProductRole,
 } from "@/lib/omni/creative-contract";
 import { extractDirectorBriefFromSnapshot, type DirectorBrief } from "./director-analysis-types";
 import { selectOmniCreativeStrategy } from "./omni-format-selector";
@@ -38,10 +37,6 @@ import {
   buildStoryboardFromPromptChainFrames,
   buildStoryboardFromCreativePlan,
 } from "./storyboard/omni-storyboard-builder";
-import {
-  isOmniProductVisualBeat,
-  mentionsExplicitOmniProduct,
-} from "./omni-intro-product-contract";
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import {
@@ -52,9 +47,6 @@ import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-polic
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { applyDirectorLayoutToPlan, buildDirectorLayoutContract } from "./director-layout-contract";
 import {
-  buildProductVisualProfileFromText,
-  extractProductVisualProfileFromSnapshot,
-  normalizeProductVisualProfile,
   renderProductVisualProfileForPrompt,
 } from "./product-visual-profile";
 import {
@@ -73,12 +65,20 @@ import {
   buildStoredCreativePlan,
   getPrimaryReference,
   getSegmentRole,
+  resolvePhysicalProductDemoRole,
+  resolveProductVisualProfile,
   selectReferenceUrl,
+  selectPhysicalProductDemoSegmentIndex,
 } from "./omni-prompt-segment-support";
 import {
   applyReferenceSegmentPlanToFrames, applyReferenceSegmentPlanToStoryboard, buildReferenceSegmentPlan,
   type ReferenceSegmentPlan,
 } from "./reference-segment-plan";
+import {
+  assertOmniTimedVoiceoverPlanMatchesScript,
+  type OmniTimedVoiceoverPlan,
+} from "./omni-timed-voiceover-plan";
+import { assertProviderPlanUsesTimedVoiceover } from "./omni-timed-voiceover-provider-contract";
 
 export type OmniSegmentPrompt = {
   index: number;
@@ -104,6 +104,7 @@ type BuildOmniPromptsInput = {
   segmentSeconds: number;
   voiceSegments?: readonly VoiceSegment[];
   segmentDurationsSeconds?: readonly number[];
+  timedVoiceoverPlan?: OmniTimedVoiceoverPlan;
   brief: string | null;
   directorBrief?: DirectorBrief | null;
   targetAudience?: string | null;
@@ -117,8 +118,15 @@ type BuildOmniPromptsInput = {
 export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegmentPrompt[] {
   let scriptText = sanitizeOmniScriptText(input.generatedScript?.script || input.legacyTranscript || input.brief || "");
   assertOmniScriptTextContract(scriptText);
+  if (input.timedVoiceoverPlan) {
+    assertOmniTimedVoiceoverPlanMatchesScript(input.timedVoiceoverPlan, scriptText);
+    if (input.timedVoiceoverPlan.segmentCount !== input.segmentCount) {
+      throw new Error("Timed voiceover plan segment count does not match prompt input");
+    }
+  }
   const providerPromptPlan = extractProviderPromptPlanFromSnapshot(input.generatedScript?.source_snapshot);
   if (providerPromptPlan) {
+    if (input.timedVoiceoverPlan) assertProviderPlanUsesTimedVoiceover(providerPromptPlan, input.timedVoiceoverPlan);
     return buildStoredProviderPromptSegments(
       input,
       providerPromptPlan,
@@ -126,25 +134,30 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     );
   }
 
-  const rawVoiceSegments = input.voiceSegments?.length
+  const rawVoiceSegments = input.timedVoiceoverPlan?.segments?.length
+    ? [...input.timedVoiceoverPlan.segments]
+    : input.voiceSegments?.length
     ? [...input.voiceSegments]
     : splitScriptIntoVoiceSegments(
         scriptText,
         input.segmentCount,
         getOmniSegmentWordBudget(input.segmentSeconds)
       );
-  const boundaryRepair = repairVoiceSegmentBoundaryRepeats(rawVoiceSegments);
-  const voiceSegments = boundaryRepair.segments;
-  if (boundaryRepair.repair.changed) {
-    scriptText = sanitizeOmniScriptText(boundaryRepair.scriptText);
-    assertOmniScriptTextContract(scriptText);
+  let voiceSegments = rawVoiceSegments;
+  if (!input.timedVoiceoverPlan) {
+    const boundaryRepair = repairVoiceSegmentBoundaryRepeats(rawVoiceSegments);
+    voiceSegments = boundaryRepair.segments;
+    if (boundaryRepair.repair.changed) {
+      scriptText = sanitizeOmniScriptText(boundaryRepair.scriptText);
+      assertOmniScriptTextContract(scriptText);
+    }
   }
   if (voiceSegments.length !== input.segmentCount) {
     throw new Error(`Script is too short for ${input.segmentCount} exact-speech Omni segments`);
   }
-  const segmentDurationsSeconds = voiceSegments.map((_, index) =>
-    input.segmentDurationsSeconds?.[index] || input.segmentSeconds
-  );
+  const segmentDurationsSeconds = input.timedVoiceoverPlan
+    ? input.timedVoiceoverPlan.segments.map((segment) => segment.durationSeconds)
+    : voiceSegments.map((_, index) => input.segmentDurationsSeconds?.[index] || input.segmentSeconds);
   const segmentIntents = deriveOmniSegmentIntents(voiceSegments, input.product.name);
   const scriptPlanRepair = repairScriptBeatBoundaryRepeats(
     extractGeneratedScriptBeatPlanFromSnapshot(input.generatedScript?.source_snapshot)
@@ -300,24 +313,6 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
     throw new Error("Omni voiceover segmentation changed the source script");
   }
   return prompts;
-}
-
-function selectPhysicalProductDemoSegmentIndex(input: {
-  segments: readonly { index: number; spokenText: string }[];
-  productName: string;
-  productRole: ProductRole;
-}) {
-  if (input.productRole === "hidden") return null;
-  const explicit = input.segments.find((segment) => mentionsExplicitOmniProduct(segment.spokenText, input.productName));
-  if (explicit) return explicit.index;
-  return input.segments.find((segment) => isOmniProductVisualBeat(segment.spokenText, input.productName))?.index || null;
-}
-
-function resolvePhysicalProductDemoRole(segmentIndex: number, productDemoSegmentIndex: number | null, selectedRole: ProductRole = "brief_demo", forceVisible = false): ProductRole {
-  if (selectedRole === "hidden") return "hidden";
-  if (forceVisible) return selectedRole;
-  if (segmentIndex !== productDemoSegmentIndex) return "hidden";
-  return selectedRole === "digital_demo" ? "digital_demo" : "brief_demo";
 }
 
 function buildStoredProviderPromptSegments(
@@ -483,17 +478,4 @@ function buildStoredProviderPromptSegments(
       validation,
     };
   });
-}
-function resolveProductVisualProfile(input: {
-  product: OmniProduct;
-  generatedScript: OmniGeneratedScript | null;
-}) {
-  return (
-    normalizeProductVisualProfile(input.product.product_visual_profile) ||
-    extractProductVisualProfileFromSnapshot(input.generatedScript?.product_snapshot) ||
-    buildProductVisualProfileFromText({
-      description: input.product.description,
-      notes: input.product.product_reference_notes,
-    })
-  );
 }
