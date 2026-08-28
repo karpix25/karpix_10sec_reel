@@ -663,6 +663,11 @@ try {
   assert.match(lateBriefDemo.frames[3].visualAction, /не касаются упаковки/iu);
   assert.match(lateBriefDemo.frames[3].productPlacement, /стоит на видимой поверхности/iu);
   assert.match(lateBriefDemo.frames[4].visualAction, /берет Коллаген.*поднимает/iu);
+  assert.equal(validator.validatePhysicalScene({
+    storyboard: lateBriefDemo,
+    creativePlan: { productRole: "brief_demo", productVisibleByFrame: [false, false, false, true, true], beats: [] },
+    productName: "Коллаген",
+  }).valid, true);
 
   const lateDigitalDemo = normalizer.normalizePhysicalStoryboardSegment({
     productName: "Плати по миру виртуальная карта",
@@ -679,6 +684,25 @@ try {
   });
   assert.match(lateDigitalDemo.frames[3].visualAction, /пока вне кадра/iu);
   assert.match(lateDigitalDemo.frames[4].visualAction, /поднимает смартфон/iu);
+  const singleDigitalDemo = normalizer.normalizePhysicalStoryboardSegment({
+    productName: "Плати по миру виртуальная карта",
+    productVisible: true,
+    productVisibleByFrame: [false, false, false, false, true],
+    productRole: "digital_demo",
+    storyboard: storyboard([
+      frame("Объясняю проблему", "герой говорит в камеру", "продукт вне кадра"),
+      frame("Объясняю причину", "герой говорит в камеру", "продукт вне кадра"),
+      frame("Привожу контекст", "герой говорит в камеру", "продукт вне кадра"),
+      frame("Подвожу к решению", "герой говорит в камеру", "продукт вне кадра"),
+      frame("Показываю решение", "герой показывает экран смартфона", "продукт в кадре"),
+    ]),
+  });
+  assert.match(singleDigitalDemo.frames[4].visualAction, /поднимает смартфон/iu);
+  assert.equal(validator.validatePhysicalScene({
+    storyboard: singleDigitalDemo,
+    creativePlan: { productRole: "digital_demo", productVisibleByFrame: [false, false, false, false, true], beats: [] },
+    productName: "Плати по миру виртуальная карта",
+  }).valid, true);
 
   const hiddenCtaTransfer = normalizer.normalizePhysicalStoryboardSegment({
     productName: "Geodemika Enzyme Cleansing Foam",

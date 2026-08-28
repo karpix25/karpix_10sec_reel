@@ -121,11 +121,14 @@ export function validatePhysicalScene(input: {
       speechMode: currentFrame.speechMode || currentFrame.physicalPlan?.speechMode,
     });
     const editorialCut = currentPlan.speechMode === "voiceover_only" && CUTAWAY_PATTERN.test(frameText(currentFrame));
+    const declaredPhysicalReveal = input.creativePlan?.productVisibleByFrame?.[index] === true &&
+      input.creativePlan.productVisibleByFrame[index - 1] !== true &&
+      current === "surface";
     const digitalReveal = input.creativePlan?.productRole === "digital_demo"
       && previous === "hidden"
       && current === "held"
       && DIGITAL_REVEAL_PATTERN.test(transitionText);
-    if ((previous === "hidden" || current === "hidden") && !editorialCut && !digitalReveal) {
+    if ((previous === "hidden" || current === "hidden") && !editorialCut && !digitalReveal && !declaredPhysicalReveal) {
       errors.push(`frame_${index + 1}_product_teleports_between_frames`);
     } else if (previous !== "hidden" && current !== "hidden" && !TRANSITION_PATTERN.test(transitionText) && !editorialCut) {
       errors.push(`frame_${index + 1}_object_state_change_without_transition`);

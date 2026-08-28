@@ -95,7 +95,10 @@ function normalizeFrame(input: {
         input.frameCount,
       )
     : null;
-  const productDemo = visibleInFrame && (input.productRole === undefined || input.productRole === "brief_demo") && (demoFrame?.frameCount ?? input.frameCount) > 1
+  const productDemo = visibleInFrame && (
+    input.productRole === "brief_demo" ||
+    input.productRole === undefined && (demoFrame?.frameCount ?? input.frameCount) > 1
+  )
     ? buildPhysicalProductDemoStep({
         productName: product,
         frameIndex: demoFrame?.frameIndex ?? input.frameIndex,
