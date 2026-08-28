@@ -20,7 +20,10 @@ export function renderStoryboardFrameCamera(input: {
   speechMode?: PhysicalSpeechMode;
 }) {
   if (input.directorCamera) {
-    return `${input.directorCamera}; выбери ясный ракурс для текущей реплики${input.noPeopleReference ? "; в кадре нет людей и рук" : ""}`;
+    const eyeContact = input.speechMode === "on_camera" && !input.isCutawayFrame
+      ? "; герой смотрит прямо в объектив"
+      : "";
+    return `${input.directorCamera}; выбери ясный ракурс для текущей реплики${eyeContact}${input.noPeopleReference ? "; в кадре нет людей и рук" : ""}`;
   }
   if (input.noPeopleReference) return "самостоятельный атмосферный B-roll ракурс по текущей реплике, без людей и рук";
   if (input.objectOnlyReferenceScene) return "ясный object-only макро ракурс для текущего действия";
@@ -61,6 +64,7 @@ export function renderStoryboardWardrobe(input: {
     referenceProfile: input.referenceProfile,
     referenceSceneMode: input.referenceSceneMode,
     referenceFormatMode: input.referenceFormatMode,
+    characterContract: input.characterContract,
   });
 }
 
@@ -69,6 +73,7 @@ export function renderReferenceWardrobe(input: {
   referenceProfile?: DirectorSegmentProfile | null;
   referenceFormatMode?: ReferenceFormatMode;
   referenceSceneMode?: ReferenceSceneMode;
+  characterContract?: OmniCharacterContract;
 }) {
   if (input.referenceProfile?.avatar_allowed === false) {
     return "WARDROBE: not applicable to the featured avatar in this source interval";
@@ -83,6 +88,14 @@ export function renderReferenceWardrobe(input: {
   const colors = brief?.clothing.color_palette.length
     ? `colors: ${brief.clothing.color_palette.join(", ")}`
     : "";
+  const referenceStyle = [brief?.clothing.style, profileWardrobe?.description].filter(Boolean).join("; ");
+  if (input.characterContract?.speechGender === "male" && isGenderCodedFeminineWardrobe(referenceStyle)) {
+    return [
+      "OUTFIT LOCK FOR ENTIRE REEL:",
+      input.characterContract.clothingLine,
+      "use an avatar-compatible male equivalent while preserving the source palette, material, silhouette, fit, and formality",
+    ].filter(Boolean).join("; ");
+  }
 
   if (requiresContinuousPresenterWardrobe(input)) {
     return [
@@ -110,4 +123,8 @@ export function renderReferenceWardrobe(input: {
     colors,
     "choose a simple outfit for the new scene; clothing is not a QA contract",
   ].filter(Boolean).join("; ");
+}
+
+function isGenderCodedFeminineWardrobe(value: string) {
+  return /halter|dress|skirt|юбк|плать|женск|декольте|бюстье/iu.test(value);
 }

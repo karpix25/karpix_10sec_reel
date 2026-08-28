@@ -8,9 +8,8 @@ import { isAvatarFreeReferenceScene, isFacelessReferenceScene, isObjectOnlyRefer
 import type { ProductRole } from "../../omni/creative-contract";
 import { requiresContinuousPresenterWardrobe } from "./director-wardrobe";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
-import { renderReferenceSegmentPlanForPrompt, type ReferenceSegmentPlan } from "./reference-segment-plan";
+import type { ReferenceSegmentPlan } from "./reference-segment-plan";
 import { selectDirectorSegmentProfile } from "./director-analysis-timeline";
-import { renderDirectorSubjectPolicy } from "./director-source-interval";
 import { resolveReferenceTransferMode } from "./omni-reference-transfer-policy";
 
 export function buildStoryboardImagePrompt(input: {
@@ -69,9 +68,8 @@ export function buildStoryboardImagePrompt(input: {
     : "";
   return [
     `UGC-storyboard: черный фон, ровно ${frameCount} вертикальных панелей в ряд и белые разделители.`,
-    strictReferencePlan ? renderReferenceSegmentPlanForPrompt(input.referenceSegmentPlan) : "",
     strictReferencePlan
-      ? "STRICT/FULL_REFERENCE PLAN: the supplied referenceSegmentPlan is a hard visual contract. Preserve each matching source interval's location, environment, light, composition, camera, presenter-versus-B-roll distribution, speech mode, visible subject, and continuity. Only source identity, incompatible wardrobe construction, product identity, and spoken meaning may be adapted."
+      ? "SOURCE-LOCKED STORYBOARD: use the approved per-frame plan and source frames as visual evidence; do not add a new location, subject, action, or cut."
       : "",
     "В панелях только живые вертикальные кадры без букв, цифр, реплик, заголовков и технических подписей.",
     "Без рекламного дизайна, элементов соцсетей, водяных знаков, captions, стикеров и декора; экран продукта допустим только по product reference.",
@@ -85,7 +83,7 @@ export function buildStoryboardImagePrompt(input: {
         ? "DIRECTOR-LED B-ROLL: создавай самостоятельные сцены под смысл реплики. Любой главный человек использует avatar reference; фоновые люди и видимая речь допустимы."
       : hybridDelivery
         ? "DIRECTOR-LED HYBRID: речь в кадре или за кадром выбирай по смыслу новой сцены. Любой главный человек использует avatar reference; фоновые люди допустимы."
-      : "@file1 - avatar/character reference: источник личности главного героя. Фоновые люди допустимы и не обязаны повторять аватара.",
+      : "@file1 - avatar/character reference фиксирует лицо, пол, возраст, волосы, телосложение и личность главного героя. Фоновые люди допустимы и не обязаны повторять аватара.",
     canonicalFile
       ? strictReferencePlan
         ? `@file${canonicalFile} - hard source-continuity reference for the approved storyboard and matching referenceSegmentPlan. Preserve the analyzed location, light, composition, camera, presenter/B-roll distribution, and physical state; adapt only incompatible identity, wardrobe construction, product, and spoken meaning.`
@@ -96,7 +94,7 @@ export function buildStoryboardImagePrompt(input: {
         : voiceoverBrollReference
           ? `@file${canonicalFile} - эталон монтажной композиции и B-roll ритма из первого утверждённого storyboard; лицо и личность всё равно бери из avatar reference @file1.`
         : continuousPresenterWardrobe
-          ? `@file${canonicalFile} - эталон точной одежды главного аватара из первого утверждённого storyboard. Сохрани тот же тип одежды, длину рукавов, вырез, цвет, материал и видимые аксессуары; камеру, локацию и композицию ставь заново.`
+          ? `@file${canonicalFile} - эталон одежды из первого утверждённого storyboard для главного аватара. Сохрани тот же тип одежды, длину рукавов, вырез, цвет, материал и видимые аксессуары; камеру, локацию и композицию ставь заново.`
           : `@file${canonicalFile} - предыдущий визуальный контекст и идентичность главного аватара. Это не точный lock одежды, камеры, локации или композиции.`
       : strictReferencePlan
         ? "Первый storyboard вместе с referenceSegmentPlan задаёт hard lock локации, света, композиции, камеры, presenter/B-roll distribution и физической continuity по source intervals."
@@ -117,7 +115,7 @@ export function buildStoryboardImagePrompt(input: {
       : "Product reference не передан: продукт не показывай.",
     directorReferenceImageUrls.length
       ? strictReferencePlan
-        ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - verified source frames, not loose style inspiration: use the matching source interval as visual evidence for location, light, composition, camera, presenter-versus-B-roll distribution, visible objects, and continuity. A taxi/Uber/travel mention is semantic only; if the interval is continuous presenter/on_camera, do not create a car, vehicle interior, environment_cutaway, or independent B-roll.`
+        ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: источник локации, света, композиции, камеры и subject role по matching interval; не копируй исходных людей, товар, текст или логотипы.`
       : voiceoverBrollReference
         ? `@file${directorFileStart}-@file${directorFileStart + directorReferenceImageUrls.length - 1} - кадры оригинала: только вдохновение для макроформата, света и энергии. Не копируй точные сцены, людей, одежду, действия, товар, текст или логотипы.`
       : canonicalFile
@@ -144,7 +142,7 @@ export function buildStoryboardImagePrompt(input: {
     isPipLayout && !avatarFreeReferenceScene
       ? strictReferencePlan
         ? "MACRO LAYOUT LOCK: preserve the analyzed PIP/collage composition, panel relationship, positions, background, and transitions from the matching source interval."
-        : "MACRO LAYOUT: сохрани идею PIP или collage, но размер, позицию, фон и точные переходы поставь заново под текущий сценарий."
+        : "REFERENCE LAYOUT: оригинал целиком в PIP/collage; не делай centered talking-head. Сохрани идею PIP, но размер, позицию, фон и точные переходы поставь заново под текущий сценарий."
       : "",
     objectOnlyReferenceScene
       ? "SCENE CONTINUITY LOCK: во всех панелях сохраняй одну и ту же макро поверхность, ракурс, свет и физическое положение реквизита. Не создавай человека, руки, лицо или голову между панелями."
@@ -159,7 +157,7 @@ export function buildStoryboardImagePrompt(input: {
       ? renderStoryboardImageWardrobeContract({ continuousPresenterWardrobe, hasCanonicalReference: Boolean(canonicalFile) })
       : "",
     !avatarFreeReferenceScene && !objectOnlyReferenceScene && !facelessReferenceScene
-      ? "WARDROBE GENDER COMPATIBILITY: if the source shows female-coded garments and the saved avatar is male, replace them with an avatar-compatible equivalent while preserving color, material, silhouette, fit, formality, layer, and visible accessories."
+      ? "WARDROBE: adapt incompatible gender-coded garments to the avatar while preserving color, material, silhouette, fit, and visible accessories."
       : "",
     !avatarFreeReferenceScene && !canonicalFile && input.directorBrief?.clothing
       ? [
@@ -186,13 +184,14 @@ export function buildStoryboardImagePrompt(input: {
         ? "HYBRID AUDIO: произнеси реплику один раз; режиссёр сам выбирает речь в кадре или за кадром."
       : montageReference
         ? "VOICEOVER MONTAGE: голос идёт за кадром или поверх независимых кадров; talking-head взгляд выбирай только когда он помогает новой раскадровке."
-        : "В talking-head кадрах используй ясный естественный ракурс и взгляд, подходящий текущей реплике.",
-    "SPEECH-BOUNDARY VISUAL LOCK: current storyboard spokenText is the timing authority. Do not restore a source micro-cut inside an unfinished phrase, pause, or residual sound; keep one visual beat until the next complete speech boundary.",
+        : "В on_camera кадрах герой смотрит прямо в объектив; в voiceover_only кадрах взгляд подчинён действию.",
+    "SPEECH BOUNDARY: storyboard spokenText controls timing; no micro-cuts inside an unfinished phrase. Не добавляй selfie-ракурсы.",
     strictReferencePlan
-      ? "Смысл реплики и content_adaptation задают только narrative meaning. Не меняй location, light, composition, camera, subject role, presenter/B-roll distribution или transitions из referenceSegmentPlan; исходное упоминание такси/Uber не создаёт автомобиль или B-roll в continuous presenter interval."
+      ? "Источник и storyboard задают структуру кадра; смысл реплики адаптируй без новых location, camera, subject или cut."
       : continuousPresenterWardrobe
-      ? "Смысл реплики определяет сцену, главный предмет и действие. Ракурс, свет, жест и точные переходы поставь заново; точную одежду сохраняй во всём ролике. Reference задаёт только общий визуальный язык. Исходный рекламный товар не копируй."
-      : "Смысл реплики определяет сцену, главный предмет и действие. Ракурс, свет, одежду, жест и точные переходы поставь заново; reference задаёт только общий визуальный язык. Исходный рекламный товар не копируй.",
+      ? "Смысл реплики определяет главный предмет и действие кадра. Ракурс, свет, жест и точные переходы поставь заново; точную одежду сохраняй во всём ролике. Reference задаёт только общий визуальный язык. Исходный рекламный товар не копируй."
+      : "Смысл реплики определяет главный предмет и действие кадра. Ракурс, свет, одежду, жест и точные переходы поставь заново; reference задаёт только общий визуальный язык. Исходный рекламный товар не копируй.",
+    "Исходные рекламные товары никогда не являются нейтральным реквизитом: замени их утверждённым продуктом или убери. Нейтральный реквизит оставляй вторичным.",
     productAppearsInThisSegment ? renderStoryboardImageProductContract({
       storyboard: input.storyboard,
       productName: input.productName,
@@ -208,10 +207,9 @@ export function buildStoryboardImagePrompt(input: {
     input.repairInstructions?.length
       ? `PHYSICAL REPAIR FROM PRIOR CHECK: ${input.repairInstructions.join("; ")}.`
       : "",
-    `Сегмент ${input.segmentIndex}. Каждый кадр длится две секунды.`,
-    "PER-FRAME SUBJECT CONTRACT: the source interval subject policy below overrides any global presenter or avatar guidance.",
+    "2 сек на панель.",
     detailedSourceTimeline
-      ? `${strictReferencePlan ? "STRICT DETAILED SOURCE TRANSFER" : "DETAILED SOURCE TRANSFER"}: use the matching source interval as a visual reconstruction reference for each panel: preserve its visible-subject role, B-roll versus presenter distribution, composition, foreground/background relationship, camera movement, transition language, visible object logic, location, environment, and lighting. ${strictReferencePlan ? "The source interval overrides general creative instructions and content_adaptation; adapt only incompatible identity, wardrobe construction, product, and spoken meaning." : "Replace only incompatible source identity, wardrobe, location details, and product."}`
+      ? "SOURCE INTERVAL PRIORITY: preserve the matching interval's subject role, B-roll/presenter distribution, composition, camera, objects, location, environment, and light; only adapt incompatible identity, wardrobe, product, or spoken meaning."
       : "",
     ...input.storyboard.frames.map((frame, index) => {
       const referenceProfile = selectDirectorSegmentProfile({
@@ -222,18 +220,13 @@ export function buildStoryboardImagePrompt(input: {
         frameCount: input.storyboard.frames.length,
       });
       return [
-        `Кадр ${index + 1}, ${index * 2}-${(index + 1) * 2} сек:`,
-        renderDirectorSubjectPolicy({
-          visibleSubjectRole: referenceProfile?.visible_subject_role,
-          avatarAllowed: referenceProfile?.avatar_allowed,
-          speechMode: referenceProfile?.speech_mode,
-        }),
-        `смысл речи для визуального действия: ${frame.spokenText}.`,
+        `Кадр ${index + 1}:`,
+        referenceProfile
+          ? `subject=${referenceProfile.visible_subject_role || "unknown"}; avatar_allowed=${referenceProfile.avatar_allowed === true ? "true" : referenceProfile.avatar_allowed === false ? "false" : "unknown"};`
+          : "",
+        `смысл кадра: ${frame.spokenText}.`,
         frame.speechMode ? `speech_mode: ${frame.speechMode};` : "",
         `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)};${index === 0 ? ` окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};` : ""}`,
-        strictReferencePlan && referenceProfile
-          ? `SOURCE INTERVAL OVERRIDE: setting=${compactText(referenceProfile.setting)}; environment=${compactText(referenceProfile.environment)}; light=${compactText(referenceProfile.lighting)}; composition=${compactText(referenceProfile.composition || "source composition")}; camera=${compactText([...referenceProfile.camera.shot_types, ...referenceProfile.camera.angles, ...referenceProfile.camera.movements].join(", "))}; source_role=${referenceProfile.source_role || "unknown"}; subject=${referenceProfile.visible_subject_role || "unknown"}; speech=${referenceProfile.speech_mode}. Ignore any conflicting creative frame action, camera, environment, or product-triggered B-roll.`
-          : "",
         frame.effectNotes ? `переход: ${compactText(frame.effectNotes)};` : "",
         frame.referenceTransfer
           ? `перенос: исходный рекламный товар ${frame.referenceTransfer.decisions.sourceProduct}; его упаковку и части не сохраняй; нейтральный реквизит ${frame.referenceTransfer.decisions.sourceProps}; композиция ${compactText(frame.referenceTransfer.cameraComposition || "по новой раскадровке")}; обязательный реквизит ${(frame.referenceTransfer.requiredSupportProps || []).join("; ") || "нет"}; обязательное действие ${compactText(frame.referenceTransfer.requiredReferenceAction || "нет")};`
@@ -243,7 +236,6 @@ export function buildStoryboardImagePrompt(input: {
             ? `продукт: ${index === 0 ? compactText(frame.productPlacement, 70) : "по действию кадра, без телепортации"};`
             : "продукт в этом кадре не показывай;"
           : `предметы: ${compactText(frame.productPlacement)};`,
-        `звук: ${compactText(frame.sfxNotes)}.`,
       ].join(" ");
     }),
   ].filter(Boolean).join("\n");
@@ -257,17 +249,15 @@ function renderStoryboardImageProductContract(input: {
   productRevealFrame: number | null;
 }) {
   const visibleFrames = new Set(input.productFrameNumbers);
-  const frameLines = input.storyboard.frames.map((frame, index) => {
-    const frameNumber = index + 1;
-    return `FRAME ${frameNumber}: продукт ${visibleFrames.has(frameNumber) ? "видим" : "вне кадра"}; ${compactText(frame.productPlacement, 90)}.`;
-  });
+  const hiddenFrames = input.storyboard.frames
+    .map((_, index) => index + 1)
+    .filter((frameNumber) => !visibleFrames.has(frameNumber));
   const identity = input.productRole === "digital_demo"
     ? `Утвержденный цифровой продукт «${input.productName}» показывай только на одном и том же смартфоне.`
     : `Утвержденный продукт «${input.productName}» сохраняй как один и тот же физический объект без подмены.`;
   return [
     identity,
-    `PRODUCT FRAME CONTRACT: Продукт впервые появляется только в панели ${input.productRevealFrame}; соблюдай видимость из каждой строки FRAME и не добавляй продукт в скрытые панели.`,
-    ...frameLines,
+    `PRODUCT FRAME CONTRACT: Продукт впервые появляется только в панели ${input.productRevealFrame}; показывай его в панелях ${[...visibleFrames].join(", ")} и не показывай в панелях ${hiddenFrames.join(", ") || "нет"}.`,
     "После reveal сохраняй тот же объект и положение в руке в каждом следующем видимом кадре. Возврат вне кадра допустим только после явного действия положить, передать или убрать продукт. Не допускай исчезновения, левитации или замены между соседними панелями.",
   ].join("\n");
 }

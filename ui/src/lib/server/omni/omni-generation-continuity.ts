@@ -5,23 +5,11 @@ import type { DirectorWardrobeContinuity } from "./director-wardrobe";
 import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import type { ReferenceSegmentPlan } from "./reference-segment-plan";
 
-type OmniGenerationReferenceState = {
-  location: string;
-  environment: string;
-  lighting: string;
-  camera: string;
-  composition: string;
-  subjectDistribution: string;
-  wardrobe: string;
-  sourceScene: string;
-};
-
 export type OmniGenerationContinuityState = {
   segmentIndex: number;
   productState: string;
   sceneState: string;
   lastAction: string;
-  referenceState?: OmniGenerationReferenceState;
 };
 
 export type OmniGenerationContinuityDirection = {
@@ -46,11 +34,7 @@ export function buildOmniGenerationContinuityDirection(
   input: BuildContinuityDirectionInput
 ): OmniGenerationContinuityDirection {
   const montageReference = input.referenceFormatMode === "voiceover_montage";
-  const strictReference = input.referencePolicy?.mode === "full_reference";
   const voiceoverBrollReference = input.plan.referenceSceneMode === "voiceover_broll";
-  const referenceState = strictReference
-    ? buildReferenceState(input.referenceSegmentPlan, input.wardrobeContinuity)
-    : undefined;
   const productAction = buildProductAction({
     productName: input.productName,
     role: input.plan.productRole,
@@ -60,114 +44,34 @@ export function buildOmniGenerationContinuityDirection(
     talkingHead: input.talkingHead,
     voiceoverBroll: voiceoverBrollReference,
   });
-  const sceneStart = strictReference && referenceState
-    ? input.previousState?.referenceState
-      ? `Continue the previous verified source scene: ${renderReferenceState(input.previousState.referenceState)}. Apply only the current verified interval contract: ${renderReferenceState(referenceState)}.`
-      : `Start in the verified source scene: ${renderReferenceState(referenceState)}.`
-    : montageReference
-    ? `Start this independent montage cut with its own approved reference setting and action: ${describeInitialScene(input.plan)}.`
+  const sceneStart = montageReference
+    ? "start this independent cut from the current storyboard"
     : input.previousState
-    ? `Start from previous final state: ${compactContinuityState(input.previousState.sceneState)}; product state: ${compactContinuityState(input.previousState.productState)}.`
-    : `Start with the scene already established: ${describeInitialScene(input.plan)}.`;
+      ? "continue directly from the previous segment final state"
+      : "start at the first storyboard panel";
   const wardrobeInstruction = renderWardrobeContinuityInstruction(input.wardrobeContinuity);
+  const productContinuity = input.plan.productRole === "hidden"
+    ? "Product stays off camera."
+    : "Preserve the same product identity and physical state across the segment boundary; follow the current storyboard's visible action.";
   const nextState: OmniGenerationContinuityState = {
     segmentIndex: input.segmentIndex,
     productState: compactContinuityState(productAction.endState),
     sceneState: describeSceneEnd(input.plan, productAction.endState),
     lastAction: compactContinuityState(input.plan.beats[2]?.action || productAction.actionLine),
-    ...(referenceState ? { referenceState } : {}),
   };
-
-  const referenceContractLines = strictReference && referenceState
-    ? renderReferenceContract(referenceState, input.referenceSegmentPlan)
-    : [];
 
   return {
     promptLines: montageReference
       ? [
-        `MONTAGE SEGMENT: ${sceneStart} Do not continue the previous segment's room, camera, or prop positions. ${wardrobeInstruction} ${voiceoverBrollReference ? "Any featured human uses the saved avatar identity; background people are allowed. Preserve only the approved product appearance." : "Keep the same featured presenter identity; preserve exact product appearance."}`,
-        ...referenceContractLines,
-        `PRODUCT ACTION: ${productAction.actionLine}`,
-        `PHYSICAL CAUSALITY: ${productAction.causalityLine}`,
+        `MONTAGE: ${sceneStart}. The current storyboard controls location, camera, wardrobe, action, and cuts. ${wardrobeInstruction}`,
+        `PRODUCT CONTINUITY: ${productContinuity}`,
       ]
       : [
-        `SCENE CONTINUITY: ${sceneStart}`,
-        ...referenceContractLines,
-        `PRODUCT ACTION: ${productAction.actionLine}`,
-        `PHYSICAL CAUSALITY: ${productAction.causalityLine}`,
-        `END STATE FOR NEXT PART: ${nextState.sceneState}; product state: ${nextState.productState}.`,
+        `CONTINUITY: ${sceneStart}. The current storyboard controls location, camera, wardrobe, action, and cuts. ${wardrobeInstruction}`,
+        `PRODUCT CONTINUITY: ${productContinuity}`,
       ],
     nextState,
   };
-}
-
-function buildReferenceState(
-  plan: ReferenceSegmentPlan | null | undefined,
-  wardrobeContinuity?: DirectorWardrobeContinuity,
-): OmniGenerationReferenceState | null {
-  if (!plan?.beats.length) return null;
-  const beats = plan.beats;
-  const location = unique(beats.map((beat) => beat.setting)).join(" -> ") || "verified source location";
-  const environment = unique(beats.map((beat) => beat.environment)).join(" -> ") || "verified source environment";
-  const lighting = unique(beats.map((beat) => beat.lighting)).join(" -> ") || "verified source lighting";
-  const camera = unique(beats.map((beat) => beat.camera)).join(" -> ") || "verified source camera";
-  const composition = unique(beats.map((beat) => beat.composition || "")).join(" -> ") || "verified source composition";
-  const subjectDistribution = beats.map((beat) => [
-    `${beat.startSeconds}-${beat.endSeconds}s`,
-    beat.sourceRole || "source_role_unknown",
-    beat.visibleSubjectRole || "subject_role_unknown",
-    beat.speechMode,
-    `avatar_allowed=${beat.avatarAllowed === true ? "true" : beat.avatarAllowed === false ? "false" : "unknown"}`,
-  ].join(" ")).join("; ");
-  const wardrobe = renderStrictWardrobe(wardrobeContinuity);
-  return {
-    location: compactContinuityState(location),
-    environment: compactContinuityState(environment),
-    lighting: compactContinuityState(lighting),
-    camera: compactContinuityState(camera),
-    composition: compactContinuityState(composition),
-    subjectDistribution: compactContinuityState(subjectDistribution, 220),
-    wardrobe,
-    sourceScene: compactContinuityState(unique(beats.map((beat) => `${beat.setting}; ${beat.environment}`)).join(" -> "), 220),
-  };
-}
-
-function renderReferenceContract(
-  state: OmniGenerationReferenceState,
-  plan: ReferenceSegmentPlan | null | undefined,
-) {
-  return [
-    "STRICT FULL_REFERENCE: the verified director timeline and this referenceSegmentPlan are the only sources of visual facts. content_adaptation changes meaning or product identity only; it never invents visual facts.",
-    `REFERENCE SEGMENT CONTRACT: ${plan?.segmentIndex || "?"}/${plan?.segmentCount || "?"}; source ${plan?.sourceStartSeconds ?? "?"}-${plan?.sourceEndSeconds ?? "?"}s; ${renderReferenceState(state)}.`,
-    `PRESENTER/B-ROLL DISTRIBUTION: ${state.subjectDistribution}. Do not turn a verified B-roll interval into a presenter shot or introduce a vehicle, room, or other scene absent from the contract.`,
-    `WARDROBE CONTINUITY: ${state.wardrobe}`,
-  ];
-}
-
-function renderReferenceState(state: OmniGenerationReferenceState) {
-  return [
-    `location=${state.location}`,
-    `environment=${state.environment}`,
-    `light=${state.lighting}`,
-    `camera=${state.camera}`,
-    `composition=${state.composition}`,
-    `source_scene=${state.sourceScene}`,
-  ].join("; ");
-}
-
-function renderStrictWardrobe(continuity?: DirectorWardrobeContinuity) {
-  if (continuity === "not_visible") return "not visible in the verified source; do not invent clothing details";
-  if (continuity === "changes_between_cuts") {
-    return "follow the verified outfit for the current source interval; if it is incompatible with the avatar, use an avatar-compatible equivalent preserving color, material, and silhouette";
-  }
-  if (continuity === "stable") {
-    return "keep the verified outfit across continuous segments; if it is incompatible with the avatar, use an avatar-compatible equivalent preserving color, material, and silhouette";
-  }
-  return "use only verified wardrobe details; if clothing is visible and incompatible with the avatar, use an avatar-compatible equivalent preserving color, material, and silhouette";
-}
-
-function unique(values: readonly string[]) {
-  return [...new Set(values.map((value) => value.replace(/\s+/gu, " ").trim()).filter(Boolean))];
 }
 
 function renderWardrobeContinuityInstruction(continuity?: DirectorWardrobeContinuity) {
@@ -233,14 +137,6 @@ function buildProductAction(input: {
     causalityLine: "Show the cause of each movement through hand contact and gravity; no teleporting, floating, duplication, or sudden material change.",
     endState: `${product} ends either in the presenter's hand or on the same surface, with a clear hand-driven path from its start position`,
   };
-}
-
-function describeInitialScene(plan: OmniSegmentCreativePlan) {
-  const props = plan.continuityProps
-    .slice(0, 3)
-    .map((item) => `${compactContinuityState(item.name, 48)} at ${compactContinuityState(item.initialPosition, 72)}`)
-    .join(", ");
-  return props || "same person, outfit, lighting, and room are visible before the first word";
 }
 
 function describeSceneEnd(plan: OmniSegmentCreativePlan, productState: string) {

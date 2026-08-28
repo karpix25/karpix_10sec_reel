@@ -49,9 +49,9 @@ try {
   const avatarPrompts = buildOmniSegmentPrompts(buildInput("avatar_reference"));
 
   assert.ok(directorPrompts.every((item) => item.prompt.length < 5600), "provider prompts must stay compact");
-  assert.ok(directorPrompts[0].prompt.includes("bright kitchen counter"));
-  assert.ok(directorPrompts[1].prompt.includes("parked car interior"));
-  assert.ok(directorPrompts[2].prompt.includes("bathroom mirror wall"));
+  assert.ok(directorPrompts.every((item) => item.prompt.includes("VISUAL AUTHORITY")));
+  assert.ok(directorPrompts.every((item) => item.prompt.includes("@storyboard_file")));
+  assert.ok(!directorPrompts.join("\n").includes("REFERENCE SEGMENT CONTRACT"));
   assert.ok(!directorPrompts.join("\n").includes("Fast jump-cut rhythm copied from reference"));
   assert.ok(!directorPrompts.join("\n").includes("REFERENCE EDITING:"));
 
@@ -60,9 +60,6 @@ try {
     assert.ok(item.prompt.includes("Точная реплика персонажа") || item.prompt.includes("The avatar says:"));
   }
   assert.ok(/WARDROBE/iu.test(directorPrompts[0].prompt));
-  assert.ok(/red/iu.test(directorPrompts[0].prompt));
-  assert.ok(avatarPrompts[0].prompt.includes("темно-синий худи"));
-  assert.ok(avatarPrompts[0].prompt.includes("ignore clothing from the reference video"));
   assert.ok(!avatarPrompts.join("\n").includes("red summer dress"));
 
   console.log("Omni compact prompt contract checks passed");

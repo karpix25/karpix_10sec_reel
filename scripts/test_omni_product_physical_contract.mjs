@@ -111,6 +111,7 @@ try {
     segmentIndex: 1,
     storyboard,
     productName: "Berry Jelly",
+    productPhysicalContract: storyboardHint,
     avatarReferenceUrl: "https://example.com/avatar.jpg",
     productReferenceUrls: ["https://example.com/jelly.jpg"],
   });

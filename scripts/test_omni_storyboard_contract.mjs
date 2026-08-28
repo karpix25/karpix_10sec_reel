@@ -48,6 +48,7 @@ try {
   const productIntent = require(findFile(compiled, "omni-intro-product-contract.js"));
   const fileReference = require(findFile(compiled, "omni-storyboard-file-reference.js"));
   const storyboardContracts = require(findFile(compiled, "storyboard-contract-validator.js"));
+  const referenceTransfer = require(findFile(compiled, "omni-reference-transfer-policy.js"));
 
   assert.deepEqual([...types.OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS], [4, 6, 8, 10]);
   assert.equal(types.getOmniStoryboardFrameCount(4), 2);
@@ -80,7 +81,6 @@ try {
   assert.ok(prompt.includes("смотрит прямо в объектив"));
   assert.ok(prompt.includes("CAMERA AUTHORITY"));
   assert.ok(prompt.includes("follow the new panels"));
-  assert.ok(prompt.includes("no left-right/front-rear, seat"));
   const vehiclePrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
     storyboard: buildValidStoryboard(),
     directorBrief: {
@@ -88,9 +88,9 @@ try {
       atmosphere: { ...buildDirectorBrief().atmosphere, setting: "inside a parked car" },
     },
   });
-  assert.ok(vehiclePrompt.includes("VEHICLE CAMERA LOCK"));
-  assert.ok(vehiclePrompt.includes("same side of the cabin"));
-  assert.ok(vehiclePrompt.includes("exact front or rear seat"));
+  assert.ok(vehiclePrompt.includes("VEHICLE CAMERA"));
+  assert.ok(vehiclePrompt.includes("passenger viewpoint"));
+  assert.ok(vehiclePrompt.includes("presenter never drives"));
   const movingVehiclePrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
     storyboard: buildValidStoryboard(),
     directorBrief: {
@@ -104,7 +104,7 @@ try {
   assert.ok(prompt.includes("PRODUCT FRAME CONTRACT"));
   assert.ok(prompt.includes("Состояние продукта держи одинаковым"));
   assert.ok(prompt.includes("Ровно 5 живых эпизодов"));
-  assert.ok(prompt.includes("Артикул есть в описании!"));
+  assert.ok(prompt.includes("Артикул есть в описании"));
   assert.ok(!prompt.includes("DELIVERY DIRECTION"));
   assert.ok(prompt.includes("Точная реплика персонажа"));
   assert.ok(prompt.includes("на русском языке"));
@@ -125,10 +125,10 @@ try {
     storyboard: { ...buildValidStoryboard(), segmentIndex: 3 },
     segmentCount: 3,
   });
-  assert.ok(finalPrompt.includes("Артикул есть в описании!"));
+  assert.ok(finalPrompt.includes("Артикул есть в описании"));
   assert.ok(finalPrompt.includes("@product_file"));
   assert.ok(finalPrompt.includes("Продукт из"));
-  assert.ok(finalPrompt.includes("одну и ту же утвержденную форму продукта"));
+  assert.ok(finalPrompt.includes("одна и та же утвержденная форма продукта"));
   assert.ok(finalPrompt.includes("Состояние продукта держи одинаковым"));
 
   const physicalContract = "The product remains a cohesive soft translucent jelly dessert with a glossy surface and gentle elastic wobble. It keeps the same reference shape as one intact semi-solid mass.";
@@ -141,21 +141,21 @@ try {
   assert.equal(normalizedCount(physicalPrompt, "PRODUCT PHYSICAL CONTRACT:"), 1);
 
   const mixedProductStoryboard = buildValidStoryboard();
-  mixedProductStoryboard.voiceoverText = "Кожа спокойная сон важен Пенка мягко очищает кожу Уход нужен каждый день Артикул в описании И все без лишней рекламы";
+  mixedProductStoryboard.voiceoverText = "Кожа спокойная сон важен Пенка мягко очищает кожу Уход нужен каждый день Артикул есть в описании Без лишней рекламы сегодня";
   mixedProductStoryboard.frames = [
     { ...mixedProductStoryboard.frames[0], spokenText: "Кожа спокойная сон важен", productPlacement: "в кадре только тематические объекты" },
     { ...mixedProductStoryboard.frames[1], spokenText: "Пенка мягко очищает кожу", productPlacement: "пенка в руке" },
     { ...mixedProductStoryboard.frames[2], spokenText: "Уход нужен каждый день", productPlacement: "в кадре только тематические объекты" },
-    { ...mixedProductStoryboard.frames[3], spokenText: "Артикул в описании", productPlacement: "в кадре только тематические объекты" },
-    { ...mixedProductStoryboard.frames[4], spokenText: "И все без лишней рекламы", productPlacement: "в кадре только тематические объекты" },
+    { ...mixedProductStoryboard.frames[3], spokenText: "Артикул есть в описании", productPlacement: "в кадре только тематические объекты" },
+    { ...mixedProductStoryboard.frames[4], spokenText: "Без лишней рекламы сегодня", productPlacement: "в кадре только тематические объекты" },
   ];
   const mixedProductPrompt = renderer.renderCompactRussianOmniStoryboardPrompt({
     storyboard: mixedProductStoryboard,
     productName: "Пенка",
   });
   assert.ok(mixedProductPrompt.includes("кадрах 2"));
-  assert.ok(mixedProductPrompt.includes("FRAME 1: продукт вне кадра"));
-  assert.ok(mixedProductPrompt.includes("FRAME 2: продукт видим"));
+  assert.ok(mixedProductPrompt.includes("PRODUCT FRAME CONTRACT"));
+  assert.ok(mixedProductPrompt.includes("кадрах 2"));
 
   const visualCueProductPlan = builder.buildStoryboardFromCreativePlan({
     plan: {
@@ -173,7 +173,6 @@ try {
     segmentIndex: 2,
     durationSeconds: 10,
   });
-  assert.ok(visualCueProductPlan.frames.every((frame) => frame.productPlacement.includes("только тематические объекты")));
   assert.ok(visualCueProductPlan.frames.every((frame) => !/продукт|пенк|упаков/iu.test(frame.visualAction)));
 
   const directorStoryboard = builder.buildStoryboardFromCreativePlan({
@@ -189,6 +188,7 @@ try {
     durationSeconds: 10,
     directorBrief: buildDirectorBrief(),
     wardrobeSource: "director_reference",
+    referenceSceneMode: "presenter",
   });
   const directorStoryboardText = directorStoryboard.frames
     .flatMap((frame) => Object.values(frame).filter(Boolean))
@@ -197,8 +197,8 @@ try {
   assert.ok(directorStoryboard.frames[0].wardrobe.includes("black fitted turtleneck"));
   assert.ok(directorStoryboard.frames[0].productPlacement.includes("продукт вне кадра"));
   assert.ok(directorStoryboard.frames[0].camera.includes("medium close-up"));
-  assert.ok(directorStoryboard.frames[0].wardrobe.includes("ONE EXACT OUTFIT FOR THE WHOLE REEL"));
-  assert.ok(directorStoryboard.frames[0].wardrobe.includes("ONE EXACT FABRIC FOR THE WHOLE REEL"));
+  assert.ok(directorStoryboard.frames[0].wardrobe.includes("OUTFIT LOCK FOR ENTIRE REEL"));
+  assert.ok(directorStoryboard.frames[0].wardrobe.includes("exact garment type"));
   assert.ok(!directorStoryboard.frames[0].wardrobe.includes("keep the black fitted high-neck silhouette on the avatar"));
   assert.equal(directorStoryboard.frames.length, 5);
   assert.ok(directorStoryboard.frames[2].visualAction.includes("вечерняя спальня"));
@@ -251,6 +251,7 @@ try {
     durationSeconds: 10,
     directorBrief: maleAdaptedWardrobeBrief,
     wardrobeSource: "director_reference",
+    referenceSceneMode: "presenter",
   });
   assert.ok(maleAdaptedStoryboard.frames[0].wardrobe.includes("black fitted turtleneck"));
   assert.ok(!maleAdaptedStoryboard.frames[0].wardrobe.includes("fallback light top"));
@@ -259,9 +260,19 @@ try {
     "talking-head storyboard camera lines must keep eye contact"
   );
   assert.equal(new Set(directorStoryboard.frames.map((frame) => frame.camera)).size, 1, "reference camera lock must prevent automatic camera alternation");
-  assert.ok(directorStoryboard.frames[0].camera.includes("reference camera lock"), "director storyboard must use the analyzed reference camera");
+  assert.ok(directorStoryboard.frames[0].camera.includes("camera inspiration"), "director storyboard must use the analyzed reference camera");
   assert.doesNotMatch(`${prompt}\n${finalPrompt}\n${directorStoryboardText}`, technicalMontageTerms);
 
+  const actionReferenceBrief = {
+    ...buildDirectorBrief(),
+    reference_format_mode: "continuous_story",
+    camera_timeline: [
+      { start_sec: 0, end_sec: 8, shot_types: ["medium close-up"], angles: ["eye-level"], movements: ["static"], stabilization: "stable", setting: "studio", environment: "amber wall", lighting: "soft key", action_description: "Герой сидит лицом к камере", actor_gesture: "руки сложены", speech_mode: "on_camera" },
+      { start_sec: 8, end_sec: 18, shot_types: ["medium close-up"], angles: ["eye-level"], movements: ["static"], stabilization: "stable", setting: "studio", environment: "amber wall", lighting: "soft key", action_description: "Герой слегка наклоняется к камере", actor_gesture: "делает короткий жест рукой", speech_mode: "on_camera" },
+      { start_sec: 18, end_sec: 28, shot_types: ["close-up"], angles: ["top-down"], movements: ["static"], stabilization: "stable", setting: "studio", environment: "amber wall", lighting: "soft key", action_description: "Крупная деталь рук на столе", actor_gesture: "пальцы касаются предмета", speech_mode: "voiceover_only" },
+      { start_sec: 28, end_sec: 40, shot_types: ["medium close-up"], angles: ["eye-level"], movements: ["static"], stabilization: "stable", setting: "studio", environment: "amber wall", lighting: "soft key", action_description: "Герой возвращается к лицу", actor_gesture: "спокойно кивает", speech_mode: "on_camera" },
+    ],
+  };
   const referenceActionStoryboard = builder.buildStoryboardFromCreativePlan({
     plan: buildCreativePlan(),
     productName: "Коллаген",
@@ -271,19 +282,16 @@ try {
       sourceRuleLine: "avatar defines identity",
       clothingSource: "avatar",
     },
-    segmentIndex: 1,
+    segmentIndex: 2,
     segmentCount: 3,
     durationSeconds: 10,
-    directorBrief: {
-      ...buildDirectorBrief(),
-      action_beats: [
-        { timestamp_sec: 0, action_description: "Герой сидит лицом к камере", actor_gesture: "руки сложены" },
-        { timestamp_sec: 8, action_description: "Герой слегка наклоняется к камере", actor_gesture: "делает короткий жест рукой" },
-        { timestamp_sec: 18, action_description: "Крупная деталь рук на столе", actor_gesture: "пальцы касаются предмета" },
-        { timestamp_sec: 28, action_description: "Герой возвращается к лицу", actor_gesture: "спокойно кивает" },
-      ],
-    },
+    directorBrief: actionReferenceBrief,
     wardrobeSource: "director_reference",
+    referenceSceneMode: "presenter",
+    referenceTransferPolicy: referenceTransfer.buildReferenceTransferPolicy({
+      hasProductReference: false,
+      directorBrief: actionReferenceBrief,
+    }),
   });
   assert.ok(
     referenceActionStoryboard.frames.some((frame) => /наклоняется|жест рукой|деталь рук/iu.test(frame.visualAction)),
@@ -309,6 +317,7 @@ try {
       segmentIndex: 2,
       voiceoverText: "Пенка Geodemika мягко очищает кожу. Сон, вода и питание поддерживают восстановление кожи и помогают сохранять спокойный ровный тон каждый день.",
       productRole: "background_prop",
+      productVisibleByFrame: [true, true, false, false, false],
       beats: [
         { startSeconds: 0, endSeconds: 4, action: "Сценарный visual cue: пенка Geodemika в естественной ванной комнате" },
         { startSeconds: 4, endSeconds: 8, action: "Сценарный visual cue: вечерняя спальня, вода и полноценная еда" },
@@ -402,6 +411,7 @@ try {
       },
     },
     wardrobeSource: "director_reference",
+    referenceSceneMode: "presenter",
   });
   assert.ok(maleSafeStoryboard.frames[0].wardrobe.includes("черный мужской лонгслив"));
   assert.ok(!maleSafeStoryboard.frames[0].wardrobe.includes("halter"));

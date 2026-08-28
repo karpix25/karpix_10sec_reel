@@ -44,7 +44,6 @@ import {
   renderStoryboardWardrobe,
 } from "./omni-storyboard-frame-rendering";
 import { resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
-
 export function buildStoryboardFromCreativePlan(input: {
   plan: OmniSegmentCreativePlan;
   productName: string;
@@ -161,7 +160,6 @@ export function promptValidationFromStoryboard(
 export function validateBuiltStoryboard(storyboard: OmniStoryboardSegment) {
   return validateOmniStoryboardSegment(storyboard);
 }
-
 function buildFrame(input: {
   plan: OmniSegmentCreativePlan;
   productName: string;
@@ -400,7 +398,9 @@ function renderProductFrameAction(action: string | undefined, isCutawayFrame: bo
 
 function renderNonProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false, voiceoverBrollReference = false, noPeopleReference = false) {
   const normalized = compactText(action || "", 220);
-  const hasProductCue = mentionsOmniProduct(normalized, productName) || /(?:\bproduct\b|продукт|товар|упаков)/iu.test(normalized);
+  const hasProductCue = (mentionsOmniProduct(normalized, productName) || /(?:\bproduct\b|продукт|товар|упаков)/iu.test(normalized)) &&
+    !/(?:source\s+product|исходный\s+рекламный\s+предмет|продукт|товар|упаков|product|package)\s+(?:вне\s+кадра|не\s+показывай|не\s+виден|off\s*camera)/iu.test(normalized) &&
+    !/source\s+product/iu.test(normalized);
   if (!hasProductCue) return renderFrameAction(action, isCutawayFrame, facelessReferenceScene, voiceoverBrollReference, noPeopleReference);
   return isCutawayFrame
     ? "смысловая перебивка по текущей реплике без товара"

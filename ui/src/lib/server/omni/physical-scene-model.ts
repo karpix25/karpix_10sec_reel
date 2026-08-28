@@ -25,6 +25,7 @@ const HANDOFF_PATTERN = /(?:передает|передаёт|handoff|hands?\s+(
 const FOREIGN_PRODUCT_REFERENCE_PATTERN = /(?:product|brand|package|packaging|label|jar|bottle|box|tube|sachet|snack|food|drink|cream|serum|supplement|vitamin|apple|banana|fruit|vegetable|коллаген|сыр|морков|перекус|яблок|банан|фрукт|овощ|продукт|товар|бренд|упаков|этикет|баноч|бутыл|короб|тюбик|пакет|еда|напит|крем|сыворот|добавк|витамин)/iu;
 const FOREIGN_PACKAGED_PRODUCT_PATTERN = /(?:product|brand|package|packaging|label|jar|bottle|box|tube|sachet|cream|serum|supplement|vitamin|коллаген|продукт|товар|бренд|упаков|этикет|баноч|бутыл|короб|тюбик|пакет|крем|сыворот|добавк|витамин)/iu;
 const NEGATED_PRODUCT_REFERENCE_PATTERN = /без\s+(?:чужих?\s+)?(?:product|package|packaging|продукт|товар|упаков)/iu;
+const SOURCE_PRODUCT_OFF_CAMERA_PATTERN = /(?:source\s+product|исходный\s+рекламный\s+предмет)[^.;]{0,120}(?:вне\s+кадра|off\s*camera)/iu;
 
 export function hasConsumptionAction(value: string) {
   return CONSUMPTION_PATTERN.test(value);
@@ -125,6 +126,7 @@ function significantTokens(value: string) {
 
 function hasForeignPackagedProduct(value: string, productName: string) {
   return FOREIGN_PACKAGED_PRODUCT_PATTERN.test(value) &&
+    !SOURCE_PRODUCT_OFF_CAMERA_PATTERN.test(value) &&
     !NEGATED_PRODUCT_REFERENCE_PATTERN.test(value) &&
     !mentionsProduct(value, productName);
 }

@@ -10,7 +10,6 @@ import { isProductVisibleInStoryboardFrame } from "../omni-intro-product-contrac
 import { renderProductPhysicalContractForOmni } from "../product-physical-contract";
 import type { DirectorBrief } from "../director-analysis-types";
 import { isCollagePictureInPictureReference } from "../director-layout-contract";
-import { renderReferenceTransitionCue } from "./omni-storyboard-effects";
 import { OMNI_PHYSICAL_ACTION_CONTRACT } from "../omni-physical-action-contract";
 import { isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "../omni-reference-scene-mode";
 import { isAvatarFreeReferenceScene } from "../omni-reference-scene-mode";
@@ -32,7 +31,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   if (!validation.valid) {
     throw new Error(`Invalid Omni storyboard: ${validation.errors.join(", ")}`);
   }
-  const voiceoverText = renderPunctuatedVoiceover(input.storyboard, input.segmentCount);
+  const voiceoverText = input.storyboard.voiceoverText.trim();
   const frameCount = input.storyboard.frames.length;
   const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(input.directorBrief);
   const referenceFormatMode = resolveReferenceFormatMode(input.directorBrief);
@@ -57,8 +56,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
 
   return [
     `Динамичный разговорный ролик по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; сохрани визуал.`,
-    `Ровно ${frameCount} живых эпизодов, по одному на кадр и в том же порядке.`,
-    "Оживи панели; не показывай саму раскадровку и интерфейс соцсетей",
+    `Ровно ${frameCount} живых эпизодов, по одному на кадр и в том же порядке. Оживи панели; не показывай саму раскадровку и интерфейс соцсетей.`,
     objectOnlyReferenceScene
       ? "OBJECT-ONLY: голос за кадром; в кадре только утверждённая поверхность, предметы и концептуальные пропы; человека, рук, лица, головы и talking-head framing нет."
       : facelessReferenceScene
@@ -76,33 +74,25 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     preservePipLayout
       ? "PIP: full-screen фон; avatar lower-left cutout."
       : "",
-    "filming gear is never seen.",
-    "VIDEO TEXTURE: raw smartphone exposure, focus breathing, and handheld energy; never glossy or studio-shot.",
+    "No visible filming gear.",
+    "VIDEO: natural phone footage; no glossy studio look.",
     objectOnlyReferenceScene
-      ? `Свет, фон, макро поверхность, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй человека, руки, лицо, голову или аватар.`
+      ? `VISUAL AUTHORITY: свет, фон, макро поверхность, ракурс и действия бери только из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй человека, руки, лицо, голову или аватар.`
       : facelessReferenceScene
-        ? `Свет, фон, ракурс, руки и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй лицо, голову или аватар.`
+        ? `VISUAL AUTHORITY: свет, фон, ракурс, руки и действия бери только из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй лицо, голову или аватар.`
       : animationReference
-        ? `Стиль, персонажей, формы, текстуры, свет, камеру и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй фотореалистичного аватара или live-action сцену.`
+        ? `VISUAL AUTHORITY: стиль, персонажей, формы, текстуры, свет, камеру и действия бери только из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй фотореалистичного аватара или live-action сцену.`
       : voiceoverBrollReference
         ? noPeopleReference
-          ? `Свет, локации, ракурсы, монтаж и независимые действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй людей, рук или avatar/character reference.`
-          : `Свет, локации, ракурсы, монтаж и действия бери из новой раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; личность любого главного человека бери из avatar/character reference.`
-      : `Лицо и личность персонажа бери из avatar/character reference; одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}.`,
-    objectOnlyReferenceScene
-      ? "Фиксируй одну и ту же макро поверхность, свет, реквизит и физическое положение предметов."
-      : facelessReferenceScene
-        ? "Фиксируй одну и ту же поверхность, реквизит и физическое положение предметов."
-      : animationReference
-        ? "Сохраняй одних и тех же нарисованных персонажей, пропорции, палитру, фактуры и правила движения между кадрами."
-      : voiceoverBrollReference
-        ? noPeopleReference
-          ? "Сохраняй независимость B-roll сцен; не добавляй людей, руки или аватар."
-          : "Сохраняй личность главного аватара и форму продукта; фоновые люди, одежда и сцены могут естественно меняться."
-      : "Фиксируй те же волосы, пробор, аксессуары.",
-    avatarFreeReferenceScene ? "" : renderStoryboardWardrobeContinuity(continuousPresenterWardrobe),
-    avatarFreeReferenceScene ? "" : renderStoryboardWardrobe(input.storyboard),
-    renderReferenceTransitionCue(input.directorBrief),
+          ? `VISUAL AUTHORITY: локации, ракурсы, монтаж и действия бери только из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй людей, рук или avatar/character reference.`
+          : `VISUAL AUTHORITY: локации, ракурсы, монтаж и действия бери только из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; лицо и личность главного человека бери из avatar/character reference.`
+      : `VISUAL AUTHORITY: одежду, свет, фон, ракурс и действия бери из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; это единственный источник этих визуальных фактов. Лицо и личность персонажа бери из avatar/character reference.`,
+    avatarFreeReferenceScene
+      ? ""
+      : continuousPresenterWardrobe
+        ? "WARDROBE CONTINUITY: сохраняй один и тот же комплект одежды из storyboard во всех панелях и сегментах."
+        : "WARDROBE: используй одежду, показанную в текущем storyboard.",
+    avatarFreeReferenceScene ? "" : "Фиксируй те же волосы, пробор, аксессуары по avatar/character reference.",
     renderStoryboardCameraLock(montageReference),
     renderVehicleCameraLock(input.directorBrief, montageReference),
     objectOnlyReferenceScene
@@ -120,9 +110,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       : montageReference
         ? "VOICEOVER MONTAGE: голос может идти за кадром поверх независимых кадров; talking-head взгляд выбирай только когда он помогает новой раскадровке."
         : "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
-    renderProductFrameContract({
-      storyboard: input.storyboard,
-      productName: input.productName || "продукт",
+    renderProductVisibilityContract({
       productRole: input.productRole,
       productFrameNumbers,
     }),
@@ -137,20 +125,8 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
         ? "Точная реплика на русском языке: в кадрах on_camera говорит аватар, в кадрах voiceover_only реплика звучит за кадром; произноси только текст в кавычках, ничего кроме него:"
       : "Точная реплика персонажа на русском языке (произноси только текст в кавычках, ничего кроме него):",
     `"${voiceoverText}"`,
-    "Правила аудио: одна непрерывная аудиодорожка; смена кадров не перезапускает речь; произнеси строго указанную реплику в кавычках один раз. Визуальные cuts делай только по полным речевым единицам storyboard, не на остатке слова или паузе внутри фразы. После неё молчи. Не читай инструкции. Без фоновой музыки и субтитров.",
+    "Правила аудио: одна непрерывная аудиодорожка; смена кадров не перезапускает речь. произнеси строго указанную реплику в кавычках один раз; cuts — только по полным речевым единицам storyboard, не внутри фразы. После неё молчи. Не читай инструкции. Без фоновой музыки и субтитров.",
   ].join("\n");
-}
-
-function renderStoryboardWardrobeContinuity(continuousPresenterWardrobe: boolean) {
-  if (continuousPresenterWardrobe) {
-    return "WARDROBE CONTINUITY LOCK: this is one continuous on-screen presenter. Keep the exact storyboard outfit unchanged in every panel and independently generated segment: same garment type, sleeve length, neckline, color, fabric, and visible accessories.";
-  }
-  return "WARDROBE GUIDANCE: use the outfit from the new storyboard when visible. Exact reference or cross-segment clothing continuity is not required.";
-}
-
-function renderStoryboardWardrobe(storyboard: OmniStoryboardSegment) {
-  const wardrobe = [...new Set(storyboard.frames.map((frame) => frame.wardrobe.trim()).filter(Boolean))];
-  return wardrobe.length ? `WARDROBE FROM STORYBOARD: ${wardrobe.join(" | ")}` : "";
 }
 
 function renderStoryboardCameraLock(montageReference = false) {
@@ -159,31 +135,22 @@ function renderStoryboardCameraLock(montageReference = false) {
     : `CAMERA AUTHORITY: follow the new panels in ${OMNI_STORYBOARD_FILE_PLACEHOLDER}. Keep each planned setup coherent until the storyboard introduces a cut.`;
 }
 
-function renderProductFrameContract(input: {
-  storyboard: OmniStoryboardSegment;
-  productName: string;
+function renderProductVisibilityContract(input: {
   productRole?: ProductRole;
   productFrameNumbers: readonly number[];
 }) {
   if (!input.productFrameNumbers.length) {
-    return "В этом сегменте продукт вне кадра; не переноси его из reference-кадра.";
+    return "PRODUCT FRAME CONTRACT: продукт вне кадра; не переноси его из reference-кадра и не добавляй самовольно.";
   }
 
-  const visibleFrames = new Set(input.productFrameNumbers);
-  const stateLines = input.storyboard.frames.map((frame, index) => {
-    const frameNumber = index + 1;
-    const visibility = visibleFrames.has(frameNumber) ? "видим" : "вне кадра";
-    return `FRAME ${frameNumber}: продукт ${visibility}; ${frame.productPlacement}`;
-  });
+  const frames = input.productFrameNumbers.join(", ");
   const productIdentity = input.productRole === "digital_demo"
-    ? `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: утвержденный экран мобильного продукта на одном и том же смартфоне; не превращай его в пластиковую карту или упаковку.`
-    : `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: сохраняй одну и ту же утвержденную форму продукта без подмены другими товарами.`;
+    ? `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: утвержденный экран мобильного продукта на смартфоне показывай только в кадрах ${frames}; не превращай его в пластиковую карту или упаковку.`
+    : `Продукт из ${OMNI_PRODUCT_FILE_PLACEHOLDER}: неизменная упаковка и одна и та же утвержденная форма продукта; показывай только в кадрах ${frames}, без подмены другим товаром.`;
 
   return [
     productIdentity,
-    "PRODUCT FRAME CONTRACT: состояние продукта в каждой строке FRAME обязательно. Не меняй видимость продукта по собственной инициативе.",
-    ...stateLines,
-    "Состояние продукта держи одинаковым по утвержденной физической последовательности. После появления продукта сохраняй тот же объект и его положение в руке в каждом следующем видимом кадре. Возврат продукта вне кадра разрешен только при явно показанном действии: положил, передал или убрал. Не допускай исчезновения, левитации или замены объекта между соседними кадрами.",
+    "PRODUCT FRAME CONTRACT: storyboard определяет видимость и placement. Состояние продукта держи одинаковым; после появления не допускай исчезновения, телепортации или замены без явно показанного действия положить, передать или убрать.",
   ].join("\n");
 }
 
@@ -207,19 +174,4 @@ function renderVehicleCameraLock(brief?: DirectorBrief | null, montageReference 
       ? "Use natural handheld micro-vibration and subtle vehicle sway; the presenter is a passenger and never drives."
       : "Use natural smartphone framing; the presenter never drives.",
   ].join(" ");
-}
-
-function renderPunctuatedVoiceover(storyboard: OmniStoryboardSegment, segmentCount?: number) {
-  const text = storyboard.voiceoverText.trim();
-  if (/[?!]$/u.test(text)) return text;
-  const mark = storyboard.segmentIndex === 1
-    ? renderHookMark(text)
-    : segmentCount && storyboard.segmentIndex === segmentCount
-      ? "!"
-      : "";
-  return mark ? `${text.replace(/[.!…]+$/u, "")}${mark}` : text;
-}
-
-function renderHookMark(text: string) {
-  return /^(?:почему|зачем|как|что|когда|если|вы|ты|знаете|знаешь)\b/iu.test(text) ? "?" : "!";
 }

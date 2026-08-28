@@ -2,10 +2,9 @@ import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 
 const CONTINUITY_PROMPT_CONTRACT = [
   "Start this segment directly from the final pose and layout shown in the provided previous-frame reference.",
-  "Maintain the same person, camera distance, lighting, room background, and visible prop positions when the storyboard marks them as continuous.",
-  "Keep products and props in the same visual relationship to the speaker unless this segment explicitly moves them.",
-  "Let the speaker continue naturally with blinking, speech, and small gestures from the starting posture.",
-  "Do not create a sudden camera cut, angle change, lighting change, or background reset at the transition boundary.",
+  "The current storyboard controls the next shot; preserve the same person, lighting, room, camera, and prop positions until its next explicit cut.",
+  "Keep product state continuous and let the speaker continue naturally from the starting posture.",
+  "Do not create a sudden camera cut, lighting change, or background reset at the boundary.",
 ].join(" ");
 
 export function appendContinuityPromptContract(
@@ -40,17 +39,17 @@ export function appendKieReferenceOrderPrompt(
     hasPreviousFrame
       ? montageReference
         ? "CONTINUITY AUTHORITY: begin from the previous final frame for pose and product placement only; the current storyboard controls the subject and wardrobe for this independent cut."
-        : "CONTINUITY AUTHORITY: begin exactly from the previous final frame. It controls the visible person, outfit, hair, camera, lighting, room and prop layout at the cut boundary."
+        : "CONTINUITY AUTHORITY: begin from the previous final frame and preserve its person, outfit, hair, camera, lighting, room, and prop layout until the current storyboard cuts."
       : "",
     hasCanonicalStoryboard && !montageReference
-      ? "WARDROBE AUTHORITY: copy the exact outfit, color, fabric, fit, sleeves, glasses, and accessories from the canonical storyboard reference. It overrides the current storyboard, avatar, and model guesses for character appearance."
+      ? "WARDROBE AUTHORITY: the canonical storyboard controls the outfit across continuous segments."
       : images.some((image) => image.role === "storyboard")
-      ? montageReference
-        ? "IDENTITY AUTHORITY: use the storyboard reference for the current independent cut's composition, face, hair, and product placement. Do not copy wardrobe or room continuity from an unrelated segment."
-        : "WARDROBE AUTHORITY: copy the exact outfit, color, fabric, fit, sleeves, and accessories shown in the storyboard reference. The storyboard outfit overrides avatar or model guesses."
+        ? montageReference
+          ? "IDENTITY AUTHORITY: use the storyboard reference for the current independent cut's composition, face, hair, and product placement. Do not copy wardrobe or room continuity from an unrelated segment."
+        : "WARDROBE AUTHORITY: use the outfit shown in the current storyboard; the storyboard overrides avatar or model guesses."
       : "",
     hasProduct
-      ? "Use the product image as the exact standalone source of truth for product appearance: package shape, label layout, cap or lid color, color palette, size, material, and printed details. The product reference must not define the character outfit, face, room, camera gear, or unrelated props. Keep the product in its own clear place in the scene, such as on a table, counter, shelf, or in the character's hands only when the segment action calls for it."
+      ? "Use the product image as the exact standalone source of truth for product appearance: package shape, label layout, cap or lid color, palette, size, material, and printed details. It must not define the character outfit, room, camera, or unrelated props. Show it only where the storyboard calls for it, on a table, counter, shelf, or in the character's hands when the action requires it."
       : "",
   ].filter(Boolean).join(" ");
 }

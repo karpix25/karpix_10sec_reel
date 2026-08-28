@@ -77,7 +77,6 @@ import {
 } from "./omni-prompt-segment-support";
 import {
   applyReferenceSegmentPlanToFrames, applyReferenceSegmentPlanToStoryboard, buildReferenceSegmentPlan,
-  renderReferenceSegmentPlanForPrompt,
   type ReferenceSegmentPlan,
 } from "./reference-segment-plan";
 
@@ -271,7 +270,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       directorBrief,
       referenceSceneMode,
     }), validation), referenceSceneMode, resolveDirectorVisibleSubjectPolicy(directorBrief));
-    const promptWithReferencePlan = [prompt, ...continuityDirection.promptLines, referencePolicy.mode === "full_reference" ? renderReferenceSegmentPlanForPrompt(referenceSegmentPlan) : ""]
+    const promptWithReferencePlan = [prompt, ...continuityDirection.promptLines]
       .filter(Boolean).join("\n\n");
     prompts.push({
       index: segmentIndex,
@@ -463,7 +462,7 @@ function buildStoredProviderPromptSegments(
       directorBrief,
       referenceSceneMode,
     }), validation), referenceSceneMode, resolveDirectorVisibleSubjectPolicy(directorBrief));
-    const promptWithReferencePlan = [prompt, ...continuityDirection.promptLines, referencePolicy.mode === "full_reference" ? renderReferenceSegmentPlanForPrompt(referenceSegmentPlan) : ""]
+    const promptWithReferencePlan = [prompt, ...continuityDirection.promptLines]
       .filter(Boolean).join("\n\n");
     outputStartSeconds += segment.durationSeconds;
     previousContinuityState = referenceFormatMode === "voiceover_montage"

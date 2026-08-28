@@ -87,7 +87,8 @@ async function resolveKieAudioIds(reel: OmniReel) {
     data: latestAvatar?.kie_character_payload,
   };
   return {
-    audioIds: resolveKieOmniAudioIds(source),
+    // One reel has one narrator. Resolve once before the segment loop and reuse this single profile for every segment/retry.
+    audioIds: resolveKieOmniAudioIds(source).slice(0, 1),
     voiceGender: detectKieOmniVoiceGender(source),
   };
 }

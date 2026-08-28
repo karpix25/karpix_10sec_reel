@@ -31,7 +31,7 @@ export function renderProductPhysicalContractForOmni(contract: string | null | u
     "Stable product state: keep the stated material, consistency, visible contents, package shape, label layout, colors, scale, shadows, and highlights continuous from the first frame to the last frame.",
     "Motion behavior: the product moves only through visible hand contact, gravity, or camera movement while preserving the same physical form and reference design.",
     "This contract is mandatory whenever the product appears in motion.",
-  ].join("\n");
+  ].join(" ");
 }
 
 export function renderProductPhysicalHintForStoryboard(contract: string | null | undefined) {

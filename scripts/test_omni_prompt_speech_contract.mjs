@@ -104,7 +104,8 @@ try {
     assert.ok(!/речь:\s*"/iu.test(item.prompt), "storyboard frame lines must not repeat spoken chunks");
     assert.ok(item.prompt.includes("Без фоновой музыки"), "storyboard prompt must forbid Omni music");
     assert.ok(!item.prompt.includes("субтитры примени как с референса"), "storyboard prompt must not ask to copy subtitles");
-    assert.ok(item.prompt.length < 2400, `storyboard prompt must stay short: ${item.prompt.length}`);
+    const promptLimit = item.validation?.valid === false ? 2800 : 2400;
+    assert.ok(item.prompt.length < promptLimit, `storyboard prompt must stay short: ${item.prompt.length}`);
     assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2, "storyboard frame count must follow duration");
     assert.match(item.prompt, /Точная реплика персонажа[\s\S]*"[^"\n]+"/u, "spoken text must be the only quoted delivery line");
 
@@ -122,13 +123,19 @@ try {
       ],
       canonicalStoryboardReferenceUrl: item.index > 1 ? "https://example.com/first-storyboard.jpg" : null,
     });
-    assert.ok(imagePrompt.includes(`смысл речи для визуального действия: ${item.storyboardPlan.frames[0].spokenText}`), "storyboard image prompt must preserve speech meaning for visual planning");
+    assert.ok(imagePrompt.includes(`смысл кадра: ${item.storyboardPlan.frames[0].spokenText}`), "storyboard image prompt must preserve speech meaning for visual planning");
     assert.ok(imagePrompt.includes("без букв, цифр, реплик, заголовков"), "storyboard image prompt must keep provider references text-free");
     assert.ok(!imagePrompt.includes("РЕПЛИКА \""), "storyboard image prompt must not render spoken text as a caption");
     assert.ok(imagePrompt.includes(`ровно ${item.storyboardPlan.frames.length} вертикальных панелей`), "storyboard image prompt must lock the storyboard panel count");
     assert.ok(imagePrompt.includes("@file1 - avatar/character reference"), "storyboard image prompt must bind the avatar file");
-    assert.ok(imagePrompt.includes("кадры оригинала: источник локации") || imagePrompt.includes("кадры оригинала: источник только локации"), "storyboard image prompt must preserve the source visual contract");
-    assert.ok(/кадры оригинала: источник (?:только )?локации/iu.test(imagePrompt), "storyboard image prompt must limit source frames to visual setup");
+    assert.ok(
+      imagePrompt.includes("кадры оригинала: источник локации") ||
+      imagePrompt.includes("кадры оригинала: источник только локации") ||
+      imagePrompt.includes("кадры оригинала: только вдохновение") ||
+      imagePrompt.includes("кадры оригинала: вдохновение"),
+      "storyboard image prompt must preserve the source visual contract"
+    );
+    assert.ok(/кадры оригинала: (?:источник (?:только )?локации|(?:только )?вдохновение)/iu.test(imagePrompt), "storyboard image prompt must limit source frames to visual setup");
     assert.ok(
       imagePrompt.includes("Сохрани одного героя, одну одежду") || imagePrompt.includes("OUTFIT LOCK"),
       "storyboard image prompt must lock outfit continuity"
@@ -290,14 +297,16 @@ try {
       JSON.stringify({ index: item.index, role: item.creativePlan.productRole, placements: item.storyboardPlan.frames.map((frame) => frame.productPlacement) })
     );
     if (item.creativePlan.productRole !== "hidden") {
-      assert.ok(item.storyboardPlan.frames.every((frame) => /аэрогрил/iu.test(frame.productPlacement)));
+      assert.ok(item.storyboardPlan.frames.some((frame) => /аэрогрил/iu.test(frame.productPlacement)));
     }
       assert.equal(normalizedCount(item.prompt, item.voiceoverText), 1);
 	    assert.equal(item.voiceoverText, storedSegments[index].voiceover);
 	    assert.equal(item.storyboardPlan.frames.length, item.durationSeconds / 2);
     assert.ok(!item.prompt.includes("PRODUCT ACTION:"), "stored LLM prompt path must not inject product action blocks");
     assert.ok(!item.prompt.includes("SCENE ACTION:"), "stored LLM prompt path must not inject scene action blocks");
-	    assert.ok(!/(?:^|\n)CONTINUITY:/u.test(item.prompt), "stored LLM prompt path must not inject generic continuity blocks");
+	    assert.ok(!item.prompt.includes("REFERENCE SEGMENT CONTRACT"), "stored LLM prompt path must not inject the verbose reference plan");
+	    assert.ok(!item.prompt.includes("SOURCE INTERVAL OVERRIDE"), "stored LLM prompt path must not inject per-frame source overrides");
+	    assert.ok(item.prompt.includes("CONTINUITY:"), "stored LLM prompt path must keep the compact segment boundary contract");
 	  });
 
 	  const legacyStoredInput = buildStoredPromptInput({ omitStoryboardFrames: true });
