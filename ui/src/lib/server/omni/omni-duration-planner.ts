@@ -39,13 +39,16 @@ export type OmniReelSegmentPlan = {
   durationRange?: OmniDurationRange;
 };
 
+export type OmniReelSegmentPlanOptions = {
+  durationRange?: OmniDurationRange;
+  requireSentenceBoundaries?: boolean;
+};
+
 export function countOmniScriptWords(script: string) {
   return script.trim().split(/\s+/).filter(Boolean).length;
 }
 
-export function planOmniReelSegments(script: string, options: {
-  durationRange?: OmniDurationRange;
-} = {}): OmniReelSegmentPlan {
+export function planOmniReelSegments(script: string, options: OmniReelSegmentPlanOptions = {}): OmniReelSegmentPlan {
   const wordCount = countOmniScriptWords(script);
   const maxWordsPerSegment = getOmniSegmentWordBudget();
   if (wordCount < OMNI_MIN_SEGMENT_COUNT || !isAnySegmentCountViable(wordCount)) {
@@ -59,13 +62,19 @@ export function planOmniReelSegments(script: string, options: {
   )
     .filter((segmentCount) => wordCount <= segmentCount * maxWordsPerSegment)
     .filter((segmentCount) => isOmniSegmentCountViable(wordCount, segmentCount))
-    .map((segmentCount) => buildCandidate(script, segmentCount, maxWordsPerSegment, options.durationRange))
+    .map((segmentCount) => buildCandidate(
+      script,
+      segmentCount,
+      maxWordsPerSegment,
+      options.durationRange,
+      options.requireSentenceBoundaries ?? false
+    ))
     .filter((candidate): candidate is PlanCandidate => candidate !== null);
 
   const selected = candidates.sort((left, right) => left.score - right.score)[0];
   if (!selected) {
     throw new Error(
-      "Не удалось разделить сценарий на части 4/6/8/10 секунд: каждая часть должна раскладываться на кадры ровно по 4 слова без разрыва CTA. Измените формулировку сценария."
+      "Не удалось разделить сценарий на части 4/6/8/10 секунд: каждая часть должна укладываться в лимит слов и заканчиваться завершенным предложением без разрыва CTA. Измените формулировку сценария."
     );
   }
 
@@ -96,7 +105,8 @@ function buildCandidate(
   script: string,
   segmentCount: number,
   maxWordsPerSegment: number,
-  durationRange?: OmniDurationRange
+  durationRange: OmniDurationRange | undefined,
+  requireSentenceBoundaries: boolean
 ): PlanCandidate | null {
   for (const allowAwkwardBoundaries of [false, true]) {
     for (const targetWordCounts of findTargetWordCountOptions(countOmniScriptWords(script), segmentCount)) {
@@ -108,7 +118,8 @@ function buildCandidate(
           OMNI_TARGET_SEGMENT_WORDS_MIN,
           (wordCount) => getOmniSegmentDurationForWordCount(wordCount) !== null,
           targetWordCounts,
-          allowAwkwardBoundaries
+          allowAwkwardBoundaries,
+          requireSentenceBoundaries
         );
         if (segments.length !== segmentCount) continue;
         const segmentDurationsSeconds = resolveSegmentDurations(segments, durationRange);

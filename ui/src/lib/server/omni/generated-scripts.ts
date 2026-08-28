@@ -12,7 +12,11 @@ import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
 import { listRecentLifeFormatIds } from "./omni-creative-history";
-import { OMNI_SEGMENT_SECONDS, planOmniReelSegments } from "./omni-duration-planner";
+import { OMNI_SEGMENT_SECONDS } from "./omni-duration-planner";
+import {
+  buildOmniTimedVoiceoverPlan,
+  resolveOmniTimedVoiceoverPlan,
+} from "./omni-timed-voiceover-plan";
 import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { generateScript } from "./script-generator";
 import {
@@ -146,7 +150,11 @@ export async function buildGeneratedScriptPromptPreview(input: {
     product,
     legacyClientId: generatedScript.source_legacy_client_id,
   });
-  const segmentPlan = planOmniReelSegments(resolvedGeneratedScript.script, { durationRange });
+  const timedVoiceoverPlan = resolveOmniTimedVoiceoverPlan({
+    script: resolvedGeneratedScript.script,
+    sourceSnapshot: resolvedGeneratedScript.source_snapshot,
+    durationRange,
+  });
   const referenceSourceDurationSeconds = readSourceDurationSeconds(resolvedGeneratedScript.source_snapshot);
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
   const directorBrief = extractDirectorBriefFromSnapshot(resolvedGeneratedScript.source_snapshot);
@@ -157,10 +165,9 @@ export async function buildGeneratedScriptPromptPreview(input: {
     legacyTranscript: null,
     product,
     avatar: avatarForPrompt,
-    segmentCount: segmentPlan.segmentCount,
+    segmentCount: timedVoiceoverPlan.segmentCount,
     segmentSeconds: OMNI_SEGMENT_SECONDS,
-    voiceSegments: segmentPlan.segments,
-    segmentDurationsSeconds: segmentPlan.segmentDurationsSeconds,
+    timedVoiceoverPlan,
     brief: null,
     targetAudience: project.target_audience,
     ctaMode: product.cta_mode,
@@ -174,7 +181,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     promptPlan: basePromptPlan,
     productName: product.name,
     productPhysicalContract: product.product_physical_contract,
-    segmentCount: segmentPlan.segmentCount,
+    segmentCount: timedVoiceoverPlan.segmentCount,
     directorBrief,
     referenceSceneMode: resolveReferenceSceneMode(directorBrief),
   });
@@ -185,7 +192,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
       promptPlan: basePromptPlan,
       productName: product.name,
       productPhysicalContract: product.product_physical_contract,
-      segmentCount: segmentPlan.segmentCount,
+      segmentCount: timedVoiceoverPlan.segmentCount,
       directorBrief,
       referenceSceneMode: resolveReferenceSceneMode(directorBrief),
     })
@@ -232,7 +239,7 @@ export async function buildGeneratedScriptPromptPreview(input: {
     segments: promptPlan.map((segment) => ({
       index: segment.index,
       durationSeconds: segment.durationSeconds,
-      wordCount: segmentPlan.segments[segment.index - 1]?.wordCount,
+      wordCount: timedVoiceoverPlan.segments[segment.index - 1]?.wordCount,
     })),
   }).then((directorReferenceImageUrlsBySegment) => ensureGeneratedScriptStoryboardUrls({
     ...input,
@@ -366,6 +373,7 @@ export async function createGeneratedScriptFromLegacy(input: {
   });
   const writerContentContext = buildWriterOwnedScriptContentContract(referenceTranscript);
   let generated: Awaited<ReturnType<typeof generateScript>>;
+  let timedVoiceoverPlan: ReturnType<typeof buildOmniTimedVoiceoverPlan>;
   try {
     generated = await generateScript({
       model,
@@ -385,6 +393,7 @@ export async function createGeneratedScriptFromLegacy(input: {
       adaptationPlan: writerContentContext.adaptation,
       contentContract: writerContentContext,
     });
+    timedVoiceoverPlan = buildOmniTimedVoiceoverPlan(generated.payload.script, { durationRange });
   } catch (error) {
     await failGeneratedScriptGeneration(pendingScript.id, error);
     throw error;
@@ -416,6 +425,7 @@ export async function createGeneratedScriptFromLegacy(input: {
         voiceover: beat.voiceover,
       })),
     },
+    timed_voiceover_plan: timedVoiceoverPlan,
   };
   const productSnapshot = {
     id: product.id,
