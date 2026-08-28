@@ -46,12 +46,7 @@ import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
 import { getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
 import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
 import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
-import {
-  buildLegacyScriptContentContract,
-  IncompatibleReferenceError,
-  getScriptContentMeaningSignals,
-  type ScriptContentContract,
-} from "./script-content-contract";
+import type { ScriptContentContract } from "./script-content-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const SCRIPT_GENERATION_REQUEST_TIMEOUT_MS = 90_000;
@@ -94,11 +89,6 @@ export async function generateScript(input: {
   openRouterUsage: OpenRouterUsageRecord[];
   llmPromptChainSnapshot?: Record<string, unknown>;
 }> {
-  if (input.adaptationPlan.mode === "incompatible") {
-    throw new IncompatibleReferenceError(
-      input.contentContract || buildLegacyScriptContentContract(input.sourceScenario.script, input.adaptationPlan),
-    );
-  }
   if (isLlmPromptChainEnabled()) return requestPromptChainScript(input);
 
   let retryFeedback: string | null = null;
@@ -248,7 +238,6 @@ async function requestScriptOnce(
     referenceScript: input.sourceScenario.script,
     productName: input.productName,
     adaptationMode: input.adaptationPlan.mode,
-    requiredMeaning: input.contentContract ? getScriptContentMeaningSignals(input.contentContract) : undefined,
   });
   const wasCompacted = compactedScript !== script;
   script = compactedScript;

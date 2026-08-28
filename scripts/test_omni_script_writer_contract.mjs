@@ -145,8 +145,8 @@ try {
   assert.ok(prompt.includes("Все числа в текстовых значениях JSON пиши словами"), "prompt must force numbers as words in generated text values");
   assert.ok(prompt.includes("нет дефисов, нет тире, нет минусов, нет цифр"), "prompt must require final symbol self-check");
   assert.ok(prompt.includes("Поле script должно совпадать"), "script must match beat voiceovers");
-  assert.ok(prompt.includes("контрактом адаптации"), "prompt must use the analyzer adaptation contract");
-  assert.ok(prompt.includes("в границах выбранного режима"), "prompt must keep adaptation mode boundaries");
+  assert.ok(prompt.includes("Сначала сам разберись в теме, конфликте, обещании хука"), "prompt must make the writer analyze reference meaning");
+  assert.ok(prompt.includes("Если исходный предмет не подходит"), "prompt must let the writer transfer the hook to a new product story");
   assert.ok(prompt.includes("не переноси эту роль на аватара"), "prompt must strip source author expert roles");
   assert.ok(prompt.includes("Продукт обязан выполнять понятную функцию"), "prompt must require product to serve the script idea");
   assert.ok(prompt.includes("в момент первого естественного появления продукта"), "CTA must be embedded at the natural product mention");
@@ -159,7 +159,7 @@ try {
   assert.ok(!prompt.includes("артикул или код"), "article CTA must not ask the model to say generic code wording");
   assert.ok(prompt.includes("Не пытайся сохранить большую часть фраз дословно"), "prompt must prioritize meaning over phrase count");
   assert.ok(prompt.includes("главный тезис, вопрос или возражение, механизм"), "prompt must require the original argument mechanics");
-  assert.ok(prompt.includes("внутреннюю карту reference"), "prompt must require an internal reference meaning map");
+  assert.ok(prompt.includes("Сначала сам разберись в теме"), "prompt must require an internal reference meaning map");
   assert.ok(prompt.includes("Не заменяй конкретный механизм"), "prompt must preserve concrete reference substance when compressing");
   assert.ok(!prompt.includes("только как пример структуры"), "prompt must not reduce reference to structure only");
   assert.ok(prompt.includes('"background_audio_mood"'), "prompt must request background audio mood");
@@ -252,7 +252,7 @@ try {
   assert.ok(avatarWardrobePrompt.includes("Главный человек в кадре это сохраненный аватар"), "avatar wardrobe mode must guide script visuals to avatar outfit");
   assert.ok(avatarWardrobePrompt.includes("сохраненный аватар в самостоятельной сцене"), "avatar wardrobe mode must use avatar visual example");
   assert.ok(!avatarWardrobePrompt.includes("- Одежда: Black sleeveless fitted top"), "avatar wardrobe mode must not pass raw reference wardrobe into writer guidance");
-  assert.equal(MAX_SCRIPT_GENERATION_ATTEMPTS, 5, "script writer attempt budget should remain unchanged");
+  assert.equal(MAX_SCRIPT_GENERATION_ATTEMPTS, 2, "script writer attempt budget should match the active retry contract");
   assert.ok(
     isRetryableScriptGenerationError(new Error("Сценарий отклонен: слишком короткий для выбранной длины ролика (45 слов). Нужно 60-72 слов для 30-30 сек.")),
     "short generated scripts must be retryable"
@@ -267,7 +267,7 @@ try {
   const longRetryFeedback = buildScriptRetryFeedback(
     new Error("Сценарий отклонен: Сценарий не помещается в доступные Omni-длительности: 101 слов. Максимум 100 слов для 4 частей.")
   );
-  assert.ok(longRetryFeedback.includes("не больше девяноста шести слов"), "long retry feedback must force four-part compression");
+  assert.ok(longRetryFeedback.includes("не больше ста слов"), "long retry feedback must force available-duration compression");
   const jsonRetryFeedback = buildScriptRetryFeedback(
     new Error("No JSON object found in script model output")
   );
@@ -279,7 +279,7 @@ try {
       new Error("Сценарий отклонен: слишком короткий для выбранной длины ролика (45 слов). Нужно 60-72 слов для 30-30 сек."),
       MAX_SCRIPT_GENERATION_ATTEMPTS
     ).message,
-    /после 5 попыток/u
+    /после 2 попыток/u
   );
 
   const plan = normalizeGeneratedScriptPlan({

@@ -43,9 +43,9 @@ import {
   prepareOmniPromptPlanWithSemanticRepair,
 } from "./omni-storyboard-semantic-repair";
 import {
-  prepareGeneratedScriptContent,
-  resolveGeneratedScriptReferenceTranscript,
-} from "./generated-script-content";
+  buildWriterOwnedScriptContentContract,
+} from "./script-content-contract";
+import { resolveGeneratedScriptReferenceTranscript } from "./generated-script-reference-transcript";
 
 const PROMPT_REPAIR_TIMEOUT_MS = 15_000;
 
@@ -348,10 +348,9 @@ export async function createGeneratedScriptFromLegacy(input: {
     director_analysis_model: directorAnalysis?.analysis_model || null,
     director_analysis_prompt_version: directorAnalysis?.analysis_prompt_version || null,
     director_analysis_error: directorAnalysis?.analysis_error || null,
-    generated_script_plan_version: "reels-script-writer-v1",
+    generated_script_plan_version: "reels-script-writer-v2-writer-owned-adaptation",
     duration_range: durationRange,
-    content_adaptation_plan: null,
-    content_contract: null,
+    script_adaptation_mode: "writer_owned",
   };
   const model = process.env.SCENARIO_MODEL || "google/gemini-3.5-flash-lite";
   const pendingScript = await createGeneratedScriptGenerationRecord({
@@ -365,21 +364,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     productSnapshot: { id: product.id, name: product.name },
     model,
   });
-  let contentAdaptation: Awaited<ReturnType<typeof prepareGeneratedScriptContent>>;
-  try {
-    contentAdaptation = await prepareGeneratedScriptContent({
-      scriptId: pendingScript.id,
-      sourceScenario,
-      referenceTranscript,
-      productName: product.name,
-      productDescription: product.description,
-      productReferenceNotes: product.product_reference_notes,
-      model,
-    });
-  } catch (error) {
-    await failGeneratedScriptGeneration(pendingScript.id, error);
-    throw error;
-  }
+  const writerContentContext = buildWriterOwnedScriptContentContract(referenceTranscript);
   let generated: Awaited<ReturnType<typeof generateScript>>;
   try {
     generated = await generateScript({
@@ -397,8 +382,8 @@ export async function createGeneratedScriptFromLegacy(input: {
       wardrobeSource: project.wardrobe_source,
       durationRange,
       avatarSpeechGender,
-      adaptationPlan: contentAdaptation.contract.adaptation,
-      contentContract: contentAdaptation.contract,
+      adaptationPlan: writerContentContext.adaptation,
+      contentContract: writerContentContext,
     });
   } catch (error) {
     await failGeneratedScriptGeneration(pendingScript.id, error);
@@ -407,18 +392,13 @@ export async function createGeneratedScriptFromLegacy(input: {
   const directorCost = extractOpenRouterCostSummaryFromSnapshot(directorAnalysis?.source_snapshot);
   const openRouterUsage = [
     ...(directorCost?.layers || []),
-    ...contentAdaptation.openRouterUsage,
     ...generated.openRouterUsage,
   ];
   const openRouterCost = summarizeOpenRouterUsage(openRouterUsage);
 
   const sourceSnapshot = {
     ...sourceSnapshotBase,
-    content_contract: contentAdaptation.contract,
-    content_adaptation_plan: contentAdaptation.contract.adaptation,
-    content_adapter_model: contentAdaptation.model,
-    content_adapter_prompt_version: contentAdaptation.promptVersion,
-    content_adapter_attempt_count: contentAdaptation.attemptCount,
+    script_writer_prompt_version: "reels-script-writer-v2-writer-owned-adaptation",
     generation_stage: "completed",
     generation_error: null,
     quality_check: generated.qualityCheck,

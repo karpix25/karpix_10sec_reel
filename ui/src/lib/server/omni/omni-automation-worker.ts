@@ -1,6 +1,5 @@
 import { createGeneratedScriptFromLegacy } from "./generated-scripts";
 import { LlmPromptChainFailure } from "./llm-prompt-chain-runner";
-import { IncompatibleReferenceError } from "./script-content-contract";
 import pool from "@/lib/db";
 import {
   claimNextOmniAutomationJob,
@@ -70,13 +69,6 @@ async function failAutomationJob(job: OmniAutomationJob, message: string) {
 async function handleJobError(job: OmniAutomationJob, error: unknown) {
   const message = getErrorMessage(error);
   if (error instanceof LlmPromptChainFailure) {
-    return {
-      action: "failed",
-      job: await failAutomationJob(job, message),
-      error: message,
-    };
-  }
-  if (error instanceof IncompatibleReferenceError) {
     return {
       action: "failed",
       job: await failAutomationJob(job, message),

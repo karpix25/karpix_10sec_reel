@@ -6,15 +6,8 @@ import type { ScriptSemanticReview } from "./llm-prompt-chain-types";
 import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 import { parseAndRepairJson } from "./script-json-repair";
 import { assertCtaConclusionContract } from "./script-quality-contract";
-import {
-  renderScriptAdaptationReviewContract,
-  type ScriptAdaptationPlan,
-} from "./script-adaptation-contract";
-import {
-  buildLegacyScriptContentContract,
-  renderScriptContentContract,
-  type ScriptContentContract,
-} from "./script-content-contract";
+import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
+import type { ScriptContentContract } from "./script-content-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -171,7 +164,7 @@ export const SEMANTIC_REVIEW_SYSTEM_PROMPT = [
   "productValueStated означает, что зрителю понятно, какую конкретную задачу продукта решают в этом ролике.",
   "hookAnswered означает, что обещание, вопрос или интрига первой части получают конкретный ответ внутри сценария, а не только CTA.",
   "finalAnswerPresent означает, что новый продуктовый тезис получает отдельный утвердительный вывод после последнего CTA. В режиме format_transfer вывод относится к новой продуктовой теме, а не к исходному предмету reference. Вопрос, приказ или новый призыв, включая «забудь», «наслаждайся», «путешествуй», «попробуй» и «хочешь так же», не считаются выводом.",
-  "referenceMeaningPreserved означает, что в режимах preserve_reference и adjacent_bridge новый сценарий сохраняет тему, хук, главный вопрос или конфликт, угол подачи, ключевые примеры, темп и последовательное раскрытие мысли reference, но честно адаптирует ответ под продукт. В режиме format_transfer проверь только переносимую форму хука, личную подачу, темп, структуру и тип раскрытия; не требуй сохранения исходного предмета, механизма или ответа. Не требуй, чтобы продукт притворно отвечал на чужой исходный вопрос.",
+  "referenceMeaningPreserved означает, что сценарист сохранил тему и смысловую логику reference, если продукт решает ту же проблему, либо сохранил переносимую форму хука, личную подачу, темп и структуру, если исходный предмет пришлось заменить. Не требуй, чтобы продукт притворно отвечал на чужой исходный вопрос.",
   "Если reference явно обещает количество советов, шагов или ошибок, проверь, что сценарий сохраняет это количество и каждый пункт по смыслу. Если reference не обещает список и деталь второстепенна, не требуй сохранять весь текст или несколько примеров: одного конкретного факта достаточно, если главный ответ и логика reference не потеряны.",
   "Сокращение, объединение и перестановка примеров сами по себе не являются подменой смысла. Не отклоняй полезный сценарий только потому, что в нем меньше деталей, чем в reference.",
   "Не требуй сохранять чужой CTA, канал, ссылку, скидку, лид-магнит или место публикации из reference. Они заменяются текущим CTA продукта и не являются смысловым выводом reference.",
@@ -186,10 +179,6 @@ export const SEMANTIC_REVIEW_SYSTEM_PROMPT = [
 ].join("\n");
 
 function buildReviewPrompt(input: ScriptSemanticReviewInput) {
-  const contentContract = input.contentContract || buildLegacyScriptContentContract(input.referenceScript, input.adaptationPlan);
-  const referenceReviewRule = contentContract.adaptation.mode === "format_transfer"
-    ? "В режиме format_transfer не требуй сохранения темы или ответа исходного reference. Проверь форму хука, личную подачу, темп, структуру раскрытия и последовательность нового продуктового тезиса."
-    : "Сохрани тему, форму хука, главный конфликт, личную подачу, ключевые примеры и структуру reference. Если продукт не отвечает на исходный вопрос напрямую, проверь естественный переход от темы к проблеме, которую продукт действительно решает.";
   return [
     "Проверь этот сценарий.",
     "Верни JSON строго с полями: passed, productNamed, productValueStated, hookAnswered, finalAnswerPresent, productNaturallyIntegrated, referenceMeaningPreserved, evidence, issues, repairInstructions.",
@@ -206,10 +195,9 @@ function buildReviewPrompt(input: ScriptSemanticReviewInput) {
     "Исходный reference transcript:",
     input.referenceScript.trim() || "не предоставлен",
     "",
-    renderScriptContentContract(contentContract),
-    renderScriptAdaptationReviewContract(contentContract.adaptation),
-    "",
-    referenceReviewRule,
+    "Сначала самостоятельно определи тему, силу хука, главный вопрос или конфликт, ответ или механизм, конкретные примеры и финальный вывод reference.",
+    "Если продукт решает ту же проблему, проверь сохранение темы и последовательности раскрытия. Если продукт решает соседнюю потребность, проверь, что сначала сохранён полезный ответ reference, а затем есть понятный причинный переход. Если исходный предмет не подходит, проверь перенос формы хука и структуры на новый честный продуктовый тезис.",
+    "Не отклоняй сценарий только потому, что предмет reference и продукт различаются. Отклоняй только при потере хука или логики, выдуманных фактах, отсутствии ответа, слабой связи продукта или нарушении CTA.",
     "",
     "Готовый сценарий:",
     input.script.trim(),

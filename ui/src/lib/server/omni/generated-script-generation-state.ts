@@ -51,7 +51,7 @@ export async function createGeneratedScriptGenerationRecord(input: {
       input.sourceLegacyClientId,
       input.directorAnalysisId,
       input.title,
-      JSON.stringify({ ...input.sourceSnapshot, generation_stage: "content_adaptation", generation_error: null }),
+      JSON.stringify({ ...input.sourceSnapshot, generation_stage: "creative_copywriter", generation_error: null }),
       JSON.stringify(input.productSnapshot),
       input.model,
     ]
@@ -92,8 +92,6 @@ export async function failGeneratedScriptGeneration(scriptId: number, error: unk
 }
 
 function inferGenerationStage(message: string) {
-  if (message.startsWith("Script content adapter")) return "content_adaptation";
-  if (message.startsWith("Reference нельзя честно адаптировать")) return "content_adaptation";
   if (message.startsWith("Creative copywriter failed")) return "creative_copywriter";
   if (message.startsWith("Director segmenter failed")) return "director_segmenter";
   if (message.startsWith("Сценарий отклонен")) return "script_validation";

@@ -58,7 +58,6 @@ import {
   formatDirectorSegmenterDiagnostic,
   type DirectorSegmenterAttemptDiagnostic,
 } from "./llm-prompt-chain-diagnostics";
-import { getScriptContentMeaningSignals } from "./script-content-contract";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const CREATIVE_COPYWRITER_ATTEMPTS = 2;
 const DIRECTOR_TARGETED_REPAIR_ATTEMPTS = 2;
@@ -250,7 +249,6 @@ async function runCreativeCopywriter(
         referenceScript: input.sourceScenario.script,
         productName: input.productName,
         adaptationMode: input.adaptationPlan.mode,
-        requiredMeaning: input.contentContract ? getScriptContentMeaningSignals(input.contentContract) : undefined,
       });
       if (countOmniScriptWords(script) > maxWords) {
         throw new Error(`Сценарий длиннее лимита после автоматического сокращения: ${countOmniScriptWords(script)} слов вместо ${maxWords}.`);

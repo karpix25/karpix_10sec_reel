@@ -7,11 +7,8 @@ import { renderDirectorBriefForScriptPrompt } from "./director-analysis-prompt";
 import type { OmniDurationRange } from "./omni-duration-range";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
 import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
-import {
-  buildLegacyScriptContentContract,
-  renderScriptContentContract,
-  type ScriptContentContract,
-} from "./script-content-contract";
+import type { ScriptContentContract } from "./script-content-contract";
+import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 
 export function buildPrompt(input: {
   projectName: string;
@@ -31,7 +28,7 @@ export function buildPrompt(input: {
   adaptationPlan: ScriptAdaptationPlan;
   contentContract?: ScriptContentContract;
 }) {
-  const contentContract = input.contentContract || buildLegacyScriptContentContract(input.sourceScenario.script, input.adaptationPlan);
+  const referenceMeaningGuidance = buildReferenceMeaningGuidance(input.sourceScenario.script);
   const durationInstruction = buildDurationInstruction(input.durationRange);
   const wardrobeSource = normalizeOmniWardrobeSource(input.wardrobeSource);
   const directorGuidance = wardrobeSource === "avatar_reference"
@@ -46,13 +43,16 @@ export function buildPrompt(input: {
 Voiceover это текст, который произносит аватар или диктор; визуально ролик может быть talking head, B-roll или их сочетанием.
 
 Правила:
-${renderScriptContentContract(contentContract)}
+${referenceMeaningGuidance}
+1. Сначала сам разберись в теме, конфликте, обещании хука, ответе или механизме, примерах и финальном выводе reference. Не показывай этот разбор в ответе.
 1. Reference передаёт не только хук, темп и структуру, но и тему, главный вопрос или конфликт, угол подачи, смысловую логику, аргументы и конкретные примеры. Возьми reference целиком и напиши новый сценарий на ту же тему, но адаптируй его под наш продукт. Не копируй текст дословно.
 1а. Перед написанием внутренне определи, чем цепляет хук, какую тему и проблему раскрывает reference, какие примеры поддерживают мысль и в какой момент зрителю становится понятен ответ. Не показывай этот разбор в ответе.
-1б. Если нужно сократить текст до пяти частей, сокращай повторы, вводные слова и длинные формулировки, а не идеи. Объединяй близкие предложения в один плотный beat. Не заменяй конкретный механизм, пример или доказательство общей фразой вроде "это полезно" или "помогает лучше себя чувствовать".
+1аб. Не пытайся сохранить большую часть фраз дословно: сохраняй смысл, механику хука и логику раскрытия.
+1б. Если нужно сократить текст до пяти частей, сожми формулировки: убирай повторы и вводные слова, а не идеи. Объединяй близкие предложения в один плотный beat. Не заменяй конкретный механизм, пример или доказательство общей фразой вроде "это полезно" или "помогает лучше себя чувствовать".
 2. Reference задает смысловую структуру, тип хука и визуальный язык. Точные сцены, локации, действия, одежду, камеру и тайминги поставь заново под новый сценарий. Чужой продукт не копируй.
 3. Сохрани тему, естественную подачу, понятный хук и последовательное раскрытие мысли, но полностью адаптируй содержание под наш продукт.
 3б. Если продукт не отвечает на исходный вопрос напрямую, сохрани тему как контекст и добавь естественный переход к реальной потребности, которую продукт решает. Не притворяйся, что продукт решает чужую проблему.
+3в. Если исходный предмет не подходит, перенеси форму хука, личную подачу, темп и структуру на новую честную продуктовую историю. Не отбрасывай reference только из-за несовпадения тем.
 3а. Если автор reference говорит, что он врач, косметолог, нутрициолог, эксперт, специалист или другой профессионал, не переноси эту роль на аватара. Убери такую фразу или замени ее на нейтральную бытовую подачу от первого лица.
 4. Продукт обязан выполнять понятную функцию в мысли сценария: пример, инструмент, привычка, решение, демонстрация или способ не ошибиться с выбором. Нельзя просто вставить продукт и CTA между двумя полезными фразами.
 4а. Перед упоминанием продукта добавь короткий причинный мостик от ситуации, потребности или выбора из reference к продукту. После названия покажи подтвержденную пользу именно для этой ситуации. Если фразу о продукте можно удалить без потери логики, перепиши переход.

@@ -134,7 +134,11 @@ export function validateReferenceMeaningCoverage(input: {
   generatedScript: string;
   adaptationMode?: ScriptAdaptationMode;
 }): ReferenceMeaningCoverage {
-  if (input.adaptationMode === "format_transfer" || input.adaptationMode === "adjacent_bridge") {
+  if (
+    input.adaptationMode === "format_transfer" ||
+    input.adaptationMode === "adjacent_bridge" ||
+    input.adaptationMode === "writer_owned"
+  ) {
     return {
       passed: true,
       requiresMechanism: false,

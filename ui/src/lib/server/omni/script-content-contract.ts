@@ -1,12 +1,15 @@
-import {
-  buildReferenceMeaningContract,
-  type ReferenceMeaningContract,
-} from "./reference-meaning-contract";
-import {
-  normalizeScriptAdaptationPlan,
-  renderScriptAdaptationContract,
-  type ScriptAdaptationPlan,
-} from "./script-adaptation-contract";
+import { buildReferenceMeaningContract, type ReferenceMeaningContract } from "./reference-meaning-contract";
+import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
+
+export const WRITER_OWNED_ADAPTATION_PLAN: ScriptAdaptationPlan = {
+  version: "script-adaptation-v1",
+  mode: "writer_owned",
+  reason: "Сценарист сам адаптирует смысл reference под продукт.",
+  preserve: ["тему, силу хука, полезную логику и естественную подачу reference"],
+  replace: ["несовместимые факты, предметы и обещания reference"],
+  productBridge: "Найти честную причинную связь между текущей мыслью и подтвержденной пользой продукта.",
+  confidence: 1,
+};
 
 export const SCRIPT_CONTENT_CONTRACT_VERSION = "script-content-v1" as const;
 
@@ -25,86 +28,12 @@ export type ScriptContentContract = {
   adaptation: ScriptAdaptationPlan;
 };
 
-export class IncompatibleReferenceError extends Error {
-  constructor(readonly contract: ScriptContentContract) {
-    super(`Reference нельзя честно адаптировать под продукт: ${contract.adaptation.reason}`);
-    this.name = "IncompatibleReferenceError";
-  }
-}
-
-export function normalizeScriptContentContract(value: unknown): ScriptContentContract | null {
-  if (!isRecord(value)) return null;
-  const sourceMeaning = normalizeSourceMeaning(value.source_meaning ?? value.sourceMeaning);
-  const adaptation = normalizeScriptAdaptationPlan(value.adaptation ?? value.adaptation_plan);
-  if (!sourceMeaning || !adaptation) return null;
+export function buildWriterOwnedScriptContentContract(referenceScript: string): ScriptContentContract {
   return {
     version: SCRIPT_CONTENT_CONTRACT_VERSION,
-    sourceMeaning,
-    adaptation,
+    sourceMeaning: sourceMeaningFromHeuristics(referenceScript, buildReferenceMeaningContract(referenceScript)),
+    adaptation: WRITER_OWNED_ADAPTATION_PLAN,
   };
-}
-
-export function buildLegacyScriptContentContract(
-  referenceScript: string,
-  adaptation: ScriptAdaptationPlan,
-): ScriptContentContract {
-  const meaning = buildReferenceMeaningContract(referenceScript);
-  return {
-    version: SCRIPT_CONTENT_CONTRACT_VERSION,
-    sourceMeaning: sourceMeaningFromHeuristics(referenceScript, meaning),
-    adaptation,
-  };
-}
-
-export function renderScriptContentContract(contract: ScriptContentContract) {
-  const meaning = contract.sourceMeaning;
-  return [
-    "ЕДИНЫЙ КОНТЕНТНЫЙ КОНТРАК REFERENCE:",
-    "Работай строго в границах выбранного режима. Отдельным контрактом адаптации определены смысловые опоры, замены и продуктовый мост.",
-    `Хук: ${meaning.hook}`,
-    `Главный вопрос или конфликт: ${meaning.mainQuestion}`,
-    `Ответ или механизм reference: ${meaning.answerOrMechanism}`,
-    `Обязательные смысловые пункты: ${renderList(meaning.requiredPoints)}`,
-    `Доказательства или примеры: ${renderList(meaning.proofExamples)}`,
-    `Финальный вывод reference: ${meaning.conclusion}`,
-    renderScriptAdaptationContract(contract.adaptation),
-    "Смысловые пункты проверяй по значению, а не по дословному совпадению. Не заменяй обязательный пункт названием продукта, CTA или общей рекламной фразой.",
-  ].join("\n");
-}
-
-export function renderScriptContentRepairContract(contract: ScriptContentContract) {
-  const meaning = contract.sourceMeaning;
-  if (contract.adaptation.mode === "incompatible") {
-    return `${renderScriptContentContract(contract)}\nПочинка не запускается: верни понятную причину несовместимости без сценария.`;
-  }
-  return [
-    renderScriptContentContract(contract),
-    `При починке обязательно верни пропущенные пункты: ${renderList(meaning.requiredPoints)}.`,
-    "Если режим adjacent_bridge, сначала восстанови ответ reference, затем сделай продуктовый переход. Если режим format_transfer, не возвращай несовместимый исходный механизм.",
-  ].join("\n");
-}
-
-export function getScriptContentMeaningSignals(contract: ScriptContentContract) {
-  return [
-    contract.sourceMeaning.mainQuestion,
-    contract.sourceMeaning.answerOrMechanism,
-    ...contract.sourceMeaning.requiredPoints,
-    ...contract.sourceMeaning.proofExamples,
-  ].filter(Boolean);
-}
-
-function normalizeSourceMeaning(value: unknown): ScriptSourceMeaning | null {
-  if (!isRecord(value)) return null;
-  const sourceMeaning = {
-    hook: readText(value.hook),
-    mainQuestion: readText(value.main_question ?? value.mainQuestion),
-    answerOrMechanism: readText(value.answer_or_mechanism ?? value.answerOrMechanism),
-    requiredPoints: readTextArray(value.required_points ?? value.requiredPoints),
-    proofExamples: readTextArray(value.proof_examples ?? value.proofExamples),
-    conclusion: readText(value.conclusion),
-  } satisfies ScriptSourceMeaning;
-  if (!sourceMeaning.hook || !sourceMeaning.mainQuestion || !sourceMeaning.answerOrMechanism || !sourceMeaning.conclusion) return null;
-  return sourceMeaning;
 }
 
 function sourceMeaningFromHeuristics(
@@ -129,22 +58,4 @@ function sourceMeaningFromHeuristics(
 
 function getSentences(text: string) {
   return text.split(/(?<=[.!?])\s+/u).map((sentence) => sentence.trim()).filter(Boolean);
-}
-
-function renderList(values: readonly string[]) {
-  return values.length ? values.join(" / ") : "не выделены";
-}
-
-function readText(value: unknown) {
-  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-}
-
-function readTextArray(value: unknown) {
-  if (Array.isArray(value)) return value.map(readText).filter(Boolean);
-  const text = readText(value);
-  return text ? [text] : [];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }

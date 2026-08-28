@@ -424,14 +424,10 @@ try {
     join(ui, "src/lib/server/omni/llm-prompt-chain-prompts.ts"),
     "utf8"
   );
-  assert.ok(promptChainSource.includes("исходную транскрибацию reference-видео"), "LLM chain copywriter must use the reference as source material");
-  assert.ok(promptChainSource.includes("Не пытайся сохранить большую часть фраз дословно"), "LLM chain must prioritize meaning over phrase count");
-  assert.ok(promptChainSource.includes("Меняй слова синонимами только там"), "LLM chain must only lightly synonymize reference text");
-  assert.ok(promptChainSource.includes("главный тезис, вопрос или возражение, механизм"), "LLM chain must keep original argument mechanics");
-  assert.ok(promptChainSource.includes("внутреннюю карту reference"), "LLM chain must require an internal reference meaning map");
-  assert.ok(promptChainSource.includes("не выбрасывай механизм, конкретный пример"), "LLM chain must preserve concrete reference substance when compressing");
-  assert.ok(promptChainSource.includes("Сделай минимальную редактуру"), "LLM chain must keep reference adaptation minimal");
-  assert.ok(promptChainSource.includes("Сохрани только те смысловые опоры"), "LLM chain must state one priority rule for reference adaptation");
+  assert.ok(promptChainSource.includes("Reference transcript:"), "LLM chain copywriter must use the reference as source material");
+  assert.ok(promptChainSource.includes("не копируй текст дословно"), "LLM chain must prioritize meaning over phrase count");
+  assert.ok(promptChainSource.includes("Определи тему, главный вопрос или конфликт"), "LLM chain must require an internal reference meaning map");
+  assert.ok(promptChainSource.includes("Не удаляй хук, ответ на хук, конкретный механизм"), "LLM chain must preserve concrete reference substance when compressing");
   assert.ok(promptChainSource.includes("не переноси эту роль на аватара"), "LLM chain must strip source author expert roles");
   assert.ok(
     promptChainSource.includes("Продукт не является отдельной рекламной вставкой")
@@ -443,11 +439,11 @@ try {
   assert.ok(promptChainSource.includes("Если в reference уже есть чужой продукт"), "LLM chain must handle source products safely");
   assert.ok(promptChainSource.includes("не копируй его название, бренд, упаковку и свойства"), "LLM chain must not copy source product identity");
   assert.ok(promptChainSource.includes("Сохрани его сценарную роль"), "LLM chain must preserve source product narrative role");
-  assert.ok(promptChainSource.includes("После CTA продолжи или заверши исходный тезис reference"), "LLM chain must return to the reference after the CTA");
+  assert.ok(promptChainSource.includes("После CTA закончи одной короткой полезной фразой"), "LLM chain must return to a useful conclusion after the CTA");
   assert.ok(promptChainSource.includes("где естественно завершается рассказ о продукте"), "LLM chain CTA must be embedded at the natural product mention");
   assert.ok(promptChainSource.includes("финальная часть ролика не состояла только из призыва"), "link CTA must be followed by a real conclusion");
   assert.ok(promptChainSource.includes("вопросом, приказом или новым призывом"), "CTA conclusion must be declarative");
-  assert.ok(promptChainSource.includes("Для подтверждения достаточно одного конкретного факта"), "one concrete reference fact must be enough");
+  assert.ok(promptChainSource.includes("Для подтверждения основной мысли достаточно одного конкретного факта"), "one concrete reference fact must be enough");
   assert.ok(promptChainSource.includes("Второй добавляй только когда"), "copywriter must not copy unnecessary reference lists");
   assert.ok(!promptChainSource.includes("сохрани минимум два конкретных примера"), "copywriter must not require two examples");
   assert.ok(promptChainSource.includes("без такого действия не считаются пользой"), "product benefit must name an action from the product description");
@@ -460,7 +456,7 @@ try {
   assert.ok(!creativeRepairSource.includes("CTA отдельной последней фразой"), "targeted repair must not reintroduce CTA-only endings");
   assert.ok(creativeRepairSource.includes("достаточно одного конкретного факта или примера"), "targeted repair must preserve one supporting fact");
   assert.ok(!creativeRepairSource.includes("сохрани минимум два конкретных примера"), "targeted repair must not restore the old strict gate");
-  assert.ok(creativeRepairSource.includes("поставь CTA после его пользы, до полноценного финального вывода"), "full rebuild must keep a conclusion after CTA");
+  assert.ok(creativeRepairSource.includes("произнеси его до финальной полезной мысли"), "targeted repair must keep a conclusion after CTA");
   assert.ok(creativeRepairSource.includes("Вопрос, приказ или новый призыв не считаются выводом"), "full rebuild must reject imperative endings");
   assert.ok(creativeRepairSource.includes("до финального вывода попроси написать"), "comment CTA must precede the conclusion");
   assert.ok(promptChainSource.includes("артикул или подробности можно найти в описании"), "LLM chain article CTA must identify the exact product variant");
@@ -471,10 +467,10 @@ try {
   assert.ok(promptChainSource.includes("Выбирай product_cutaway и удерживание продукта в руках только когда смысл spoken_words"), "product cutaways must be meaning-driven");
   assert.ok(promptChainSource.includes("Для непредметных кадров создавай самостоятельную сцену"), "non-product speech must receive original visual direction");
   assert.ok(promptChainSource.includes("Первый segment сохраняет силу и макроформат хука reference"), "first segment must preserve the hook category without copying the source shot");
-  assert.ok(promptChainSource.includes("После CTA продолжи или заверши исходный тезис reference"), "copywriter must conclude the reference thesis, not only the product benefit");
+  assert.ok(promptChainSource.includes("Финальный вывод должен завершать новую продуктовую мысль"), "copywriter must conclude the adapted thesis, not only the product benefit");
   assert.ok(semanticReviewerSource.includes("Не предлагай вопрос, приказ, CTA или императив"), "semantic repair feedback must not suggest forbidden imperative endings");
   assert.ok(semanticReviewerSource.includes("Не отклоняй полезный сценарий только потому"), "semantic review must allow concise reference adaptation");
-  assert.ok(semanticReviewerSource.includes("Отдельная рекламная вставка, внезапное упоминание"), "semantic review must reject detached product ads");
+  assert.ok(semanticReviewerSource.includes("Отдельная рекламная вставка") && semanticReviewerSource.includes("внезапное упоминание"), "semantic review must reject detached product ads");
   assert.ok(promptChainSource.includes("десять секунд это пять кадров"), "prompt chain must preserve exact frame counts");
   assert.ok(promptChainSource.includes("точный материал, крой и цвет reference не являются контрактом"), "wardrobe must not trigger paid regeneration");
   assert.ok(promptChainSource.includes("позу, взгляд и жест выбирай под текущую реплику"), "talking-head direction must serve the new script");
