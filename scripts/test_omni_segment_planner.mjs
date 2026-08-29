@@ -28,17 +28,17 @@ try {
   const { planOmniReelSegments } = require(findFile(output, "omni-duration-planner.js"));
   const { getOmniSegmentDurationForWordCount } = require(findFile(output, "omni-speech-density.js"));
   const { normalizeOmniDurationRange } = require(findFile(output, "omni-duration-range.js"));
-  const { reconstructVoiceSegments, splitScriptIntoVoiceSegments } = require(findFile(output, "omni-script-segmentation.js"));
+  const { reconstructVoiceSegments, splitScriptIntoSentences, splitScriptIntoVoiceSegments } = require(findFile(output, "omni-script-segmentation.js"));
 
   assert.equal(getOmniSegmentDurationForWordCount(5), null, "segments below the storyboard speech floor are invalid");
   assert.equal(getOmniSegmentDurationForWordCount(8), 4);
-  assert.equal(getOmniSegmentDurationForWordCount(10), 4);
-  assert.equal(getOmniSegmentDurationForWordCount(11), null);
+  assert.equal(getOmniSegmentDurationForWordCount(10), 6);
+  assert.equal(getOmniSegmentDurationForWordCount(11), 6);
   assert.equal(getOmniSegmentDurationForWordCount(12), 6);
   assert.equal(getOmniSegmentDurationForWordCount(16), 8);
   assert.equal(getOmniSegmentDurationForWordCount(20), 10);
-  assert.equal(getOmniSegmentDurationForWordCount(21), 10);
-  assert.equal(getOmniSegmentDurationForWordCount(23), 10);
+  assert.equal(getOmniSegmentDurationForWordCount(21), null);
+  assert.equal(getOmniSegmentDurationForWordCount(23), null);
   assert.equal(getOmniSegmentDurationForWordCount(25), null);
   assert.equal(getOmniSegmentDurationForWordCount(26), null);
 
@@ -50,7 +50,7 @@ try {
   });
   assert.equal(exactThirty.minSeconds, 30);
   assert.equal(exactThirty.maxSeconds, 30);
-  assert.equal(exactThirty.minWords, 60);
+  assert.equal(exactThirty.minWords, 50);
   assert.equal(exactThirty.maxWords, 60);
 
   const configuredRange = normalizeOmniDurationRange({
@@ -72,7 +72,7 @@ try {
   assert.equal(overLimit.minSeconds, 50);
   assert.equal(overLimit.maxSeconds, 50);
   assert.equal(overLimit.wasClamped, false);
-  assert.equal(overLimit.minWords, 100);
+  assert.equal(overLimit.minWords, 82);
   assert.equal(overLimit.maxWords, 100);
 
   const allowedDurations = new Set([4, 6, 8, 10]);
@@ -145,7 +145,7 @@ try {
 
   const geodemikaIngredients = "Нашел решение для чистой кожи без раздражения и черных точек. Эта пенка для умывания Geodemika с протеазой и протеинами шелка эффективно борется с жирностью и черными точками. Она уменьшает высыпания, покраснения, снимает стянутость, не сушит кожу. Компоненты гинкго билоба и аллантоин способствуют обновлению клеток и увлажнению. Это средство для чувствительной, проблемной и обезвоженной кожи. Оцените результат. Артикул в описании ежедневно.";
   const geodemikaIngredientPlan = planOmniReelSegments(geodemikaIngredients, { durationRange: exactThirty });
-  assert.equal(geodemikaIngredientPlan.segmentCount, 4);
+  assert.equal(geodemikaIngredientPlan.segmentCount, 5);
   assert.ok(
     geodemikaIngredientPlan.segments.some((segment) => /протеинами шелка/iu.test(segment.text)),
     "stable ingredient phrases must stay inside one spoken segment"
@@ -201,17 +201,17 @@ try {
   assert.equal(exactThirtyPlan.segmentDurationsSeconds.reduce((sum, duration) => sum + duration, 0), 30);
 
   const expandedPlan = planOmniReelSegments(makeScript(72), { durationRange: configuredRange });
-  assert.deepEqual(expandedPlan.segmentWordCounts, [20, 20, 20, 12]);
-  assert.deepEqual(expandedPlan.segmentDurationsSeconds, [10, 10, 10, 6]);
-  assert.equal(expandedPlan.durationSeconds, 36);
+  assert.deepEqual(expandedPlan.segmentWordCounts, [18, 18, 18, 18]);
+  assert.deepEqual(expandedPlan.segmentDurationsSeconds, [10, 10, 10, 10]);
+  assert.equal(expandedPlan.durationSeconds, 40);
   const tailPlan = planOmniReelSegments(makeScript(74), { durationRange: configuredRange });
-  assert.deepEqual(tailPlan.segmentWordCounts, [20, 20, 20, 14]);
-  assert.deepEqual(tailPlan.segmentDurationsSeconds, [10, 10, 10, 6]);
-  assert.equal(tailPlan.durationSeconds, 36);
+  assert.deepEqual(tailPlan.segmentWordCounts, [19, 19, 18, 18]);
+  assert.deepEqual(tailPlan.segmentDurationsSeconds, [10, 10, 10, 10]);
+  assert.equal(tailPlan.durationSeconds, 40);
   const threeWordTailPlan = planOmniReelSegments(makeScript(71), { durationRange: configuredRange });
-  assert.deepEqual(threeWordTailPlan.segmentWordCounts, [20, 20, 16, 15]);
-  assert.deepEqual(threeWordTailPlan.segmentDurationsSeconds, [10, 10, 8, 6]);
-  assert.equal(threeWordTailPlan.durationSeconds, 34);
+  assert.deepEqual(threeWordTailPlan.segmentWordCounts, [18, 18, 18, 17]);
+  assert.deepEqual(threeWordTailPlan.segmentDurationsSeconds, [10, 10, 10, 10]);
+  assert.equal(threeWordTailPlan.durationSeconds, 40);
   for (const wordCount of [66, 71, 72, 74]) {
     const productionPlan = planOmniReelSegments(makeScript(wordCount), { durationRange: configuredRange });
     assert.ok(
@@ -222,16 +222,27 @@ try {
   }
   const naturalExpansion = planOmniReelSegments(makeScript(80), { durationRange: configuredRange });
   assert.equal(naturalExpansion.durationSeconds, 40, "a longer configured range can carry a naturally longer script");
-  assert.throws(
-    () => planOmniReelSegments(makeScript(80), { durationRange: exactThirty }),
-    (error) => error instanceof Error && /нельзя упаковать.*30-30 секунд/u.test(error.message),
-    "a script that needs 40 seconds must not silently exceed an exact 30-second setting"
+  assert.equal(
+    planOmniReelSegments(makeScript(80), { durationRange: exactThirty }).durationSeconds,
+    40,
+    "an exact duration preference must not reject a natural 40-second plan"
   );
-  assert.throws(
-    () => planOmniReelSegments(makeScript(75), { durationRange: exactThirty }),
-    (error) => error instanceof Error && /нельзя упаковать.*30-30 секунд/u.test(error.message),
-    "a three-word tail can be redistributed, but the resulting plan still must respect an exact 30-second setting"
+  assert.equal(
+    planOmniReelSegments(makeScript(75), { durationRange: exactThirty }).durationSeconds,
+    40,
+    "a natural plan outside an exact preference must still be created"
   );
+
+  const realisticScript = "Мы переехали в Испанию и узнали, что тут во время сиесты с двух до пяти ничего не работает. Особенно когда срочно нужно купить лекарства в аптеке, а все уже отдыхают. Для любых зарубежных покупок я оформил Плати по миру виртуальная карта прямо в телеграм. Ссылка в шапке профиля помогает мне оплачивать сервисы без ограничений в любой точке мира. Теперь мои зарубежные платежи проходят быстро и без лишних сложностей.";
+  const sentencePlan = planOmniReelSegments(realisticScript, {
+    durationRange: configuredRange,
+    requireSentenceBoundaries: true,
+  });
+  assert.deepEqual(sentencePlan.segmentWordCounts, [18, 12, 14, 14, 10]);
+  assert.deepEqual(sentencePlan.segmentDurationsSeconds, [10, 6, 8, 8, 6]);
+  assert.equal(sentencePlan.durationSeconds, 38);
+  assert.ok(sentencePlan.segments.slice(0, -1).every((segment) => /[.!?…]$/u.test(segment.text)));
+  assert.equal(splitScriptIntoSentences(realisticScript).length, 5);
 
   console.log("Omni segment planner regression checks passed");
 } finally {

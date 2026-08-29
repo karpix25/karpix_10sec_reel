@@ -133,9 +133,7 @@ function validateFrameSpeech(
 ) {
   const wordCount = countOmniStoryboardSpokenWords(frame.spokenText);
   if (wordCount !== expectedWordCount) {
-    errors.push(expectedWordCount === OMNI_STORYBOARD_MIN_FRAME_WORDS
-      ? `frame_${frameIndex + 1}_spoken_words_must_be_exactly_4`
-      : `frame_${frameIndex + 1}_spoken_words_must_be_${expectedWordCount}`);
+    errors.push(`frame_${frameIndex + 1}_spoken_words_must_be_${expectedWordCount}`);
   }
 }
 

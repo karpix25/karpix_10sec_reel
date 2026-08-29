@@ -161,6 +161,16 @@ export function normalizeScriptText(script: string) {
   return script.replace(/\s+/g, " ").trim();
 }
 
+export function splitScriptIntoSentences(script: string): VoiceSegment[] {
+  const normalized = normalizeScriptText(script);
+  const sentences = normalized.match(/[^.!?…]+[.!?…]+[»”"']*(?=\s+|$)|[^.!?…]+$/gu) || [];
+  return sentences.map((text, index) => ({
+    index: index + 1,
+    text: text.trim(),
+    wordCount: text.trim().split(/\s+/u).filter(Boolean).length,
+  }));
+}
+
 export function reconstructVoiceSegments(segments: VoiceSegment[]) {
   return normalizeScriptText(segments.map((segment) => segment.text).join(" "));
 }

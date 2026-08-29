@@ -267,7 +267,7 @@ try {
   const longRetryFeedback = buildScriptRetryFeedback(
     new Error("Сценарий отклонен: Сценарий не помещается в доступные Omni-длительности: 101 слов. Максимум 100 слов для 4 частей.")
   );
-  assert.ok(longRetryFeedback.includes("не больше ста слов"), "long retry feedback must force available-duration compression");
+  assert.ok(longRetryFeedback.includes("физического лимита пяти частей"), "long retry feedback must force available-duration compression");
   const jsonRetryFeedback = buildScriptRetryFeedback(
     new Error("No JSON object found in script model output")
   );
