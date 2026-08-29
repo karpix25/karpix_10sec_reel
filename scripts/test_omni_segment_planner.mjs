@@ -199,14 +199,21 @@ try {
   assert.equal(exactThirtyPlan.durationSeconds, 30);
   assert.equal(exactThirtyPlan.segmentDurationsSeconds.reduce((sum, duration) => sum + duration, 0), 30);
 
-  const expandedPlan = planOmniReelSegments(makeScript(72), { durationRange: exactThirty });
+  const expandedPlan = planOmniReelSegments(makeScript(72), { durationRange: configuredRange });
   assert.deepEqual(expandedPlan.segmentWordCounts, [20, 20, 20, 12]);
   assert.deepEqual(expandedPlan.segmentDurationsSeconds, [10, 10, 10, 6]);
   assert.equal(expandedPlan.durationSeconds, 36);
-  const tailPlan = planOmniReelSegments(makeScript(74), { durationRange: exactThirty });
+  const tailPlan = planOmniReelSegments(makeScript(74), { durationRange: configuredRange });
   assert.deepEqual(tailPlan.segmentWordCounts, [20, 20, 20, 14]);
   assert.deepEqual(tailPlan.segmentDurationsSeconds, [10, 10, 10, 6]);
   assert.equal(tailPlan.durationSeconds, 36);
+  const naturalExpansion = planOmniReelSegments(makeScript(80), { durationRange: configuredRange });
+  assert.equal(naturalExpansion.durationSeconds, 40, "a longer configured range can carry a naturally longer script");
+  assert.throws(
+    () => planOmniReelSegments(makeScript(80), { durationRange: exactThirty }),
+    (error) => error instanceof Error && /нельзя упаковать.*30-30 секунд/u.test(error.message),
+    "a script that needs 40 seconds must not silently exceed an exact 30-second setting"
+  );
   assert.throws(
     () => planOmniReelSegments(makeScript(75), { durationRange: exactThirty }),
     (error) => error instanceof Error && /остаток только в одно или два/u.test(error.message),

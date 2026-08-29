@@ -131,12 +131,12 @@ function renderFailedChecks(review: ScriptSemanticReview | null) {
 function renderWordBudget(input: PromptChainInput) {
   const exactFrameRule = "Держи примерно четыре слова на двухсекундный кадр; остаток в одно или два слова допустим только в последних кадрах последней части.";
   if (!input.durationRange) return `Сохрани плотную длину исходного rejected script. ${exactFrameRule}`;
-  return `Целевая длина: ${formatPromptChainRange(input.durationRange.minWords, input.durationRange.maxWords)} слов. Не урезай смысл ради диапазона: при необходимости сохрани текст до общего лимита 100 слов, а раскадровка добавит часть. ${exactFrameRule}`;
+  return `Цель ролика: ${formatPromptChainRange(input.durationRange.minSeconds, input.durationRange.maxSeconds)} секунд; ориентир текста ${formatPromptChainRange(input.durationRange.minWords, input.durationRange.maxWords)} слов, но это не отдельный жесткий лимит. Перепиши естественный цельный voiceover так, чтобы планировщик смог распределить законченные предложения в части 4/6/8/10 секунд и попасть в этот диапазон. Если текст не помещается, убери второстепенные детали, не добавляй пустые фразы и не делай отдельными предложениями фрагменты из одного-трех слов. ${exactFrameRule}`;
 }
 
 function renderCtaRule(input: PromptChainInput) {
-  if (input.ctaMode === "link_in_profile") return "CTA: произнеси точные слова «ссылка в профиле» в момент завершения мысли о продукте, затем продолжи полезную мысль и закончи смысловым выводом.";
-  if (input.ctaMode === "keyword_in_comments") return `CTA: до финального вывода попроси написать «${input.ctaValue || "кодовое слово"}» в комментариях, затем закончи отдельной полезной фразой.`;
+  if (input.ctaMode === "link_in_profile") return "CTA: отдельным законченным предложением произнеси точные слова «ссылка в профиле» в момент завершения мысли о продукте, затем отдельным предложением продолжи полезную мысль и закончи смысловым выводом.";
+  if (input.ctaMode === "keyword_in_comments") return `CTA: отдельным законченным предложением до финального вывода попроси написать «${input.ctaValue || "кодовое слово"}» в комментариях, затем отдельным предложением закончи полезной мыслью.`;
   if (input.ctaMode === "no_explicit_cta") return "CTA: явный призыв не нужен, закончи смысловым выводом.";
-  return "CTA: до финального вывода нативно скажи, что подробности или артикул находятся в описании, затем закончи отдельной полезной фразой.";
+  return "CTA: отдельным законченным предложением до финального вывода нативно скажи, что подробности или артикул находятся в описании, затем отдельным предложением закончи полезной фразой.";
 }

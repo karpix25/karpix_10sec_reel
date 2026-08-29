@@ -138,19 +138,16 @@ function buildDurationInstruction(durationRange?: OmniDurationRange) {
   const clampedNote = durationRange.wasClamped
     ? ` Настройка клиента ${durationRange.requestedMinSeconds}-${durationRange.requestedMaxSeconds} сек выходит за текущий Omni-лимит 8-40 сек, поэтому пиши под ${durationRange.minSeconds}-${durationRange.maxSeconds} сек.`
     : "";
-  const exactDurationNote = durationRange.minSeconds === durationRange.maxSeconds
-    ? ` Это точная настройка: сначала стремись к ${durationRange.minWords} словам, но не выбрасывай смысл, если естественный текст получается длиннее.`
-    : "";
   const targetMinWords = Math.max(
     durationRange.minWords,
     Math.floor((durationRange.minWords + durationRange.maxWords) / 2)
   );
   return (
     `Целевая длительность итогового ролика: ${durationRange.minSeconds}-${durationRange.maxSeconds} сек. ` +
-    `Ориентир длины произносимого текста: ${durationRange.minWords}-${durationRange.maxWords} слов.${exactDurationNote}${clampedNote} ` +
-    `Для плотной подачи ориентир: ${targetMinWords}-${durationRange.maxWords} слов. ` +
+    `Ориентир плотности произносимого текста: ${durationRange.minWords}-${durationRange.maxWords} слов, это не отдельный жесткий лимит.${clampedNote} ` +
+    `Для плотной подачи ориентир: ${targetMinWords}-${durationRange.maxWords} слов, но сначала сохрани естественные законченные предложения. ` +
     `Перед ответом проверь: сумма всех beats.voiceover и поле script должны совпадать по смыслу дословно. Держи примерно четыре слова на двухсекундный кадр; остаток в одно или два слова допустим только в последних кадрах последней части. ` +
-    "Система сама выберет 2-5 частей. Диапазон длительности задает цель, а не жесткий лимит текста: если для сохранения смысла нужно больше слов, не сжимай сценарий, система добавит раскадровку до общего лимита 100 слов. Не добавляй пустые фразы и не пытайся сохранить исходные фразы дословно."
+    "Система сама выберет 2-5 частей и будет резать только между законченными предложениями. Если естественный текст не помещается в верхнюю границу длительности, убери второстепенные детали или объедини короткие фразы, но не добавляй пустые слова и не разрывай предложение. CTA должен быть отдельным законченным предложением, после него нужен отдельный утвердительный вывод. Не пытайся сохранить исходные фразы дословно."
   );
 }
 
