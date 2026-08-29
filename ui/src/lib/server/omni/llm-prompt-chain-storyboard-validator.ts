@@ -187,7 +187,7 @@ function validateStoryboardFrames(
         code: "storyboard_spoken_word_count",
         message: expectedWordCount === OMNI_STORYBOARD_WORDS_PER_FRAME_MIN
           ? "Each storyboard frame must contain exactly four final spoken Russian words."
-          : `The final storyboard frame may contain ${expectedWordCount} words for a one or two word tail.`,
+          : `The final storyboard frame may contain ${expectedWordCount} words for a one, two, or three word tail.`,
         severity: "error",
       });
     }

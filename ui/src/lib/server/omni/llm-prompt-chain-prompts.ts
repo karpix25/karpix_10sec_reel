@@ -158,7 +158,7 @@ export function buildDirectorSegmenterPrompt(input: {
 Границы segments, duration_seconds и voiceover уже утверждены ниже. Копируй их дословно и не добавляй, не удаляй, не переставляй и не перефразируй слова. Каждый segment уже заканчивается завершенным предложением: не разрывай предложение, союз или зависимую фразу между segments.
 total_voiceover должен дословно совпадать с готовым сценарием.
 Количество storyboard frames зависит от duration_seconds: четыре секунды это два кадра, шесть секунд это три кадра, восемь секунд это четыре кадра, десять секунд это пять кадров.
-Каждый frame обычно содержит четыре слова финальной русской речи в spoken_words. Если во всем сценарии остается одно или два слова сверх блоков по четыре, добавь их только в последние кадры последнего segment: там допустимо пять слов в одном или двух кадрах.
+Каждый frame обычно содержит четыре слова финальной русской речи в spoken_words. Если во всем сценарии остается одно, два или три слова сверх блоков по четыре, добавь их только в последние кадры последнего segment: там допустимо пять слов в одном, двух или трех кадрах.
 Склейка spoken_words всех frames должна дословно совпадать с voiceover segment.
   ${frameRoleRule} Product_cutaway или environment_cutaway добавляй только там, где это разрешено соответствующим source interval или REFERENCE SHOT CONTRACT и где перебивка помогает смыслу spoken_words. Слова voiceover сами по себе не разрешают новую перебивку, локацию или транспорт. Границы source interval не должны разрывать spoken_words: если короткий interval попадает внутрь незавершённой фразы или на остаток звука, объедини его с соседним interval и не создавай отдельный micro-cut.
 ${hasDetailedTimeline ? renderDirectorTimelineForPrompt(input.chainInput.directorBrief) : "SOURCE SHOT TIMELINE: no verified detailed interval analysis is available."}
@@ -268,7 +268,7 @@ const STORYBOARD_FRAME_ROLE_CONTRACT = [
 ].join(" ");
 
 function buildDurationLine(durationRange?: OmniDurationRange) {
-  if (!durationRange) return "Итоговый сценарий обычно должен быть плотным и коротким. Держи примерно четыре слова на двухсекундный кадр; остаток в одно или два слова допустим только в последних кадрах последнего segment. Границы segments ставь только после завершенного предложения и не разрывай союзы, предлоги или зависимые фразы.";
+  if (!durationRange) return "Итоговый сценарий обычно должен быть плотным и коротким. Держи примерно четыре слова на двухсекундный кадр; остаток в одно, два или три слова допустим только в последних кадрах последнего segment. Границы segments ставь только после завершенного предложения и не разрывай союзы, предлоги или зависимые фразы.";
   const secondsRange = formatPromptChainRange(durationRange.minSeconds, durationRange.maxSeconds);
   const wordsRange = formatPromptChainRange(durationRange.minWords, durationRange.maxWords);
   return [

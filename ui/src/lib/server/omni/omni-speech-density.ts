@@ -45,14 +45,12 @@ export function getOmniMaxScriptWords() {
 export function isOmniSegmentCountViable(wordCount: number, segmentCount: number) {
   if (segmentCount < OMNI_MIN_SEGMENT_COUNT) return false;
   const tailWords = wordCount % OMNI_STORYBOARD_MIN_FRAME_WORDS;
-  if (tailWords === 3) return false;
   if (wordCount > segmentCount * getOmniSegmentWordBudget() + tailWords) return false;
   return wordCount >= segmentCount * OMNI_MIN_VIABLE_SEGMENT_WORDS;
 }
 
 export function getPreferredOmniSegmentCount(wordCount: number) {
   const tailWords = wordCount % OMNI_STORYBOARD_MIN_FRAME_WORDS;
-  if (tailWords === 3) return null;
   const requiredSegmentCount = Math.ceil((wordCount - tailWords) / getOmniSegmentWordBudget());
   if (requiredSegmentCount > OMNI_MAX_SEGMENT_COUNT) return null;
   const maxSegmentCount = OMNI_MAX_SEGMENT_COUNT;
@@ -71,9 +69,6 @@ export function describeOmniDensityGap(wordCount: number) {
   }
   if (wordCount < OMNI_MIN_SCRIPT_WORDS) {
     return `Сценарий слишком короткий: ${wordCount} слов. Для двух частей по 4 секунды нужно минимум ${OMNI_MIN_SCRIPT_WORDS} слов.`;
-  }
-  if (wordCount % OMNI_STORYBOARD_MIN_FRAME_WORDS === 3) {
-    return `Сценарий отклонен: ${wordCount} слов нельзя разложить по кадрам. Допустимы блоки по четыре слова и остаток только в одно или два слова.`;
   }
   return "Сценарий не помещается в доступные Omni-длительности.";
 }

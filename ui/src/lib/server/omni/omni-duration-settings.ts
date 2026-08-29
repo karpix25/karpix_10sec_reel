@@ -2,6 +2,9 @@ import pool from "@/lib/db";
 import type { OmniProduct, OmniProject } from "@/lib/omni/types";
 import { normalizeOmniDurationRange, type OmniDurationRange } from "./omni-duration-range";
 
+const DEFAULT_OMNI_DURATION_MIN_SECONDS = 30;
+const DEFAULT_OMNI_DURATION_MAX_SECONDS = 40;
+
 type ClientDurationRow = {
   target_duration_seconds: number | null;
   target_duration_min_seconds: number | null;
@@ -29,9 +32,9 @@ export async function resolveOmniDurationRange(input: {
 
   if (clientRange) {
     return normalizeOmniDurationRange({
-      requestedMinSeconds: clientRange.target_duration_min_seconds,
-      requestedMaxSeconds: clientRange.target_duration_max_seconds,
-      fallbackSeconds: clientRange.target_duration_seconds,
+      requestedMinSeconds: clientRange.target_duration_min_seconds ?? DEFAULT_OMNI_DURATION_MIN_SECONDS,
+      requestedMaxSeconds: clientRange.target_duration_max_seconds ?? DEFAULT_OMNI_DURATION_MAX_SECONDS,
+      fallbackSeconds: clientRange.target_duration_seconds ?? DEFAULT_OMNI_DURATION_MIN_SECONDS,
       source: "client_settings",
     });
   }
@@ -46,10 +49,10 @@ export async function resolveOmniDurationRange(input: {
   }
 
   return normalizeOmniDurationRange({
-    requestedMinSeconds: input.product.target_duration_seconds,
-    requestedMaxSeconds: input.product.target_duration_seconds,
+    requestedMinSeconds: DEFAULT_OMNI_DURATION_MIN_SECONDS,
+    requestedMaxSeconds: DEFAULT_OMNI_DURATION_MAX_SECONDS,
     fallbackSeconds: input.product.target_duration_seconds,
-    source: "product_target",
+    source: "default",
   });
 }
 

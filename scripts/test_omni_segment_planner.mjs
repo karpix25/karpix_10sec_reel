@@ -38,6 +38,7 @@ try {
   assert.equal(getOmniSegmentDurationForWordCount(16), 8);
   assert.equal(getOmniSegmentDurationForWordCount(20), 10);
   assert.equal(getOmniSegmentDurationForWordCount(21), 10);
+  assert.equal(getOmniSegmentDurationForWordCount(23), 10);
   assert.equal(getOmniSegmentDurationForWordCount(25), null);
   assert.equal(getOmniSegmentDurationForWordCount(26), null);
 
@@ -207,6 +208,18 @@ try {
   assert.deepEqual(tailPlan.segmentWordCounts, [20, 20, 20, 14]);
   assert.deepEqual(tailPlan.segmentDurationsSeconds, [10, 10, 10, 6]);
   assert.equal(tailPlan.durationSeconds, 36);
+  const threeWordTailPlan = planOmniReelSegments(makeScript(71), { durationRange: configuredRange });
+  assert.deepEqual(threeWordTailPlan.segmentWordCounts, [20, 20, 16, 15]);
+  assert.deepEqual(threeWordTailPlan.segmentDurationsSeconds, [10, 10, 8, 6]);
+  assert.equal(threeWordTailPlan.durationSeconds, 34);
+  for (const wordCount of [66, 71, 72, 74]) {
+    const productionPlan = planOmniReelSegments(makeScript(wordCount), { durationRange: configuredRange });
+    assert.ok(
+      productionPlan.durationSeconds >= configuredRange.minSeconds &&
+        productionPlan.durationSeconds <= configuredRange.maxSeconds,
+      `${wordCount} words must fit the configured 30-40 second range`
+    );
+  }
   const naturalExpansion = planOmniReelSegments(makeScript(80), { durationRange: configuredRange });
   assert.equal(naturalExpansion.durationSeconds, 40, "a longer configured range can carry a naturally longer script");
   assert.throws(
@@ -216,8 +229,8 @@ try {
   );
   assert.throws(
     () => planOmniReelSegments(makeScript(75), { durationRange: exactThirty }),
-    (error) => error instanceof Error && /остаток только в одно или два/u.test(error.message),
-    "a three-word tail must still be rejected instead of silently redistributed"
+    (error) => error instanceof Error && /нельзя упаковать.*30-30 секунд/u.test(error.message),
+    "a three-word tail can be redistributed, but the resulting plan still must respect an exact 30-second setting"
   );
 
   console.log("Omni segment planner regression checks passed");
