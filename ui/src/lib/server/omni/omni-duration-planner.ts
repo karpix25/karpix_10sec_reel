@@ -72,7 +72,7 @@ export function planOmniReelSegments(script: string, options: OmniReelSegmentPla
 
   const selected = candidates.sort((left, right) => left.score - right.score)[0];
   if (!selected) {
-    throw new Error(buildPlanFailureMessage(wordCount, options.durationRange));
+    throw new Error(buildPlanFailureMessage(script, wordCount, options.durationRange));
   }
 
   return {
@@ -220,14 +220,18 @@ function resolveSegmentDurations(segments: VoiceSegment[], durationRange?: OmniD
   return bestDurations;
 }
 
-function buildPlanFailureMessage(wordCount: number, durationRange?: OmniDurationRange) {
+function buildPlanFailureMessage(script: string, wordCount: number, durationRange?: OmniDurationRange) {
+  const sentenceWordCounts = splitScriptIntoSentences(script).map((sentence) => sentence.wordCount);
   const durationRule = durationRange
     ? `Текст на ${wordCount} слов нельзя разложить на 2-5 последовательных частей 4/6/8/10 секунд с завершенными предложениями. Диапазон ${durationRange.minSeconds}-${durationRange.maxSeconds} секунд используется как ориентир, а не как причина отказа.`
     : "Каждая часть должна укладываться в лимит слов и заканчиваться завершенным предложением без разрыва CTA.";
   return [
     `Не удалось разделить сценарий на части 4/6/8/10 секунд: ${durationRule}`,
+    sentenceWordCounts.length
+      ? `Длины предложений по порядку: ${sentenceWordCounts.join(", ")} слов. Каждое предложение должно быть не длиннее двадцати слов, а короткие предложения нужно объединять с соседними в один segment.`
+      : "",
     "Сохраните смысл, но сократите второстепенные детали или объедините короткие фразы в законченные предложения. Измените формулировку сценария.",
-  ].join(" ");
+  ].filter(Boolean).join(" ");
 }
 
 function scoreSegments(
