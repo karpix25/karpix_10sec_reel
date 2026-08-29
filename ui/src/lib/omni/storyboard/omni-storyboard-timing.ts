@@ -2,7 +2,8 @@ export const OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS = [4, 6, 8, 10] as const;
 export type OmniStoryboardAllowedSegmentSeconds = (typeof OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS)[number];
 
 export const OMNI_STORYBOARD_SECONDS_PER_FRAME = 2;
-export const OMNI_STORYBOARD_MIN_FRAME_WORDS = 4;
+export const OMNI_STORYBOARD_TARGET_FRAME_WORDS = 4;
+export const OMNI_STORYBOARD_MIN_FRAME_WORDS = 3;
 export const OMNI_STORYBOARD_MAX_FRAME_WORDS = 4;
 
 export function isOmniStoryboardDuration(value: number): value is OmniStoryboardAllowedSegmentSeconds {
@@ -25,26 +26,27 @@ export function getOmniStoryboardWordRange(durationSeconds: number) {
 }
 
 export function getOmniStoryboardDurationForWordCount(wordCount: number) {
+  if (!Number.isInteger(wordCount) || wordCount <= 0) return null;
+  const targetSeconds = Math.ceil(wordCount / OMNI_STORYBOARD_TARGET_FRAME_WORDS) * OMNI_STORYBOARD_SECONDS_PER_FRAME;
   return OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS.find((durationSeconds) => {
     const range = getOmniStoryboardWordRange(durationSeconds);
-    if (!range) return false;
-    const tailWords = getOmniStoryboardTailWordCount(wordCount);
-    const frameCount = getOmniStoryboardFrameCount(durationSeconds) || 0;
-    return tailWords <= frameCount && wordCount >= range.minWords && wordCount <= range.maxWords + tailWords;
+    return Boolean(
+      range &&
+      wordCount >= range.minWords &&
+      wordCount <= range.maxWords &&
+      (durationSeconds >= targetSeconds || durationSeconds === OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS.at(-1))
+    );
   }) || null;
-}
-
-export function getOmniStoryboardTailWordCount(wordCount: number) {
-  const remainder = wordCount % OMNI_STORYBOARD_MIN_FRAME_WORDS;
-  return remainder > 0 ? remainder : 0;
 }
 
 export function getOmniStoryboardFrameWordCounts(wordCount: number, durationSeconds: number) {
   const frameCount = getOmniStoryboardFrameCount(durationSeconds);
   const range = getOmniStoryboardWordRange(durationSeconds);
-  const tailWords = getOmniStoryboardTailWordCount(wordCount);
-  if (!frameCount || !range || tailWords > frameCount || wordCount < range.minWords || wordCount > range.maxWords + tailWords) return null;
-  return Array.from({ length: frameCount }, (_, index) =>
-    OMNI_STORYBOARD_MIN_FRAME_WORDS + (index >= frameCount - tailWords ? 1 : 0)
-  );
+  if (!frameCount || !range || wordCount < range.minWords || wordCount > range.maxWords) return null;
+  const baseWords = Math.floor(wordCount / frameCount);
+  const remainder = wordCount % frameCount;
+  const counts = Array.from({ length: frameCount }, (_, index) => baseWords + (index < remainder ? 1 : 0));
+  return counts.every((count) => count >= OMNI_STORYBOARD_MIN_FRAME_WORDS && count <= OMNI_STORYBOARD_MAX_FRAME_WORDS)
+    ? counts
+    : null;
 }

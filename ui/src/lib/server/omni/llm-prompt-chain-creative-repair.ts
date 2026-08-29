@@ -129,9 +129,9 @@ function renderFailedChecks(review: ScriptSemanticReview | null) {
 }
 
 function renderWordBudget(input: PromptChainInput) {
-  const exactFrameRule = "Держи примерно четыре слова на двухсекундный кадр; остаток в одно, два или три слова допустим только в последних кадрах последней части.";
+  const exactFrameRule = "Держи ориентир четыре слова на двухсекундный кадр; три слова допустимы в отдельных кадрах, если этого требует граница завершенного предложения. Не добавляй пустые слова ради длительности.";
   if (!input.durationRange) return `Сохрани плотную длину исходного rejected script. ${exactFrameRule}`;
-  return `Цель ролика: ${formatPromptChainRange(input.durationRange.minSeconds, input.durationRange.maxSeconds)} секунд; ориентир текста ${formatPromptChainRange(input.durationRange.minWords, input.durationRange.maxWords)} слов, но это не отдельный жесткий лимит. Перепиши естественный цельный voiceover так, чтобы планировщик смог распределить законченные предложения в части 4/6/8/10 секунд и попасть в этот диапазон. Если текст не помещается, убери второстепенные детали, не добавляй пустые фразы и не делай отдельными предложениями фрагменты из одного-трех слов. ${exactFrameRule}`;
+  return `Цель ролика: ${formatPromptChainRange(input.durationRange.minSeconds, input.durationRange.maxSeconds)} секунд; ориентир текста ${formatPromptChainRange(input.durationRange.minWords, input.durationRange.maxWords)} слов, но это не отдельный жесткий лимит. Перепиши естественный цельный voiceover так, чтобы планировщик смог распределить законченные предложения в части 4/6/8/10 секунд, округляя длительность вверх и предпочитая этот диапазон. Если естественный текст занимает немного больше или меньше, создай его без пустых фраз и без искусственного разрыва предложений. Не делай отдельными предложениями фрагменты из одного-двух слов. ${exactFrameRule}`;
 }
 
 function renderCtaRule(input: PromptChainInput) {

@@ -101,24 +101,18 @@ try {
   );
   assert.deepEqual(
     speech.splitStoryboardSpeech("Ссылка в профиле. Нажми прямо сейчас", 2),
-    [],
-    "speech splitter must reject a segment that cannot form exact four-word frames",
+    ["Ссылка в профиле.", "Нажми прямо сейчас"],
+    "speech splitter must preserve a complete sentence even when a frame has three words",
   );
   const chunks = speech.splitStoryboardSpeechWithBoundaries("Ссылка в профиле. Нажми прямо сейчас и смотри", 2);
   assert.equal(chunks[0].boundary, "continuation");
   assert.equal(chunks[1].boundary, "segment_end");
 
   assert.deepEqual(
-    speech.splitStoryboardSpeech(Array.from({ length: 21 }, (_, index) => `слово${index + 1}`).join(" "), 5)
+    speech.splitStoryboardSpeech(Array.from({ length: 18 }, (_, index) => `слово${index + 1}`).join(" "), 5)
       .map((text) => text.split(/\s+/u).length),
-    [4, 4, 4, 4, 5],
-    "one-word tail must be placed into the last storyboard frame"
-  );
-  assert.deepEqual(
-    speech.splitStoryboardSpeech(Array.from({ length: 22 }, (_, index) => `слово${index + 1}`).join(" "), 5)
-      .map((text) => text.split(/\s+/u).length),
-    [4, 4, 4, 5, 5],
-    "two-word tail must be distributed across the last storyboard frames"
+    [4, 4, 4, 3, 3],
+    "underfilled frames must use three words instead of adding filler",
   );
 
   console.log("Omni speech visual alignment checks passed");

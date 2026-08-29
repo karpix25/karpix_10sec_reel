@@ -6,6 +6,8 @@ import {
 } from "./omni-script-segmentation";
 import { planOmniReelSegments, type OmniReelSegmentPlan } from "./omni-duration-planner";
 import {
+  OMNI_STORYBOARD_MAX_FRAME_WORDS,
+  OMNI_STORYBOARD_MIN_FRAME_WORDS,
   getOmniStoryboardFrameWordCounts,
   isOmniStoryboardDuration,
 } from "../../omni/storyboard/omni-storyboard-timing";
@@ -169,7 +171,7 @@ function normalizeSegment(raw: unknown): OmniTimedVoiceoverSegment {
   if (
     Number(source.index) < 1 || !text || !isOmniStoryboardDuration(durationSeconds) ||
     !Number.isFinite(startSeconds) || !Number.isFinite(endSeconds) || endSeconds - startSeconds !== durationSeconds ||
-    !frameWordCounts.length || frameWordCounts.some((count) => !Number.isInteger(count) || count < 4 || count > 5)
+    !frameWordCounts.length || frameWordCounts.some((count) => !Number.isInteger(count) || count < OMNI_STORYBOARD_MIN_FRAME_WORDS || count > OMNI_STORYBOARD_MAX_FRAME_WORDS)
   ) throw new Error("Invalid timed plan segment");
   return {
     index: Number(source.index),

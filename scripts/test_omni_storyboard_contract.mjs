@@ -445,7 +445,7 @@ try {
 
   const longSpeech = buildValidStoryboard();
   longSpeech.frames[0] = { ...longSpeech.frames[0], spokenText: "Утром я очень быстро беру стик" };
-  assertInvalid(longSpeech, "frame_1_spoken_words_must_be_exactly_4");
+  assertInvalid(longSpeech, "frame_1_spoken_words_must_be_4");
 
   const mismatch = buildValidStoryboard();
   mismatch.frames[4] = { ...mismatch.frames[4], spokenText: "Артикул будет в профиле" };
