@@ -5,7 +5,7 @@ const DEFAULT_VIDEO_MODEL = "gemini-omni-video";
 const DEFAULT_STORYBOARD_IMAGE_MODEL = "gpt-image-2-image-to-image";
 const CHARACTER_POLL_INTERVAL_MS = 5_000;
 const CHARACTER_CREATE_ATTEMPTS = 8;
-const KIE_TASK_REQUEST_TIMEOUT_MS = 30_000;
+const KIE_TASK_REQUEST_TIMEOUT_MS = 90_000;
 const TERMINAL_STATUSES = new Set(["completed", "success", "done", "failed", "error", "fail"]);
 
 export type KieOmniTask = {
