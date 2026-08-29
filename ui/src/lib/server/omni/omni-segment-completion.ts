@@ -104,9 +104,6 @@ export async function stitchAndStoreReel(input: {
       reelId: input.reel.id,
       localFilePath: audio.outputPath,
     });
-    if (stored.yandexStatus === "failed") {
-      throw new Error(stored.yandexError || "Yandex final video upload failed");
-    }
 
     await pool.query(
       `UPDATE omni_reels
