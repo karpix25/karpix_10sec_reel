@@ -157,19 +157,6 @@ export function validateViralScriptContract(input: {
       `Сценарий отклонен: ${describeOmniDensityGap(totalWordCount)}`
     );
   }
-  if (input.durationRange) {
-    if (totalWordCount < input.durationRange.minWords) {
-      warnings.push(
-        `Сценарий короче целевой настройки (${totalWordCount} слов вместо ${input.durationRange.minWords}-${input.durationRange.maxWords}); сохраняем текст без добавления пустых фраз.`
-      );
-    }
-    if (totalWordCount > input.durationRange.maxWords) {
-      warnings.push(
-        `Сценарий длиннее целевой настройки (${totalWordCount} слов вместо ${input.durationRange.minWords}-${input.durationRange.maxWords}); раскадровка будет расширена дополнительной частью.`
-      );
-    }
-  }
-
   const plannedSegmentCount = getPreferredOmniSegmentCount(totalWordCount);
   if (!plannedSegmentCount) {
     throw new Error(`Сценарий отклонен: ${describeOmniDensityGap(totalWordCount)}`);

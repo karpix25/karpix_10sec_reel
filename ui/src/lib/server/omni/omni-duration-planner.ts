@@ -73,9 +73,7 @@ export function planOmniReelSegments(script: string, options: OmniReelSegmentPla
 
   const selected = candidates.sort((left, right) => left.score - right.score)[0];
   if (!selected) {
-    throw new Error(
-      "Не удалось разделить сценарий на части 4/6/8/10 секунд: каждая часть должна укладываться в лимит слов и заканчиваться завершенным предложением без разрыва CTA. Измените формулировку сценария."
-    );
+    throw new Error(buildPlanFailureMessage(wordCount, options.durationRange));
   }
 
   return {
@@ -181,6 +179,7 @@ function resolveSegmentDurations(segments: VoiceSegment[], durationRange?: OmniD
   function visit(index: number, durations: OmniAllowedSegmentSeconds[]) {
     if (index === options.length) {
       const total = durations.reduce((sum, duration) => sum + duration, 0);
+      if (durationRange && (total < durationRange.minSeconds || total > durationRange.maxSeconds)) return;
       const rangePenalty = getDurationRangePenalty(total, durationRange);
       const shortestPenalty = durationRange ? 0 : total;
       const score = rangePenalty + shortestPenalty;
@@ -197,6 +196,16 @@ function resolveSegmentDurations(segments: VoiceSegment[], durationRange?: OmniD
 
   visit(0, []);
   return bestDurations;
+}
+
+function buildPlanFailureMessage(wordCount: number, durationRange?: OmniDurationRange) {
+  const durationRule = durationRange
+    ? `Текст на ${wordCount} слов нельзя упаковать в заданные ${durationRange.minSeconds}-${durationRange.maxSeconds} секунд с допустимыми частями 4/6/8/10 секунд.`
+    : "Каждая часть должна укладываться в лимит слов и заканчиваться завершенным предложением без разрыва CTA.";
+  return [
+    `Не удалось разделить сценарий на части 4/6/8/10 секунд: ${durationRule}`,
+    "Сохраните смысл, но сократите второстепенные детали или объедините короткие фразы в законченные предложения. Измените формулировку сценария.",
+  ].join(" ");
 }
 
 function scoreSegments(
