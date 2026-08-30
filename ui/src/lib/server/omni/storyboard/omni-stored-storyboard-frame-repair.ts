@@ -3,11 +3,8 @@ import type { ProductRole } from "../../../omni/creative-contract";
 import type { StoryboardFrame } from "../llm-prompt-chain-types";
 import type { DirectorBrief, DirectorSegmentProfile } from "../director-analysis-types";
 import {
-  buildPhysicalProductDemoStep,
   buildPhysicalFramePlan,
   hasConsumptionAction,
-  hasForeignReferenceProduct,
-  hasMultipleHeldObjects,
   repairPhysicalFrameAction,
   repairReferenceAction,
 } from "../physical-scene-model";
@@ -18,11 +15,16 @@ import {
   resolveReferenceTransferPolicy,
   type ReferenceTransferPolicy,
 } from "../omni-reference-transfer-policy";
-import { buildDigitalProductDemoStep } from "../digital-product-scene";
 import type { ReferenceFormatMode } from "../omni-reference-format-mode";
 import { sanitizeVoiceoverBrollStoryboardText } from "./omni-storyboard-text-sanitizer";
 import type { ReferenceSceneMode } from "../omni-reference-scene-mode";
 import { resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
+import {
+  buildProductBrollAction,
+  buildProductBrollCamera,
+  buildProductBrollPlacement,
+  OMNI_PRODUCT_BROLL_WARDROBE,
+} from "../omni-product-broll-contract";
 import { renderReferenceWardrobe } from "./omni-storyboard-frame-rendering";
 
 export function buildStoredStoryboardFrame(input: {
@@ -31,7 +33,6 @@ export function buildStoredStoryboardFrame(input: {
   productPhysicalHint?: string | null;
   productVisible: boolean;
   productRole?: ProductRole;
-  productDemoFrame?: { frameIndex: number; frameCount: number };
   referenceProfile?: DirectorSegmentProfile | null;
   directorBrief?: DirectorBrief | null;
   referenceTransferPolicy?: ReferenceTransferPolicy;
@@ -41,7 +42,7 @@ export function buildStoredStoryboardFrame(input: {
   const spokenText = input.frame.spokenWords;
   const productVisible = input.productVisible;
   const noPeopleReference = resolveDirectorVisibleSubjectPolicy(input.directorBrief) === "no_people";
-  const speechMode = noPeopleReference || input.referenceSceneMode === "voiceover_broll" || input.referenceProfile?.avatar_allowed === false
+  const speechMode = productVisible || noPeopleReference || input.referenceSceneMode === "voiceover_broll" || input.referenceProfile?.avatar_allowed === false
     ? "voiceover_only"
     : input.referenceProfile?.speech_mode || "on_camera";
   const sourceAction = input.frame.visualDescription || input.frame.action;
@@ -67,34 +68,24 @@ export function buildStoredStoryboardFrame(input: {
     productVisible,
     referenceSupportProps: referenceTransfer.requiredSupportProps,
   });
-  const productDemo = productVisible && !noPeopleReference && input.productRole === "brief_demo" && input.productDemoFrame
-    ? buildPhysicalProductDemoStep({ productName: input.productName, ...input.productDemoFrame })
-    : null;
-  const digitalProductDemo = productVisible && input.productRole === "digital_demo" && input.productDemoFrame
-    ? buildDigitalProductDemoStep({ productName: input.productName, ...input.productDemoFrame, noPeopleReference })
-    : null;
-  const demo = productDemo || digitalProductDemo;
-  const visualAction = demo
-    ? demo.action
-    : productVisible
-      ? noPeopleReference
-        ? `утвержденный продукт ${input.productName} находится в самостоятельной B-roll композиции без людей и рук`
-        : repairedAction
+  const visualAction = productVisible
+    ? buildProductBrollAction(input.productName, input.productRole === "digital_demo")
     : renderNonProductAction(repairedAction, input.productName, noPeopleReference);
   const deliveryVisualAction = speechMode === "voiceover_only"
     ? `${visualAction}; самостоятельная B-roll сцена, речь звучит за кадром`
     : visualAction;
-  const productState = repairProductState({
-    state: input.frame.productState,
-    productName: input.productName,
-    productVisible,
-  });
   const productPlacement = productVisible
-    ? renderProductPlacement(demo?.placement || productState, input.productPhysicalHint, referenceTransfer, input.productRole)
+    ? [
+        buildProductBrollPlacement(input.productName, input.productRole === "digital_demo"),
+        input.productPhysicalHint,
+        renderRequiredReferenceSupport(referenceTransfer),
+      ].filter(Boolean).join("; ")
     : ["в кадре тематические объекты и окружение текущей реплики", renderRequiredReferenceSupport(referenceTransfer)]
       .filter(Boolean)
       .join("; ");
-  const camera = noPeopleReference
+  const camera = productVisible
+    ? buildProductBrollCamera()
+    : noPeopleReference
     ? "самостоятельный атмосферный B-roll ракурс по текущей реплике, без людей и рук"
     : renderReferenceCamera(input.frame.camera, input.referenceProfile, referenceTransfer.cameraComposition);
   const environment = renderReferenceEnvironment(input.referenceProfile, input.referenceTransferPolicy);
@@ -126,7 +117,7 @@ export function buildStoredStoryboardFrame(input: {
         speechMode,
       });
 
-  const wardrobe = renderReferenceWardrobe({
+  const wardrobe = productVisible ? OMNI_PRODUCT_BROLL_WARDROBE : renderReferenceWardrobe({
     brief: input.directorBrief,
     referenceProfile: input.referenceProfile,
     referenceFormatMode: input.referenceFormatMode,
@@ -184,32 +175,6 @@ function renderReferenceEnvironment(
   return ["LIGHT AND MOOD INSPIRATION", profile.lighting, "choose a new script-relevant location"]
     .filter(Boolean)
     .join("; ") || "окружение и свет из режиссерского плана и storyboard image";
-}
-
-function repairProductState(input: {
-  state: string;
-  productName: string;
-  productVisible: boolean;
-}) {
-  if (!input.productVisible) return "продукт вне кадра в этом кадре";
-  const state = input.state.trim() || "продукт следует физическому состоянию storyboard";
-  if (hasForeignReferenceProduct(state, input.productName) || hasMultipleHeldObjects(state)) {
-    return `${input.productName} в одной руке, без других продуктов и упаковок`;
-  }
-  return state;
-}
-
-function renderProductPlacement(
-  productState: string,
-  productPhysicalHint: string | null | undefined,
-  referenceTransfer: ReturnType<typeof buildReferenceTransferFramePlan>,
-  productRole?: ProductRole
-) {
-  const hint = productPhysicalHint?.trim();
-  const support = renderRequiredReferenceSupport(referenceTransfer);
-  return [productState, productRole === "digital_demo"
-    ? "утвержденный экран продукта на смартфоне; не пластиковая карта и не упаковка"
-    : hint || "продукт физически виден по product reference", support].filter(Boolean).join("; ");
 }
 
 function renderNonProductAction(action: string, productName: string, noPeopleReference = false) {

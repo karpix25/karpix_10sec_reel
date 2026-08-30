@@ -6,6 +6,7 @@ import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../../o
 import type { PhysicalSpeechMode } from "../../../omni/physical-scene-types";
 import { resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
 import { requiresContinuousPresenterWardrobe } from "../director-wardrobe";
+import { buildProductBrollCamera } from "../omni-product-broll-contract";
 
 export function renderStoryboardFrameCamera(input: {
   isCutawayFrame: boolean;
@@ -19,6 +20,7 @@ export function renderStoryboardFrameCamera(input: {
   noPeopleReference?: boolean;
   speechMode?: PhysicalSpeechMode;
 }) {
+  if (input.productVisible) return buildProductBrollCamera();
   if (input.directorCamera) {
     const eyeContact = input.speechMode === "on_camera" && !input.isCutawayFrame
       ? "; герой смотрит прямо в объектив"
@@ -31,9 +33,7 @@ export function renderStoryboardFrameCamera(input: {
   if (input.voiceoverBrollReference || input.speechMode === "voiceover_only") return "самостоятельный B-roll ракурс по текущей реплике, без обязательного взгляда в объектив";
   if (!input.isCutawayFrame) return "естественный talking-head ракурс для текущей реплики";
   if (!input.productVisible) return "смысловая перебивка: предметный или атмосферный кадр по текущей реплике";
-  return input.productRole === "background_prop"
-    ? "смысловая перебивка: блогерская сцена по реплике, продукт только как второстепенная деталь окружения"
-    : "смысловая перебивка: крупный кадр продукта в естественном окружении";
+  return "смысловая перебивка: крупный кадр продукта в естественном окружении";
 }
 
 export function renderStoryboardWardrobe(input: {

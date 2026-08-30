@@ -9,6 +9,7 @@ import {
   buildTalkingHeadCreativePlan,
   isTalkingHeadCutawayFormat,
 } from "./omni-talking-head-format";
+import { OMNI_PRODUCT_BROLL_RULE } from "./omni-product-broll-contract";
 import { sanitizeProviderVisualCue } from "./script-beat-plan";
 
 export function buildSegmentCreativePlan(input: {
@@ -65,11 +66,7 @@ function buildVoiceoverBrollCreativePlan(input: {
   scriptBeats: OmniScriptBeatCue[];
 }) {
   const timing = buildContinuousActionTiming(input.segmentSeconds);
-  const productRule = input.productRole === "digital_demo"
-    ? "экран утвержденного мобильного продукта появляется только по смыслу реплики, без пластиковой карты"
-    : input.productRole === "hidden"
-      ? "продукт остается вне кадра"
-      : "продукт появляется только по смыслу реплики и по product reference";
+  const productRule = input.productRole === "hidden" ? "продукт остается вне кадра" : OMNI_PRODUCT_BROLL_RULE;
   return {
     segmentIndex: input.segmentIndex,
     lifeFormatId: input.strategy.lifeFormatId,
@@ -117,10 +114,7 @@ function buildHookOpening(strategy: OmniCreativeStrategy, baseAction: string) {
 }
 
 function productClosingAction(action: string, role: ProductRole) {
-  if (role === "hidden" || role === "background_prop") return action;
-  if (role === "digital_demo") return "только по смыслу реплики показывает утвержденный экран мобильного продукта на смартфоне; не показывает пластиковую карту или упаковку";
-  if (role === "brief_demo") return "только после последнего слова берет продукт с поверхности и один раз показывает без крупного плана";
-  return "только после последнего слова берет продукт с поверхности и оставляет в руке, не открывая и не употребляя";
+  return role === "hidden" ? action : OMNI_PRODUCT_BROLL_RULE;
 }
 
 function addScriptBeatCues(

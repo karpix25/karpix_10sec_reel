@@ -21,6 +21,7 @@ import {
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 import type { DirectorSourceRole, DirectorVisibleSubjectRole } from "./director-source-interval";
 import { reconcileReferenceSegmentPlanToSpeech } from "./omni-speech-visual-alignment";
+import { buildProductBrollCamera } from "./omni-product-broll-contract";
 
 export type ReferenceSpeechAlignmentDecision = {
   sourceBeatIndex: number;
@@ -140,6 +141,7 @@ export function applyReferenceSegmentPlanToStoryboard(
   plan: ReferenceSegmentPlan | null | undefined,
   storyboard: OmniStoryboardSegment,
   enabled = false,
+  options: { productVisibleByFrame?: readonly boolean[] } = {},
 ): OmniStoryboardSegment {
   if (!plan || !enabled) return storyboard;
   return {
@@ -148,13 +150,19 @@ export function applyReferenceSegmentPlanToStoryboard(
       const beat = resolveReferenceSegmentBeatForFrame(plan, index + 1, storyboard.frames.length);
       if (!beat) return frame;
       const environment = [beat.setting, beat.environment, beat.lighting].filter(Boolean).join("; ");
+      const productVisible = options.productVisibleByFrame?.[index] === true;
       return {
         ...frame,
-        camera: [beat.camera, beat.composition ? `composition ${beat.composition}` : ""].filter(Boolean).join("; "),
+        camera: productVisible
+          ? buildProductBrollCamera()
+          : [beat.camera, beat.composition ? `composition ${beat.composition}` : ""].filter(Boolean).join("; "),
         environment: environment || frame.environment,
-        speechMode: beat.speechMode,
+        speechMode: productVisible ? "voiceover_only" : beat.speechMode,
         physicalPlan: frame.physicalPlan
-          ? { ...frame.physicalPlan, speechMode: beat.speechMode }
+          ? {
+              ...frame.physicalPlan,
+              speechMode: productVisible ? "voiceover_only" : beat.speechMode,
+            }
           : frame.physicalPlan,
       };
     }),

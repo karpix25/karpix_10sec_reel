@@ -3,7 +3,7 @@ import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 const CONTINUITY_PROMPT_CONTRACT = [
   "Start this segment directly from the final pose and layout shown in the provided previous-frame reference.",
   "The current storyboard controls the next shot; preserve the same person, lighting, room, camera, and prop positions until its next explicit cut.",
-  "Keep product state continuous and let the speaker continue naturally from the starting posture.",
+  "Keep product state continuous; the product is a standalone B-roll object on a stable surface, with no person or hands in product shots. Keep narration continuous.",
   "Do not create a sudden camera cut, lighting change, or background reset at the boundary.",
 ].join(" ");
 
@@ -49,7 +49,7 @@ export function appendKieReferenceOrderPrompt(
         : "WARDROBE AUTHORITY: use the outfit shown in the current storyboard; the storyboard overrides avatar or model guesses."
       : "",
     hasProduct
-      ? "Use the product image as the exact standalone source of truth for product appearance: package shape, label layout, cap or lid color, palette, size, material, and printed details. It must not define the character outfit, room, camera, or unrelated props. Show it only where the storyboard calls for it, on a table, counter, shelf, or in the character's hands when the action requires it."
+      ? "Use the product image as the exact standalone source of truth for product appearance: package shape, label layout, cap or lid color, palette, size, material, and printed details. It must not define the character outfit, room, camera, or unrelated props. Show it only where the storyboard calls for it, as a standalone B-roll object on a table, counter, shelf, or other stable surface. Never show a person, hands, holding, pickup, touching, or interaction in the product shot."
       : "",
   ].filter(Boolean).join(" ");
 }

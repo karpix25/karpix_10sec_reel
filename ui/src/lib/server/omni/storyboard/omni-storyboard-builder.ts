@@ -18,16 +18,13 @@ import type { OmniWardrobeSource } from "../../../omni/wardrobe-source";
 import { mentionsOmniProduct } from "../omni-intro-product-contract";
 import { renderFrameTransitionNote } from "./omni-storyboard-effects";
 import {
-  buildPhysicalProductDemoStep,
   buildPhysicalFramePlan,
   normalizeVehicleContext,
   repairReferenceAction,
   repairPhysicalFrameAction,
-  resolveProductDemoFrame,
 } from "../physical-scene-model";
 import { splitStoryboardSpeech } from "./omni-storyboard-speech";
 import { renderStoryboardProductPlacement } from "./omni-storyboard-product-placement";
-import { buildDigitalProductDemoStep } from "../digital-product-scene";
 import { buildStoredStoryboardFrame } from "./omni-stored-storyboard-frame-repair";
 import {
   buildReferenceTransferFramePlan,
@@ -44,6 +41,10 @@ import {
   renderStoryboardWardrobe,
 } from "./omni-storyboard-frame-rendering";
 import { resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
+import {
+  buildProductBrollAction,
+  OMNI_PRODUCT_BROLL_WARDROBE,
+} from "../omni-product-broll-contract";
 export function buildStoryboardFromCreativePlan(input: {
   plan: OmniSegmentCreativePlan;
   productName: string;
@@ -128,7 +129,6 @@ export function buildStoryboardFromPromptChainFrames(input: {
         productPhysicalHint: input.productPhysicalHint,
         productVisible,
         productRole: input.productRole,
-        productDemoFrame: productVisible ? resolveProductDemoFrame(input.productVisible, index, input.frames.length) || undefined : undefined,
         referenceProfile,
         directorBrief: input.directorBrief,
         referenceTransferPolicy: input.referenceTransferPolicy,
@@ -194,8 +194,7 @@ function buildFrame(input: {
     input.plan.beats[0];
   const layoutLocked = !noPeopleReference && /REFERENCE LAYOUT|collage\/PIP/iu.test(beat?.action || "");
   const productVisible = input.plan.productVisibleByFrame?.[input.frameIndex - 1] ?? input.plan.productRole !== "hidden";
-  const demoFrame = productVisible ? resolveProductDemoFrame(input.plan.productVisibleByFrame, input.frameIndex - 1, input.frameCount) : null;
-  const speechMode = noPeopleReference ? "voiceover_only" : referenceProfile?.speech_mode || "on_camera";
+  const speechMode = productVisible || noPeopleReference ? "voiceover_only" : referenceProfile?.speech_mode || "on_camera";
   const referencePolicy = resolveReferenceTransferPolicy(input.referenceTransferPolicy);
   const referenceAction = layoutLocked || referencePolicy.mode === "style_only"
     ? ""
@@ -224,30 +223,12 @@ function buildFrame(input: {
         referenceSupportProps: referenceTransfer.requiredSupportProps,
       });
   const isCutawayFrame = Boolean(referenceAction && isReferenceCutawayAction(referenceAction));
-  const productDemo = productVisible && !noPeopleReference && input.plan.productRole === "brief_demo"
-    ? buildPhysicalProductDemoStep({
-        productName: input.productName,
-        frameIndex: demoFrame?.frameIndex || input.frameIndex,
-        frameCount: demoFrame?.frameCount || input.frameCount,
-      })
-    : null;
-  const digitalProductDemo = productVisible && input.plan.productRole === "digital_demo"
-    ? buildDigitalProductDemoStep({
-        productName: input.productName,
-        frameIndex: demoFrame?.frameIndex || input.frameIndex,
-        frameCount: demoFrame?.frameCount || input.frameCount,
-        noPeopleReference,
-      })
-    : null;
-  const productDemoStep = productDemo || digitalProductDemo;
-  const visualAction = productDemoStep
-    ? productDemoStep.action
+  const visualAction = productVisible
+    ? buildProductBrollAction(input.productName, input.plan.productRole === "digital_demo")
     : layoutLocked
       ? visualActionSource
       : input.segmentIndex === 1 && input.plan.productRole === "hidden"
       ? renderIntroFrameAction(visualActionSource, isCutawayFrame, input.productName, referenceTransfer, facelessReferenceScene, voiceoverBrollReference, noPeopleReference)
-        : productVisible
-        ? renderProductFrameAction(visualActionSource, isCutawayFrame, input.productName, facelessReferenceScene, voiceoverBrollReference, noPeopleReference)
         : renderNonProductFrameAction(visualActionSource, isCutawayFrame, input.productName, facelessReferenceScene, voiceoverBrollReference, noPeopleReference);
   const productPlacement = renderStoryboardProductPlacement(
     input.plan,
@@ -255,10 +236,9 @@ function buildFrame(input: {
     input.productVisualPassport,
     input.productPhysicalHint,
     productVisible,
-    referenceTransfer,
-    productDemoStep?.placement
+    referenceTransfer
   );
-  const finalVisualAction = layoutLocked || productDemoStep
+  const finalVisualAction = productVisible || layoutLocked
     ? visualAction
     : repairReferenceAction({
         action: visualAction,
@@ -307,7 +287,9 @@ function buildFrame(input: {
     visualAction: storyboardVisualAction,
     camera: storyboardCamera,
     environment: renderDirectorEnvironment(input.directorBrief, referenceProfile),
-    wardrobe: renderStoryboardWardrobe({ characterContract: input.characterContract, brief: input.directorBrief, referenceProfile, wardrobeSource: input.wardrobeSource, referenceFormatMode: input.referenceFormatMode, referenceSceneMode: input.referenceSceneMode }),
+    wardrobe: productVisible
+      ? OMNI_PRODUCT_BROLL_WARDROBE
+      : renderStoryboardWardrobe({ characterContract: input.characterContract, brief: input.directorBrief, referenceProfile, wardrobeSource: input.wardrobeSource, referenceFormatMode: input.referenceFormatMode, referenceSceneMode: input.referenceSceneMode }),
     productPlacement,
     sfxNotes: isCutawayFrame
       ? productVisible
@@ -382,18 +364,6 @@ function renderFrameAction(action: string | undefined, isCutawayFrame: boolean, 
         : `персонаж говорит в камеру, визуальный ориентир: ${visualCue}`;
   }
   return compactText(normalized, 180);
-}
-
-function renderProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false, voiceoverBrollReference = false, noPeopleReference = false) {
-  const rendered = renderFrameAction(action, isCutawayFrame, facelessReferenceScene, voiceoverBrollReference, noPeopleReference);
-  if (mentionsOmniProduct(rendered, productName)) return rendered;
-  return facelessReferenceScene
-    ? `${rendered}; рука естественно берет ${productName} и ставит его на ту же поверхность, упаковка повернута лицевой стороной к камере`
-    : noPeopleReference
-      ? `${rendered}; утвержденный продукт ${productName} показывается крупно на устойчивой поверхности без людей и рук`
-    : voiceoverBrollReference
-      ? `${rendered}; видимый B-roll субъект естественно показывает ${productName} только по смыслу реплики`
-    : `${rendered}; герой естественно берет ${productName} в одну руку на уровне груди, упаковка повернута лицевой стороной к камере`;
 }
 
 function renderNonProductFrameAction(action: string | undefined, isCutawayFrame: boolean, productName: string, facelessReferenceScene = false, voiceoverBrollReference = false, noPeopleReference = false) {

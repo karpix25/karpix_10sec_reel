@@ -1,7 +1,7 @@
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import { isProductVisibleInStoryboardFrame } from "./omni-intro-product-contract";
 import { renderProductPhysicalStoryboardHint } from "./product-physical-contract";
-import { OMNI_PHYSICAL_ACTION_CONTRACT } from "./omni-physical-action-contract";
+import { OMNI_PRODUCT_BROLL_RULE } from "./omni-product-broll-contract";
 import type { DirectorBrief } from "./director-analysis-types";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { isAvatarFreeReferenceScene, isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
@@ -199,8 +199,10 @@ export function buildStoryboardImagePrompt(input: {
       productFrameNumbers,
       productRevealFrame,
     }) : "",
-    productAppearsInThisSegment && input.productRole !== "digital_demo" ? OMNI_PHYSICAL_ACTION_CONTRACT : "",
-    productPhysicalHint && input.productRole !== "digital_demo" ? compactText(productPhysicalHint, 180) : "",
+    productAppearsInThisSegment && input.productRole !== "digital_demo" ? OMNI_PRODUCT_BROLL_RULE : "",
+    productPhysicalHint && input.productRole !== "digital_demo"
+      ? `PRODUCT APPEARANCE ONLY: ${compactText(productPhysicalHint, 180)}. Ignore any action or contact wording in this hint; product B-roll has no people or hands.`
+      : "",
     productAppearsInThisSegment && input.productRole === "digital_demo"
       ? "DIGITAL PRODUCT: показывай только утвержденный экран продукта на смартфоне; не изображай пластиковую карту, упаковку или физический товар."
       : "",
@@ -219,6 +221,10 @@ export function buildStoryboardImagePrompt(input: {
         frameIndex: index + 1,
         frameCount: input.storyboard.frames.length,
       });
+      const productVisible = isProductVisibleInStoryboardFrame(
+        frame as unknown as Record<string, unknown>,
+        input.productName,
+      );
       return [
         `Кадр ${index + 1}:`,
         referenceProfile
@@ -229,10 +235,10 @@ export function buildStoryboardImagePrompt(input: {
         `действие: ${compactText(frame.visualAction)}; камера: ${compactText(frame.camera)};${index === 0 ? ` окружение: ${compactText(frame.environment)}; одежда: ${compactText(frame.wardrobe)};` : ""}`,
         frame.effectNotes ? `переход: ${compactText(frame.effectNotes)};` : "",
         frame.referenceTransfer
-          ? `перенос: исходный рекламный товар ${frame.referenceTransfer.decisions.sourceProduct}; его упаковку и части не сохраняй; нейтральный реквизит ${frame.referenceTransfer.decisions.sourceProps}; композиция ${compactText(frame.referenceTransfer.cameraComposition || "по новой раскадровке")}; обязательный реквизит ${(frame.referenceTransfer.requiredSupportProps || []).join("; ") || "нет"}; обязательное действие ${compactText(frame.referenceTransfer.requiredReferenceAction || "нет")};`
+          ? `перенос: исходный рекламный товар ${frame.referenceTransfer.decisions.sourceProduct}; его упаковку и части не сохраняй; нейтральный реквизит ${frame.referenceTransfer.decisions.sourceProps}; композиция ${compactText(frame.referenceTransfer.cameraComposition || "по новой раскадровке")}; обязательный реквизит ${(frame.referenceTransfer.requiredSupportProps || []).join("; ") || "нет"}; обязательное действие ${productVisible ? "standalone product B-roll без людей и рук" : compactText(frame.referenceTransfer.requiredReferenceAction || "нет")};`
           : "",
         productReferenceUrls.length
-          ? isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName)
+          ? productVisible
             ? `продукт: ${index === 0 ? compactText(frame.productPlacement, 70) : "по действию кадра, без телепортации"};`
             : "продукт в этом кадре не показывай;"
           : `предметы: ${compactText(frame.productPlacement)};`,
@@ -258,7 +264,7 @@ function renderStoryboardImageProductContract(input: {
   return [
     identity,
     `PRODUCT FRAME CONTRACT: Продукт впервые появляется только в панели ${input.productRevealFrame}; показывай его в панелях ${[...visibleFrames].join(", ")} и не показывай в панелях ${hiddenFrames.join(", ") || "нет"}.`,
-    "После reveal сохраняй тот же объект и положение в руке в каждом следующем видимом кадре. Возврат вне кадра допустим только после явного действия положить, передать или убрать продукт. Не допускай исчезновения, левитации или замены между соседними панелями.",
+    "В каждом видимом кадре продукт находится в отдельной предметной B-roll вставке без людей и рук; сохраняй тот же объект на одной устойчивой поверхности, меняй только ракурс или фокус камеры. Не допускай исчезновения, левитации или замены между соседними панелями.",
   ].join("\n");
 }
 

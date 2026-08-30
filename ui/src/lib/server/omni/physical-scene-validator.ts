@@ -20,7 +20,9 @@ const MULTI_OBJECT_PATTERN = /(?:несколько предметов|два п
 const TRANSITION_PATTERN = /(?:полож|ставит|кладет|кладёт|убирает|откладывает|берет|берёт|поднимает|замен|переклад|cut|transition|смен)/iu;
 const HIDDEN_PATTERN = /(?:вне кадра|не виден|скрыт|hidden|off\s*camera|only thematic objects|только тематические объекты)/iu;
 const DIGITAL_SCREEN_PATTERN = /(?:смартфон|телефон|экран|smartphone|phone|screen)/iu;
-const DIGITAL_SURFACE_PATTERN = /(?:смартфон|телефон|smartphone|phone)[^.;]{0,90}(?:на столе|на поверхности|лежит|стоит)|(?:на столе|на поверхности|лежит|стоит)[^.;]{0,90}(?:смартфон|телефон|smartphone|phone)/iu;
+const PRODUCT_HUMAN_INTERACTION_PATTERN = /(?:продукт|товар|упаковк\p{L}*|смартфон|телефон|product|package|smartphone|phone)[^.;]{0,90}(?:показыва(?:ет|ть)|держит|бер[её]т|каса(?:ет|ться)|использу(?:ет|ть)|shows?|holds?|holding|picks?\s+up|touch(?:es|ing)?|uses?)|(?:показыва(?:ет|ть)|держит|бер[её]т|каса(?:ет|ться)|использу(?:ет|ть)|shows?|holds?|holding|picks?\s+up|touch(?:es|ing)?|uses?)[^.;]{0,90}(?:продукт|товар|упаковк\p{L}*|смартфон|телефон|product|package|smartphone|phone)/iu;
+const HUMAN_SUBJECT_PATTERN = /(?:герой|героиня|персонаж|человек|ведущий|презентер|мужчина|женщина|presenter|hero|person|man|woman)/iu;
+const PRODUCT_INTERACTION_VERB_PATTERN = /(?:показыва(?:ет|ть)|держит|бер[её]т|каса(?:ет|ться)|использу(?:ет|ть)|shows?|holds?|holding|picks?\s+up|touch(?:es|ing)?|uses?)/iu;
 const DIGITAL_REVEAL_PATTERN = /(?:поднимает|подносит|вносит|показывает|raises?|brings?|shows?)[^.;]{0,90}(?:смартфон|телефон|smartphone|phone)|(?:смартфон|телефон|smartphone|phone)[^.;]{0,90}(?:поднимает|подносит|вносит|показывает|raises?|brings?|shows?)/iu;
 
 const OBJECT_CUES: readonly [string, RegExp][] = [
@@ -35,7 +37,7 @@ const OBJECT_CUES: readonly [string, RegExp][] = [
 ];
 
 const PHYSICAL_REPAIR_CONTRACT =
-  "PHYSICAL CONTINUITY REPAIR: one visible object keeps one identity and physical state; every movement needs visible contact or gravity; no eating or drinking during on-camera speech; use voiceover-only for consumption; the presenter never drives.";
+  "PHYSICAL CONTINUITY REPAIR: one visible object keeps one identity and physical state; any visible product is standalone B-roll on one stable surface with no person, hands, holding, pickup, touching, transfer, or interaction; only camera reframing or focus may change; no eating or drinking during on-camera speech; the presenter never drives.";
 
 export function validatePhysicalScene(input: {
   storyboard: OmniStoryboardSegment | null;
@@ -83,11 +85,15 @@ export function validatePhysicalScene(input: {
     if ((physicalPlan.productState === "unknown" || physicalPlan.productState === "visible") && productVisible) {
       errors.push(`frame_${frameNumber}_product_support_is_ambiguous`);
     }
-    if (digitalDemo && DIGITAL_SURFACE_PATTERN.test(frame.productPlacement)) {
-      errors.push(`frame_${frameNumber}_digital_product_on_surface`);
-    }
     if (digitalDemo && currentState === "held" && !DIGITAL_SCREEN_PATTERN.test(text)) {
       errors.push(`frame_${frameNumber}_digital_product_without_phone_screen`);
+    }
+    if (productVisible && HOLDING_PATTERN.test(text)) {
+      errors.push(`frame_${frameNumber}_product_broll_has_human_interaction`);
+    }
+    if (productVisible && (PRODUCT_HUMAN_INTERACTION_PATTERN.test(text) ||
+      mentionsProduct(text, input.productName) && HUMAN_SUBJECT_PATTERN.test(text) && PRODUCT_INTERACTION_VERB_PATTERN.test(text))) {
+      errors.push(`frame_${frameNumber}_product_broll_has_human_interaction`);
     }
 
     if (onCamera && hasConsumptionAction(actionText)) {

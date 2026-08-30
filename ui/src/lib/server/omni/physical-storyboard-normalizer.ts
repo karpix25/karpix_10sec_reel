@@ -1,27 +1,25 @@
 import type { OmniStoryboardFrame, OmniStoryboardSegment } from "../../omni/storyboard/omni-storyboard-types";
 import type { ProductRole } from "../../omni/creative-contract";
 import {
-  buildPhysicalProductDemoStep,
   buildPhysicalFramePlan,
   hasConsumptionAction,
   hasDrivingAction,
-  hasForeignReferenceProduct,
-  hasMultipleHeldObjects,
   normalizeVehicleContext,
   repairPhysicalFrameAction,
   repairReferenceAction,
-  resolveProductDemoFrame,
 } from "./physical-scene-model";
 import {
   renderRequiredReferenceSupport,
   synchronizeReferenceTransferProductVisibility,
 } from "./omni-reference-transfer-policy";
-import { buildDigitalProductDemoStep } from "./digital-product-scene";
 import { sanitizeVoiceoverBrollStoryboardText } from "./storyboard/omni-storyboard-text-sanitizer";
 import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
+import {
+  buildProductBrollAction,
+  buildProductBrollCamera,
+  buildProductBrollPlacement,
+} from "./omni-product-broll-contract";
 
-const SURFACE_PATTERN = /(?:на столе|на\s+(?:\p{L}+\s+){0,3}поверхности|на полке|лежит|стоит|on (?:the )?(?:table|surface|shelf)|resting on)/iu;
-const HELD_PRODUCT_PATTERN = /(?:держит|держать|в руках|holding|holds|in one hand|(?<!\p{L})одной рукой|в одну руку|в одной руке)/iu;
 const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр/iu;
 export const CANONICAL_STORYBOARD_OVERRIDES_HEADER =
   "FINAL CANONICAL STORYBOARD OVERRIDES: these per-frame physical actions are authoritative; ignore conflicting earlier action wording.";
@@ -83,38 +81,16 @@ function normalizeFrame(input: {
   const { frame, productName, productVisible } = input;
   const product = productName.trim() || "продукт";
   const spokenText = frame.spokenText.trim();
-  const speechMode = input.referenceSceneMode === "voiceover_broll"
+  const visibleInFrame = input.productVisibleByFrame?.[input.frameIndex - 1] ?? productVisible;
+  const speechMode = visibleInFrame || input.referenceSceneMode === "voiceover_broll"
     ? "voiceover_only"
     : frame.speechMode || frame.physicalPlan?.speechMode;
   const sourceText = `${frame.visualAction} ${frame.productPlacement} ${frame.sfxNotes} ${frame.effectNotes || ""}`;
-  const visibleInFrame = input.productVisibleByFrame?.[input.frameIndex - 1] ?? productVisible;
-  const demoFrame = visibleInFrame
-    ? resolveProductDemoFrame(
-        input.productVisibleByFrame ?? input.productVisible,
-        input.frameIndex - 1,
-        input.frameCount,
-      )
+  const productBroll = visibleInFrame
+    ? buildProductBrollAction(product, input.productRole === "digital_demo")
     : null;
-  const productDemo = visibleInFrame && (
-    input.productRole === "brief_demo" ||
-    input.productRole === undefined && (demoFrame?.frameCount ?? input.frameCount) > 1
-  )
-    ? buildPhysicalProductDemoStep({
-        productName: product,
-        frameIndex: demoFrame?.frameIndex ?? input.frameIndex,
-        frameCount: demoFrame?.frameCount ?? input.frameCount,
-      })
-    : null;
-  const digitalProductDemo = visibleInFrame && input.productRole === "digital_demo"
-    ? buildDigitalProductDemoStep({
-        productName: product,
-        frameIndex: demoFrame?.frameIndex ?? input.frameIndex,
-        frameCount: demoFrame?.frameCount ?? input.frameCount,
-      })
-    : null;
-  const demo = productDemo || digitalProductDemo;
   const initialAction = repairReferenceAction({
-    action: withPassengerContext(demo?.action || frame.visualAction, frame.visualAction),
+    action: productBroll || withPassengerContext(frame.visualAction, frame.visualAction),
     spokenText,
     productName: product,
     productVisible: visibleInFrame,
@@ -132,10 +108,11 @@ function normalizeFrame(input: {
   const deliveredVisualAction = speechMode === "voiceover_only"
     ? `${visualAction}; самостоятельная B-roll сцена, речь звучит за кадром`
     : visualAction;
-  const productPlacement = demo
-    ? [demo.placement, renderRequiredReferenceSupport(frame.referenceTransfer)].filter(Boolean).join("; ")
-    : visibleInFrame
-    ? renderSafeProductPlacement(product, frame.productPlacement, frame.referenceTransfer)
+  const productPlacement = visibleInFrame
+    ? [
+        buildProductBrollPlacement(product, input.productRole === "digital_demo"),
+        renderRequiredReferenceSupport(frame.referenceTransfer),
+      ].filter(Boolean).join("; ")
     : [
         "в кадре тематические объекты и окружение текущей реплики; продукт вне кадра",
         renderRequiredReferenceSupport(frame.referenceTransfer),
@@ -147,7 +124,7 @@ function normalizeFrame(input: {
     productName: product,
     spokenText,
     visualAction: deliveredVisualAction,
-    camera: frame.camera,
+    camera: visibleInFrame ? buildProductBrollCamera() : frame.camera,
     productPlacement,
     speechMode,
   });
@@ -163,7 +140,7 @@ function normalizeFrame(input: {
     productName: product,
     spokenText,
     visualAction: canonicalAction,
-    camera: frame.camera,
+    camera: visibleInFrame ? buildProductBrollCamera() : frame.camera,
     productPlacement,
     speechMode,
   });
@@ -174,7 +151,7 @@ function normalizeFrame(input: {
   return {
     ...frame,
     visualAction: canonicalAction,
-    camera: normalizeVehicleContext(frame.camera),
+    camera: visibleInFrame ? buildProductBrollCamera() : normalizeVehicleContext(frame.camera),
     environment: normalizeVehicleContext(frame.environment),
     productPlacement,
     sfxNotes,
@@ -183,22 +160,6 @@ function normalizeFrame(input: {
     physicalPlan,
     referenceTransfer: synchronizeReferenceTransferProductVisibility(frame.referenceTransfer, visibleInFrame),
   };
-}
-
-function renderSafeProductPlacement(
-  product: string,
-  sourcePlacement: string,
-  referenceTransfer: OmniStoryboardFrame["referenceTransfer"]
-) {
-  const support = renderRequiredReferenceSupport(referenceTransfer);
-  if (SURFACE_PATTERN.test(sourcePlacement) && !hasForeignReferenceProduct(sourcePlacement, product)) {
-    return `${product} стоит на одной поверхности; без других брендовых продуктов и упаковок; ${support}`;
-  }
-  if (hasForeignReferenceProduct(sourcePlacement, product) || hasMultipleHeldObjects(sourcePlacement)) {
-    return `${product} в одной руке, упаковка повернута лицевой стороной к камере; без других брендовых продуктов и упаковок; ${support}`;
-  }
-  if (HELD_PRODUCT_PATTERN.test(sourcePlacement)) return [sourcePlacement.trim(), support].filter(Boolean).join("; ");
-  return `${product} в одной руке, упаковка повернута лицевой стороной к камере; ${support}`;
 }
 
 function withPassengerContext(action: string, sourceAction: string) {

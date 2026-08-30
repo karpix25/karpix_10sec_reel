@@ -73,9 +73,9 @@ export function resolvePhysicalProductDemoRole(
   forceVisible = false,
 ): ProductRole {
   if (selectedRole === "hidden") return "hidden";
-  if (forceVisible) return selectedRole;
+  if (forceVisible) return selectedRole === "digital_demo" ? "digital_demo" : "background_prop";
   if (segmentIndex !== productDemoSegmentIndex) return "hidden";
-  return selectedRole === "digital_demo" ? "digital_demo" : "brief_demo";
+  return selectedRole === "digital_demo" ? "digital_demo" : "background_prop";
 }
 
 export function resolveProductVisualProfile(input: {

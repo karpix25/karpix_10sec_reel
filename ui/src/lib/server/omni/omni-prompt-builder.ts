@@ -268,7 +268,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       wardrobeSource: input.wardrobeSource,
       referenceTransferPolicy: referencePolicy,
       referenceSceneMode,
-    }), referencePolicy.mode === "full_reference");
+    }), referencePolicy.mode === "full_reference", { productVisibleByFrame: plan.productVisibleByFrame });
     const validation = validatePhysicalScene({
       storyboard: storyboardPlan,
       creativePlan: plan,
@@ -442,7 +442,7 @@ function buildStoredProviderPromptSegments(
       productRole,
       referenceTransferPolicy: referencePolicy,
       referenceSceneMode,
-    }), referencePolicy.mode === "full_reference");
+    }), referencePolicy.mode === "full_reference", { productVisibleByFrame });
     const validation = validatePhysicalScene({
       storyboard: storyboardPlan,
       creativePlan,

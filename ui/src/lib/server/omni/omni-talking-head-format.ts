@@ -7,6 +7,7 @@ import type {
 } from "@/lib/omni/creative-contract";
 import { OMNI_CLEAN_FRAME_PROMPT } from "./omni-provider-prompt-contract";
 import { sanitizeProviderVisualCue } from "./script-beat-plan";
+import { OMNI_PRODUCT_BROLL_RULE } from "./omni-product-broll-contract";
 
 export const TALKING_HEAD_CUTAWAY_FORMAT_ID: LifeFormatId = "talking_head_cutaways";
 
@@ -77,9 +78,7 @@ function cueCutaway(scriptBeats: readonly OmniScriptBeatCue[] | undefined, produ
   const visualBeats = scriptBeats?.filter((beat) => beat.visualCue.trim()) || [];
   const cutawayBeat = visualBeats[Math.floor(visualBeats.length / 2)];
   if (!cutawayBeat) return "";
-  const productRule = productRole === "hidden"
-    ? "товар остается вне кадра"
-    : "товар показывается только если этого требует смысл текущей реплики, строго по product reference";
+  const productRule = productRole === "hidden" ? "товар остается вне кадра" : OMNI_PRODUCT_BROLL_RULE;
   return `короткая спокойная смысловая сцена по visual cue сценариста: ${sanitizeProviderVisualCue(cutawayBeat.visualCue)}; ${productRule}; в кадре только физическая сцена, камера и естественное действие`;
 }
 

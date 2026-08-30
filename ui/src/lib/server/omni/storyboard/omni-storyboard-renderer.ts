@@ -10,7 +10,7 @@ import { isProductVisibleInStoryboardFrame } from "../omni-intro-product-contrac
 import { renderProductPhysicalContractForOmni } from "../product-physical-contract";
 import type { DirectorBrief } from "../director-analysis-types";
 import { isCollagePictureInPictureReference } from "../director-layout-contract";
-import { OMNI_PHYSICAL_ACTION_CONTRACT } from "../omni-physical-action-contract";
+import { OMNI_PRODUCT_BROLL_RULE } from "../omni-product-broll-contract";
 import { isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "../omni-reference-scene-mode";
 import { isAvatarFreeReferenceScene } from "../omni-reference-scene-mode";
 import type { ProductRole } from "../../../omni/creative-contract";
@@ -115,7 +115,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
       productFrameNumbers,
     }),
     productAppearsInThisSegment && input.productRole !== "digital_demo" ? renderProductPhysicalContractForOmni(input.productPhysicalContract) : "",
-    productAppearsInThisSegment && input.productRole !== "digital_demo" ? OMNI_PHYSICAL_ACTION_CONTRACT : "",
+    productAppearsInThisSegment && input.productRole !== "digital_demo" ? OMNI_PRODUCT_BROLL_RULE : "",
     productAppearsInThisSegment && input.productRole === "digital_demo"
       ? "DIGITAL PRODUCT: показывай только утвержденный экран продукта на смартфоне; не изображай пластиковую карту, упаковку или физический рекламный товар."
       : "",
@@ -150,7 +150,7 @@ function renderProductVisibilityContract(input: {
 
   return [
     productIdentity,
-    "PRODUCT FRAME CONTRACT: storyboard определяет видимость и placement. Состояние продукта держи одинаковым; после появления не допускай исчезновения, телепортации или замены без явно показанного действия положить, передать или убрать.",
+    "PRODUCT FRAME CONTRACT: storyboard определяет видимость и placement. Продукт показывай только отдельным product B-roll без людей и рук; держи его неподвижным на одной устойчивой поверхности, меняй только ракурс или фокус камеры.",
   ].join("\n");
 }
 

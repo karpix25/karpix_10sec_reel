@@ -33,7 +33,6 @@ type ScoredFormat = {
 
 const COMPLEX_ACTION_PATTERN = /одновременно|на ходу.*откр|за рулем|за рулём|беж|прыга|танцу|несколько предмет/i;
 const INTANGIBLE_PRODUCT_PATTERN = /курс|сервис|услуг|приложен|мини[-\s]?апп|мобильн(?:ое|ого|ая|ую)\s+приложен|виртуальн(?:ая|ую|ой)\s+карт|страхов|банк|оплат|подписк|консультац/i;
-const EXPLICIT_DEMO_PATTERN = /покаж|демонстр|как выглядит|упаковк|распаков/i;
 const REPLACEMENT_PATTERN = /вместо|замени|больше не|раньше.*теперь|перестал|надоело/i;
 const RESULT_PATTERN = /результат|получил|стало|теперь|наконец|сработал|эффект/i;
 const PROBLEM_PATTERN = /проблем|не мог|не могла|устал|устала|мешал|неудоб|бол|мерзк|раздраж/i;
@@ -55,7 +54,7 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
   const selected = finalists[stableHash(`${normalized}|${audience}`) % finalists.length] || ranked[0];
   if (!selected) throw new Error("Omni life format catalog is empty");
 
-  const productRole = selectProductRole(selected.format, normalized, input.hasProductReference);
+  const productRole = selectProductRole(normalized, input.hasProductReference);
   const hookType = selectHookType(selected.format, firstLine, productRole);
   const visualStyle = writeOmniVisualStyle({
     script: input.script,
@@ -129,17 +128,10 @@ function getNoveltyPenalty(format: OmniLifeFormat, recent: readonly LifeFormatId
   return Math.min(2.5, round(penalty));
 }
 
-function selectProductRole(format: OmniLifeFormat, content: string, hasReference: boolean): ProductRole {
+function selectProductRole(content: string, hasReference: boolean): ProductRole {
   if (!hasReference) return "hidden";
   if (isDigitalProductText(content) || INTANGIBLE_PRODUCT_PATTERN.test(content)) return "digital_demo";
-  if (EXPLICIT_DEMO_PATTERN.test(content) && format.allowedProductRoles.includes("brief_demo")) return "brief_demo";
-  return pickVisibleProductRole(format) || format.preferredProductRoles[0] || format.allowedProductRoles[0];
-}
-
-function pickVisibleProductRole(format: OmniLifeFormat): ProductRole | null {
-  const preferredVisible = format.preferredProductRoles.find((role) => role !== "hidden");
-  if (preferredVisible) return preferredVisible;
-  return format.allowedProductRoles.find((role) => role !== "hidden") || null;
+  return "background_prop";
 }
 
 function selectHookType(format: OmniLifeFormat, firstLine: string, productRole: ProductRole): HookType {
@@ -173,10 +165,8 @@ function buildHookRule(hookType: HookType) {
 
 function buildProductActionRule(role: ProductRole) {
   if (role === "hidden") return "Продукт не появляется в кадре; любопытство создают история и результат.";
-  if (role === "digital_demo") return "Коротко показать утвержденный экран мобильного продукта на смартфоне; не изображать пластиковую карту, упаковку или физический товар.";
-  if (role === "brief_demo") return "Коротко показать продукт один раз по смыслу реплики, без рекламного крупного плана.";
-  if (role === "background_prop") return "Продукт может естественно лежать в сцене, но герой не позирует с ним и не выделяет логотип.";
-  return "После последнего слова продукт можно один раз взять или убрать; не пытаться есть, пить или наносить его в этом сегменте.";
+  if (role === "digital_demo") return "Отдельная предметная B-roll вставка с утвержденным экраном продукта на смартфоне; без людей, рук и взаимодействия.";
+  return "Отдельная предметная B-roll вставка с утвержденным продуктом на устойчивой поверхности; без людей, рук и взаимодействия.";
 }
 
 function buildSelectionReason(selected: ScoredFormat) {

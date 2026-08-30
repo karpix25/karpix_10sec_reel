@@ -4,6 +4,7 @@ import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 import type { DirectorWardrobeContinuity } from "./director-wardrobe";
 import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import type { ReferenceSegmentPlan } from "./reference-segment-plan";
+import { buildProductBrollAction, buildProductBrollPlacement, OMNI_PRODUCT_BROLL_RULE } from "./omni-product-broll-contract";
 
 export type OmniGenerationContinuityState = {
   segmentIndex: number;
@@ -52,7 +53,7 @@ export function buildOmniGenerationContinuityDirection(
   const wardrobeInstruction = renderWardrobeContinuityInstruction(input.wardrobeContinuity);
   const productContinuity = input.plan.productRole === "hidden"
     ? "Product stays off camera."
-    : "Preserve the same product identity and physical state across the segment boundary; follow the current storyboard's visible action.";
+    : `${OMNI_PRODUCT_BROLL_RULE} Preserve the same product identity and stable surface across the segment boundary.`;
   const nextState: OmniGenerationContinuityState = {
     segmentIndex: input.segmentIndex,
     productState: compactContinuityState(productAction.endState),
@@ -101,41 +102,10 @@ function buildProductAction(input: {
     };
   }
 
-  const startState = input.previousProductState && input.previousProductState !== "product remains off camera"
-    ? input.previousProductState
-    : `${product} starts as a real prop resting on a stable surface within reach`;
-
-  if (input.role === "background_prop") {
-    const action = input.talkingHead
-      ? `${startState}; in the cutaway, a hand naturally slides or rotates it once, then leaves it resting on the same surface`
-      : `${startState}; the presenter lightly adjusts or passes near it during the spoken action, then leaves it stable`;
-    return {
-      actionLine: `${action}.`,
-      causalityLine: "The product moves only because a visible hand touches it or the camera reframes; it is never a pasted still image.",
-      endState: `${product} rests on the same stable surface, slightly adjusted and still physically present`,
-    };
-  }
-
-  if (input.role === "brief_demo") {
-    return {
-      actionLine: `${startState}; the presenter picks it up, turns the real package toward camera once, then places it back without a hard advertising close-up.`,
-      causalityLine: "Every movement follows hand contact: lift, small rotation, placement. Keep size, label layout, material, and shadows consistent.",
-      endState: `${product} rests back on the surface near the presenter, label orientation preserved`,
-    };
-  }
-
-  if (input.role === "digital_demo") {
-    return {
-      actionLine: `${product} appears only as the approved product screen on a smartphone when the matching B-roll cut calls for it; never turn it into a plastic card or package.`,
-      causalityLine: "The smartphone enters or leaves through visible hand or camera movement; the approved screen remains unchanged.",
-      endState: `${product} remains off camera or on the approved smartphone screen`,
-    };
-  }
-
   return {
-    actionLine: `${startState}; the presenter handles it as part of the routine, moving it from surface to hand and back without eating, drinking, or applying it while speaking.`,
-    causalityLine: "Show the cause of each movement through hand contact and gravity; no teleporting, floating, duplication, or sudden material change.",
-    endState: `${product} ends either in the presenter's hand or on the same surface, with a clear hand-driven path from its start position`,
+    actionLine: `${buildProductBrollAction(product, input.role === "digital_demo")}.`,
+    causalityLine: "The product never moves through human contact; only camera reframing or focus may change. Keep one identity, one form, and one stable surface.",
+    endState: buildProductBrollPlacement(product, input.role === "digital_demo"),
   };
 }
 

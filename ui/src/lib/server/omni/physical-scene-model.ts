@@ -4,6 +4,7 @@ import type {
   PhysicalObjectState,
   PhysicalSpeechMode,
 } from "../../omni/physical-scene-types";
+import { buildProductBrollAction } from "./omni-product-broll-contract";
 
 const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|b[-\s]?roll|voiceover|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр|закадр/iu;
 const HIDDEN_PATTERN = /(?:вне кадра|не виден|скрыт|hidden|off\s*camera|only thematic objects|только тематические объекты)/iu;
@@ -78,30 +79,30 @@ export function repairReferenceAction(input: {
 
   if (hasDriving) {
     return input.productVisible
-      ? `герой едет пассажиром в движущемся автомобиле; держит ${product} в одной руке, свободной рукой делает спокойный жест`
+      ? buildProductBrollAction(product)
       : "герой едет пассажиром в движущемся автомобиле и спокойно говорит в камеру с нейтральным жестом";
   }
   if (isFaceTouchAction(action) && !isFaceTouchSemanticallyRelevant(input.spokenText)) {
     return input.productVisible
-      ? `герой спокойно говорит в камеру, ${product} остается физически видимым по утвержденному плану, без касания лица`
+      ? buildProductBrollAction(product)
       : "герой спокойно говорит в камеру с нейтральным жестом, без касания лица";
   }
   if (hasForeignPackagedProduct(action, product) && !preservesSupportProp) {
     return input.productVisible
-      ? buildProductPresentationAction(product)
+      ? buildProductBrollAction(product)
       : "герой спокойно говорит в камеру с нейтральным жестом, без чужих продуктов и упаковок";
   }
   if (input.productVisible && interactsWithObject && !mentionsProduct(action, product)) {
-    return buildProductPresentationAction(product);
+    return buildProductBrollAction(product);
   }
   if (hasConsumption && hasSpeech && !CUTAWAY_PATTERN.test(action)) {
     if (preservesSupportProp) {
-      return `герой берет небольшой предмет из обязательного реквизита reference и показывает его в руке, не ест и не жует во время речи`;
+      return buildProductBrollAction(product);
     }
     return "герой спокойно говорит в камеру с нейтральным жестом, без приёма пищи";
   }
   if (hasMultipleObjects && input.productVisible) {
-    return buildProductPresentationAction(product);
+    return buildProductBrollAction(product);
   }
   if (interactsWithObject && hasSpeech && !input.productVisible && !preservesSupportProp) {
     return "герой показывает только один предмет из текущей реплики одной рукой; остальные предметы вне кадра";
@@ -182,8 +183,7 @@ export function isProductPresentationCue(spokenText: string) {
 }
 
 export function buildProductPresentationAction(productName: string) {
-  const product = productName.trim() || "продукт";
-  return `герой держит ${product} в одной руке, поворачивает лицевой стороной к камере, второй рукой делает спокойный жест`;
+  return buildProductBrollAction(productName);
 }
 
 export function buildPhysicalProductDemoStep(input: {
@@ -192,38 +192,9 @@ export function buildPhysicalProductDemoStep(input: {
   frameCount: number;
 }) {
   const product = input.productName.trim() || "продукт";
-  const first = input.frameIndex === 1;
-  const usesFiveStateSequence = input.frameCount >= 5;
-  const touchFrame = usesFiveStateSequence ? 3 : null;
-  const pickupFrame = usesFiveStateSequence ? 4 : Math.max(2, Math.ceil(input.frameCount / 2));
-
-  if (first) {
-    return {
-      action: `герой живо говорит в камеру и жестикулирует свободной рукой; ${product} уже стоит на видимой поверхности в переднем плане, руки не касаются упаковки`,
-      placement: `${product} стоит на видимой поверхности в переднем плане и не меняет положения`,
-    };
-  }
-  if (input.frameIndex < pickupFrame) {
-    if (input.frameIndex === touchFrame) {
-      return {
-        action: `герой продолжает живо говорить в камеру; одной рукой касается ${product}, который остается на той же видимой поверхности`,
-        placement: `${product} остается на той же видимой поверхности, рука героя уже касается упаковки, но не поднимает ее`,
-      };
-    }
-    return {
-      action: `герой продолжает живо говорить в камеру, делает естественный жест и тянется к ${product}, который остается на той же видимой поверхности`,
-      placement: `${product} остается на той же видимой поверхности, рука героя только приближается к упаковке`,
-    };
-  }
-  if (input.frameIndex === pickupFrame) {
-    return {
-      action: `герой одной рукой берет ${product} с видимой поверхности и поднимает его в кадре, не прерывая речь`,
-      placement: `${product} только что поднят с поверхности и уже находится в одной руке героя`,
-    };
-  }
   return {
-    action: `герой держит ${product} в одной руке; поворачивает упаковку лицевой стороной к камере и продолжает объяснение`,
-    placement: `${product} остается в одной руке, целая упаковка повернута лицевой стороной к камере`,
+    action: buildProductBrollAction(product),
+    placement: `${product} стоит на одной устойчивой поверхности; без людей, рук и взаимодействия`,
   };
 }
 
