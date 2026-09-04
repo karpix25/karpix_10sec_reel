@@ -1,9 +1,8 @@
 import pool from "@/lib/db";
-import type { OmniReel, OmniReelSegment } from "@/lib/omni/types";
+import type { OmniClientAvatar, OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { normalizeOmniGenerationProvider } from "@/lib/omni/provider";
 import { getCometReferenceImageFieldName, getCometReferenceImageTransport, shouldSendCometReferenceImage } from "./comet-video-client";
 import { ensureOmniSchema } from "./schema";
-import { getLatestOmniClientAvatar } from "./avatars";
 import { selectReferenceImagesForSegment, type ReelReferenceImage } from "./omni-reference-images";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { createOmniCompositeReference } from "./omni-composite-reference";
@@ -20,7 +19,7 @@ import { syncOmniReelSegments } from "./omni-segment-sync";
 import { assertOmniPhysicalPreflight } from "./omni-physical-preflight";
 import { recordKieGenerationCost } from "./omni-generation-costs";
 import { withOmniReelExecutionLock } from "./omni-reel-execution-lock";
-import { assertReferenceScenePromptContract, isAvatarFreeReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
+import { assertReferenceScenePromptContract, isAvatarFreeReferenceScene, normalizeReferenceSceneMode, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { extractDirectorBriefFromSnapshot } from "./director-analysis-types";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { getSkippedReferenceReason, markOmniReelPreflightFailure } from "./omni-reel-preflight-failure";
@@ -75,12 +74,22 @@ async function resolveAvatarCharacterId(reel: OmniReel) {
   const snapshotCharacterId = getAvatarCharacterId(reel);
   if (snapshotCharacterId) return snapshotCharacterId;
 
-  const latestAvatar = await getLatestOmniClientAvatar(reel.project_id);
-  return latestAvatar?.kie_character_id || null;
+  const avatar = await getSnapshotAvatar(reel);
+  return avatar?.kie_character_id || null;
+}
+
+async function getSnapshotAvatar(reel: OmniReel) {
+  const avatarId = Number((reel.avatar_snapshot as { id?: unknown } | null)?.id);
+  if (!Number.isInteger(avatarId) || avatarId <= 0) return null;
+  const { rows } = await pool.query<OmniClientAvatar>(
+    "SELECT * FROM omni_client_avatars WHERE id = $1 AND project_id = $2 AND reference_url = $3 LIMIT 1",
+    [avatarId, reel.project_id, getAvatarReferenceUrl(reel)],
+  );
+  return rows[0] || null;
 }
 
 async function resolveKieAudioIds(reel: OmniReel) {
-  const latestAvatar = await getLatestOmniClientAvatar(reel.project_id);
+  const latestAvatar = await getSnapshotAvatar(reel);
   const source = {
     ...(reel.avatar_snapshot || {}),
     latestAvatar,
@@ -108,9 +117,11 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
 
 async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
   const { reel, segments } = await getReelBundle(reelId);
-  const provider = normalizeOmniGenerationProvider(providerInput);
+  const provider = normalizeOmniGenerationProvider(providerInput ?? getReelGenerationProvider(segments));
   const directorBrief = extractDirectorBriefFromSnapshot(reel.source_snapshot);
-  const referenceSceneMode = resolveReferenceSceneMode(directorBrief || reel.creative_strategy);
+  const savedSceneMode = reel.creative_strategy && "referenceSceneMode" in reel.creative_strategy
+    ? normalizeReferenceSceneMode(reel.creative_strategy.referenceSceneMode) : null;
+  const referenceSceneMode = savedSceneMode || resolveReferenceSceneMode(directorBrief || reel.creative_strategy);
   const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
   const referenceFormatMode = resolveReferenceFormatMode(
     directorBrief || reel.source_snapshot

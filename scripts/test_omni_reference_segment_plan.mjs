@@ -86,8 +86,8 @@ try {
   });
   assert.equal(presenter.renderMode, "talking_head");
   assert.equal(presenter.motionMode, "continuous_motion");
-  assert.equal(presenter.recommendedReferenceFrameCount, 3);
-  assert.equal(presenter.beats.length, 3);
+  assert.equal(presenter.recommendedReferenceFrameCount, 2, "simple presenter footage uses the existing two-reference budget");
+  assert.deepEqual(presenter.beats.map((beat) => [beat.startSeconds, beat.endSeconds]), [[0, 10]], "a complete source interval must not invent extra cuts");
   assert.equal(presenter.sourceStartSeconds, 0);
   assert.equal(presenter.sourceEndSeconds, 10);
 
@@ -112,10 +112,12 @@ try {
     segmentIndex: 1,
     segmentCount: 1,
     segmentSeconds: 10,
+    sourceDurationSeconds: 20,
   });
   assert.equal(mixed.renderMode, "mixed");
   assert.equal(mixed.motionMode, "montage");
-  assert.equal(mixed.recommendedReferenceFrameCount, 5);
+  assert.equal(mixed.recommendedReferenceFrameCount, 4);
+  assert.deepEqual(mixed.beats.map((beat) => [beat.startSeconds, beat.endSeconds]), [[0, 5], [5, 10]]);
 
   const animation = plan.buildReferenceSegmentPlan({
     brief: { ...brief, reference_render_mode: "animation", reference_motion_mode: "animated_still" },
@@ -125,8 +127,8 @@ try {
   });
   assert.equal(animation.renderMode, "animation");
   assert.equal(animation.motionMode, "animated_still");
-  assert.match(plan.renderReferenceSegmentPlanForPrompt(animation), /REFERENCE INSPIRATION/iu);
-  assert.doesNotMatch(plan.renderReferenceSegmentPlanForPrompt(animation), /Beat 1/iu);
+  assert.match(plan.renderReferenceSegmentPlanForPrompt(animation), /REFERENCE SHOT CONTRACT/iu);
+  assert.match(plan.renderReferenceSegmentPlanForPrompt(animation), /Beat 0-10s; source 0-10s/iu);
   console.log("Omni reference segment plan checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });

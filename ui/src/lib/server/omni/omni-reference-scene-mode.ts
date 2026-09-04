@@ -28,6 +28,8 @@ export function normalizeReferenceSceneMode(value: unknown): ReferenceSceneMode 
 
 export function resolveReferenceSceneMode(brief: unknown): ReferenceSceneMode {
   const candidate = isRecord(brief) ? brief : null;
+  const productionMode = normalizeReferenceSceneMode(candidate?.referenceSceneMode);
+  if (productionMode) return productionMode;
   const explicit = normalizeReferenceSceneMode(candidate?.reference_subject_mode ?? candidate?.referenceSceneMode ?? candidate?.reference_scene_mode ?? candidate?.referenceSubjectMode);
   const visibleSubjectPolicy = normalizeDirectorVisibleSubjectPolicy(candidate?.visible_subject_policy ?? candidate?.visibleSubjectPolicy);
   if (visibleSubjectPolicy === "hands_only") return "faceless_hands";

@@ -11,9 +11,11 @@ const output = mkdtempSync(join(tmpdir(), "omni-collage-prompt-"));
 const compiled = join(output, "compiled");
 const tsconfig = join(output, "tsconfig.json");
 const require = createRequire(import.meta.url);
+const originalFetch = global.fetch;
 const RAW_FILMING_SUPPORT_PATTERN = /Fixed phone or tripod|Tripod or gimbal|Fixed mount or tripod|locked-off tripod/iu;
 
 try {
+  global.fetch = async () => { throw new Error("Network calls are forbidden in this local regression"); };
   writeFileSync(tsconfig, JSON.stringify({
     compilerOptions: {
       target: "es2022",
@@ -49,64 +51,80 @@ try {
 
   process.env.OMNI_PROVIDER_PROMPT_STYLE = "simple_full_body";
   const prompts = buildOmniSegmentPrompts(input);
+  if (process.env.PRINT_COLLAGE_PROMPT_SUMMARY === "1") console.log(JSON.stringify(prompts, null, 2));
   delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
 
-  const joinedPrompt = prompts.map((item) => item.prompt).join("\n");
-  const joinedStoryboard = prompts
-    .flatMap((item) => item.storyboardPlan.frames)
-    .flatMap((frame) => [frame.visualAction, frame.productPlacement])
-    .join("\n");
-  const firstPrompt = prompts[0].prompt;
-  const firstPlan = prompts[0].creativePlan;
-
-  assert.equal(prompts.length, 3, "test fixture should keep the reel 50 reference while fitting current speech budgets");
-  assert.equal(firstPlan.productRole, "background_prop", "collage references may show the product in segment 1 when the hook names it");
-  assert.equal(prompts[0].referenceUrl, "https://example.com/orange-collagen.png", "segment 1 must use the product reference when product is visible");
-  assert.ok(joinedStoryboard.includes("REFERENCE LAYOUT: COLLAGE PICTURE-IN-PICTURE"), "collage layout must reach storyboard");
-  assert.ok(joinedStoryboard.includes("lower-left corner"), "lower-left avatar placement must reach storyboard");
-  assert.ok(joinedStoryboard.includes("thick white paper outline"), "paper cutout outline must reach storyboard");
-  assert.ok(joinedStoryboard.includes("full-frame background layer"), "background layer must reach storyboard");
-  assert.ok(joinedStoryboard.includes("new product reference"), "original product must be replaced by our product reference");
-  assert.ok(joinedStoryboard.includes("collage/PIP opening frame"), "shot plan must not degrade into a generic talking-head opening");
-  assert.ok(firstPrompt.includes("@product_file"), "opening segment must receive the product file when the hook names it");
-  assert.ok(!/use the original reference only for transferable direction/u.test(joinedPrompt), "same-domain collage reference must not be downgraded to style-only");
-  assert.ok(joinedPrompt.includes("filming gear is never seen"), "collage prompts must ban visible filming gear");
-  assert.ok(!RAW_FILMING_SUPPORT_PATTERN.test(joinedPrompt), "collage prompts must sanitize raw tripod wording");
-  assert.ok(
-    !/спокойный фон|маленький столик|new product reference in a clean static cutaway|show the new product reference clearly on a clean surface/u.test(joinedPrompt),
-    "collage prompt must not leak generic talking-head-home props or table cutaways"
-  );
-  assert.ok(
-    prompts.every((item) => item.validation.valid),
-    `collage prompts must pass validation: ${JSON.stringify(prompts.map((item) => item.validation))}`
-  );
-
-  if (process.env.PRINT_COLLAGE_PROMPT_SUMMARY === "1") {
-    console.log(JSON.stringify({
-      firstSegment: {
-        productRole: firstPlan.productRole,
-        referenceUrl: prompts[0].referenceUrl,
-        promptExcerpt: firstPrompt.split("\n").filter((line) =>
-          /REFERENCE LAYOUT|REFERENCE SCENE PASSPORT|collage\/PIP opening|CLEAN FRAME/iu.test(line)
-        ),
-        storyboardExcerpt: prompts[0].storyboardPlan.frames.map((frame) => frame.visualAction),
-      },
-    }, null, 2));
+  const { buildStoryboardImagePrompt } = require(findFile(compiled, "omni-storyboard-image-prompt.js"));
+  const promptSizes = [];
+  assert.equal(prompts.length, 3);
+  for (const item of prompts) {
+    assert.ok(item.validation.valid, JSON.stringify(item.validation));
+    assert.equal(item.prompt.split(item.voiceoverText).length - 1, 1, "the full exact voiceover must appear once");
+    assert.deepEqual([...item.prompt.matchAll(/^\[(\d+)-(\d+)s\]/gmu)].map((match) => [+match[1], +match[2]]), [[0, 2], [2, 4], [4, 6]]);
+    assert.deepEqual(item.creativePlan.productVisibleByFrame, [false, true, false]);
+    assert.equal(item.referenceUrl, "https://example.com/orange-collagen.png");
+    assert.match(item.prompt, /@product_file/u);
+    assert.match(item.prompt, /Товарные B-roll показывай отдельным кадром без слоя аватара/u);
+    assert.match(item.prompt, /No visible filming gear/u);
+    assert.doesNotMatch(item.prompt, RAW_FILMING_SUPPORT_PATTERN);
+    assert.doesNotMatch(item.prompt, /SOURCE_CONTACT_SENTINEL|holds a blue bottle|REFERENCE SHOT CONTRACT/u);
+    assert.doesNotMatch(item.prompt, /lower-left|whole segment.*avatar|background behind the same/u);
+    assert.match(item.prompt, /не требует паузы каждые две секунды/u);
+    const frames = item.storyboardPlan.frames;
+    assert.deepEqual(frames.map((frame) => frame.speechMode), ["on_camera", "voiceover_only", "on_camera"]);
+    for (const index of [0, 2]) {
+      assert.match(frames[index].camera, /lower-right corner/u);
+      assert.match(frames[index].wardrobe, /Pale blue|pale blue/iu);
+      assert.ok(frames[index].physicalPlan.visibleEntityIds.every((id) => !id.startsWith("product:")), "global layout and negated product cues must not make the product physically visible");
+    }
+    for (const frame of frames) {
+      assert.match(frame.environment, /светлая студия/u);
+      assert.match(frame.environment, /мягкий свет справа/u);
+    }
+    assert.match(frames[1].visualAction, /без людей и рук/u);
+    const imagePrompt = buildStoryboardImagePrompt({
+      segmentIndex: item.index, storyboard: item.storyboardPlan, productName: input.product.name,
+      avatarReferenceUrl: input.avatar.reference_url, productReferenceUrls: [input.product.product_refs[0].url],
+      directorReferenceImageUrls: ["https://example.com/source.jpg"],
+      canonicalStoryboardReferenceUrl: item.index > 1 ? "https://example.com/canonical.jpg" : null,
+      directorBrief: input.generatedScript.source_snapshot.director_analysis,
+      referenceSegmentPlan: item.referenceSegmentPlan,
+    });
+    assert.match(imagePrompt, /Product B-roll is a separate product-only panel without an avatar overlay/u);
+    assert.match(imagePrompt, /lower-right corner/u);
+    assert.doesNotMatch(imagePrompt, /lower-left|SOURCE_CONTACT_SENTINEL|holds a blue bottle/u);
+    const panels = imagePrompt.split("\n").filter((line) => /^Кадр \d+:/u.test(line));
+    assert.equal(panels.length, 3);
+    assert.match(panels[1], /subject=product_only; avatar_allowed=false/u);
+    panels.forEach((panel, index) => {
+      assert.ok(panel.includes(frames[index].environment), "full source setting and lighting must reach every panel");
+      if (index !== 1) assert.ok(panel.includes(frames[index].wardrobe), "presenter panels must preserve reference wardrobe");
+    });
+    promptSizes.push({ segment: item.index, video: item.prompt.length, image: imagePrompt.length });
   }
+  console.log("Collage prompt sizes:", promptSizes);
+  assert.ok(promptSizes.every((size) => size.video < 5600), "full-reference video prompts should remain under the compact 5600 character budget");
+  assert.ok(promptSizes.every((size) => size.image < 5600), "three full-reference PiP image panels should remain under 5600 characters with their full setting, wardrobe and layout");
 
   console.log("Omni collage reference contract checks passed");
 } finally {
+  global.fetch = originalFetch;
   rmSync(output, { recursive: true, force: true });
   delete process.env.OMNI_PROVIDER_PROMPT_STYLE;
 }
 
 function buildReel50LikeInput() {
+  const voiceSegments = [
+    "Раньше я теряла покупки. Коллаген стоит рядом дома. Теперь порядок сохраняется дольше.",
+    "Утром всё находится быстро. Коллаген хранится возле окна. Мне так намного проще.",
+    "Я спокойно сравнила варианты. Этот коллаген стоит дома. Артикул указан в описании.",
+  ];
   return {
     generatedScript: {
       id: 54,
       project_id: 6,
       product_id: 6,
-      script: "Пить или не пить коллаген? Новые исследования дают однозначный ответ. Вы наверняка слышали, что коллаген это просто белок. Но это не так. Он работает как строительный материал и сигнал для обновления кожи. Даже распавшийся коллаген активирует гены коллагена в коже. Улучшает ее показатели и маркеры старения. В описании вы найдете артикул нашего апельсинового коллагена подробно.",
+      script: voiceSegments.join(" "),
       source_snapshot: {
         director_analysis: buildCollageDirectorBrief(),
       },
@@ -147,8 +165,9 @@ function buildReel50LikeInput() {
       updated_at: "2026-07-15T00:00:00.000Z",
     },
     segmentCount: 3,
-    segmentSeconds: 10,
-    segmentDurationsSeconds: [10, 10, 10],
+    segmentSeconds: 6,
+    segmentDurationsSeconds: [6, 6, 6],
+    voiceSegments: voiceSegments.map((text, index) => ({ index: index + 1, text, wordCount: 12 })),
     brief: null,
     targetAudience: "женщины, уход за собой",
     ctaMode: "article_in_description",
@@ -159,46 +178,23 @@ function buildReel50LikeInput() {
 
 function buildCollageDirectorBrief() {
   return {
-    visual_hook: {
-      action: "Speaker positioned in the lower-left corner delivering direct address while the background rapidly cycles through scientific and product visuals.",
-      retention_trigger: "Constant visual change in the background maintains viewer engagement while the speaker provides a steady, continuous presence.",
-    },
-    atmosphere: {
-      mood: "Educational, clinical, informative, and clean.",
-      setting: "Minimalist studio setup for the speaker; backgrounds feature labs, abstract digital environments, and macro product close-ups.",
-      lighting: "Bright, even, soft lighting on the speaker; varied lighting in B-roll including studio setups, lab environments, and glowing digital animations.",
-      color_grading: "Clean, slightly cool tones on the speaker; high contrast and vibrant, glowing colors in the 3D animations.",
-    },
-    clothing: {
-      style: "Minimalist, professional casual.",
-      fit_details: "Sleeveless V-neck top with front buttons, small black circular lapel microphone attached to the neckline.",
-      color_palette: ["White", "Pale blue"],
-    },
-    camera: {
-      shot_types: ["Medium close-up", "Macro", "Medium shot"],
-      angles: ["Eye-level"],
-      movements: ["Static"],
-      stabilization: "Fixed mount or tripod for the speaker; smooth, controlled motion in some B-roll clips.",
-    },
-    montage_rhythm: {
-      cut_pace: "Fast, with background visuals changing every 2-4 seconds.",
-      beat_sync: "Cuts align with the speaker's narrative points and topic shifts.",
-      transition_style: ["Hard cuts"],
-    },
-    action_beats: [
-      { timestamp_sec: 0, action_description: "Speaker talking directly to the camera.", actor_gesture: "Subtle head movements and facial expressions." },
-      { timestamp_sec: 2, action_description: "Background shifts to a close-up of a blue product container.", actor_gesture: "Speaker continues talking." },
-      { timestamp_sec: 8, action_description: "Background shifts to a 3D animation of textured skin tissue.", actor_gesture: "Speaker continues talking." },
-    ],
-    reusable_mechanics: {
-      visual_mechanics: [
-        "Lower-corner framing for the main speaker.",
-        "Rapid swapping of background B-roll to match spoken topics.",
-        "Integration of 3D and 2D scientific animations as background context.",
-      ],
-      safe_zones_for_elements: "Lower-left quadrant is occupied by the speaker; upper and right areas are free for background visuals.",
-      looping_pattern: "Continuous direct address with a steady stream of changing background clips.",
-    },
+    reference_subject_mode: "presenter", reference_format_mode: "continuous_story", reference_render_mode: "mixed", wardrobe_continuity: "stable",
+    visual_hook: { action: "picture-in-picture speaker in the lower-right corner", retention_trigger: "личное наблюдение" },
+    atmosphere: { mood: "спокойная беседа", setting: "светлая студия", lighting: "мягкий свет справа", color_grading: "естественные цвета" },
+    clothing: { style: "Pale blue linen blouse", fit_details: "long sleeves", color_palette: ["Pale blue"], source: "reference" },
+    camera: { shot_types: ["medium close-up"], angles: ["eye level"], movements: ["static"], stabilization: "Fixed mount or tripod" },
+    camera_timeline: Array.from({ length: 9 }, (_, index) => ({
+      start_sec: index * 2, end_sec: (index + 1) * 2,
+      setting: "светлая студия", environment: "деревянная полка и светлая стена", lighting: "мягкий свет справа",
+      shot_types: ["medium close-up"], angles: ["eye level"], movements: ["static"], stabilization: "Fixed mount or tripod",
+      composition: "picture-in-picture speaker at lower-right corner",
+      action_description: index % 3 === 1 ? "SOURCE_CONTACT_SENTINEL: presenter holds a blue bottle" : "presenter speaks to camera",
+      actor_gesture: index % 3 === 1 ? "holds a blue bottle" : "small head movement",
+      source_role: "presenter", speech_mode: "on_camera", visible_subject_role: "primary_presenter", avatar_allowed: true,
+    })),
+    montage_rhythm: { cut_pace: "cuts between thoughts", beat_sync: "speech", transition_style: ["hard cuts"] },
+    action_beats: [],
+    reusable_mechanics: { visual_mechanics: ["picture-in-picture"], safe_zones_for_elements: "lower-right corner", looping_pattern: "return to face" },
   };
 }
 

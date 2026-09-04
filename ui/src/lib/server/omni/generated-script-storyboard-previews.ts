@@ -389,10 +389,10 @@ function buildSetRepairInstructions(
     .map((violation) => `${violation.code}: ${violation.evidence}`);
   return [
     propagateCanonicalRepair
-      ? "Regenerate only this failed storyboard. Preserve the saved avatar identity, approved product form, and exact voiceover; clothing, environment, and source continuity are creative choices."
+      ? "Regenerate only this failed storyboard from its approved adapted plan. Preserve the saved avatar identity, product form, exact voiceover, wardrobe, setting, light, and panel order."
       : repairMode === "fresh"
-      ? "Create a fresh storyboard with the saved avatar for any featured human and the approved client product form. Direct the scene freely from the current script."
-      : "Patch only the hard identity, missing product, product-form, foreign-product, or gross-corruption defect. Preserve every unaffected panel.",
+      ? "Create a fresh storyboard from the same approved adapted plan using the saved avatar identity and approved product form. Preserve its wardrobe, setting, light, and panel order."
+      : "Patch only the named visible identity, product, or static physical defect. Keep product panels object-only on stable support and preserve every unaffected panel.",
     ...instructions,
     ...targeted,
   ];

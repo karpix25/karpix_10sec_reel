@@ -230,12 +230,13 @@ function detectAction(value: string): PhysicalActionKind {
 
 function classifyProductState(value: string, productName: string): PhysicalObjectState {
   if (HIDDEN_PATTERN.test(value)) return "hidden";
+  const visibleText = value.replace(/без\s+(?:чужих?\s+)?(?:продукт|товар|упаков)\p{L}*/giu, "");
   const mentionsProduct = productName.trim()
-    ? value.toLocaleLowerCase().includes(productName.trim().toLocaleLowerCase())
-    : PRODUCT_PATTERN.test(value);
-  if (!mentionsProduct && !PRODUCT_PATTERN.test(value)) return "unknown";
-  if (HOLDING_PATTERN.test(value)) return "held";
-  if (SURFACE_PATTERN.test(value)) return "surface";
+    ? visibleText.toLocaleLowerCase().includes(productName.trim().toLocaleLowerCase())
+    : PRODUCT_PATTERN.test(visibleText);
+  if (!mentionsProduct && !PRODUCT_PATTERN.test(visibleText)) return visibleText !== value ? "hidden" : "unknown";
+  if (HOLDING_PATTERN.test(visibleText)) return "held";
+  if (SURFACE_PATTERN.test(visibleText)) return "surface";
   return "visible";
 }
 

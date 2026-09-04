@@ -2,6 +2,7 @@ import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { normalizeDirectorBrief, type OmniDirectorAnalysis } from "./director-analysis-types";
 import { isAvatarFreeVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import type { GeneratedScriptSourceMode } from "./generated-script-source";
+import { hasCompleteSourceTimeline } from "./omni-reference-transfer-policy";
 
 export const MAX_DIRECTOR_REFERENCE_ATTEMPTS = 16;
 
@@ -30,6 +31,7 @@ export async function resolveReadyGeneratedScriptReference(input: {
   }) => Promise<OmniDirectorAnalysis>;
   onSourceAttempted?: (sourceScenario: OmniLegacyScenario) => Promise<void>;
   requireVisibleAvatar?: boolean;
+  requireCompleteTimeline?: boolean;
   warn?: (message: string) => void;
 }): Promise<ResolvedGeneratedScriptReference> {
   const maxAttempts = input.maxAttempts || MAX_DIRECTOR_REFERENCE_ATTEMPTS;
@@ -39,11 +41,14 @@ export async function resolveReadyGeneratedScriptReference(input: {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const source = await resolveSourceOrThrow({
       input,
-      attempt,
       excludedLegacyScenarioIds,
       skippedFailures,
     });
-    if (source.sourceMode === "round_robin_active_legacy_reference") {
+    if (input.legacyScenarioId && source.sourceScenario.id !== input.legacyScenarioId) {
+      throw new Error(`Выбранный референс #${input.legacyScenarioId} не найден. Другой источник не подставлен.`);
+    }
+    const explicitlySelected = Boolean(input.legacyScenarioId) || source.sourceMode === "selected_legacy_reference";
+    if (!explicitlySelected && source.sourceMode === "round_robin_active_legacy_reference") {
       await input.onSourceAttempted?.(source.sourceScenario);
     }
     const directorAnalysis = input.shouldAnalyze(source.sourceScenario)
@@ -54,14 +59,17 @@ export async function resolveReadyGeneratedScriptReference(input: {
         })
       : null;
 
-    if (isDirectorReferenceReady(directorAnalysis)) {
-      const directorBrief = directorAnalysis
-        ? normalizeDirectorBrief(directorAnalysis.director_analysis_json)
+    const directorBrief = normalizeDirectorBrief(directorAnalysis?.director_analysis_json);
+    const failureReason = !isDirectorReferenceReady(directorAnalysis)
+      ? getDirectorFailureReason(directorAnalysis)
+      : input.requireCompleteTimeline && !hasCompleteSourceTimeline(directorBrief)
+        ? "неполный визуальный таймлайн; повторите анализ референса"
         : null;
+    if (!failureReason) {
       const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(directorBrief);
       if (
         input.requireVisibleAvatar &&
-        source.sourceMode !== "selected_legacy_reference" &&
+        !explicitlySelected &&
         isAvatarFreeVisibleSubjectPolicy(visibleSubjectPolicy)
       ) {
         excludedLegacyScenarioIds.push(source.sourceScenario.id);
@@ -75,9 +83,12 @@ export async function resolveReadyGeneratedScriptReference(input: {
       };
     }
 
+    if (explicitlySelected) {
+      throw new Error(`Не удалось разобрать reference video #${source.sourceScenario.id}: ${failureReason}. Выбранный референс сохранён, другой источник не подставлен.`);
+    }
     excludedLegacyScenarioIds.push(source.sourceScenario.id);
-    skippedFailures.push(formatSkippedDirectorReference(source.sourceScenario.id, directorAnalysis));
-    input.warn?.(`Skipping failed Omni reference source #${source.sourceScenario.id}: ${getDirectorFailureReason(directorAnalysis)}`);
+    skippedFailures.push(`#${source.sourceScenario.id}: ${failureReason}`);
+    input.warn?.(`Skipping failed Omni reference source #${source.sourceScenario.id}: ${failureReason}`);
   }
 
   throw new Error(
@@ -91,7 +102,6 @@ export async function resolveReadyGeneratedScriptReference(input: {
 
 async function resolveSourceOrThrow(input: {
   input: Parameters<typeof resolveReadyGeneratedScriptReference>[0];
-  attempt: number;
   excludedLegacyScenarioIds: readonly number[];
   skippedFailures: readonly string[];
 }) {
@@ -99,7 +109,7 @@ async function resolveSourceOrThrow(input: {
     return await input.input.resolveSource({
       projectId: input.input.projectId,
       productId: input.input.productId,
-      legacyScenarioId: input.attempt === 1 ? input.input.legacyScenarioId : null,
+      legacyScenarioId: input.input.legacyScenarioId,
       excludedLegacyScenarioIds: input.excludedLegacyScenarioIds,
     });
   } catch (error) {
@@ -125,13 +135,6 @@ function hasDurableDirectorReference(directorAnalysis: OmniDirectorAnalysis) {
   if (directorAnalysis.stored_video_url) return true;
   if (!directorAnalysis.original_reels_url && !directorAnalysis.resolved_video_url) return true;
   return false;
-}
-
-function formatSkippedDirectorReference(
-  legacyScenarioId: number,
-  directorAnalysis: OmniDirectorAnalysis | null
-) {
-  return `#${legacyScenarioId}: ${getDirectorFailureReason(directorAnalysis)}`;
 }
 
 function getDirectorFailureReason(directorAnalysis: OmniDirectorAnalysis | null) {

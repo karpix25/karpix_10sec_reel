@@ -252,16 +252,26 @@ export async function claimNextOmniAutomationJob(input: {
 }) {
   await ensureOmniSchema();
   await pool.query(
-    `UPDATE omni_automation_jobs
-     SET status = 'failed',
-         lease_until = NULL,
-         worker_id = NULL,
-         last_error = COALESCE(last_error, 'Worker lease expired after max attempts'),
-         completed_at = CURRENT_TIMESTAMP,
+    `WITH failed_jobs AS (
+       UPDATE omni_automation_jobs
+       SET status = 'failed',
+           lease_until = NULL,
+           worker_id = NULL,
+           last_error = COALESCE(last_error, 'Worker lease expired after max attempts'),
+           completed_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE status = 'processing'
+         AND lease_until < CURRENT_TIMESTAMP
+         AND attempt_count >= max_attempts
+       RETURNING project_id
+     )
+     UPDATE omni_projects
+     SET auto_generate_reels = FALSE,
+         automation_stopped_at = CURRENT_TIMESTAMP,
+         automation_stop_reason = 'Исчерпаны попытки задания. Автогенерация остановлена для защиты бюджета.',
          updated_at = CURRENT_TIMESTAMP
-     WHERE status = 'processing'
-       AND lease_until < CURRENT_TIMESTAMP
-       AND attempt_count >= max_attempts`
+     WHERE id IN (SELECT project_id FROM failed_jobs)
+       AND auto_generate_reels = TRUE`
   );
   const leaseSeconds = Math.max(60, Math.floor(input.leaseSeconds || 1800));
   const perProjectConcurrency = Math.max(1, Math.floor(input.perProjectConcurrency || 1));
@@ -452,16 +462,27 @@ export async function completeOmniAutomationJob(jobId: number) {
 
 export async function failOmniAutomationJob(input: { jobId: number; errorMessage: string }) {
   const { rows } = await pool.query<OmniAutomationJob>(
-    `UPDATE omni_automation_jobs
-     SET status = 'failed',
-         lease_until = NULL,
-         worker_id = NULL,
-         last_error = $2,
-         completed_at = CURRENT_TIMESTAMP,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $1
-       AND status NOT IN ('completed', 'failed')
-       RETURNING *`,
+    `WITH failed_job AS (
+       UPDATE omni_automation_jobs
+       SET status = 'failed',
+           lease_until = NULL,
+           worker_id = NULL,
+           last_error = $2,
+           completed_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+         AND status NOT IN ('completed', 'failed')
+       RETURNING *
+     ), stopped_project AS (
+       UPDATE omni_projects
+       SET auto_generate_reels = FALSE,
+           automation_stopped_at = CURRENT_TIMESTAMP,
+           automation_stop_reason = 'Задание завершилось ошибкой. Автогенерация остановлена для защиты бюджета.',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id IN (SELECT project_id FROM failed_job)
+         AND auto_generate_reels = TRUE
+     )
+     SELECT * FROM failed_job`,
     [input.jobId, input.errorMessage]
   );
   return rows[0] ? normalizeJob(rows[0]) : getOmniAutomationJob(input.jobId);

@@ -49,12 +49,8 @@ export function buildOmniProductVisualIntent(input: {
 
   for (let index = 0; index < frameCount; index += 1) {
     const beat = resolveReferenceSegmentBeatForFrame(input.referenceSegmentPlan, index + 1, frameCount);
-    if (beat?.sourceRole === "product_broll") visibleByFrame[index] = true;
-  }
-
-  const firstVisibleIndex = visibleByFrame.findIndex(Boolean);
-  if (firstVisibleIndex >= 0 && input.productRole && input.productRole !== "hidden") {
-    for (let index = firstVisibleIndex; index < frameCount; index += 1) visibleByFrame[index] = true;
+    if (beat?.sourceRole === "product_broll" && input.productRole !== "hidden" &&
+      mentionsOmniProduct(input.voiceoverText, input.productName)) visibleByFrame[index] = true;
   }
 
   const firstVisibleFrame = visibleByFrame.findIndex(Boolean);

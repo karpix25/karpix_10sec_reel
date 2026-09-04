@@ -18,6 +18,7 @@ import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
 import type { ScriptContentContract } from "./script-content-contract";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 import { getOmniStoryboardFrameWordCounts } from "../../omni/storyboard/omni-storyboard-timing";
+import { analyzeOmniSpeechLoad } from "../../omni/storyboard/omni-speech-load";
 
 export type PromptChainInput = {
   projectName: string;
@@ -117,11 +118,11 @@ export function buildDirectorSegmenterPrompt(input: {
   const presenterReference = resolveDirectorSegmentFormat(input.chainInput.directorBrief) === "talking_head_cutaways";
   const segmentFormat = presenterReference ? "talking_head_cutaways" : "voiceover_broll";
   const frameRoleRule = hasDetailedTimeline
-    ? "Для каждого storyboard_frame соблюдай соответствующий interval из SOURCE SHOT TIMELINE. source_role, subject, speech_mode и avatar_allowed — жесткие ограничения, а не подсказки: face_open и face_return разрешены только в interval с subject=primary_presenter и avatar_allowed=true; если interval является on_camera presenter-кадром, не заменяй его на environment_cutaway; в interval с avatar_allowed=false или subject=no_people не добавляй лицо, голову или говорящего аватара. Product_cutaway или environment_cutaway допустимы только там, где это явно допускает соответствующий source interval или REFERENCE SHOT CONTRACT. Не переноси правила первого и последнего кадра на весь ролик."
+    ? "Для каждого storyboard_frame используй соответствующий interval из SOURCE SHOT TIMELINE. Сохрани порядок сцен и источник визуальных фактов. В обычных presenter intervals используй face_open или face_return с нашим аватаром; в непредметных intervals с avatar_allowed=false или subject=no_people не добавляй лицо или говорящего аватара. SOURCE PRODUCT ADAPTATION ниже разрешает отдельный product_cutaway вместо исходного взаимодействия человека с продуктом: в таком кадре speech_mode=voiceover_only и reference_role=product, независимо от исходного on_camera. Не переноси правила первого и последнего кадра на весь ролик."
     : presenterReference
       ? "Первый frame обычно face_open. Последний frame обычно face_return."
       : "Роли storyboard_frames только environment_cutaway или product_cutaway. Не добавляй face_open или face_return.";
-  const subjectRule = renderVisibleSubjectPolicy(visibleSubjectPolicy);
+  const subjectRule = `${renderVisibleSubjectPolicy(visibleSubjectPolicy)} Это правило относится к обычным кадрам reference; предметные product_cutaway всегда без людей и рук.`;
   const exampleFrameRole = presenterReference ? "face_open" : "environment_cutaway";
   const exampleReferenceRole = visibleSubjectPolicy === "silent_avatar" ? "avatar" : presenterReference ? "avatar" : "none";
   const exampleFrameAction = presenterReference ? "действие лица в камеру" : "наблюдаемое действие объекта, среды или визуального героя";
@@ -130,29 +131,31 @@ export function buildDirectorSegmenterPrompt(input: {
     requiresContinuousPresenterWardrobe({ referenceFormatMode, referenceSceneMode }),
   );
   const formatRule = hasDetailedTimeline
-    ? "Сохрани SOURCE SHOT TIMELINE как жесткий визуальный контракт: последовательность ролей, наличие человека, speech_mode, avatar_allowed, локацию, крупность, композицию, реквизит, характер B-roll, камеру и переходы. Адаптируй только spoken meaning, исходную личность, несовместимую с аватаром одежду и identity продукта. Не меняй наблюдаемую локацию, камеру, композицию, реквизит или распределение presenter/B-roll под влиянием готового voiceover; product replacement допустим только в явно разрешенном source interval."
+    ? "Сохрани из SOURCE SHOT TIMELINE последовательность сцен, локацию, свет, цвет, предметный фон, крупность, характер камеры и переходов. Адаптируй spoken meaning, личность ведущего и identity продукта. Исходное взаимодействие с продуктом замени отдельным product_cutaway по SOURCE PRODUCT ADAPTATION; исходные presence, speech_mode и avatar_allowed описывают reference и не запрещают эту замену. Для предметной вставки допустимо кадрирование без человека с сохранением сеттинга, света и характера камеры."
     : montageReference
     ? "Сохрани только макроформат montage и примерный темп смены планов. Сцены, действия, локации и порядок перебивок поставь заново под смысл текущего сценария."
       : presenterReference
       ? "Сохрани макроформат говорящей головы, но самостоятельно поставь сцену, жесты и короткие перебивки под новый сценарий."
       : `${renderVisibleSubjectPolicy(visibleSubjectPolicy)} Используй только общий визуальный язык reference и самостоятельно поставь сцены под новый сценарий.`;
   const sourceVisualPriorityRule = hasDetailedTimeline
-    ? "ВИЗУАЛЬНЫЙ ПРИОРИТЕТ: verified SOURCE SHOT TIMELINE и REFERENCE SHOT CONTRACT имеют приоритет над готовым voiceover, упоминаниями предметов и любыми творческими догадками. Если смысл реплики конфликтует с наблюдаемой сценой, оставь сцену из reference и передай новый смысл голосом, мимикой или разрешенной продуктовой заменой. Упоминание taxi, Uber, машины или поездки не является командой показать автомобиль."
+    ? "ВИЗУАЛЬНЫЙ ПРИОРИТЕТ: verified SOURCE SHOT TIMELINE и REFERENCE SHOT CONTRACT задают сеттинг, свет, камеру и монтаж. Если смысл реплики конфликтует с наблюдаемой сценой, передай новый смысл голосом, мимикой или разрешенной предметной вставкой по SOURCE PRODUCT ADAPTATION. Упоминание taxi, Uber, машины или поездки не является командой показать автомобиль."
     : "Готовый voiceover определяет только смысл и нарратив. Не извлекай из него визуальные факты о локации, транспорте, реквизите, камере или B-roll; при наличии source timeline следуй ему, а без него используй только общий визуальный язык reference.";
   const firstSegmentRule = hasDetailedTimeline
-    ? "Первый segment сохраняет силу и макроформат хука reference и визуальную сцену соответствующего source interval; не создавай новую локацию или отдельный B-roll только ради текущего текста."
+    ? "Первый segment сохраняет силу и макроформат хука reference и визуальную сцену соответствующего source interval. Если исходный хук основан на взаимодействии с товаром, примени SOURCE PRODUCT ADAPTATION в том же сеттинге."
     : "Первый segment сохраняет силу и макроформат хука reference, но получает новую режиссерскую сцену под текущий текст.";
   const cutawayRule = hasDetailedTimeline
-    ? "Если source interval или REFERENCE SHOT CONTRACT разрешает cutaway, опиши его конкретным наблюдаемым действием. Не создавай cutaway только потому, что spoken_words называют taxi, Uber, машину, поездку или другой предмет."
+    ? "Тематические cutaway бери из подходящих source intervals. Предметные cutaway разрешены по SOURCE PRODUCT ADAPTATION; опиши неподвижный товар на опоре и простое движение камеры. Не создавай новую локацию или транспорт только потому, что spoken_words называют их."
     : "Cutaway должен содержать конкретное наблюдаемое действие, но взгляд персонажа и точная подача не являются обязательным совпадением с reference.";
   return `
 Ты режиссер монтажа для Gemini Omni.
+Итоговый формат содержит нашего разговорного аватара, тематические и отдельные товарные B-roll. Если источник целиком состоит из B-roll, разрешён разговорный кадр нашего аватара в том же сеттинге; остальные перебивки сохраняют визуальную механику источника.
 
 Возьми готовый сценарий и поставь его как Omni storyboard для формата ${segmentFormat}.
 Верни только валидный JSON без markdown.
 
   Правила режиссуры:
   ${STORYBOARD_FRAME_ROLE_CONTRACT}
+  ${SOURCE_PRODUCT_ADAPTATION}
   Смысловая адаптация уже выполнена сценаристом в готовом voiceover. Не переписывай voiceover и не добавляй новый продуктовый тезис на этапе режиссуры; расставь этот текст по наблюдаемой визуальной механике reference.
   ${sourceVisualPriorityRule}
   Каждый segment строится storyboard first и может длиться четыре, шесть, восемь или десять секунд.
@@ -161,8 +164,9 @@ total_voiceover должен дословно совпадать с готовы
 Количество storyboard frames зависит от duration_seconds: четыре секунды это два кадра, шесть секунд это три кадра, восемь секунд это четыре кадра, десять секунд это пять кадров.
 В утвержденных segments поле frame_word_counts задает точное количество слов для каждого storyboard frame. Соблюдай этот массив по порядку и не перераспределяй слова самостоятельно.
 Каждый frame обычно содержит четыре слова финальной русской речи в spoken_words. Канонический тайминг может дать три слова в недогруженном кадре, если это нужно для сохранения законченного предложения. Не добавляй пустые слова и не меняй порядок речи.
+Двухсекундные frames привязывают смысл речи к монтажу, а не задают отдельные речитативы. Внутри segment звучит одна непрерывная реплика; склейка и переход на B-roll не требуют паузы или нового начала фразы. Естественные короткие паузы следуют синтаксису, без растягивания слов и придумывания междометий для заполнения времени.
 Склейка spoken_words всех frames должна дословно совпадать с voiceover segment.
-  ${frameRoleRule} Product_cutaway или environment_cutaway добавляй только там, где это разрешено соответствующим source interval или REFERENCE SHOT CONTRACT и где перебивка помогает смыслу spoken_words. Слова voiceover сами по себе не разрешают новую перебивку, локацию или транспорт. Границы source interval не должны разрывать spoken_words: если короткий interval попадает внутрь незавершённой фразы или на остаток звука, объедини его с соседним interval и не создавай отдельный micro-cut.
+  ${frameRoleRule} Перебивки должны помогать смыслу spoken_words и сохранять визуальный язык reference. Тематические вставки следуют source intervals, а предметные вставки разрешены по SOURCE PRODUCT ADAPTATION. Границы source interval не должны разрывать spoken_words: если короткий interval попадает внутрь незавершённой фразы или на остаток звука, объедини его с соседним interval и не создавай отдельный micro-cut.
 ${hasDetailedTimeline ? renderDirectorTimelineForPrompt(input.chainInput.directorBrief) : "SOURCE SHOT TIMELINE: no verified detailed interval analysis is available."}
 ${subjectRule}
   ${firstSegmentRule} Продукт остается вне кадра, пока текущая реплика не создает конкретную потребность показать его или результат выбора. Когда он появляется, это отдельная предметная product B-roll вставка: продукт стоит неподвижно на устойчивой поверхности, без людей и рук; меняются только ракурс или фокус камеры.
@@ -178,10 +182,10 @@ SFX это только естественные звуки кадра. Музы
 Выбирай product_cutaway только когда смысл spoken_words этого кадра прямо связан с продуктом, его свойствами или результатом выбора. Product_cutaway всегда отдельный B-roll без людей, рук, лица, тела и любого взаимодействия; продукт стоит на устойчивой поверхности и детально совпадает с product reference. Если фраза посвящена общей теме, проблеме или выводу без прямой связи с продуктом, продукт должен быть вне кадра (product_state: "вне кадра"), а персонаж говорит с естественной жестикуляцией без товара в руках.
 ${hasDetailedTimeline ? "Для непредметных кадров используй физическую сцену соответствующего source interval и не создавай новую локацию или новый транспорт. Она должна наглядно раскрывать текущую реплику через речь, жест или разрешенную продуктовую замену. Из reference не переноси чужой продукт." : "Для непредметных кадров создавай самостоятельную сцену, которая наглядно раскрывает текущую реплику. Из reference бери только общий визуальный язык без чужого продукта."}
 ${formatRule} ${wardrobeRule}
-  ${hasDetailedTimeline ? "Камеру, переходы и совместимые тайминги бери из SOURCE SHOT TIMELINE и REFERENCE SHOT CONTRACT; не меняй их под влиянием отдельных слов voiceover. Речевые границы storyboard имеют приоритет над коротким source interval: несовместимый микрокат объединяй с соседним безопасным beat-ом. Сохраняй визуальную механику и распределение человека/B-roll." : "Камеру, переходы и точные тайминги выбирай сам под ясность текущего сценария. Из reference сохрани только примерную энергетику, крупность и общий тип монтажа."}
+  ${hasDetailedTimeline ? "Камеру, переходы и совместимые тайминги бери из SOURCE SHOT TIMELINE и REFERENCE SHOT CONTRACT с учетом SOURCE PRODUCT ADAPTATION. Речевые границы storyboard имеют приоритет над коротким source interval: несовместимый микрокат объединяй с соседним безопасным beat-ом. Предметные вставки сохраняют визуальную механику reference и убирают физический контакт с товаром." : "Камеру, переходы и точные тайминги выбирай сам под ясность текущего сценария. Из reference сохрани только примерную энергетику, крупность и общий тип монтажа."}
 Каждый segment должен быть самостоятельной завершенной речевой единицей. Не добавляй слова ради искусственного удлинения, но и не разрывай законченное предложение между segments.
 ${renderRussianSpeechGenderRule(input.chainInput.avatarSpeechGender)}
-  В segment без продуктовой перебивки продукт остается вне кадра. В segment с product_cutaway опиши одну непрерывную предметную B-roll композицию: один и тот же продукт стоит на одной устойчивой поверхности, без человека и рук во всех видимых кадрах; разрешены только спокойный предметный ракурс, перефокусировка и медленное движение камеры. Не описывай взятие, удерживание, касание, передачу или исчезновение продукта.
+  В segment без продуктовой перебивки продукт остается вне кадра. Во всех product_cutaway одного segment сохраняй одну предметную композицию: один и тот же продукт стоит на одной устойчивой поверхности, без человека и рук; разрешены только спокойный предметный ракурс, перефокусировка и медленное движение камеры. Между этими вставками разрешены разговорные кадры аватара без продукта. Не описывай взятие, удерживание, касание, передачу или исчезновение продукта внутри непрерывного кадра.
 Если cutaway frame говорит без рук, весь segment не должен включать человека или руки в product B-roll.
 Аватарный character_id передается Omni отдельно. Product reference передается Omni отдельно. Не пиши идентификаторы или ссылки в JSON.
 Все числа в текстовых значениях JSON пиши словами. Не используй emoji, дефисы, тире или минусы.
@@ -198,10 +202,12 @@ ${buildDurationLine(input.chainInput.durationRange)}
 ${input.draft.script}
 
 Утвержденные segments. Перенеси index, duration_seconds и voiceover без изменений:
+speech_load содержит приблизительную локальную оценку текста: количество русских гласных не равно длительности произношения. Это подсказка для непрерывной подачи, а не команда ускорять речь или менять утвержденные слова. missingTargetWords означает отступление от ориентира, а не необходимость дописать слова. Не выводи эти внутренние показатели в изображение или финальный видеопромпт.
 ${JSON.stringify(input.segmentPlan.segments.map((segment, index) => ({
     index: index + 1,
     duration_seconds: input.segmentPlan.segmentDurationsSeconds[index],
     voiceover: segment.text,
+    speech_load: input.segmentPlan.speechDiagnostics?.[index] || analyzeOmniSpeechLoad(segment.text, input.segmentPlan.segmentDurationsSeconds[index]),
     frame_word_counts: getOmniStoryboardFrameWordCounts(
       segment.wordCount,
       input.segmentPlan.segmentDurationsSeconds[index]
@@ -273,13 +279,17 @@ const STORYBOARD_FRAME_ROLE_CONTRACT = [
   "Для hook выбери визуальный тип по содержанию: лицо — face_open, продукт — product_cutaway, окружение — environment_cutaway.",
 ].join(" ");
 
+const SOURCE_PRODUCT_ADAPTATION = "SOURCE PRODUCT ADAPTATION: наш продукт показывается только в отдельном product_cutaway без аватара, людей и рук. Когда текущая сцена связана с продуктом, а ведущий reference держит, трогает, открывает, передает или использует исходный товар, замени это действие предметной вставкой: наш товар неподвижно стоит на устойчивой опоре, речь продолжается за кадром. Если текущая мысль не связана с нашим продуктом, убери чужой товар и взаимодействие с ним, сохрани обычный кадр соответствующего source interval. Сохрани сеттинг, свет, цвета, материал фона, крупность и характер камеры исходной сцены; допустимо кадрировать товар отдельно от человека. Для подтвержденной продуктовой интеграции в готовом voiceover такая же предметная вставка разрешена даже без исходного product_broll. Лицо аватара возвращается отдельной склейкой, без товара в руках. Эта адаптация имеет приоритет над исходными правилами присутствия ведущего, speech_mode и действиями с продуктом; не добавляй новые свойства товара или чужую упаковку.";
+
 function buildDurationLine(durationRange?: OmniDurationRange) {
-  if (!durationRange) return "Итоговый сценарий обычно должен быть плотным и коротким. Держи ориентир четыре слова на двухсекундный кадр, а три слова допустимы в отдельных кадрах, если это сохраняет завершенное предложение. Не добавляй пустые слова ради длительности. Границы segments ставь только после завершенного предложения и не разрывай союзы, предлоги или зависимые фразы.";
+  const speechRule = "Ориентир четыре слова на две секунды не делает четыре коротких и четыре длинных слова одинаковыми по длительности. Выбирай легко произносимые разговорные формулировки. Вокруг длинного точного названия продукта сокращай и упрощай соседние слова, сохраняя само название и подтвержденные факты; не требуй ускоренного произношения. Если текст недогружен, раскрой уже подтвержденную мысль конкретнее или сформулируй её компактнее для более короткой части. Не добавляй повторы, междометия, пустые вводные слова, многоточия или искусственные паузы ради тайминга. Речь внутри части непрерывна через склейки и B-roll; каждые две секунды не требуют нового предложения или паузы.";
+  if (!durationRange) return `Итоговый сценарий обычно должен быть плотным и коротким. Держи ориентир четыре слова на двухсекундный кадр, а три слова допустимы в отдельных кадрах, если это сохраняет завершенное предложение. Не добавляй пустые слова ради длительности. Границы segments ставь только после завершенного предложения и не разрывай союзы, предлоги или зависимые фразы. ${speechRule}`;
   const secondsRange = formatPromptChainRange(durationRange.minSeconds, durationRange.maxSeconds);
   const wordsRange = formatPromptChainRange(durationRange.minWords, durationRange.maxWords);
   return [
     `Цель по ролику: ${secondsRange} секунд.`,
     `Ориентир плотности текста: ${wordsRange} слов, но это не отдельный жесткий лимит.`,
+    speechRule,
     "Сначала напиши естественный цельный voiceover. Затем планировщик сам распределит его по законченным предложениям в части 4/6/8/10 секунд, ориентируясь примерно на четыре слова каждые две секунды и округляя длительность вверх. Строй сценарий из нескольких законченных предложений средней длины, обычно по шесть-восемнадцать слов: каждое отдельное предложение держи не длиннее двадцати слов, потому что это максимальная вместимость одного десятисекундного segment. Если мысль длиннее, раздели её точкой на два грамматически законченных предложения, сохранив причинную связь. Не объединяй весь смысл в два-три длинных предложения и не делай отдельными предложениями фрагменты из одного-двух слов. Три слова в отдельном двухсекундном кадре допустимы, если этого требует граница предложения. Диапазон является предпочтением, а не причиной отказа: если естественный текст занимает немного больше или меньше, создай естественный план без пустых фраз. Каждая граница segment должна приходиться после завершенного предложения, без разрыва союза, предлога или зависимой фразы.",
   ].join(" ");
 }

@@ -4,6 +4,7 @@ import type {
 } from "../../omni/storyboard/omni-storyboard-vision-types";
 import { JsonOutputParseError, parseAndRepairJson } from "./script-json-repair";
 import { normalizeStoryboardVisionValidation } from "./storyboard-vision-contract";
+import { STORYBOARD_STATIC_PHYSICS_QA_PROMPT } from "./storyboard-qa-contract";
 import { isAvatarFreeReferenceScene, isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 import type { DirectorWardrobeContinuity } from "./director-wardrobe";
@@ -64,7 +65,7 @@ export async function validateStoryboardImage(input: {
           ? STORYBOARD_VISION_BROLL_SYSTEM_PROMPT
         : referenceFormatMode === "voiceover_montage"
           ? STORYBOARD_VISION_MONTAGE_SYSTEM_PROMPT
-          : STORYBOARD_VISION_SYSTEM_PROMPT} ${renderWardrobeQaSystemInstruction(wardrobeContinuity)}` },
+          : STORYBOARD_VISION_SYSTEM_PROMPT} ${STORYBOARD_STATIC_PHYSICS_QA_PROMPT} ${renderWardrobeQaSystemInstruction(wardrobeContinuity)}` },
       {
         role: "user",
         content: [
@@ -170,8 +171,8 @@ async function parseStoryboardVisionValidation(input: {
 
 const STORYBOARD_VISION_SYSTEM_PROMPT = [
   "You are a strict static visual QA auditor for storyboard contact sheets.",
-  "Inspect only facts that are positively visible. The only allowed error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only when the featured/main person is clearly not the supplied avatar, a planned client product is absent, the client product has the wrong physical form or is visibly replaced by a foreign advertised product, or the image has gross corruption such as a melted face, extra limb, or impossible phone.",
-  "Background people, clothing, camera, location, gesture, mouth state, timing, and reference similarity are creative choices and never errors.",
+  "Inspect only facts that are positively visible. Identity and form error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only when the featured/main person is clearly not the supplied avatar, a planned client product is absent, the client product has the wrong physical form or is visibly replaced by a foreign advertised product, or the image has gross corruption such as a melted face, extra limb, or impossible phone.",
+  "In non-product panels, background people are allowed. Clothing, camera, location, gesture, mouth state, timing, and reference similarity are creative choices and never errors.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous, outside the crop, or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
@@ -181,7 +182,7 @@ const STORYBOARD_VISION_FACELESS_SYSTEM_PROMPT = [
   "Inspect only facts that are positively visible in the candidate panels.",
   "The approved format is hands-only, body-crop, or object-only with off-camera narration.",
   "Use severity error when a face, head, eyes, lips, portrait, or talking-head framing is visibly introduced. Do not require avatar identity, face, hair, or wardrobe continuity.",
-  "Hands, arms, an approved body crop, neutral props, and product packages are allowed when required by the storyboard plan.",
+  "Hands, arms, and an approved body crop are allowed only in non-product panels when required by the storyboard plan. Product panels follow the object-only physical contract.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
@@ -198,16 +199,16 @@ const STORYBOARD_VISION_OBJECT_ONLY_SYSTEM_PROMPT = [
 
 const STORYBOARD_VISION_MONTAGE_SYSTEM_PROMPT = [
   "You are a strict static visual QA auditor for storyboard contact sheets in a voiceover montage.",
-  "Inspect only facts that are positively visible. The only allowed error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only when the featured/main person is clearly not the supplied avatar, a planned client product is absent, the client product has the wrong physical form or is visibly replaced by a foreign advertised product, or the image has gross visual corruption.",
-  "Independent scenes, background people, clothing, camera, location, gesture, mouth state, timing, and source-reference similarity are creative choices and never errors.",
+  "Inspect only facts that are positively visible. Identity and form error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only when the featured/main person is clearly not the supplied avatar, a planned client product is absent, the client product has the wrong physical form or is visibly replaced by a foreign advertised product, or the image has gross visual corruption.",
+  "Independent scenes and background people in non-product panels are allowed. Clothing, camera, location, gesture, mouth state, timing, and source-reference similarity are creative choices and never errors.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous, outside the crop, or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
 
 const STORYBOARD_VISION_BROLL_SYSTEM_PROMPT = [
   "You are a strict static visual QA auditor for storyboard contact sheets in voiceover B-roll.",
-  "Inspect only facts that are positively visible. The only allowed error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only when the featured/main person is clearly not the supplied avatar, a planned client product is absent, the client product has the wrong physical form or is visibly replaced by a foreign advertised product, or the image has gross visual corruption.",
-  "Background people, visible speaking, lip movement, clothing, camera, location, gesture, timing, and source-reference similarity are creative choices and never errors.",
+  "Inspect only facts that are positively visible. Identity and form error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only when the featured/main person is clearly not the supplied avatar, a planned client product is absent, the client product has the wrong physical form or is visibly replaced by a foreign advertised product, or the image has gross visual corruption.",
+  "Background people in non-product panels, visible speaking, lip movement, clothing, camera, location, gesture, timing, and source-reference similarity are creative choices and never errors.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
@@ -233,12 +234,13 @@ function buildStoryboardVisionPrompt(input: {
         : "",
       objectOnlyReferenceScene
         ? "For every panel, verify that no person, hand, face, head, eyes, lips, portrait, or talking-head framing is visible. Only the approved surface, product, and conceptual props are allowed."
-        : "For every panel, verify that no face, head, eyes, lips, portrait, or talking-head framing is visible. Hands, arms, body crops, objects, and neutral props are allowed when present in the storyboard plan.",
+        : "For every panel, verify that no face, head, eyes, lips, portrait, or talking-head framing is visible. Hands, arms, and body crops are allowed only in non-product panels when present in the storyboard plan. Product panels follow the object-only physical contract.",
       "Expected storyboard plan:",
       JSON.stringify({
         product: input.productName,
         panels: input.storyboard.frames.map((frame, index) => ({
           panel_index: index + 1,
+          product_placement: frame.productPlacement,
           physical_plan: frame.physicalPlan || null,
           reference_transfer: frame.referenceTransfer || null,
           visual_action: frame.visualAction,
@@ -251,13 +253,14 @@ function buildStoryboardVisionPrompt(input: {
       "The first image is the candidate storyboard. The supplied avatar image is the identity reference for any featured/main human.",
       input.hasCanonicalStoryboardReference ? "The next image is a visual-mechanics reference only; the avatar image remains the identity authority." : "",
       input.hasDirectorReference ? "The final supplied image is a source-reference frame for B-roll location, light, camera, and action only." : "",
-      "Verify only that a featured/main human is the supplied avatar. Natural background people and visible speaking are allowed and must not trigger repair.",
+      "Verify that a featured/main human is the supplied avatar and inspect the static product defects defined in the system instructions. Natural background people and visible speaking are allowed in non-product panels.",
       "Expected storyboard plan:",
       JSON.stringify({
         product: input.productName,
         panels: input.storyboard.frames.map((frame, index) => ({
           panel_index: index + 1,
           product_placement: frame.productPlacement,
+          physical_plan: frame.physicalPlan || null,
           visual_action: frame.visualAction,
         })),
       }),
@@ -276,11 +279,12 @@ function buildStoryboardVisionPrompt(input: {
         panel_index: index + 1,
         product_placement: frame.productPlacement,
         physical_plan: frame.physicalPlan || null,
+        visual_action: frame.visualAction,
         reference_transfer: frame.referenceTransfer || null,
         wardrobe: frame.wardrobe,
       })),
     }),
-    "Hard errors only: a featured/main human clearly differs from the avatar, the client product has the wrong physical form, a foreign advertised product replaces it, or the panel has gross visual corruption. Background people, wardrobe, camera, location, gestures, mouth state, timing, and similarity to the reference are not blockers.",
+    "Inspect the identity, product form, and static physical defects defined in the system instructions. Background people in non-product panels, wardrobe, camera, location, gestures, mouth state, timing, and similarity to the reference are not blockers.",
   ].join("\n");
 }
 

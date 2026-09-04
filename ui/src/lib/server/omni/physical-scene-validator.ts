@@ -51,6 +51,7 @@ export function validatePhysicalScene(input: {
   const errors: string[] = [];
   const warnings: string[] = [];
   const states: PhysicalFrameState[] = [];
+  const cutawayFrames: boolean[] = [];
 
   input.storyboard.frames.forEach((frame, index) => {
     const frameNumber = index + 1;
@@ -75,6 +76,7 @@ export function validatePhysicalScene(input: {
     const productVisible = physicalPlan.visibleEntityIds.length > 0;
     const digitalDemo = input.creativePlan?.productRole === "digital_demo";
     states.push(currentState);
+    cutawayFrames.push(physicalPlan.speechMode === "voiceover_only" && CUTAWAY_PATTERN.test(`${text} ${frame.camera}`));
 
     if (physicalPlan.requiredHands + physicalPlan.occupiedHandCount > 2) {
       errors.push(`frame_${frameNumber}_hand_capacity_conflict`);
@@ -117,16 +119,8 @@ export function validatePhysicalScene(input: {
     const current = states[index];
     if (previous === current) continue;
     const transitionText = frameText(input.storyboard.frames[index]);
-    const currentFrame = input.storyboard.frames[index];
-    const currentPlan = buildPhysicalFramePlan({
-      productName: input.productName,
-      spokenText: currentFrame.spokenText,
-      visualAction: currentFrame.visualAction,
-      camera: currentFrame.camera,
-      productPlacement: currentFrame.productPlacement,
-      speechMode: currentFrame.speechMode || currentFrame.physicalPlan?.speechMode,
-    });
-    const editorialCut = currentPlan.speechMode === "voiceover_only" && CUTAWAY_PATTERN.test(frameText(currentFrame));
+    const editorialCut = cutawayFrames[index] ||
+      (cutawayFrames[index - 1] && previous === "surface" && current === "hidden");
     const declaredPhysicalReveal = input.creativePlan?.productVisibleByFrame?.[index] === true &&
       input.creativePlan.productVisibleByFrame[index - 1] !== true &&
       current === "surface";

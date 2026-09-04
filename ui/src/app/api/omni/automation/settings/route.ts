@@ -33,6 +33,7 @@ export async function PUT(request: Request) {
     return NextResponse.json(
       await updateOmniAutomationSettings({
         projectId,
+        provider: body.provider,
         autoGenerateReels: body.autoGenerateReels,
         dailyReelLimit: body.dailyReelLimit,
         projectReelLimit: body.projectReelLimit,

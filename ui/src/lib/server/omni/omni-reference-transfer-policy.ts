@@ -92,7 +92,7 @@ export function buildReferenceTransferPolicy(input: {
       ...DEFAULT_REFERENCE_TRANSFER_POLICY.decisions,
       camera: "preserve",
       environment: "preserve",
-      presenterAction: "preserve",
+      presenterAction: "adapt_action",
       sourceProduct: productDecision,
       sourceProps: "preserve_as_support",
     }
@@ -171,12 +171,13 @@ export function synchronizeReferenceTransferProductVisibility(
     ...framePlan,
     productMentioned: framePlan.productMentioned ?? framePlan.productMeaningfulBeat,
     productMeaningfulBeat: productVisible,
-    cameraComposition: framePlan.cameraComposition || null,
+    cameraComposition: productVisible ? null : framePlan.cameraComposition || null,
     requiredSupportProps: framePlan.requiredSupportProps || [],
-    requiredReferenceAction: framePlan.requiredReferenceAction || null,
+    requiredReferenceAction: productVisible ? null : framePlan.requiredReferenceAction || null,
     decisions: {
       ...framePlan.decisions,
-      sourceProduct: productVisible ? framePlan.decisions.sourceProduct : "remove",
+      sourceProduct: productVisible ? "replace_with_product" : "remove",
+      presenterAction: "adapt_action",
     },
   };
 }
@@ -193,12 +194,10 @@ export function resolveReferenceTransferAction(input: {
   // The storyboard beat is the only hard action for this frame. Reference
   // movement is useful direction, but must never override a planned pickup,
   // gesture, or cutaway and create an impossible QA contract.
-  const strictSourceContract = input.framePlan.decisions.presenterAction === "preserve";
-  const primaryAction = strictSourceContract
-    ? requiredReferenceAction || referenceAction || visualCue || fallbackAction
-    : visualCue || fallbackAction || requiredReferenceAction || referenceAction;
+  const strictSourceContract = input.framePlan.decisions.camera === "preserve";
+  const primaryAction = visualCue || fallbackAction || requiredReferenceAction || referenceAction;
   const contextLine = strictSourceContract
-    ? "сохраняет проверенный source interval, роль presenter/B-roll, локацию, камеру, свет и continuity; адаптируются только реплика, source identity, source product и несовместимые детали"
+    ? "сохраняет локацию, камеру, свет и монтажную механику reference; действия адаптированы под разговорного аватара и отдельный товарный B-roll"
     : "сцена поставлена заново под текущую реплику и берет из reference только общий визуальный язык";
 
   if (input.framePlan.productMeaningfulBeat) {
@@ -312,7 +311,7 @@ function hasSharedMarker(left: ReadonlySet<string>, right: ReadonlySet<string>) 
 
 function renderClientProductAction(action: string, productVisible: boolean) {
   if (!productVisible || hasConsumptionAction(action)) return "";
-  return "повторяет только безопасную механику движения рук из reference с продуктом клиента";
+  return "отдельный предметный B-roll: продукт клиента неподвижен на устойчивой поверхности; меняется только ракурс камеры";
 }
 
 function safeReferenceAction(value: string) {

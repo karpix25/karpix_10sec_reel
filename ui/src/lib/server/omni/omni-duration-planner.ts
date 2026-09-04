@@ -18,6 +18,7 @@ import {
   type OmniAllowedSegmentSeconds,
 } from "./omni-speech-density";
 import type { OmniDurationRange } from "./omni-duration-range";
+import { analyzeOmniSpeechLoad, type OmniSpeechLoad } from "../../omni/storyboard/omni-speech-load";
 
 export {
   OMNI_MAX_SEGMENT_COUNT,
@@ -35,6 +36,7 @@ export type OmniReelSegmentPlan = {
   segments: VoiceSegment[];
   segmentDurationsSeconds: OmniAllowedSegmentSeconds[];
   segmentWordCounts: number[];
+  speechDiagnostics: OmniSpeechLoad[];
   durationRange?: OmniDurationRange;
 };
 
@@ -83,6 +85,7 @@ export function planOmniReelSegments(script: string, options: OmniReelSegmentPla
     segments: selected.segments,
     segmentDurationsSeconds: selected.segmentDurationsSeconds,
     segmentWordCounts: selected.segments.map((segment) => segment.wordCount),
+    speechDiagnostics: selected.segments.map((segment, index) => analyzeOmniSpeechLoad(segment.text, selected.segmentDurationsSeconds[index])),
     durationRange: options.durationRange,
   };
 }
@@ -245,10 +248,8 @@ function scoreSegments(
   return segmentCountPenalty + durationRangePenalty + segments.reduce((score, segment, index) => {
     const duration = durations[index] || OMNI_SEGMENT_SECONDS;
     const budget = getOmniSegmentWordBudget(duration);
-    const segmentBudget = budget;
-    const densityRatio = segment.wordCount / segmentBudget;
-    const sparsePenalty = densityRatio < 0.72 ? Math.pow((0.72 - densityRatio) * 10, 2) : 0;
-    const overflowPenalty = segment.wordCount > segmentBudget ? Math.pow(segment.wordCount - segmentBudget, 2) * 20 : 0;
+    const sparsePenalty = Math.pow(Math.max(0, budget - segment.wordCount), 2);
+    const overflowPenalty = segment.wordCount > budget ? Math.pow(segment.wordCount - budget, 2) * 20 : 0;
     const durationPenalty = duration * 0.5;
     return score + sparsePenalty + overflowPenalty + durationPenalty + (index < segments.length - 1 ? endingPenalty(segment.text) : 0);
   }, 0);
@@ -284,7 +285,7 @@ function buildPlanReason(
   const density = counts.every((count, index) => {
     const budget = getOmniSegmentWordBudget(durations[index] || OMNI_SEGMENT_SECONDS);
     return count >= OMNI_TARGET_SEGMENT_WORDS_MIN && count <= budget;
-  }) ? "плотная речь без пауз" : "безопасная плотность речи";
+  }) ? "ориентир четыре слова на две секунды" : "проверьте плотность речи";
   const boundaries = naturalBoundaryCount > 0 ? " и естественные границы фраз" : "";
   const target = durationRange ? `; цель ${durationRange.minSeconds}-${durationRange.maxSeconds}с` : "";
   return `${segments.length} части: ${density}${boundaries}; ${counts.join(" / ")} слов; длительности ${durationText}${target}`;

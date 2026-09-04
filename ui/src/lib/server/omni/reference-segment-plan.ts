@@ -21,7 +21,7 @@ import {
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 import type { DirectorSourceRole, DirectorVisibleSubjectRole } from "./director-source-interval";
 import { reconcileReferenceSegmentPlanToSpeech } from "./omni-speech-visual-alignment";
-import { buildProductBrollCamera } from "./omni-product-broll-contract";
+import { buildProductBrollAction, buildProductBrollCamera } from "./omni-product-broll-contract";
 
 export type ReferenceSpeechAlignmentDecision = {
   sourceBeatIndex: number;
@@ -98,6 +98,10 @@ export function isReferenceBrollSource(beat: ReferenceSegmentBeat) {
     NON_PRESENTER_SUBJECT_ROLES.has(beat.visibleSubjectRole || "");
 }
 
+export function allowsTalkingAvatarIntro(plan: ReferenceSegmentPlan, frameIndex: number) {
+  return plan.sceneMode === "presenter" && frameIndex === 0 && !plan.beats.some(isReferencePresenterSource);
+}
+
 export function resolveReferenceSegmentBeatForFrame(
   plan: ReferenceSegmentPlan | null | undefined,
   frameIndex: number,
@@ -125,15 +129,23 @@ export function applyReferenceSegmentPlanToFrames<T extends {
   return frames.map((frame, index) => {
     const beat = resolveReferenceSegmentBeatForFrame(plan, index + 1, frames.length);
     if (!beat) return frame;
-    const visualDescription = beat.visualDescription || beat.action;
-    const role = resolveReferenceFrameRole(
+    const productVisible = options.productVisibleByFrame?.[index] === true;
+    const avatarIntro = !productVisible && allowsTalkingAvatarIntro(plan, index) &&
+      (frame.role === "face_open" || frame.role === "face_return");
+    const role = avatarIntro ? "face_open" : resolveReferenceFrameRole(
       beat,
       frame.role,
       index,
       frames.length,
-      options.productVisibleByFrame?.[index] === true,
+      productVisible,
     );
-    return { ...frame, role, action: beat.action, camera: beat.camera, visualDescription };
+    return {
+      ...frame,
+      role,
+      action: productVisible ? buildProductBrollAction("продукт клиента", false) : frame.action,
+      camera: productVisible ? buildProductBrollCamera() : avatarIntro ? frame.camera : beat.camera,
+      visualDescription: productVisible ? "Предметный B-roll: продукт на устойчивой поверхности, без людей и рук" : frame.visualDescription,
+    };
   });
 }
 
@@ -151,17 +163,19 @@ export function applyReferenceSegmentPlanToStoryboard(
       if (!beat) return frame;
       const environment = [beat.setting, beat.environment, beat.lighting].filter(Boolean).join("; ");
       const productVisible = options.productVisibleByFrame?.[index] === true;
+      const avatarIntro = !productVisible && allowsTalkingAvatarIntro(plan, index) && frame.speechMode === "on_camera";
+      const speechMode = productVisible ? "voiceover_only" : avatarIntro ? "on_camera" : beat.speechMode;
       return {
         ...frame,
         camera: productVisible
           ? buildProductBrollCamera()
-          : [beat.camera, beat.composition ? `composition ${beat.composition}` : ""].filter(Boolean).join("; "),
+          : avatarIntro ? frame.camera : [beat.camera, beat.composition ? `composition ${beat.composition}` : ""].filter(Boolean).join("; "),
         environment: environment || frame.environment,
-        speechMode: productVisible ? "voiceover_only" : beat.speechMode,
+        speechMode,
         physicalPlan: frame.physicalPlan
           ? {
               ...frame.physicalPlan,
-              speechMode: productVisible ? "voiceover_only" : beat.speechMode,
+              speechMode,
             }
           : frame.physicalPlan,
       };
@@ -176,13 +190,13 @@ function resolveReferenceFrameRole(
   frameCount: number,
   productVisible: boolean,
 ) {
+  if (productVisible) return "product_cutaway";
   const presenterSource = isReferencePresenterSource(beat);
   if (presenterSource && (currentRole === "environment_cutaway" || currentRole === "product_cutaway")) {
     return frameIndex === frameCount - 1 ? "face_return" : "face_open";
   }
   const brollSource = isReferenceBrollSource(beat);
   if (brollSource) {
-    if (productVisible || beat.sourceRole === "product_broll") return "product_cutaway";
     if (currentRole === "face_open" || currentRole === "face_return" || currentRole === "product_cutaway") {
       return "environment_cutaway";
     }

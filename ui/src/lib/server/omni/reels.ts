@@ -8,13 +8,13 @@ import { ensureDirectorAnalysis, getDirectorAnalysisForLegacy } from "./director
 import { shouldAnalyzeDirectorReference } from "./director-analysis-policy";
 import { getGeneratedScript } from "./generated-scripts";
 import { getLegacyScenario } from "./legacy-scenarios";
-import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
+import { prepareOmniPromptPlan } from "./omni-prompt-preparation";
+import { adaptDirectorBriefForAvatarReel } from "./omni-avatar-reel-plan";
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
 import { listRecentLifeFormatIds } from "./omni-creative-history";
 import { OMNI_SEGMENT_SECONDS } from "./omni-duration-planner";
 import { resolveOmniTimedVoiceoverPlan } from "./omni-timed-voiceover-plan";
-import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import {
   ensureGeneratedScriptStoryboardUrls,
@@ -23,7 +23,7 @@ import { resolveProductReferenceImageUrls } from "./omni-product-reference-image
 import { detectKieOmniVoiceGender } from "./kie-omni-audio";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
-import type { OmniGenerationProvider } from "@/lib/omni/provider";
+import { normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
 import {
   extractDirectorBriefFromSnapshot,
   normalizeDirectorBrief,
@@ -33,15 +33,9 @@ import { resolveOmniAvatarContext } from "./omni-avatar-context";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { isCollagePictureInPictureReference } from "./director-layout-contract";
 import { readSourceDurationSeconds, STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
-import {
-  repairOmniPromptPlanWithAi,
-} from "./omni-physical-repair-pipeline";
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import { generateStoryboardReferenceUrls, reserveOmniReelId } from "./omni-reel-storyboard-generator";
 import { resolveReferenceFrameCount } from "./reference-segment-plan";
-import {
-  prepareOmniPromptPlanWithSemanticRepair,
-} from "./omni-storyboard-semantic-repair";
 
 function normalizeReel(row: OmniReel): OmniReel {
   return {
@@ -125,15 +119,10 @@ export async function createOmniReel(input: {
   if (input.sourceGeneratedScriptId && !generatedScript) {
     throw new Error("Generated script not found for this product");
   }
-  const resolvedGeneratedScript = generatedScript
-    ? {
-        ...generatedScript,
-        script: ensureOmniScriptCta(generatedScript.script, product.cta_mode, product.cta_value),
-      }
-    : null;
+  const resolvedGeneratedScript = generatedScript;
   const sourceLegacyScenarioId = input.sourceLegacyScenarioId || generatedScript?.source_legacy_scenario_id || null;
   const sourceScenario = sourceLegacyScenarioId ? await getLegacyScenario(sourceLegacyScenarioId) : null;
-  const sourceScenarioAnalysis = sourceScenario
+  const sourceScenarioAnalysis = sourceScenario && !generatedScript
     ? shouldAnalyzeDirectorReference(sourceScenario)
       ? await ensureDirectorAnalysis({
           projectId: input.projectId,
@@ -146,8 +135,9 @@ export async function createOmniReel(input: {
     sourceScenarioAnalysis?.director_analysis_status === "completed"
       ? normalizeDirectorBrief(sourceScenarioAnalysis.director_analysis_json)
       : null;
-  const directorBrief = sourceScenarioDirectorBrief ||
-    extractDirectorBriefFromSnapshot(resolvedGeneratedScript?.source_snapshot);
+  const directorBrief = adaptDirectorBriefForAvatarReel(
+    extractDirectorBriefFromSnapshot(resolvedGeneratedScript?.source_snapshot) || sourceScenarioDirectorBrief,
+  );
   const referenceAudioProfile = normalizeDirectorAudioProfile(directorBrief?.audio_profile) || null;
   const referenceTransferPlan = buildReferenceTransferPolicy({
     hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),
@@ -164,7 +154,7 @@ export async function createOmniReel(input: {
     project,
     product,
     requestTargetDurationSeconds: input.targetDurationSeconds,
-    legacyClientId: sourceScenario?.client_id ?? generatedScript?.source_legacy_client_id,
+    legacyClientId: generatedScript?.source_legacy_client_id ?? sourceScenario?.client_id,
   });
   const timedVoiceoverPlan = resolveOmniTimedVoiceoverPlan({
     script: scriptText,
@@ -173,12 +163,11 @@ export async function createOmniReel(input: {
   });
   const targetDuration = timedVoiceoverPlan.durationSeconds;
   const segmentCount = timedVoiceoverPlan.segmentCount;
-  const referenceSourceDurationSeconds = sourceScenario?.duration_seconds
-    || readSourceDurationSeconds(resolvedGeneratedScript?.source_snapshot);
+  const referenceSourceDurationSeconds = readSourceDurationSeconds(resolvedGeneratedScript?.source_snapshot)
+    || sourceScenario?.duration_seconds;
   const latestAvatar = await getLatestOmniClientAvatar(input.projectId);
   const avatarContext = resolveOmniAvatarContext({ avatar: latestAvatar, directorBrief });
   const {
-    avatarForPrompt,
     avatarFreeReferenceScene: avatarFreeReferenceSceneFromBrief,
     speechGender: avatarSpeechGender,
   } = avatarContext;
@@ -192,9 +181,9 @@ export async function createOmniReel(input: {
         hook: resolvedGeneratedScript.hook,
         script: resolvedGeneratedScript.script,
         source_snapshot: resolvedGeneratedScript.source_snapshot,
-        director_analysis_id: sourceScenarioAnalysis?.id || null,
-        director_analysis_status: sourceScenarioAnalysis?.director_analysis_status || "not_requested",
-        director_analysis: sourceScenarioDirectorBrief,
+        director_analysis_id: resolvedGeneratedScript.director_analysis_id,
+        director_analysis_status: directorBrief ? "completed" : "not_requested",
+        director_analysis: directorBrief,
         reference_audio_profile: referenceAudioProfile,
         reference_format_mode: resolveReferenceFormatMode(directorBrief),
         director_video_url: sourceScenarioAnalysis?.stored_video_url || sourceScenarioAnalysis?.resolved_video_url || null,
@@ -262,45 +251,24 @@ export async function createOmniReel(input: {
       }
     : null;
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
-  const repairedPromptPlan = await repairOmniPromptPlanWithAi({
-    promptPlan: buildOmniSegmentPrompts({
-      generatedScript: resolvedGeneratedScript,
-      legacyTranscript: sourceScenario?.script || null,
-      product,
-      avatar: avatarForPrompt,
-      segmentCount,
-      segmentSeconds: OMNI_SEGMENT_SECONDS,
-      timedVoiceoverPlan,
-      brief,
-      directorBrief,
-      targetAudience: project.target_audience,
-      ctaMode: product.cta_mode,
-      ctaValue: product.cta_value,
-      recentFormatIds,
-      wardrobeSource: project.wardrobe_source,
-      referenceSourceDurationSeconds,
-    }),
-    productName: product.name,
-    productPhysicalContract: product.product_physical_contract,
-    segmentCount,
-    directorBrief,
-    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
-  });
-  const promptPlan = await prepareOmniPromptPlanWithSemanticRepair({
+  const promptPlan = await prepareOmniPromptPlan({
     projectId: input.projectId,
     productId: input.productId,
-    promptPlan: repairedPromptPlan,
-    model: process.env.OMNI_STORYBOARD_SEMANTIC_REVIEW_MODEL?.trim()
-      || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL?.trim()
-      || process.env.SCENARIO_MODEL?.trim()
-      || "google/gemini-2.5-flash",
-    script: scriptText,
-    productName: product.name,
-    productDescription: product.description,
-    productPhysicalContract: product.product_physical_contract,
+    generatedScript: resolvedGeneratedScript,
+    legacyTranscript: sourceScenario?.script || null,
+    product,
+    avatar: latestAvatar,
+    segmentCount,
+    segmentSeconds: OMNI_SEGMENT_SECONDS,
+    timedVoiceoverPlan,
+    brief,
     directorBrief,
-    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
-    referenceFormatMode: resolveReferenceFormatMode(directorBrief),
+    targetAudience: project.target_audience,
+    ctaMode: product.cta_mode,
+    ctaValue: product.cta_value,
+    recentFormatIds,
+    wardrobeSource: project.wardrobe_source,
+    referenceSourceDurationSeconds,
   });
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
   const referenceSceneMode = resolveReferenceSceneMode(creativeStrategy);
@@ -452,9 +420,10 @@ export async function createOmniReel(input: {
            storyboard_plan,
            storyboard_validation,
            storyboard_reference_url,
-           prompt_validation
+           prompt_validation,
+           generation_provider
          )
-         VALUES ($1, $2, $3, $4, 'draft', $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13::jsonb)`,
+         VALUES ($1, $2, $3, $4, 'draft', $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12, $13::jsonb, $14)`,
         [
           reel.id,
           index + 1,
@@ -469,6 +438,7 @@ export async function createOmniReel(input: {
           segmentPrompt.storyboardValidation ? JSON.stringify(segmentPrompt.storyboardValidation) : null,
           storyboardReferenceUrls[index] || null,
           JSON.stringify(segmentPrompt.validation),
+          normalizeOmniGenerationProvider(input.generationProvider),
         ]
       );
     }

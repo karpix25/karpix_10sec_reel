@@ -11,8 +11,10 @@ const output = mkdtempSync(join(tmpdir(), "omni-compact-prompt-"));
 const compiled = join(output, "compiled");
 const tsconfig = join(output, "tsconfig.json");
 const require = createRequire(import.meta.url);
+const originalFetch = global.fetch;
 
 try {
+  global.fetch = async () => { throw new Error("Network calls are forbidden in this local regression"); };
   writeFileSync(tsconfig, JSON.stringify({
     compilerOptions: {
       target: "es2022",
@@ -47,23 +49,32 @@ try {
   const { buildOmniSegmentPrompts } = require(findFile(compiled, "omni-prompt-builder.js"));
   const directorPrompts = buildOmniSegmentPrompts(buildInput("director_reference"));
   const avatarPrompts = buildOmniSegmentPrompts(buildInput("avatar_reference"));
+  const joinedDirectorPrompts = directorPrompts.map((item) => item.prompt).join("\n");
+  const joinedAvatarPrompts = avatarPrompts.map((item) => item.prompt).join("\n");
 
+  console.log("Compact provider prompt lengths:", directorPrompts.map((item) => ({ seconds: item.durationSeconds, chars: item.prompt.length })));
+  if (process.env.PRINT_COMPACT_PROMPT_BREAKDOWN === "1") console.log(JSON.stringify(directorPrompts.map((item) => ({
+    index: item.index,
+    lines: item.prompt.split("\n").filter(Boolean).map((line) => ({ chars: line.length, start: line.slice(0, 90) })),
+    frames: item.storyboardPlan.frames,
+  })), null, 2));
   assert.ok(directorPrompts.every((item) => item.prompt.length < 5600), "provider prompts must stay compact");
   assert.ok(directorPrompts.every((item) => item.prompt.includes("VISUAL AUTHORITY")));
   assert.ok(directorPrompts.every((item) => item.prompt.includes("@storyboard_file")));
-  assert.ok(!directorPrompts.join("\n").includes("REFERENCE SEGMENT CONTRACT"));
-  assert.ok(!directorPrompts.join("\n").includes("Fast jump-cut rhythm copied from reference"));
-  assert.ok(!directorPrompts.join("\n").includes("REFERENCE EDITING:"));
+  assert.ok(!joinedDirectorPrompts.includes("REFERENCE SEGMENT CONTRACT"));
+  assert.ok(!joinedDirectorPrompts.includes("Fast jump-cut rhythm copied from reference"));
+  assert.ok(!joinedDirectorPrompts.includes("REFERENCE EDITING:"));
 
   for (const item of directorPrompts) {
     assert.equal(countNormalized(item.prompt, item.voiceoverText), 1);
-    assert.ok(item.prompt.includes("Точная реплика персонажа") || item.prompt.includes("The avatar says:"));
+    assert.match(item.prompt, /Точная реплика.*на русском языке/u);
   }
   assert.ok(/WARDROBE/iu.test(directorPrompts[0].prompt));
-  assert.ok(!avatarPrompts.join("\n").includes("red summer dress"));
+  assert.ok(!joinedAvatarPrompts.includes("red summer dress"));
 
   console.log("Omni compact prompt contract checks passed");
 } finally {
+  global.fetch = originalFetch;
   rmSync(output, { recursive: true, force: true });
 }
 
@@ -111,7 +122,8 @@ function buildInput(wardrobeSource) {
       updated_at: "2026-07-22T00:00:00.000Z",
     },
     segmentCount: 3,
-    segmentSeconds: 8,
+    segmentSeconds: 10,
+    segmentDurationsSeconds: voiceSegments.map((text) => Math.ceil(text.split(/\s+/u).length / 4) * 2),
     voiceSegments: voiceSegments.map((text, index) => ({ index: index + 1, text, wordCount: text.split(/\s+/u).length })),
     brief: null,
     wardrobeSource,

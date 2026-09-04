@@ -5,8 +5,6 @@ import type { OmniSegmentPrompt } from "./omni-prompt-builder";
 import type { DirectorBrief } from "./director-analysis-types";
 import { applyReferenceSceneModeToOmniPrompt, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
-import { renderReferenceSegmentPlanForPrompt } from "./reference-segment-plan";
-import { resolveReferenceTransferMode } from "./omni-reference-transfer-policy";
 import { repairPhysicalScenePrompt, validatePhysicalScene } from "./physical-scene-validator";
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
 import {
@@ -216,13 +214,14 @@ const SEMANTIC_REPAIR_SYSTEM_PROMPT = [
   "Ты исправляешь раскадровку короткого видео после строгой смысловой проверки.",
   "Верни только JSON формата {segments:[{index:number,storyboardPlan:{segmentIndex:number,durationSeconds:number,voiceoverText:string,frames:[{visualAction:string,camera:string,environment:string,wardrobe:string,productPlacement:string,sfxNotes:string,effectNotes?:string|null,speechMode?:string}]} }]}.",
   "Верни только сегменты, которые нужно изменить. Сохрани segmentIndex, durationSeconds и количество кадров.",
-  "При необходимости добавь voiceoverText на уровне сегмента и в storyboardPlan, чтобы перераспределить существующие слова между сегментами; итоговая последовательность слов должна остаться прежней.",
-  "Не добавляй и не удаляй слова из исходного сценария. Если финалу не хватает тезиса, разрешено только перераспределить существующие слова между соседними сегментами и кадрами.",
+  "Сохрани точную реплику каждого сегмента и каждого кадра. Речевые границы утверждены; не перераспределяй слова между сегментами или кадрами.",
+  "Не добавляй, не удаляй и не перефразируй слова сценария. Исправляй только визуальную часть и не заполняй паузы новыми словами.",
   "Исправляй визуальную режиссуру, композицию, формат reference, финальное раскрытие тезиса и интеграцию продукта; не добавляй новые утверждения.",
   "Текущий режиссерский анализ reference и product contract имеют приоритет над scoped learned memory; learned memory только дополняет их.",
   "Для voiceover_montage с visible_subject_policy=no_people используй самостоятельные пейзажные, предметные, food и product-UI B-roll кадры с voiceover_only.",
   "Для финального сегмента покажи визуальное завершение главной мысли; CTA не должен быть единственным содержанием кадра.",
   "Сохрани положительный визуальный план reference и меняй только то, на что указывает semantic review.",
+  "Сохрани адаптацию: разговорный аватар отдельно, продукт только в предметных B-roll без людей и рук на устойчивой опоре. На склейках та же речь продолжается; исходные действия с товаром не восстанавливай.",
 ].join(" ");
 
 const SEMANTIC_REBUILD_SYSTEM_PROMPT = [
@@ -230,7 +229,7 @@ const SEMANTIC_REBUILD_SYSTEM_PROMPT = [
   "Верни только JSON формата {segments:[{index:number,voiceoverText:string,storyboardPlan:{segmentIndex:number,durationSeconds:number,voiceoverText:string,frames:[{visualAction:string,camera:string,environment:string,wardrobe:string,productPlacement:string,sfxNotes:string,effectNotes?:string|null,speechMode?:string}]}}]}.",
   "Верни каждый сегмент текущего плана ровно один раз, в том же порядке, с тем же segmentIndex, durationSeconds и количеством кадров.",
   "Не меняй и не перефразируй voiceoverText. Сохрани исходную последовательность слов побуквенно после нормализации.",
-  "Пересобери визуальную режиссуру целиком с учетом semantic review, reference format и физических контрактов.",
+  "Пересобери ошибочные визуальные решения с учётом проверки, сохранив сеттинг, свет, одежду и композицию референса. Продукт показывай отдельным неподвижным B-roll без людей и рук, разговорного аватара — в его кадрах.",
   "Не добавляй и не удаляй слова, сегменты или кадры. Не добавляй новые утверждения.",
 ].join(" ");
 
@@ -340,8 +339,8 @@ function applySemanticRepairResponse(input: {
     const repairedSegment = byIndex.get(segment.index);
     if (!repairedSegment || !segment.storyboardPlan) return segment;
     const voiceoverText = mode === "full_rebuild" ? segment.voiceoverText : repairedSegment.voiceoverText || segment.voiceoverText;
-    if (mode === "full_rebuild" && repairedSegment.voiceoverText && normalizeOmniStoryboardSpeech(repairedSegment.voiceoverText) !== normalizeOmniStoryboardSpeech(segment.voiceoverText)) {
-      throw new Error(`Full storyboard rebuild changed segment ${segment.index} voiceover text`);
+    if (repairedSegment.voiceoverText && normalizeOmniStoryboardSpeech(repairedSegment.voiceoverText) !== normalizeOmniStoryboardSpeech(segment.voiceoverText)) {
+      throw new Error(`Storyboard repair changed segment ${segment.index} voiceover text`);
     }
     const storyboard = mergeRepairedStoryboard(segment.storyboardPlan, repairedSegment.storyboardPlan, voiceoverText);
     const storyboardValidation = validateOmniStoryboardSegment(storyboard);
@@ -377,11 +376,7 @@ function applySemanticRepairResponse(input: {
         voiceoverText,
         productVisibleByFrame: buildOmniProductVisualIntent({ voiceoverText, durationSeconds: segment.storyboardPlan.durationSeconds, productName: input.productName, productRole: segment.creativePlan.productRole, referenceSegmentPlan: segment.referenceSegmentPlan }).visibleByFrame,
       },
-      prompt: [prompt, resolveReferenceTransferMode(input.directorBrief) === "full_reference"
-        ? renderReferenceSegmentPlanForPrompt(segment.referenceSegmentPlan)
-        : ""]
-        .filter(Boolean)
-        .join("\n\n"),
+      prompt,
       storyboardPlan: storyboard,
       storyboardValidation,
       validation,

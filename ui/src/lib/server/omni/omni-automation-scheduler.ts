@@ -7,6 +7,7 @@ const SCHEDULER_LOCK_KEY = 84244011;
 
 type AutomationProject = {
   project_id: number;
+  automation_provider: string | null;
 };
 
 function envInt(name: string, fallback: number, min = 1) {
@@ -39,7 +40,8 @@ async function releaseSchedulerLock(client: Awaited<ReturnType<typeof acquireSch
 async function listAutomationProjects() {
   const { rows } = await pool.query<AutomationProject>(
     `SELECT
-       project.id AS project_id
+       project.id AS project_id,
+       project.automation_provider
      FROM omni_projects project
      WHERE project.status = 'active'
        AND project.auto_generate_reels = TRUE
@@ -59,7 +61,6 @@ export async function runOmniAutomationSchedulerCycle() {
     const projects = await listAutomationProjects();
     const maxBatchPerProject = envInt("OMNI_AUTOMATION_SCHEDULER_BATCH_PER_PROJECT", 1);
     const maxBacklogPerProject = envInt("OMNI_AUTOMATION_QUEUE_BACKLOG_PER_PROJECT", 3);
-    const provider = normalizeOmniGenerationProvider(process.env.OMNI_AUTOMATION_PROVIDER);
     const stoppedProjects: number[] = [];
     let queued = 0;
 
@@ -67,7 +68,7 @@ export async function runOmniAutomationSchedulerCycle() {
       const reservation = await reserveOmniAutomationJobs({
         projectId: project.project_id,
         count: maxBatchPerProject,
-        provider,
+        provider: normalizeOmniGenerationProvider(project.automation_provider ?? process.env.OMNI_AUTOMATION_PROVIDER),
         maxBacklogPerProject,
         requireAutomationEnabled: true,
       });

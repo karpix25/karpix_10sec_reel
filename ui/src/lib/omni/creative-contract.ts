@@ -12,10 +12,10 @@ export const OMNI_FORBIDDEN_MOTIFS = [
 
 export const OMNI_ACTION_SAFETY_RULES = [
   "Do not eat or drink while speaking",
-  "Open packaging only with hands, never with teeth",
-  "Never film while driving; a car scene must be parked",
-  "Use at most one handled object per beat and two objects per scene",
-  "Do not use a product close-up followed by a return to the speaker",
+  "Show the product only in standalone object-only B-roll on stable support, without people, hands, or interaction",
+  "Keep the product stationary with the same packaging, form, scale, and physical state; move the camera or focus instead",
+  "The presenter never drives and uses simple gestures without handling the product",
+  "Allow explicit montage cuts from the speaker to product B-roll and back to the speaker while the same voiceover continues",
 ] as const;
 
 export type LifeFormatId =

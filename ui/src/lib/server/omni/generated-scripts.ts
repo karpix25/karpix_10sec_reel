@@ -1,23 +1,18 @@
 import pool from "@/lib/db";
 import { normalizeAudioMood } from "@/lib/audio-library/moods";
 import { extractOpenRouterCostSummaryFromSnapshot, summarizeOpenRouterUsage } from "@/lib/omni/openrouter-cost";
-import type { OmniAutomationJobSummary, OmniGeneratedScript, OmniPromptPreviewSegment } from "@/lib/omni/types";
+import type { OmniAutomationJobSummary, OmniGeneratedScript } from "@/lib/omni/types";
 import { ensureOmniSchema } from "./schema";
 import { getGeneratedScriptCostSummaries } from "./omni-generation-costs";
 import { getLatestOmniClientAvatar } from "./avatars";
 import { shouldAnalyzeDirectorReference } from "./director-analysis-policy";
 import { ensureDirectorAnalysis } from "./director-analyses";
 import { advanceGeneratedScriptSourceCursor, resolveGeneratedScriptSource } from "./generated-script-source";
-import { buildOmniSegmentPrompts } from "./omni-prompt-builder";
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
-import { listRecentLifeFormatIds } from "./omni-creative-history";
-import { OMNI_SEGMENT_SECONDS } from "./omni-duration-planner";
 import {
   buildOmniTimedVoiceoverPlan,
-  resolveOmniTimedVoiceoverPlan,
 } from "./omni-timed-voiceover-plan";
-import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { generateScript } from "./script-generator";
 import {
   createGeneratedScriptGenerationRecord,
@@ -26,36 +21,25 @@ import {
 } from "./generated-script-generation-state";
 import { resolveReadyGeneratedScriptReference } from "./generated-script-reference-selection";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
-import { ensureGeneratedScriptStoryboardUrls } from "./generated-script-storyboard-previews";
-import type { OmniGenerationProvider } from "@/lib/omni/provider";
-import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
-import { prepareSegmentStoryboardDirectorReferenceUrls } from "./storyboard-director-references";
 import { resolveNarratorSpeechGender } from "../../omni/avatar-speech-gender";
-import { extractDirectorBriefFromSnapshot, normalizeDirectorBrief } from "./director-analysis-types";
+import { normalizeDirectorBrief } from "./director-analysis-types";
 import { isAvatarFreeReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
-import { isCollagePictureInPictureReference } from "./director-layout-contract";
-import { readSourceDurationSeconds, STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT } from "./storyboard-reference-frame-timing";
 import { buildReferenceTransferPolicy } from "./omni-reference-transfer-policy";
-import {
-  normalizeOmniPromptPlanWithPhysicalRules,
-  repairOmniPromptPlanWithAi,
-} from "./omni-physical-repair-pipeline";
-import { resolveReferenceFrameCount } from "./reference-segment-plan";
-import {
-  prepareOmniPromptPlanWithSemanticRepair,
-} from "./omni-storyboard-semantic-repair";
 import {
   buildWriterOwnedScriptContentContract,
 } from "./script-content-contract";
 import { resolveGeneratedScriptReferenceTranscript } from "./generated-script-reference-transcript";
+import { adaptDirectorBriefForAvatarReel } from "./omni-avatar-reel-plan";
+import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 
-const PROMPT_REPAIR_TIMEOUT_MS = 15_000;
 
-function normalizeScript(row: OmniGeneratedScript): OmniGeneratedScript {
+function normalizeScript(row: OmniGeneratedScript & { prepared_prompt_plan?: unknown }): OmniGeneratedScript {
+  const script = { ...row };
+  delete script.prepared_prompt_plan;
   return {
-    ...row,
+    ...script,
     source_legacy_scenario_id:
       row.source_legacy_scenario_id === null ? null : Number(row.source_legacy_scenario_id),
     source_legacy_client_id:
@@ -128,161 +112,6 @@ export async function getGeneratedScript(input: { projectId: number; productId: 
   return rows[0] ? normalizeScript(rows[0]) : null;
 }
 
-export async function buildGeneratedScriptPromptPreview(input: {
-  projectId: number;
-  productId: number;
-  scriptId: number;
-  generationProvider?: OmniGenerationProvider;
-}): Promise<OmniPromptPreviewSegment[]> {
-  const generatedScript = await getGeneratedScript(input);
-  if (!generatedScript) throw new Error("Generated script not found for this product");
-
-  const product = await requireOmniProductInProject(input.projectId, input.productId);
-  const resolvedGeneratedScript = {
-    ...generatedScript,
-    script: ensureOmniScriptCta(generatedScript.script, product.cta_mode, product.cta_value),
-  };
-  const avatar = await getLatestOmniClientAvatar(input.projectId);
-  const project = await getOmniProject(input.projectId);
-  if (!project) throw new Error("Omni client project not found");
-  const durationRange = await resolveOmniDurationRange({
-    project,
-    product,
-    legacyClientId: generatedScript.source_legacy_client_id,
-  });
-  const timedVoiceoverPlan = resolveOmniTimedVoiceoverPlan({
-    script: resolvedGeneratedScript.script,
-    sourceSnapshot: resolvedGeneratedScript.source_snapshot,
-    durationRange,
-  });
-  const referenceSourceDurationSeconds = readSourceDurationSeconds(resolvedGeneratedScript.source_snapshot);
-  const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
-  const directorBrief = extractDirectorBriefFromSnapshot(resolvedGeneratedScript.source_snapshot);
-  const referenceSceneModeFromBrief = resolveReferenceSceneMode(directorBrief);
-  const avatarForPrompt = isAvatarFreeReferenceScene(referenceSceneModeFromBrief) ? null : avatar;
-  const basePromptPlan = buildOmniSegmentPrompts({
-    generatedScript: resolvedGeneratedScript,
-    legacyTranscript: null,
-    product,
-    avatar: avatarForPrompt,
-    segmentCount: timedVoiceoverPlan.segmentCount,
-    segmentSeconds: OMNI_SEGMENT_SECONDS,
-    timedVoiceoverPlan,
-    brief: null,
-    targetAudience: project.target_audience,
-    ctaMode: product.cta_mode,
-    ctaValue: product.cta_value,
-    recentFormatIds,
-    wardrobeSource: project.wardrobe_source,
-    directorBrief,
-    referenceSourceDurationSeconds,
-  });
-  const promptRepairPromise = repairOmniPromptPlanWithAi({
-    promptPlan: basePromptPlan,
-    productName: product.name,
-    productPhysicalContract: product.product_physical_contract,
-    segmentCount: timedVoiceoverPlan.segmentCount,
-    directorBrief,
-    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
-  });
-  const repairedPromptPlan = await withTimeout(
-    promptRepairPromise,
-    PROMPT_REPAIR_TIMEOUT_MS,
-    () => normalizeOmniPromptPlanWithPhysicalRules({
-      promptPlan: basePromptPlan,
-      productName: product.name,
-      productPhysicalContract: product.product_physical_contract,
-      segmentCount: timedVoiceoverPlan.segmentCount,
-      directorBrief,
-      referenceSceneMode: resolveReferenceSceneMode(directorBrief),
-    })
-  );
-  const promptPlan = await prepareOmniPromptPlanWithSemanticRepair({
-    projectId: input.projectId,
-    productId: input.productId,
-    promptPlan: repairedPromptPlan,
-    model: process.env.OMNI_STORYBOARD_SEMANTIC_REVIEW_MODEL?.trim()
-      || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL?.trim()
-      || process.env.SCENARIO_MODEL?.trim()
-      || "google/gemini-2.5-flash",
-    script: resolvedGeneratedScript.script,
-    productName: product.name,
-    productDescription: product.description,
-    productPhysicalContract: product.product_physical_contract,
-    directorBrief,
-    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
-    referenceFormatMode: resolveReferenceFormatMode(directorBrief),
-  });
-  const storyboardReferenceFrameCountBySegment = new Map<number, number>();
-  for (const segment of promptPlan) {
-    const frameCount = isCollagePictureInPictureReference(directorBrief)
-      ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
-      : segment.referenceSegmentPlan
-        ? resolveReferenceFrameCount(
-          segment.referenceSegmentPlan.renderMode,
-          segment.referenceSegmentPlan.beats.length
-        )
-        : null;
-    if (frameCount) storyboardReferenceFrameCountBySegment.set(segment.index, frameCount);
-  }
-  const storyboardGeneration = prepareSegmentStoryboardDirectorReferenceUrls({
-    sourceSnapshot: resolvedGeneratedScript.source_snapshot,
-    storageTarget: {
-      kind: "generated_script",
-      projectId: input.projectId,
-      scriptId: input.scriptId,
-    },
-    framesPerSegment: isCollagePictureInPictureReference(directorBrief)
-      ? STORYBOARD_PIP_REFERENCE_FRAMES_PER_SEGMENT
-      : undefined,
-    framesPerSegmentBySegment: storyboardReferenceFrameCountBySegment,
-    segments: promptPlan.map((segment) => ({
-      index: segment.index,
-      durationSeconds: segment.durationSeconds,
-      wordCount: timedVoiceoverPlan.segments[segment.index - 1]?.wordCount,
-    })),
-  }).then((directorReferenceImageUrlsBySegment) => ensureGeneratedScriptStoryboardUrls({
-    ...input,
-    productName: product.name,
-    productPhysicalContract: product.product_physical_contract,
-    avatarReferenceUrl: isAvatarFreeReferenceScene(referenceSceneModeFromBrief) ? null : avatar?.reference_url || null,
-    productReferenceUrls: resolveProductReferenceImageUrls(product),
-    directorReferenceImageUrlsBySegment,
-    directorBrief,
-    referenceSceneMode: resolveReferenceSceneMode(promptPlan[0]?.creativeStrategy),
-    referenceFormatMode: resolveReferenceFormatMode(directorBrief),
-    promptPlan: promptPlan.map((segment) => ({
-      index: segment.index,
-      storyboardPlan: segment.storyboardPlan,
-      productRole: segment.creativePlan.productRole,
-      referenceSegmentPlan: segment.referenceSegmentPlan,
-    })),
-    generationProvider: input.generationProvider,
-  }));
-  void storyboardGeneration.catch((error) => {
-    console.warn("Generated script storyboard background job failed:", {
-      scriptId: input.scriptId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  });
-  const storyboardUrls = new Map<number, string>();
-
-  return promptPlan.map((segment) => ({
-    segmentIndex: segment.index,
-    durationSeconds: segment.durationSeconds,
-    role: segment.role,
-    prompt: segment.prompt,
-    referenceUrl: segment.referenceUrl,
-    voiceoverText: segment.voiceoverText,
-    creativeStrategy: segment.creativeStrategy,
-    creativePlan: segment.creativePlan,
-    storyboardPlan: segment.storyboardPlan,
-    storyboardValidation: segment.storyboardValidation,
-    storyboardReferenceUrl: storyboardUrls.get(segment.index) || null,
-    validation: segment.validation,
-  }));
-}
-
 export async function createGeneratedScriptFromLegacy(input: {
   projectId: number;
   productId: number;
@@ -294,6 +123,8 @@ export async function createGeneratedScriptFromLegacy(input: {
 
   const product = await requireOmniProductInProject(input.projectId, input.productId);
   const avatar = await getLatestOmniClientAvatar(input.projectId);
+  if (!avatar?.reference_url) throw new Error("Для разговорного ролика нужен сохранённый аватар с изображением.");
+  if (!resolveProductReferenceImageUrls(product).length) throw new Error("Добавьте изображение продукта для товарных B-roll.");
   const { sourceScenario, sourceMode, directorAnalysis } = await resolveReadyGeneratedScriptReference({
     ...input,
     resolveSource: resolveGeneratedScriptSource,
@@ -304,7 +135,7 @@ export async function createGeneratedScriptFromLegacy(input: {
     }),
     shouldAnalyze: shouldAnalyzeDirectorReference,
     ensureAnalysis: ensureDirectorAnalysis,
-    requireVisibleAvatar: Boolean(avatar),
+    requireCompleteTimeline: true,
     warn: (message) => console.warn(message),
   });
   const durationRange = await resolveOmniDurationRange({
@@ -312,10 +143,10 @@ export async function createGeneratedScriptFromLegacy(input: {
     product,
     legacyClientId: sourceScenario.client_id,
   });
-  const directorBrief =
+  const directorBrief = adaptDirectorBriefForAvatarReel(
     directorAnalysis?.director_analysis_status === "completed"
       ? normalizeDirectorBrief(directorAnalysis.director_analysis_json)
-      : null;
+      : null);
   const avatarSpeechGender = resolveNarratorSpeechGender(
     avatar?.speech_gender,
     isAvatarFreeReferenceScene(resolveReferenceSceneMode(directorBrief))
@@ -472,20 +303,4 @@ export async function createGeneratedScriptFromLegacy(input: {
   );
 
   return normalizeScript(rows[0]);
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: () => T) {
-  return new Promise<T>((resolve) => {
-    const timer = setTimeout(() => resolve(fallback()), timeoutMs);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      () => {
-        clearTimeout(timer);
-        resolve(fallback());
-      },
-    );
-  });
 }

@@ -9,6 +9,7 @@ import { mentionsOmniProduct } from "./omni-intro-product-contract";
 import {
   isReferenceBrollSource,
   isReferencePresenterSource,
+  allowsTalkingAvatarIntro,
   resolveReferenceSegmentBeatForFrame,
   type ReferenceSegmentBeat,
   type ReferenceSegmentPlan,
@@ -258,6 +259,8 @@ export function validateStoryboardFrameSourceInterval(input: {
   const issues: PromptValidationIssue[] = [];
   const frameText = [input.frame.visualDescription, input.frame.camera, input.frame.action].join(" ");
   const interval = `${beat.sourceStartSeconds}-${beat.sourceEndSeconds}s source interval`;
+  const avatarIntro = input.productVisible !== true && allowsTalkingAvatarIntro(input.plan, input.frameIndex) &&
+    input.frame.role === "face_open" && HIDDEN_PRODUCT_PATTERN.test(input.frame.productState);
   if (isPresenterSource(beat) && input.frame.role === "environment_cutaway") {
     issues.push({
       path: `${input.path}.role`,
@@ -266,7 +269,7 @@ export function validateStoryboardFrameSourceInterval(input: {
       severity: "error",
     });
   }
-  if (beat.avatarAllowed === false && hasFace(input.frame)) {
+  if (!avatarIntro && beat.avatarAllowed === false && hasFace(input.frame)) {
     issues.push({
       path: input.path,
       code: "storyboard_source_avatar_forbidden_face",
@@ -274,7 +277,7 @@ export function validateStoryboardFrameSourceInterval(input: {
       severity: "error",
     });
   }
-  if (isBrollSource(beat) && isPresenterFrame(input.frame)) {
+  if (!avatarIntro && isBrollSource(beat) && isPresenterFrame(input.frame)) {
     issues.push({
       path: input.path,
       code: "storyboard_source_broll_presenter",

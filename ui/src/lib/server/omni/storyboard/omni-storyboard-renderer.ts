@@ -10,13 +10,13 @@ import { isProductVisibleInStoryboardFrame } from "../omni-intro-product-contrac
 import { renderProductPhysicalContractForOmni } from "../product-physical-contract";
 import type { DirectorBrief } from "../director-analysis-types";
 import { isCollagePictureInPictureReference } from "../director-layout-contract";
-import { OMNI_PRODUCT_BROLL_RULE } from "../omni-product-broll-contract";
 import { isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "../omni-reference-scene-mode";
 import { isAvatarFreeReferenceScene } from "../omni-reference-scene-mode";
 import type { ProductRole } from "../../../omni/creative-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "../omni-reference-format-mode";
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "../director-visibility-policy";
 import { requiresContinuousPresenterWardrobe } from "../director-wardrobe";
+import { renderOmniStoryboardTimeline } from "./omni-storyboard-timeline";
 
 export function renderCompactRussianOmniStoryboardPrompt(input: {
   storyboard: OmniStoryboardSegment;
@@ -56,7 +56,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
 
   return [
     `Динамичный разговорный ролик по раскадровке ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; сохрани визуал.`,
-    `Ровно ${frameCount} живых эпизодов, по одному на кадр и в том же порядке. Оживи панели; не показывай саму раскадровку и интерфейс соцсетей.`,
+    `Оживи ${frameCount} панелей в утверждённом порядке на весь сегмент. Раскадровка служит визуальным ориентиром; итог состоит из живых кадров.`,
     objectOnlyReferenceScene
       ? "OBJECT-ONLY: голос за кадром; в кадре только утверждённая поверхность, предметы и концептуальные пропы; человека, рук, лица, головы и talking-head framing нет."
       : facelessReferenceScene
@@ -68,14 +68,14 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
           ? "VOICEOVER B-ROLL: голос за кадром; независимые B-roll кадры не содержат людей, рук, аватара, talking-head или lip-sync."
           : "DIRECTOR-LED B-ROLL: оживи новые сцены раскадровки; любой главный человек использует сохранённый аватар. Фоновые люди и видимая речь допустимы."
       : hybridDelivery
-        ? "DIRECTOR-LED HYBRID: главный человек всегда сохранённый аватар. Режиссёр может выбрать речь в кадре или B-roll под закадровый голос по смыслу текущей реплики; фоновые люди допустимы."
+        ? "Главный человек всегда сохранённый аватар. Речь в кадре и B-roll следуют утверждённому временному плану ниже."
       : "",
     renderVisibleSubjectPolicy(visibleSubjectPolicy),
     preservePipLayout
-      ? "PIP: full-screen фон; avatar lower-left cutout."
+      ? "PIP: сохрани расположение, размер и композицию слоёв из утверждённой раскадровки. Товарные B-roll показывай отдельным кадром без слоя аватара."
       : "",
     "No visible filming gear.",
-    "VIDEO: natural phone footage; no glossy studio look.",
+    "VIDEO: сохрани фактуру изображения, свет и стиль съёмки утверждённой раскадровки.",
     objectOnlyReferenceScene
       ? `VISUAL AUTHORITY: свет, фон, макро поверхность, ракурс и действия бери только из раскадровки ${OMNI_STORYBOARD_FILE_PLACEHOLDER}; не добавляй человека, руки, лицо, голову или аватар.`
       : facelessReferenceScene
@@ -106,26 +106,26 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
           ? "Не показывай людей, руки, talking-head или lip-sync; реплика звучит за кадром поверх независимых B-roll кадров."
           : "Произнеси точную реплику один раз. Она может звучать в кадре или за кадром по новой раскадровке; состояние губ не является контрактом."
       : hybridDelivery
-        ? "HYBRID AUDIO: произнеси точную реплику один раз. Она может звучать в кадре или за кадром по новой раскадровке; точное состояние губ не является визуальным контрактом."
+        ? "HYBRID AUDIO: в кадрах on_camera аватар говорит с синхронной артикуляцией; в кадрах voiceover_only та же речь продолжается за кадром."
       : montageReference
-        ? "VOICEOVER MONTAGE: голос может идти за кадром поверх независимых кадров; talking-head взгляд выбирай только когда он помогает новой раскадровке."
+        ? "VOICEOVER MONTAGE: следуй speech_mode каждой панели; в on_camera аватар говорит в объектив, в voiceover_only тот же голос продолжается за кадром."
         : "В каждом talking-head кадре персонаж смотрит прямо в объектив, даже при смене ракурса камеры.",
     renderProductVisibilityContract({
       productRole: input.productRole,
       productFrameNumbers,
     }),
     productAppearsInThisSegment && input.productRole !== "digital_demo" ? renderProductPhysicalContractForOmni(input.productPhysicalContract) : "",
-    productAppearsInThisSegment && input.productRole !== "digital_demo" ? OMNI_PRODUCT_BROLL_RULE : "",
     productAppearsInThisSegment && input.productRole === "digital_demo"
       ? "DIGITAL PRODUCT: показывай только утвержденный экран продукта на смартфоне; не изображай пластиковую карту, упаковку или физический рекламный товар."
       : "",
+    renderOmniStoryboardTimeline(input.storyboard, input.productName || ""),
     voiceoverBrollReference || animationReference
       ? "Точная реплика закадрового диктора на русском языке (произноси только текст в кавычках, ничего кроме него):"
       : hybridDelivery
         ? "Точная реплика на русском языке: в кадрах on_camera говорит аватар, в кадрах voiceover_only реплика звучит за кадром; произноси только текст в кавычках, ничего кроме него:"
       : "Точная реплика персонажа на русском языке (произноси только текст в кавычках, ничего кроме него):",
     `"${voiceoverText}"`,
-    "Правила аудио: одна непрерывная аудиодорожка; смена кадров не перезапускает речь. произнеси строго указанную реплику в кавычках один раз; cuts — только по полным речевым единицам storyboard, не внутри фразы. После неё молчи. Не читай инструкции. Без фоновой музыки и субтитров.",
+    "Правила аудио: одна непрерывная реплика на весь сегмент, ровный разговорный темп и чёткие окончания. Смена панели или монтажная склейка не перезапускает речь и не требует паузы каждые две секунды. Короткие естественные паузы следуют смыслу и пунктуации. Произнеси строго указанный текст один раз, без добавленных слов, междометий и повторов; не ускоряй сложные слова до потери разборчивости. После окончания текста не добавляй речь. Не читай инструкции. Без фоновой музыки и субтитров.",
   ].join("\n");
 }
 
@@ -150,7 +150,7 @@ function renderProductVisibilityContract(input: {
 
   return [
     productIdentity,
-    "PRODUCT FRAME CONTRACT: storyboard определяет видимость и placement. Продукт показывай только отдельным product B-roll без людей и рук; держи его неподвижным на одной устойчивой поверхности, меняй только ракурс или фокус камеры.",
+    "PRODUCT FRAME CONTRACT: только отдельный product B-roll без людей и рук; продукт неподвижен на устойчивой поверхности, меняется только ракурс или фокус камеры. Видимость и положение заданы в панелях.",
   ].join("\n");
 }
 
