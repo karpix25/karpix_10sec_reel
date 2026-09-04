@@ -19,6 +19,7 @@ import type { ScriptContentContract } from "./script-content-contract";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 import { getOmniStoryboardFrameWordCounts } from "../../omni/storyboard/omni-storyboard-timing";
 import { analyzeOmniSpeechLoad } from "../../omni/storyboard/omni-speech-load";
+import { SCRIPT_PRODUCT_INTEGRATION_CONTRACT } from "./script-product-integration-contract";
 
 export type PromptChainInput = {
   projectName: string;
@@ -302,7 +303,7 @@ function buildCtaLine(mode: CtaMode, value: string | null) {
 }
 
 function buildProductTimingContract(): string {
-  return "Единый контракт интеграции продукта: найди в reference конкретную ситуацию, потребность, выбор или проблему, где продукт уместен как инструмент, пример или решение. Перед упоминанием сформулируй короткий причинный мостик от текущей мысли к этой потребности; затем назови продукт и покажи только подтвержденную пользу именно для нее. Упоминание может быть в любой естественной точке, не обязательно в середине. Если предложение о продукте можно удалить без потери логики, перепиши его. В director storyboard показывай продукт только в кадрах этой причинной интеграции, без отдельного рекламного блока.";
+  return `${SCRIPT_PRODUCT_INTEGRATION_CONTRACT}\nУпоминание может быть в любой естественной точке, не обязательно в середине. В director storyboard показывай продукт только в кадрах этой причинной интеграции, без отдельного рекламного блока.`;
 }
 
 function renderPromptChainWardrobeRule(
