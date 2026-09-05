@@ -22,6 +22,7 @@ import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contra
 import type { DirectorSourceRole, DirectorVisibleSubjectRole } from "./director-source-interval";
 import { reconcileReferenceSegmentPlanToSpeech } from "./omni-speech-visual-alignment";
 import { buildProductBrollAction, buildProductBrollCamera } from "./omni-product-broll-contract";
+import { repairReferenceSourceFrame } from "./reference-source-frame-repair";
 
 export type ReferenceSpeechAlignmentDecision = {
   sourceBeatIndex: number;
@@ -132,19 +133,26 @@ export function applyReferenceSegmentPlanToFrames<T extends {
     const productVisible = options.productVisibleByFrame?.[index] === true;
     const avatarIntro = !productVisible && allowsTalkingAvatarIntro(plan, index) &&
       (frame.role === "face_open" || frame.role === "face_return");
-    const role = avatarIntro ? "face_open" : resolveReferenceFrameRole(
+    const sourceFrame = repairReferenceSourceFrame({
       beat,
-      frame.role,
-      index,
-      frames.length,
+      currentRole: frame.role,
+      currentAction: frame.action,
+      currentCamera: frame.camera,
+      currentVisualDescription: frame.visualDescription,
+      frameIndex: index,
+      frameCount: frames.length,
       productVisible,
-    );
+      avatarIntro,
+      presenterSource: isReferencePresenterSource(beat),
+      brollSource: isReferenceBrollSource(beat),
+    });
     return {
       ...frame,
-      role,
-      action: productVisible ? buildProductBrollAction("продукт клиента", false) : frame.action,
-      camera: productVisible ? buildProductBrollCamera() : avatarIntro ? frame.camera : beat.camera,
-      visualDescription: productVisible ? "Предметный B-roll: продукт на устойчивой поверхности, без людей и рук" : frame.visualDescription,
+      ...sourceFrame,
+      role: productVisible ? "product_cutaway" : sourceFrame.role,
+      action: productVisible ? buildProductBrollAction("продукт клиента", false) : sourceFrame.action,
+      camera: productVisible ? buildProductBrollCamera() : sourceFrame.camera,
+      visualDescription: productVisible ? "Предметный B-roll: продукт на устойчивой поверхности, без людей и рук" : sourceFrame.visualDescription,
     };
   });
 }
@@ -181,27 +189,6 @@ export function applyReferenceSegmentPlanToStoryboard(
       };
     }),
   };
-}
-
-function resolveReferenceFrameRole(
-  beat: ReferenceSegmentBeat,
-  currentRole: StoryboardFrame["role"],
-  frameIndex: number,
-  frameCount: number,
-  productVisible: boolean,
-) {
-  if (productVisible) return "product_cutaway";
-  const presenterSource = isReferencePresenterSource(beat);
-  if (presenterSource && (currentRole === "environment_cutaway" || currentRole === "product_cutaway")) {
-    return frameIndex === frameCount - 1 ? "face_return" : "face_open";
-  }
-  const brollSource = isReferenceBrollSource(beat);
-  if (brollSource) {
-    if (currentRole === "face_open" || currentRole === "face_return" || currentRole === "product_cutaway") {
-      return "environment_cutaway";
-    }
-  }
-  return currentRole;
 }
 
 export function buildReferenceSegmentPlan(input: {

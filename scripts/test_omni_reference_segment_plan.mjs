@@ -66,7 +66,11 @@ try {
       strict: true,
       skipLibCheck: true,
     },
-    files: [join(ui, "src/lib/server/omni/reference-segment-plan.ts"), join(ui, "src/lib/audio-library/moods.ts")],
+    files: [
+      join(ui, "src/lib/server/omni/reference-segment-plan.ts"),
+      join(ui, "src/lib/server/omni/llm-prompt-chain-storyboard-validator.ts"),
+      join(ui, "src/lib/audio-library/moods.ts"),
+    ],
   }));
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", join(output, "tsconfig.json")], { cwd: ui, stdio: "inherit" });
 
@@ -76,6 +80,7 @@ try {
   copyFileSync(moodsOutput, aliasMoods);
 
   const plan = require(findFile(compiled, "reference-segment-plan.js"));
+  const storyboardValidator = require(findFile(compiled, "llm-prompt-chain-storyboard-validator.js"));
   const presenter = plan.buildReferenceSegmentPlan({
     brief,
     segmentIndex: 1,
@@ -118,6 +123,29 @@ try {
   assert.equal(mixed.motionMode, "montage");
   assert.equal(mixed.recommendedReferenceFrameCount, 4);
   assert.deepEqual(mixed.beats.map((beat) => [beat.startSeconds, beat.endSeconds]), [[0, 5], [5, 10]]);
+  const repairedFrames = plan.applyReferenceSegmentPlanToFrames(mixed, [
+    frame(1, "environment_cutaway", "city street", "camera moves through the street"),
+    frame(2, "environment_cutaway", "shopfront", "camera tracks the scene"),
+    frame(3, "face_open", "presenter close-up", "presenter speaks to camera"),
+    frame(4, "face_return", "presenter close-up", "presenter concludes on camera"),
+    frame(5, "face_return", "presenter close-up", "presenter speaks to camera"),
+  ], true);
+  assert.deepEqual(
+    repairedFrames.map((frame) => frame.role),
+    ["face_open", "face_open", "environment_cutaway", "environment_cutaway", "environment_cutaway"],
+    "stored frames must take the verified source presenter/B-roll role"
+  );
+  assert.equal(
+    repairedFrames.flatMap((frame, index) => storyboardValidator.validateStoryboardFrameSourceInterval({
+      frame,
+      frameIndex: index,
+      frameCount: repairedFrames.length,
+      path: `frames.${index}`,
+      plan: mixed,
+    })).filter((issue) => issue.severity === "error").length,
+    0,
+    "stored provider frames must be repaired before the KIE preflight"
+  );
 
   const animation = plan.buildReferenceSegmentPlan({
     brief: { ...brief, reference_render_mode: "animation", reference_motion_mode: "animated_still" },
@@ -132,4 +160,18 @@ try {
   console.log("Omni reference segment plan checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
+}
+
+function frame(index, role, visualDescription, action) {
+  return {
+    index,
+    role,
+    spokenWords: "четыре слова ровно здесь",
+    visualDescription,
+    camera: "medium shot",
+    action,
+    productState: "product out of frame",
+    sfx: null,
+    referenceRole: "none",
+  };
 }
