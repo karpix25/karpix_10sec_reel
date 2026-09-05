@@ -36,9 +36,11 @@ export function buildOmniGenerationContinuityDirection(
 ): OmniGenerationContinuityDirection {
   const montageReference = input.referenceFormatMode === "voiceover_montage";
   const voiceoverBrollReference = input.plan.referenceSceneMode === "voiceover_broll";
+  const productVisible = input.plan.productVisibleByFrame?.some(Boolean) ?? input.plan.productRole !== "hidden";
   const productAction = buildProductAction({
     productName: input.productName,
     role: input.plan.productRole,
+    productVisible,
     segmentIndex: input.segmentIndex,
     segmentCount: input.segmentCount,
     previousProductState: montageReference ? null : input.previousState?.productState || null,
@@ -51,9 +53,9 @@ export function buildOmniGenerationContinuityDirection(
       ? "continue directly from the previous segment final state"
       : "start at the first storyboard panel";
   const wardrobeInstruction = renderWardrobeContinuityInstruction(input.wardrobeContinuity);
-  const productContinuity = input.plan.productRole === "hidden"
+  const productContinuity = !productVisible
     ? "Product stays off camera."
-    : `${OMNI_PRODUCT_BROLL_RULE} Preserve the same product identity and stable surface across the segment boundary.`;
+    : "The product appears only in approved storyboard product B-roll panels. Outside those panels it stays off camera; preserve one identity and stable surface within the approved panels.";
   const nextState: OmniGenerationContinuityState = {
     segmentIndex: input.segmentIndex,
     productState: compactContinuityState(productAction.endState),
@@ -85,6 +87,7 @@ function renderWardrobeContinuityInstruction(continuity?: DirectorWardrobeContin
 function buildProductAction(input: {
   productName: string;
   role: ProductRole;
+  productVisible: boolean;
   segmentIndex: number;
   segmentCount: number;
   previousProductState: string | null;
@@ -92,7 +95,7 @@ function buildProductAction(input: {
   voiceoverBroll: boolean;
 }) {
   const product = input.productName || "the product";
-  if (input.role === "hidden") {
+  if (!input.productVisible || input.role === "hidden") {
     return {
       actionLine: `${product} stays outside the frame; do not introduce it as an image or overlay.`,
       causalityLine: input.voiceoverBroll

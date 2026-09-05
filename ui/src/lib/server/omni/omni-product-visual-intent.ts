@@ -4,10 +4,7 @@ import {
   isOmniStoryboardDuration,
 } from "../../omni/storyboard/omni-storyboard-timing";
 import { isOmniProductVisualBeat, mentionsOmniProduct } from "./omni-intro-product-contract";
-import {
-  resolveReferenceSegmentBeatForFrame,
-  type ReferenceSegmentPlan,
-} from "./reference-segment-plan";
+import type { ReferenceSegmentPlan } from "./reference-segment-plan";
 import { splitStoryboardSpeech } from "./storyboard/omni-storyboard-speech";
 
 export type OmniProductVisualIntentPlan = {
@@ -29,6 +26,7 @@ export function buildOmniProductVisualIntent(input: {
   if (!frameCount || !isOmniStoryboardDuration(input.durationSeconds)) {
     return emptyIntentPlan();
   }
+  if (input.productRole === "hidden") return emptyIntentPlan();
 
   const spokenTexts = splitStoryboardSpeech(input.voiceoverText, frameCount);
   const mentionedByFrame = spokenTexts.map((text) => mentionsOmniProduct(text, input.productName));
@@ -46,12 +44,6 @@ export function buildOmniProductVisualIntent(input: {
     }
     for (let frameIndex = index; frameIndex <= end; frameIndex += 1) visibleByFrame[frameIndex] = true;
   });
-
-  for (let index = 0; index < frameCount; index += 1) {
-    const beat = resolveReferenceSegmentBeatForFrame(input.referenceSegmentPlan, index + 1, frameCount);
-    if (beat?.sourceRole === "product_broll" && input.productRole !== "hidden" &&
-      mentionsOmniProduct(input.voiceoverText, input.productName)) visibleByFrame[index] = true;
-  }
 
   const firstVisibleFrame = visibleByFrame.findIndex(Boolean);
   let lastVisibleIndex = -1;

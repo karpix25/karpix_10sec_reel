@@ -27,6 +27,7 @@ try {
     },
     files: [
       join(ui, "src/lib/server/omni/omni-product-visual-intent.ts"),
+      join(ui, "src/lib/server/omni/omni-generation-continuity.ts"),
       join(ui, "src/lib/server/omni/physical-scene-model.ts"),
       join(ui, "src/lib/server/omni/reference-segment-plan.ts"),
       join(ui, "src/lib/server/omni/llm-prompt-chain-storyboard-validator.ts"),
@@ -41,6 +42,7 @@ try {
   copyFileSync(moods, aliasMoods);
 
   const intent = require(findFile(compiled, "omni-product-visual-intent.js"));
+  const continuity = require(findFile(compiled, "omni-generation-continuity.js"));
   const physical = require(findFile(compiled, "physical-scene-model.js"));
   const reference = require(findFile(compiled, "reference-segment-plan.js"));
   const sourceValidator = require(findFile(compiled, "llm-prompt-chain-storyboard-validator.js"));
@@ -51,17 +53,60 @@ try {
     productRole: "brief_demo",
   });
 
-  assert.deepEqual(plan.visibleByFrame, [true, true, true, true, true]);
+  assert.deepEqual(plan.visibleByFrame, [true, true, false, false, false]);
   assert.equal(plan.firstVisibleFrame, 1);
-  assert.equal(plan.lastVisibleFrame, 5);
+  assert.equal(plan.lastVisibleFrame, 2);
   assert.deepEqual(
     physical.resolveProductDemoFrame(plan.visibleByFrame, 1, 5),
-    { frameIndex: 2, frameCount: 5 },
+    { frameIndex: 2, frameCount: 2 },
   );
   assert.deepEqual(
     physical.resolveProductDemoFrame([false, false, true, true, false], 2, 5),
     { frameIndex: 1, frameCount: 2 },
   );
+
+  const unrelatedReferenceProductBroll = intent.buildOmniProductVisualIntent({
+    voiceoverText: "Плати по миру помогает в поездке. Дальше выбираем район и пляж. Вечером отдыхаем дома и планируем маршрут на завтра спокойно.",
+    durationSeconds: 10,
+    productName: "Плати по миру",
+    productRole: "background_prop",
+    referenceSegmentPlan: {
+      durationSeconds: 10,
+      beats: [{
+        startSeconds: 6,
+        endSeconds: 8,
+        sourceRole: "product_broll",
+      }],
+    },
+  });
+  assert.deepEqual(unrelatedReferenceProductBroll.visibleByFrame, [true, true, false, false, false]);
+  assert.deepEqual(intent.buildOmniProductVisualIntent({
+    voiceoverText: "Плати по миру помогает в поездке. Дальше выбираем район и пляж. Вечером отдыхаем дома и планируем маршрут на завтра спокойно.",
+    durationSeconds: 10,
+    productName: "Плати по миру",
+    productRole: "hidden",
+  }).visibleByFrame, []);
+
+  const visibleProductContinuity = continuity.buildOmniGenerationContinuityDirection({
+    plan: { productRole: "background_prop", productVisibleByFrame: [false, true, false], beats: [{ action: "вступление" }, { action: "B-roll" }, { action: "финал" }] },
+    productName: "Плати по миру",
+    segmentIndex: 1,
+    segmentCount: 2,
+    previousState: null,
+    talkingHead: true,
+  }).promptLines.join(" ");
+  assert.match(visibleProductContinuity, /only in approved storyboard product B-roll panels/u);
+  assert.match(visibleProductContinuity, /Outside those panels it stays off camera/u);
+  assert.doesNotMatch(visibleProductContinuity, /across the segment boundary/u);
+  const hiddenProductContinuity = continuity.buildOmniGenerationContinuityDirection({
+    plan: { productRole: "background_prop", productVisibleByFrame: [false, false, false], beats: [{ action: "вступление" }, { action: "B-roll" }, { action: "финал" }] },
+    productName: "Плати по миру",
+    segmentIndex: 1,
+    segmentCount: 2,
+    previousState: null,
+    talkingHead: true,
+  }).promptLines.join(" ");
+  assert.match(hiddenProductContinuity, /Product stays off camera/u);
 
   const sourcePlan = {
     segmentIndex: 1,
