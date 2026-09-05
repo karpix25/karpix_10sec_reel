@@ -71,16 +71,16 @@ test("one targeted repair preserves draft and receives every confirmed issue", (
     chainInput: makeCreativeInput(), attempt: 2, maxAttempts: 2,
     previousDraft: { version: "llm-prompt-chain-v1", script: rejectedScript, hookAngle: null, creativeNotes: null },
     semanticReview: null,
-    failureReason: "Потерян ответ из оригинала. Речь не помещается в сегмент.",
+    failureReason: "Речь не помещается в сегмент.",
   });
   assert.equal(attempt.mode, "targeted_repair");
   assert.ok(attempt.prompt.includes(rejectedScript));
-  assert.ok(attempt.prompt.includes("Потерян ответ из оригинала. Речь не помещается в сегмент."));
-  assert.match(attempt.prompt, /Не меняй тему, исходный ответ или свойства продукта ради сокращения/u);
+  assert.ok(attempt.prompt.includes("Речь не помещается в сегмент."));
+  assert.match(attempt.prompt, /Тему, порядок, примеры и факты reference можно свободно переписать/u);
   assert.match(attempt.prompt, /полный исправленный JSON с segments, duration_seconds и voiceover/u);
 });
 
-test("legacy adaptation modes cannot change the rewrite task or original list", () => {
+test("legacy adaptation modes keep one fact-based rewrite task", () => {
   const input = makeCreativeInput();
   const reference = "Вот три совета для поездки. Проверьте страховку. Следите за вещами на пляже. Планируйте маршрут по погоде.";
   const prompts = (["preserve_reference", "adjacent_bridge", "format_transfer"] as const).map((mode) =>
@@ -90,14 +90,14 @@ test("legacy adaptation modes cannot change the rewrite task or original list", 
     }));
   assert.equal(new Set(prompts).size, 1, "legacy topic classifier must not switch generation strategies");
   assert.ok(prompts[0].includes(reference));
-  assert.match(prompts[0], /Сохрани предмет оригинала, его хук/u);
-  assert.match(prompts[0], /сохрани обещанное число пунктов/u);
+  assert.match(prompts[0], /новый разговорный сценарий на тему reference/u);
+  assert.match(prompts[0], /Ты можешь менять порядок, примеры, список, числа, названия и вывод/u);
   assert.match(prompts[0], /Верни только JSON с массивом segments/u);
   assert.match(prompts[0], /четыре слова на две секунды/u);
   assert.doesNotMatch(prompts[0], /Полностью замени исходный предмет|СОСЕДНЕГО МОСТА/u);
 });
 
-test("Ref969 needs the named country even when reviewer quotes an existing unrelated answer", () => {
+test("reference answers can be freely reinterpreted", () => {
   const context = { productName: "Плати по миру",
     referenceScript: "Это Республика Палау. Оформление визы занимает пять минут онлайн.",
     script: "Это единственная страна, где туристическая виза стоит один доллар. Оформление визы занимает пять минут онлайн. Плати по миру помогает оплачивать покупки. Ссылка в профиле.",
@@ -105,12 +105,7 @@ test("Ref969 needs the named country even when reviewer quotes an existing unrel
   const evidence = { product: "Плати по миру", value: "помогает оплачивать покупки",
     answer: "Оформление визы занимает пять минут онлайн", answerKind: "named_fact",
     referenceAnswer: "Это Республика Палау", expectedAnswer: "Палау", transition: "" };
-  const failed = normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] }, context);
-  assert.equal(failed.hookAnswered, false);
-  assert.deepEqual(failed.defects?.map((defect) => defect.code), ["missing_answer"]);
-  const corrected = normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] },
-    { ...context, script: `Это Палау. ${context.script}` });
-  assert.equal(corrected.passed, true);
+  assert.equal(normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] }, context).passed, true);
 });
 
 test("exact product facts override unsupported-claim allegations without excusing invented claims", () => {
@@ -128,7 +123,7 @@ test("exact product facts override unsupported-claim allegations without excusin
   assert.equal(review("получать кэшбэк").passed, false);
 });
 
-test("grounded findings reject real missing list items and discard contradictory findings", () => {
+test("reference lists are optional material for adaptation", () => {
   const context = { productName: "Плати по миру",
     referenceScript: "Три совета: проверьте страховку, следите за вещами, планируйте маршрут.",
     script: "Проверьте страховку. Следите за вещами. Плати по миру помогает оплачивать покупки. Ссылка в профиле.",
@@ -138,19 +133,10 @@ test("grounded findings reject real missing list items and discard contradictory
     defects: [{ code: "missing_list_item", message: "Потерян третий пункт",
       referenceQuote: "планируйте маршрут", expectedText: "маршрут", scriptQuote: "" }], warnings: [],
   };
-  const failed = normalizeGroundedSemanticReview(raw, context);
-  assert.equal(failed.version, "script-semantic-review-v2");
-  assert.equal(failed.passed, false);
-  assert.deepEqual(failed.defects?.map((defect) => defect.code), ["missing_list_item"]);
-  const corrected = normalizeGroundedSemanticReview(raw, { ...context, script: `${context.script} Планируйте маршрут.` });
-  assert.equal(corrected.passed, true, "an existing list item cannot be rejected as absent");
-  const inaccuratePositiveEvidence = normalizeGroundedSemanticReview({ ...raw, defects: [], evidence: { ...raw.evidence,
-    referenceAnswer: "берите только наличные", expectedAnswer: "берите только наличные" } }, context);
-  assert.equal(inaccuratePositiveEvidence.passed, true, "an inaccurate positive quote is not evidence that the answer is missing");
-  assert.ok(inaccuratePositiveEvidence.warnings?.some((warning) => warning.includes("неточно процитировал")));
+  assert.equal(normalizeGroundedSemanticReview(raw, context).passed, true);
 });
 
-test("named answers tolerate grammatical case but cannot be replaced with another country", () => {
+test("reference facts can be replaced with a new adaptation angle", () => {
   const context = { productName: "Карта", referenceScript: "Это Тунис.",
     script: "Отдых в Тунисе. Карта помогает в поездках." };
   const evidence = { product: "Карта", value: "помогает в поездках", answer: "Отдых в Тунисе",
@@ -158,10 +144,10 @@ test("named answers tolerate grammatical case but cannot be replaced with anothe
   assert.equal(normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] }, context).passed, true);
   const wrongCountry = normalizeGroundedSemanticReview({ evidence: { ...evidence, answer: "Отдых в Турции" }, defects: [], warnings: [] },
     { ...context, script: "Отдых в Турции. Карта помогает в поездках." });
-  assert.deepEqual(wrongCountry.defects?.map((defect) => defect.code), ["missing_answer"]);
+  assert.equal(wrongCountry.passed, true);
 });
 
-test("a malformed source price group still matches the spoken price", () => {
+test("source prices are not exact-answer gates", () => {
   const context = { productName: "Плати по миру",
     referenceScript: "176 1000 на двоих с полным питанием на Мальдивы.",
     script: "Сто семьдесят шесть тысяч рублей на двоих с полным питанием на Мальдивы. Плати по миру помогает платить за границей." };
@@ -170,9 +156,8 @@ test("a malformed source price group still matches the spoken price", () => {
     referenceAnswer: "176 1000 на двоих с полным питанием на Мальдивы",
     expectedAnswer: "176 1000 на двоих с полным питанием на Мальдивы", transition: "" };
   assert.equal(normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] }, context).passed, true);
-  const wrongPrice = normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] },
-    { ...context, script: context.script.replace("Сто семьдесят шесть тысяч", "Сто семьдесят пять тысяч") });
-  assert.deepEqual(wrongPrice.defects?.map((defect) => defect.code), ["missing_answer"]);
+  assert.equal(normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] },
+    { ...context, script: context.script.replace("Сто семьдесят шесть тысяч", "Сто семьдесят пять тысяч") }).passed, true);
 });
 
 test("negated product descriptions never approve the positive version of a claim", () => {

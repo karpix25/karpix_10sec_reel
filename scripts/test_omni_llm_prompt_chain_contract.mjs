@@ -114,20 +114,11 @@ try {
   const contradictory = grounded([{ code: "missing_answer", message: "Страна не названа" },
     { code: "unnatural_integration", message: "Рекламу можно удалить" }]);
   assert.equal(contradictory.version, "script-semantic-review-v2");
-  assert.equal(contradictory.passed, true, "literal source answer overrides a false missing-country claim");
-  assert.deepEqual(contradictory.warnings, ["Рекламу можно удалить"], "subjective feedback stays advisory");
-  const missingAnswer = findings.normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] },
+  assert.equal(contradictory.passed, true, "source-answer feedback stays advisory");
+  assert.deepEqual(contradictory.warnings, ["Страна не названа", "Рекламу можно удалить"], "source and subjective feedback stay advisory");
+  const reinterpretedReference = findings.normalizeGroundedSemanticReview({ evidence, defects: [{ code: "missing_answer", message: "Страна не названа" }], warnings: [] },
     { ...context, script: context.script.replace("Это Тунис.", "Это страна для отдыха.") });
-  assert.equal(missingAnswer.passed, false);
-  assert.equal(missingAnswer.defects[0].code, "missing_answer", "real omitted source answer blocks generation");
-  const dotGroupedPrice = findings.normalizeGroundedSemanticReview({
-    evidence: { ...evidence, answer: "пятьдесят тысяч донгов", referenceAnswer: "50.000 донгов", expectedAnswer: "50.000 донгов" }, defects: [], warnings: [],
-  }, {
-    ...context,
-    referenceScript: "Профессиональная чистка зубов во Вьетнаме стоит 50.000 донгов.",
-    script: "Профессиональная чистка зубов во Вьетнаме стоит пятьдесят тысяч донгов. Плати по миру помогает платить за границей.",
-  });
-  assert.equal(dotGroupedPrice.passed, true, "a dot-separated source price matches its spoken form");
+  assert.equal(reinterpretedReference.passed, true, "reference facts guide a new script but never block it by exact wording");
   const unsupported = grounded([{ code: "unsupported_product_claim", scriptQuote: "помогает платить за границей", expectedText: "платить за границей",
     message: "Описание не подтверждает это свойство. Придумай скидку." }]);
   assert.equal(unsupported.passed, false, "grounded unsupported capability must block");
@@ -375,10 +366,10 @@ try {
     "utf8"
   );
   assert.ok(promptChainSource.includes("Reference transcript:"), "original remains source material");
-  assert.ok(promptChainSource.includes("Сохрани предмет оригинала, его хук"), "rewrite preserves original subject and hook");
-  assert.ok(promptChainSource.includes("обещанное число пунктов"), "explicit list promises remain binding");
+  assert.ok(promptChainSource.includes("Сделай новый разговорный сценарий на тему reference"), "rewrite starts from the original topic");
+  assert.ok(promptChainSource.includes("Ты можешь менять порядок, примеры, список, числа, названия и вывод"), "source details are optional material");
   assert.ok(promptChainSource.includes("Верни только JSON с массивом segments"), "author returns executable speech groups");
-  assert.ok(promptChainSource.includes("не переноси весь сценарий на новую тему"), "product must not replace source topic");
+  assert.ok(promptChainSource.includes("Не уходи в несвязанную тему"), "product must stay connected to the source topic");
   assert.ok(promptChainSource.includes("Чужие рекламные обещания из оригинала не являются фактами"));
   assert.ok(promptChainSource.includes("прямо раскрывает смысл spoken_words"));
   assert.ok(promptChainSource.includes("Product_cutaway всегда отдельный B-roll без людей, рук"),

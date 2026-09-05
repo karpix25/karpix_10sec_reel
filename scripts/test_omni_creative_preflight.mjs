@@ -129,12 +129,12 @@ try {
   for (const diagnostic of diagnostics) {
     assert.deepEqual(diagnostic.sentenceWordCounts, [8, 27, 7, 8, 16, 3, 8]);
     assert.equal(diagnostic.semanticPassed, true);
-    assert.match(diagnostic.failure, /27 слов/u);
+    assert.match(diagnostic.failure, /Длины предложений.*27/u);
   }
   const regressed = await simulate([unsupportedScript, failedScript], [failingReview, passingReview]);
   assert.ok(regressed.error instanceof copywriter.CreativeCopywriterFailure, "a semantic repair must revalidate its new sentence packing");
   assert.match(regressed.requests[1].userPrompt, /Разбиение уже проверено/u);
-  assert.match(regressed.error.partialSnapshot.creativeAttemptDiagnostics[1].failure, /27 слов/u);
+  assert.match(regressed.error.partialSnapshot.creativeAttemptDiagnostics[1].failure, /Длины предложений.*27/u);
   const semanticFailure = await simulate([unsupportedScript, unsupportedScript], [failingReview, failingReview]);
   assert.ok(semanticFailure.error instanceof copywriter.CreativeCopywriterFailure, "valid timing never bypasses semantic rejection");
   assert.match(semanticFailure.error.message, /Неподтверждённое свойство продукта/u);

@@ -4,8 +4,8 @@ import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
 export const WRITER_OWNED_ADAPTATION_PLAN: ScriptAdaptationPlan = {
   version: "script-adaptation-v1",
   mode: "writer_owned",
-  reason: "Сценарист переписывает оригинал, сохраняя его историю и добавляя наш продукт.",
-  preserve: ["тему, силу хука, полезную логику и естественную подачу reference"],
+  reason: "Сценарист использует тему и подходящие факты оригинала для новой истории с нашим продуктом.",
+  preserve: ["тему, силу хука и естественную подачу reference"],
   replace: ["чужой продукт, рекламу и CTA"],
   productBridge: "Найти честную причинную связь между текущей мыслью и подтвержденной пользой продукта.",
   confidence: 1,

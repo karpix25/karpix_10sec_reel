@@ -4,7 +4,7 @@ import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
 type ReviewContext = { script: string; referenceScript: string; productName: string; productDescription?: string | null; productReferenceNotes?: string | null };
 
 const CODES = new Set<ScriptSemanticDefect["code"]>([
-  "missing_product", "missing_product_value", "missing_answer", "missing_list_item", "unsupported_product_claim",
+  "missing_product", "missing_product_value", "unsupported_product_claim",
 ]);
 
 /** Evidence is checked against the actual inputs, never against another model explanation. */
@@ -36,18 +36,6 @@ export function normalizeGroundedSemanticReview(raw: unknown, input: ReviewConte
     add("missing_product_value", "В сценарии не объяснена конкретная польза продукта.", "", productSentence);
   }
 
-  const expectedAnswer = quote("expectedAnswer");
-  const referenceAnswer = containsQuote(input.referenceScript, quote("referenceAnswer")) ? quote("referenceAnswer") : expectedAnswer;
-  const answer = verified("answer");
-  const anchors = expectedAnswer.split(/,\s+|;\s*/u).filter(Boolean);
-  const groundedAnswer = anchors.length > 0 && anchors.every((anchor) => containsQuote(input.referenceScript, anchor));
-  const answerPresent = groundedAnswer && anchors.every((anchor) => containsNamedFact(input.script, anchor)) ||
-    (evidence.answerKind === "explanation" && Boolean(answer));
-  if (!answerPresent && groundedAnswer) {
-    add("missing_answer", "В сценарии потерян ответ из оригинала.", referenceAnswer, "", expectedAnswer);
-  }
-  if (!groundedAnswer) warnings.push("Проверяющий неточно процитировал исходный ответ; это не доказательство дефекта сценария.");
-
   for (const value of record.defects) {
     const item = object(value);
     const code = text(item?.code) as ScriptSemanticDefect["code"];
@@ -61,30 +49,19 @@ export function normalizeGroundedSemanticReview(raw: unknown, input: ReviewConte
     const referenceQuote = text(item?.referenceQuote);
     const scriptQuote = text(item?.scriptQuote);
     const expectedText = text(item?.expectedText);
-    if (code === "missing_answer" || code === "missing_list_item") {
-      if (code === "missing_answer" && (answerPresent || defects.some((defect) => defect.code === "missing_answer"))) continue;
-      if (!containsQuote(input.referenceScript, referenceQuote) || !containsQuote(referenceQuote, expectedText)) {
-        throw new Error("Проверка списка не подтвердила пропущенный пункт цитатой из оригинала.");
-      }
-      if (containsNamedFact(input.script, expectedText) || containsQuote(input.script, scriptQuote)) {
-        warnings.push(`Противоречивое замечание о пропущенном пункте: ${message}`);
-        continue;
-      }
-    } else {
-      if (!containsQuote(input.script, scriptQuote) || !containsQuote(scriptQuote, expectedText)) {
-        throw new Error("Проверка свойств продукта не привела точную цитату и конкретное спорное свойство.");
-      }
-      const facts = [input.productDescription, input.productReferenceNotes].filter(Boolean).join(" ");
-      const supported = facts.split(/(?<=[.!?])\s+/u).some((sentence) => containsQuote(sentence, expectedText) &&
-        !/(?<!\p{L})(?:не|нет|нельзя|невозможно|отсутствует|запрещено)(?!\p{L})/iu.test(sentence));
-      if (supported) {
-        warnings.push(`Свойство уже подтверждено данными продукта: ${expectedText}`);
-        continue;
-      }
-      if (/не\s+связан|нет\s+связи|неестествен|искусствен|можно\s+удалить|переход|не\s+является\s+продолжением/iu.test(message)) {
-        warnings.push(message);
-        continue;
-      }
+    if (!containsQuote(input.script, scriptQuote) || !containsQuote(scriptQuote, expectedText)) {
+      throw new Error("Проверка свойств продукта не привела точную цитату и конкретное спорное свойство.");
+    }
+    const facts = [input.productDescription, input.productReferenceNotes].filter(Boolean).join(" ");
+    const supported = facts.split(/(?<=[.!?])\s+/u).some((sentence) => containsQuote(sentence, expectedText) &&
+      !/(?<!\p{L})(?:не|нет|нельзя|невозможно|отсутствует|запрещено)(?!\p{L})/iu.test(sentence));
+    if (supported) {
+      warnings.push(`Свойство уже подтверждено данными продукта: ${expectedText}`);
+      continue;
+    }
+    if (/не\s+связан|нет\s+связи|неестествен|искусствен|можно\s+удалить|переход|не\s+является\s+продолжением/iu.test(message)) {
+      warnings.push(message);
+      continue;
     }
     if (!message) throw new Error("Смысловая проверка не объяснила конкретный дефект.");
     add(code, message, referenceQuote, scriptQuote, expectedText);
@@ -92,10 +69,10 @@ export function normalizeGroundedSemanticReview(raw: unknown, input: ReviewConte
 
   return {
     version: "script-semantic-review-v2", passed: defects.length === 0,
-    productNamed, productValueStated: !defects.some((d) => d.code === "missing_product_value"), hookAnswered: !defects.some((d) => d.code === "missing_answer"),
-    finalAnswerPresent: !defects.some((d) => d.code === "missing_answer"), productNaturallyIntegrated: !defects.some((d) => d.code === "unsupported_product_claim"),
-    referenceMeaningPreserved: !defects.some((d) => d.code === "missing_answer" || d.code === "missing_list_item"),
-    evidence: { product: verified("product"), value: productValue, answer: answer || (answerPresent ? expectedAnswer : ""), transition: verified("transition") },
+    productNamed, productValueStated: !defects.some((d) => d.code === "missing_product_value"), hookAnswered: true,
+    finalAnswerPresent: true, productNaturallyIntegrated: !defects.some((d) => d.code === "unsupported_product_claim"),
+    referenceMeaningPreserved: true,
+    evidence: { product: verified("product"), value: productValue, answer: verified("answer"), transition: verified("transition") },
     defects, warnings,
     issues: defects.map(renderSemanticDefectIssue),
     // Never feed free-form model advice (including invented benefits) to the repair writer.
@@ -148,10 +125,7 @@ function containsNamedFact(script: string, fact: string): boolean {
 }
 
 function normalize(value: string) {
-  const normalizedThousands = value
-    .replace(/(?<!\d)(\d{1,3}(?:[.,]\d{3})+)(?!\d)/gu, (group) => group.replace(/[.,]/gu, " "))
-    .replace(/(?<!\d)(\d{1,3})[\s\u00A0\u202F]+1000(?!\d)/gu, "$1 000");
-  return spellPromptChainNumbersInText(normalizedThousands)
+  return spellPromptChainNumbersInText(value)
     .toLocaleLowerCase("ru-RU").replace(/ё/gu, "е").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 function object(value: unknown): Record<string, unknown> | null {
