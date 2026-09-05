@@ -366,8 +366,9 @@ try {
     "utf8"
   );
   assert.ok(promptChainSource.includes("Reference transcript:"), "original remains source material");
-  assert.ok(promptChainSource.includes("Сделай новый разговорный сценарий на тему reference"), "rewrite starts from the original topic");
-  assert.ok(promptChainSource.includes("Ты можешь менять порядок, примеры, список, числа, названия и вывод"), "source details are optional material");
+  assert.ok(promptChainSource.includes("Сделай новый разговорный сценарий на тему и в подаче reference"), "rewrite starts from the original topic and delivery");
+  assert.ok(promptChainSource.includes("Не меняй названия, места, цены и другие измеримые факты reference"), "specific reference facts must survive the rewrite");
+  assert.match(promptChainSource, /renderReferenceFactContract/u, "writer receives an explicit source fact card");
   assert.ok(promptChainSource.includes("Верни только JSON с массивом segments"), "author returns executable speech groups");
   assert.ok(promptChainSource.includes("Не уходи в несвязанную тему"), "product must stay connected to the source topic");
   assert.ok(promptChainSource.includes("Чужие рекламные обещания из оригинала не являются фактами"));

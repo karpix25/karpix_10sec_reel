@@ -11,6 +11,7 @@ import { planOmniReelSegments, type OmniReelSegmentPlan } from "./omni-duration-
 import { OMNI_MAX_SEGMENT_COUNT, OMNI_MIN_USEFUL_SEGMENT_WORDS, getOmniSegmentWordBudget } from "./omni-speech-density";
 import type { CreativeSpeechSegment } from "./llm-prompt-chain-types";
 import { validateCreativeSpeechPlan } from "./creative-speech-plan";
+import { assertReferenceFactsUsed } from "./reference-fact-contract";
 
 export const CREATIVE_SPEECH_PACKING_RULE = [
   `Верни JSON {"segments":[{"duration_seconds":4,"voiceover":"Речь первой группы."},{"duration_seconds":6,"voiceover":"Речь следующей группы."}]}. Весь сценарий состоит из реплик этих 2-${OMNI_MAX_SEGMENT_COUNT} последовательных групп по ${OMNI_MIN_USEFUL_SEGMENT_WORDS}-${getOmniSegmentWordBudget()} произносимых слов. Каждая группа содержит одно или несколько грамматически законченных предложений.`,
@@ -61,6 +62,7 @@ export function collectCreativeScriptPreflight(input: CreativeScriptPreflightInp
     try { run(); } catch (error) { issues.add(error instanceof Error ? error.message : String(error)); }
   };
   check(() => assertOmniScriptTextContract(script));
+  check(() => assertReferenceFactsUsed(input.sourceScenario.script, script));
   check(() => assertPromptChainNumericRangeIntegrity(input.sourceScenario.script, script));
   check(() => assertRussianSpeechGender(script, input.avatarSpeechGender));
   let qualityCheck: ScriptQualityResult | null = null;

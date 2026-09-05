@@ -70,6 +70,7 @@ try {
   const preflight = require(join(output, "lib/server/omni/creative-script-preflight.js"));
   const copywriter = require(join(output, "lib/server/omni/llm-creative-copywriter.js"));
   const prompts = require(join(output, "lib/server/omni/llm-prompt-chain-prompts.js"));
+  const referenceFacts = require(join(output, "lib/server/omni/reference-fact-contract.js"));
   const planner = require(join(output, "lib/server/omni/omni-duration-planner.js"));
   const failed = preflight.collectCreativeScriptPreflight(input, failedScript);
   assert.deepEqual(failed.sentences.map((sentence) => sentence.wordCount), [8, 27, 7, 8, 16, 3, 8]);
@@ -103,6 +104,17 @@ try {
   assert.match(preflight.renderCreativeScriptPreflight(valid), /Разбиение уже проверено/u);
   assert.ok(prompts.buildCreativeCopywriterPrompt({ ...input, durationRange: undefined }).includes(preflight.CREATIVE_SPEECH_PACKING_RULE),
     "default-duration prompt must carry the same whole-plan packing contract");
+  const hotelReference = "Отель Mia Resort в Нячанге стоит 176 000 рублей. В цену входят бесплатные велосипеды и спа.";
+  assert.throws(() => referenceFacts.assertReferenceFactsUsed(hotelReference, "Во Вьетнаме есть идеальный отель по низким ценам."), /Mia Resort/u);
+  assert.doesNotThrow(() => referenceFacts.assertReferenceFactsUsed(hotelReference,
+    "Mia Resort в Нячанге стоит сто семьдесят шесть тысяч рублей."));
+  const missingHotelFacts = preflight.collectCreativeScriptPreflight({ ...input,
+    sourceScenario: { ...input.sourceScenario, script: hotelReference },
+  }, repairedScript);
+  assert.match(missingHotelFacts.issues.join("\n"), /Mia Resort/u);
+  const hotelPrompt = prompts.buildCreativeCopywriterPrompt({ ...input, sourceScenario: { ...input.sourceScenario, script: hotelReference } });
+  assert.match(hotelPrompt, /ФАКТИЧЕСКИЕ ОПОРЫ REFERENCE/u);
+  assert.match(hotelPrompt, /Mia Resort/u);
 
   const recovered = await simulate([failedScript, repairedScript], [failingReview, passingReview]);
   assert.ifError(recovered.error);
