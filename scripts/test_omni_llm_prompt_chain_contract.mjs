@@ -120,6 +120,14 @@ try {
     { ...context, script: context.script.replace("Это Тунис.", "Это страна для отдыха.") });
   assert.equal(missingAnswer.passed, false);
   assert.equal(missingAnswer.defects[0].code, "missing_answer", "real omitted source answer blocks generation");
+  const dotGroupedPrice = findings.normalizeGroundedSemanticReview({
+    evidence: { ...evidence, answer: "пятьдесят тысяч донгов", referenceAnswer: "50.000 донгов", expectedAnswer: "50.000 донгов" }, defects: [], warnings: [],
+  }, {
+    ...context,
+    referenceScript: "Профессиональная чистка зубов во Вьетнаме стоит 50.000 донгов.",
+    script: "Профессиональная чистка зубов во Вьетнаме стоит пятьдесят тысяч донгов. Плати по миру помогает платить за границей.",
+  });
+  assert.equal(dotGroupedPrice.passed, true, "a dot-separated source price matches its spoken form");
   const unsupported = grounded([{ code: "unsupported_product_claim", scriptQuote: "помогает платить за границей", expectedText: "платить за границей",
     message: "Описание не подтверждает это свойство. Придумай скидку." }]);
   assert.equal(unsupported.passed, false, "grounded unsupported capability must block");

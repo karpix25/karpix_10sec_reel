@@ -148,7 +148,10 @@ function containsNamedFact(script: string, fact: string): boolean {
 }
 
 function normalize(value: string) {
-  return spellPromptChainNumbersInText(value.replace(/(?<!\d)(\d{1,3})[\s\u00A0\u202F]+1000(?!\d)/gu, "$1 000"))
+  const normalizedThousands = value
+    .replace(/(?<!\d)(\d{1,3}(?:[.,]\d{3})+)(?!\d)/gu, (group) => group.replace(/[.,]/gu, " "))
+    .replace(/(?<!\d)(\d{1,3})[\s\u00A0\u202F]+1000(?!\d)/gu, "$1 000");
+  return spellPromptChainNumbersInText(normalizedThousands)
     .toLocaleLowerCase("ru-RU").replace(/ё/gu, "е").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 function object(value: unknown): Record<string, unknown> | null {
