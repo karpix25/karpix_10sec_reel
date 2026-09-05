@@ -80,6 +80,17 @@ try {
   assert.equal(result.diagnostics[0].script, invalidGroups.map((group) => group.voiceover).join(" "));
   assert.deepEqual(result.diagnostics[0].speechSegments, invalidGroups);
   assert.deepEqual(result.diagnostics[0].semanticReview, passingReview);
+  const fragmentedGroups = [
+    { durationSeconds: 4, voiceover: "Сегодня я расскажу про поездку на остров" },
+    { durationSeconds: 6, voiceover: "Палау. Плати по миру виртуальная карта помогает оплачивать покупки за границей." },
+  ];
+  const fragmentRequests = [];
+  const recoveredFragment = await runCreativeCopywriter(input, () => {}, async (request) => {
+    fragmentRequests.push(request);
+    return json(fragmentedGroups);
+  });
+  assert.equal(fragmentRequests.length, 1, "planner must repair a writer's fragment without another LLM call");
+  assert.deepEqual(recoveredFragment.segmentPlan.segments.map((segment) => segment.text), groups.map((group) => group.voiceover));
   const numbered = await runCreativeCopywriter(input, () => {}, async () => json([
     { durationSeconds: 6, voiceover: "Сегодня поездка на остров Палау стоит ровно 1200 рублей." }, groups[1],
   ]));

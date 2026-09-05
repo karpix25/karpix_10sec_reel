@@ -8,7 +8,7 @@ import {
   getOmniSegmentDurationForWordCount, getOmniSegmentWordBudget, getOmniSegmentMinWords,
 } from "./omni-speech-density";
 
-/** Validate the writer's boundaries; never silently replace them with a different plan. */
+/** Validate an already approved speech plan before it is reused. */
 export function validateCreativeSpeechPlan(
   script: string, speechSegments: readonly CreativeSpeechSegment[], durationRange?: OmniDurationRange,
 ): OmniReelSegmentPlan {

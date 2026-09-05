@@ -58,7 +58,7 @@ export async function runCreativeCopywriter(
       previousDraft = { ...draft, script, ...(speechSegments ? { speechSegments } : {}) };
       diagnostic.script = script;
       diagnostic.speechSegments = speechSegments;
-      const evaluation = await evaluateCreativeScriptDraft(input, script, onUsage, attempt, { speechSegments, requireSpeechSegments: true, rawScriptFromModel: draft.script });
+      const evaluation = await evaluateCreativeScriptDraft(input, script, onUsage, attempt, { rawScriptFromModel: draft.script });
       preflight = evaluation.preflight;
       lastSemanticReview = evaluation.semanticReview;
       diagnostic.localIssues = preflight.issues;
