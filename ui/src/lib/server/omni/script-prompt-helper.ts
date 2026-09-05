@@ -9,6 +9,7 @@ import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract"
 import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
 import type { ScriptContentContract } from "./script-content-contract";
 import { SCRIPT_PRODUCT_INTEGRATION_CONTRACT } from "./script-product-integration-contract";
+import { CREATIVE_SPEECH_PACKING_RULE } from "./creative-script-preflight";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 
 export function buildPrompt(input: {
@@ -69,6 +70,7 @@ ${referenceMeaningGuidance}
 13. Пиши бытовым русским языком. Одна мысль в одной строке.
 14. ${renderRussianSpeechGenderRule(input.avatarSpeechGender)}
 15. ${durationInstruction}
+${CREATIVE_SPEECH_PACKING_RULE}
 16. Планируй речь блоками примерно по четыре слова на каждые две секунды: 4с это около 8 слов, 6с это около 12 слов, 8с это около 16 слов, 10с это около 20 слов. Система округляет длительность вверх и может распределить по три слова в отдельных кадрах, если это сохраняет завершенное предложение. Не добавляй пустые слова ради длительности. Каждая граница сегмента должна приходиться после завершенного предложения, без разрыва союза, предлога или зависимой фразы.
 17. Не пиши псевдовопросы без ответа и фальшивую эмпатию вроде "я знаю, как тебе сложно".
 18. Сначала придумай 3 разных кульминационных hook_options, затем выбери strongest selected_hook.

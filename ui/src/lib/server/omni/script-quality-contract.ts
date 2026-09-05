@@ -124,13 +124,17 @@ export function validateViralScriptContract(input: {
   adaptationMode?: ScriptAdaptationMode;
 }): ScriptQualityResult {
   const warnings: string[] = [];
+  const errors = new Set<string>();
+  const check = (run: () => unknown) => {
+    try { run(); } catch (error) { errors.add(error instanceof Error ? error.message : String(error)); }
+  };
   const scriptText = input.script;
   const rawModelScript = input.rawScriptFromModel;
   const normalizedScript = normalizeText(scriptText);
   const normalizedRaw = normalizeText(rawModelScript);
 
   // 1. Forbidden long dashes and emojis
-  assertGeneratedScriptSymbolContract(rawModelScript);
+  check(() => assertGeneratedScriptSymbolContract(rawModelScript));
 
   // 2. Hook/first sentence check
   const hookToEvaluate = extractOpeningHook(input.hook?.trim() || scriptText);
@@ -139,7 +143,7 @@ export function validateViralScriptContract(input: {
 
   // Hard fail conditions for hook
   if (hookWordCount > 22 || hookCharCount > 150) {
-    throw new Error(
+    errors.add(
       `Сценарий отклонен: хук или первое предложение слишком длинное для Reels (${hookWordCount} слов, ${hookCharCount} симв.). Сценарий должен начинаться динамично.`
     );
   }
@@ -153,16 +157,16 @@ export function validateViralScriptContract(input: {
   // 3. Word count bounds
   const totalWordCount = countWords(scriptText);
   if (totalWordCount < OMNI_MIN_SCRIPT_WORDS) {
-    throw new Error(
+    errors.add(
       `Сценарий отклонен: ${describeOmniDensityGap(totalWordCount)}`
     );
   }
   const plannedSegmentCount = getPreferredOmniSegmentCount(totalWordCount);
   if (!plannedSegmentCount) {
-    throw new Error(`Сценарий отклонен: ${describeOmniDensityGap(totalWordCount)}`);
+    errors.add(`Сценарий отклонен: ${describeOmniDensityGap(totalWordCount)}`);
   }
 
-  const averageWordsPerSegment = totalWordCount / plannedSegmentCount;
+  const averageWordsPerSegment = plannedSegmentCount ? totalWordCount / plannedSegmentCount : 0;
   if (
     averageWordsPerSegment < OMNI_MIN_USEFUL_SEGMENT_WORDS ||
     averageWordsPerSegment > OMNI_TARGET_SEGMENT_WORDS_MAX
@@ -175,7 +179,7 @@ export function validateViralScriptContract(input: {
   // 4. Severe slop phrases (Hard Fail)
   for (const slop of SEVERE_SLOP_PHRASES) {
     if (normalizedRaw.includes(slop)) {
-      throw new Error(
+      errors.add(
         `Сценарий отклонен: содержит запрещенное AI-слово/фразу "${slop}".`
       );
     }
@@ -183,23 +187,25 @@ export function validateViralScriptContract(input: {
 
   const brokenPattern = BROKEN_RUSSIAN_PATTERNS.find((pattern) => pattern.test(normalizedScript));
   if (brokenPattern) {
-    throw new Error("Сценарий отклонен: текст звучит неграмотно или канцелярски. Перепиши бытовым русским языком без фраз вроде «продукт поддержать».");
+    errors.add("Сценарий отклонен: текст звучит неграмотно или канцелярски. Перепиши бытовым русским языком без фраз вроде «продукт поддержать».");
   }
   if (SELF_CLAIMED_EXPERT_PATTERNS.some((pattern) => pattern.test(normalizedScript))) {
-    throw new Error("Сценарий отклонен: нельзя переносить профессиональную роль автора reference на аватара. Убери фразы от первого лица вроде «я врач», «я косметолог», «как эксперт».");
+    errors.add("Сценарий отклонен: нельзя переносить профессиональную роль автора reference на аватара. Убери фразы от первого лица вроде «я врач», «я косметолог», «как эксперт».");
   }
   if (input.ctaMode === "article_in_description" && /(?:артикул\s+или\s+код|код\s+продукта)/iu.test(normalizedScript)) {
-    throw new Error("Сценарий отклонен: CTA звучит канцелярски. Для артикула в описании связывай CTA с поиском именно этого варианта продукта.");
+    errors.add("Сценарий отклонен: CTA звучит канцелярски. Для артикула в описании связывай CTA с поиском именно этого варианта продукта.");
   }
   if (input.ctaMode === "article_in_description") {
-    assertArticleCtaHasContext(scriptText);
+    check(() => assertArticleCtaHasContext(scriptText));
   }
-  assertCtaConclusionContract(scriptText, input.ctaMode);
+  check(() => assertCtaConclusionContract(scriptText, input.ctaMode));
 
   const repeatedDescriptor = findRepeatedProductDescriptor(scriptText, input.productName);
   if (repeatedDescriptor) {
-    throw new Error(`Сценарий отклонен: слово продукта «${repeatedDescriptor}» повторяется слишком часто. Назови его один раз, дальше используй «он», «формат», «банка» или просто продолжай мысль.`);
+    errors.add(`Сценарий отклонен: слово продукта «${repeatedDescriptor}» повторяется слишком часто. Назови его один раз, дальше используй «он», «формат», «банка» или просто продолжай мысль.`);
   }
+
+  if (errors.size) throw new Error([...errors].join("\n"));
 
   // 5. Minor slop and clickbaits (Warnings)
   let slopCount = 0;

@@ -8,10 +8,10 @@ import { formatScenarioScript } from "@/lib/scenario-text";
 import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
 import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 import { parseAndRepairJson } from "./script-json-repair";
-import { validateViralScriptContract } from "./script-quality-contract";
 import {
   LLM_PROMPT_CHAIN_VERSION,
   type CreativeScriptDraft,
+  type CreativeScriptAttemptDiagnostic,
   type DirectorSegmentPlan,
   type LlmPromptChainResult,
   type PromptValidationIssue,
@@ -22,13 +22,11 @@ import {
   buildDirectorSegmenterPrompt,
   type PromptChainInput,
 } from "./llm-prompt-chain-prompts";
-import {
-  buildCreativeCopywriterAttemptPrompt,
-} from "./llm-prompt-chain-creative-repair";
+import { runCreativeCopywriter, CreativeCopywriterFailure } from "./llm-creative-copywriter";
+import { assertPromptChainNumericRangeIntegrity, validateCreativeScriptQuality } from "./creative-script-preflight";
 import {
   buildProviderPromptPlanFromDirector,
   lockDirectorPlanSpeech,
-  normalizeCreativeScriptDraft,
   normalizeDirectorSegmentPlan,
 } from "./llm-prompt-chain-normalizer";
 import {
@@ -41,25 +39,21 @@ import {
   validateStoryboardProviderAlignment,
   validateStoryboardProviderPlan,
 } from "./llm-prompt-chain-storyboard-validator";
-import {
-  assertScriptSemanticReviewPassed,
-  reviewScriptSemantics,
-} from "./script-semantic-reviewer";
 import { assertRussianSpeechGender, normalizeRussianSpeechGender } from "./russian-speech-gender-contract";
 import {
-  formatPromptChainNumber,
   spellPromptChainNumbersInText,
 } from "./llm-prompt-chain-number-words";
-import { countOmniScriptWords, getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
+import { planOmniReelSegments } from "./omni-duration-planner";
 import { resolveDirectorSegmentFormat } from "./director-analysis-timeline";
-import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
 import {
   diagnoseDirectorSegmenterOutput,
   formatDirectorSegmenterDiagnostic,
   type DirectorSegmenterAttemptDiagnostic,
 } from "./llm-prompt-chain-diagnostics";
+
+export { assertPromptChainNumericRangeIntegrity } from "./creative-script-preflight";
+
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const CREATIVE_COPYWRITER_ATTEMPTS = 2;
 const DIRECTOR_TARGETED_REPAIR_ATTEMPTS = 2;
 const PROMPT_CHAIN_TEMPERATURE = 0.8;
 const PROMPT_CHAIN_REQUEST_TIMEOUT_MS = 90_000;
@@ -73,6 +67,7 @@ export type LlmPromptChainPartialSnapshot = {
   adaptationPlan?: PromptChainInput["adaptationPlan"];
   contentContract?: PromptChainInput["contentContract"];
   creativeScriptDraft?: CreativeScriptDraft;
+  creativeAttemptDiagnostics?: CreativeScriptAttemptDiagnostic[];
   semanticReview?: ScriptSemanticReview;
   directorSegmentPlan?: DirectorSegmentPlan;
   directorSegmenterDiagnostics?: DirectorSegmenterAttemptDiagnostic[];
@@ -110,15 +105,20 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   const onUsage = (usage: OpenRouterUsageRecord) => openRouterUsage.push(usage);
   let creativeResult: Awaited<ReturnType<typeof runCreativeCopywriter>>;
   try {
-    creativeResult = await runCreativeCopywriter(chainInput, onUsage);
+    creativeResult = await runCreativeCopywriter(chainInput, onUsage, (request) => requestOpenRouter({
+      input: chainInput, layer: "creative_copywriter", responseFormatJson: false, onUsage, ...request,
+    }));
   } catch (error) {
+    if (error instanceof CreativeCopywriterFailure) {
+      throw new LlmPromptChainFailure("creative_copywriter", error.message, { adaptationPlan, contentContract, ...error.partialSnapshot });
+    }
     if (error instanceof LlmPromptChainFailure) throw error;
     throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), { adaptationPlan, contentContract });
   }
   const draft = creativeResult.draft;
   let directorResult: Awaited<ReturnType<typeof runDirectorSegmenter>>;
   try {
-      directorResult = await runDirectorSegmenter(chainInput, draft, onUsage);
+    directorResult = await runDirectorSegmenter(chainInput, draft, onUsage);
   } catch (error) {
     const directorFailure = error instanceof DirectorSegmenterFailure ? error : null;
     throw new LlmPromptChainFailure("director_segmenter", getErrorMessage(error), {
@@ -126,6 +126,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
       contentContract,
       creativeScriptDraft: draft,
       semanticReview: creativeResult.semanticReview,
+      creativeAttemptDiagnostics: creativeResult.diagnostics,
       ...(directorFailure ? { directorSegmenterDiagnostics: directorFailure.diagnostics } : {}),
     });
   }
@@ -146,6 +147,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
       contentContract,
       creativeScriptDraft: draft,
       semanticReview: creativeResult.semanticReview,
+      creativeAttemptDiagnostics: creativeResult.diagnostics,
       directorSegmentPlan: directorPlan,
     });
   }
@@ -181,120 +183,13 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
         directorSegmentPlan: directorPlan,
         providerPromptPlan: providerPlan,
         semanticReview: creativeResult.semanticReview,
+        creativeAttemptDiagnostics: creativeResult.diagnostics,
         validationIssues: [...directorResult.validationIssues, ...providerValidationIssues],
       },
     },
     openRouterUsage,
   };
 }
-export function assertPromptChainNumericRangeIntegrity(referenceScript: string, script: string) {
-  const normalizedScript = script.toLocaleLowerCase("ru-RU");
-  for (const range of findNumericRanges(referenceScript)) {
-    const collapsed = formatPromptChainNumber(Number(`${range.min}${range.max}`));
-    if (normalizedScript.includes(collapsed)) {
-      throw new Error(
-        `Сценарий схлопнул числовой диапазон ${range.min}-${range.max} в ${range.min}${range.max}; черновик нельзя сохранять.`
-      );
-    }
-  }
-}
-
-function findNumericRanges(value: string) {
-  const ranges: Array<{ min: string; max: string }> = [];
-  const rangePattern = /(?<!\d)(?:от\s+)?(\d{1,3}(?:[\u00A0\u202F ]\d{3})*)\s*(?:[-‐‑‒–—―−]|до)\s*(\d{1,3}(?:[\u00A0\u202F ]\d{3})*)(?!\d)/giu;
-  for (const match of value.matchAll(rangePattern)) {
-    const min = match[1].replace(/[\s\u00A0\u202F]/gu, "");
-    const max = match[2].replace(/[\s\u00A0\u202F]/gu, "");
-    if (Number.isSafeInteger(Number(min)) && Number.isSafeInteger(Number(max))) ranges.push({ min, max });
-  }
-  return ranges;
-}
-
-async function runCreativeCopywriter(
-  input: PromptChainInput & { model: string },
-  onUsage: (usage: OpenRouterUsageRecord) => void
-) {
-  let previousDraft: CreativeScriptDraft | null = null;
-  let lastSemanticReview: ScriptSemanticReview | null = null;
-  let lastError: unknown = null;
-  for (let attempt = 1; attempt <= CREATIVE_COPYWRITER_ATTEMPTS; attempt += 1) {
-    try {
-      const creativeAttempt = buildCreativeCopywriterAttemptPrompt({
-        chainInput: input,
-        attempt,
-        maxAttempts: CREATIVE_COPYWRITER_ATTEMPTS,
-        previousDraft,
-        semanticReview: lastSemanticReview,
-        failureReason: getErrorMessage(lastError),
-      });
-      const content = await requestOpenRouter({
-        input,
-        layer: "creative_copywriter",
-        attempt,
-        userPrompt: creativeAttempt.prompt,
-        responseFormatJson: false,
-        temperature: creativeAttempt.mode === "full_rebuild"
-          ? 0.65
-          : creativeAttempt.mode === "targeted_repair" ? 0.25 : PROMPT_CHAIN_TEMPERATURE,
-        onUsage,
-      });
-      const draft = normalizeCreativeScriptDraft(content);
-      if (!draft) throw new Error("Creative copywriter returned empty script");
-      const normalizedScript = normalizeRussianSpeechGender(
-        sanitizeOmniScriptText(spellPromptChainNumbersInText(formatScenarioScript(draft.script))),
-        input.avatarSpeechGender
-      );
-      const maxWords = getOmniMaxScriptWords();
-      const script = compactOmniScriptToWordBudget(normalizedScript, maxWords, {
-        referenceScript: input.sourceScenario.script,
-        productName: input.productName,
-        adaptationMode: input.adaptationPlan.mode,
-      });
-      if (countOmniScriptWords(script) > maxWords) {
-        throw new Error(`Сценарий длиннее лимита после автоматического сокращения: ${countOmniScriptWords(script)} слов вместо ${maxWords}.`);
-      }
-      assertPromptChainNumericRangeIntegrity(input.sourceScenario.script, script);
-      previousDraft = { ...draft, script };
-      lastSemanticReview = null;
-      assertOmniScriptTextContract(script);
-      assertPromptChainScriptQuality(input, script, null);
-      assertRussianSpeechGender(script, input.avatarSpeechGender);
-      planOmniReelSegments(script, { durationRange: input.durationRange, requireSentenceBoundaries: true });
-      const semanticReview = await reviewScriptSemantics({
-        model: input.model,
-        script,
-        referenceScript: input.sourceScenario.script,
-        productName: input.productName,
-        productDescription: input.productDescription,
-        productReferenceNotes: input.productReferenceNotes,
-        ctaMode: input.ctaMode,
-        ctaValue: input.ctaValue,
-        directorBrief: input.directorBrief,
-        adaptationPlan: input.adaptationPlan,
-        contentContract: input.contentContract,
-      }, onUsage, attempt);
-      lastSemanticReview = semanticReview;
-      assertScriptSemanticReviewPassed(semanticReview);
-      return {
-        draft: { ...draft, script },
-        semanticReview,
-      };
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw new LlmPromptChainFailure(
-    "creative_copywriter",
-    `Creative copywriter failed: ${getErrorMessage(lastError)}`,
-    {
-      adaptationPlan: input.adaptationPlan,
-      contentContract: input.contentContract,
-      ...(previousDraft ? { creativeScriptDraft: previousDraft } : {}),
-      ...(lastSemanticReview ? { semanticReview: lastSemanticReview } : {}),
-    }
-  );
-}
-
 async function runDirectorSegmenter(
   input: PromptChainInput & { model: string },
   draft: CreativeScriptDraft,
@@ -378,7 +273,7 @@ async function runDirectorSegmenter(
         attemptDiagnostic = { ...attemptDiagnostic, status: "contract_invalid", error: reason };
         throw new Error(reason);
       }
-      assertPromptChainScriptQuality(input, finalScript, plan.selectedHook);
+      validateCreativeScriptQuality(input, finalScript, { hook: plan.selectedHook });
       attemptDiagnostic = { ...attemptDiagnostic, status: "success", error: null };
       return { plan, validationIssues };
     } catch (error) {
@@ -454,25 +349,6 @@ async function requestOpenRouter(input: {
     pricing,
   }));
   return readAssistantContent(data);
-}
-
-function assertPromptChainScriptQuality(
-  input: PromptChainInput & { model: string },
-  script: string,
-  hook: string | null
-) {
-  validateViralScriptContract({
-    script,
-    rawScriptBeforeCta: script,
-    rawScriptFromModel: script,
-    hook,
-    productName: input.productName,
-    ctaMode: input.ctaMode,
-    ctaValue: input.ctaValue,
-    durationRange: input.durationRange,
-    referenceScript: input.sourceScenario.script,
-    adaptationMode: input.adaptationPlan.mode,
-  });
 }
 
 function appendRetry(prompt: string, retryFeedback: string) {

@@ -41,6 +41,16 @@ export type ScriptSemanticReview = {
   repairInstructions: string[];
 };
 
+export type CreativeScriptAttemptDiagnostic = {
+  attempt: number;
+  sentenceWordCounts: number[];
+  segmentWordCounts: number[] | null;
+  localIssues: string[];
+  semanticPassed: boolean | null;
+  semanticIssues: string[];
+  failure: string | null;
+};
+
 export type DirectorShot = {
   role: DirectorShotRole;
   action: string;
@@ -114,6 +124,7 @@ export type LlmPromptChainSnapshot = {
   directorSegmentPlan: DirectorSegmentPlan;
   providerPromptPlan: ProviderPromptPlan;
   semanticReview: ScriptSemanticReview;
+  creativeAttemptDiagnostics?: CreativeScriptAttemptDiagnostic[];
   validationIssues: PromptValidationIssue[];
 };
 

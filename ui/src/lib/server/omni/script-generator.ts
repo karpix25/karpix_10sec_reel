@@ -7,7 +7,7 @@ import type { OmniLegacyScenario } from "@/lib/omni/types";
 import { formatScenarioScript } from "@/lib/scenario-text";
 import type { DirectorBrief } from "./director-analysis-types";
 import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
-import { assertOmniScriptTextContract, sanitizeOmniScriptText } from "./omni-script-text-contract";
+import { sanitizeOmniScriptText } from "./omni-script-text-contract";
 import { ensureOmniScriptCta } from "./omni-cta-contract";
 import { parseAndRepairJson } from "./script-json-repair";
 import {
@@ -32,19 +32,14 @@ import {
   MAX_SCRIPT_GENERATION_ATTEMPTS,
 } from "./script-generation-retry";
 import {
-  assertPromptChainNumericRangeIntegrity,
   isLlmPromptChainEnabled,
   runLlmPromptChain,
 } from "./llm-prompt-chain-runner";
-import {
-  assertScriptSemanticReviewPassed,
-  reviewScriptSemantics,
-} from "./script-semantic-reviewer";
+import { evaluateCreativeScriptDraft } from "./llm-creative-copywriter";
+import { CreativeScriptValidationError } from "./creative-script-preflight";
 import type { ScriptSemanticReview } from "./llm-prompt-chain-types";
-import { assertRussianSpeechGender, normalizeRussianSpeechGender } from "./russian-speech-gender-contract";
+import { normalizeRussianSpeechGender } from "./russian-speech-gender-contract";
 import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
-import { getOmniMaxScriptWords, planOmniReelSegments } from "./omni-duration-planner";
-import { compactOmniScriptToWordBudget } from "./omni-script-length-guard";
 import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
 import type { ScriptContentContract } from "./script-content-contract";
 
@@ -233,23 +228,13 @@ async function requestScriptOnce(
   const rawScript = spellPromptChainNumbersInText(sanitizeOmniScriptText(formatScenarioScript(rawScriptSource)));
   if (!rawScript) throw new Error("Script model returned empty script");
   let script = ensureOmniScriptCta(rawScript, input.ctaMode, input.ctaValue);
-  const scriptBudget = getOmniMaxScriptWords();
-  const compactedScript = compactOmniScriptToWordBudget(script, scriptBudget, {
-    referenceScript: input.sourceScenario.script,
-    productName: input.productName,
-    adaptationMode: input.adaptationPlan.mode,
-  });
-  const wasCompacted = compactedScript !== script;
-  script = compactedScript;
-  let persistedScriptPlan = wasCompacted ? null : appendCtaToLastBeat(scriptPlan, rawScript, script);
+  let persistedScriptPlan = appendCtaToLastBeat(scriptPlan, rawScript, script);
   const boundaryRepair = repairScriptBeatBoundaryRepeats(persistedScriptPlan);
   if (boundaryRepair.repair.changed && boundaryRepair.plan && boundaryRepair.scriptText) {
     persistedScriptPlan = boundaryRepair.plan;
     script = sanitizeOmniScriptText(boundaryRepair.scriptText);
   }
-  assertOmniScriptTextContract(script);
   script = normalizeRussianSpeechGender(script, input.avatarSpeechGender);
-  assertPromptChainNumericRangeIntegrity(input.sourceScenario.script, script);
   if (persistedScriptPlan) {
     persistedScriptPlan = {
       ...persistedScriptPlan,
@@ -261,7 +246,6 @@ async function requestScriptOnce(
       })),
     };
   }
-  assertRussianSpeechGender(script, input.avatarSpeechGender);
 
   const clean = (value: unknown) => sanitizeOmniScriptText(String(value || ""));
 
@@ -279,40 +263,15 @@ async function requestScriptOnce(
     semantic_review: null,
   };
 
-  const qualityCheck = validateViralScriptContract({
-    script: payload.script,
-    rawScriptBeforeCta: rawScript,
-    rawScriptFromModel,
-    hook: payload.hook || null,
-    productName: input.productName,
-    ctaMode: input.ctaMode,
-    ctaValue: input.ctaValue,
-    durationRange: input.durationRange,
-    referenceScript: input.sourceScenario.script,
-    adaptationMode: input.adaptationPlan.mode,
+  const evaluation = await evaluateCreativeScriptDraft(input, script, onUsage, attempt, {
+    hook: payload.hook || null, rawScriptBeforeCta: rawScript, rawScriptFromModel,
   });
-  try {
-    planOmniReelSegments(script, {
-      durationRange: input.durationRange,
-      requireSentenceBoundaries: true,
-    });
-  } catch (error) {
-    throw new Error(`Сценарий отклонен: ${error instanceof Error ? error.message : String(error)}`);
+  if (evaluation.issues.length) {
+    throw new CreativeScriptValidationError(evaluation.preflight, script, evaluation.issues);
   }
-  const semanticReview = await reviewScriptSemantics({
-    model: input.model,
-    script,
-    referenceScript: input.sourceScenario.script,
-    productName: input.productName,
-    productDescription: input.productDescription,
-    productReferenceNotes: input.productReferenceNotes,
-    ctaMode: input.ctaMode,
-    ctaValue: input.ctaValue,
-    directorBrief: input.directorBrief,
-    adaptationPlan: input.adaptationPlan,
-    contentContract: input.contentContract,
-  }, onUsage, attempt);
-  assertScriptSemanticReviewPassed(semanticReview);
+  const qualityCheck = evaluation.preflight.qualityCheck;
+  const semanticReview = evaluation.semanticReview;
+  if (!qualityCheck || !semanticReview) throw new Error("Script did not pass all checks");
   payload.semantic_review = semanticReview;
   return {
     payload,

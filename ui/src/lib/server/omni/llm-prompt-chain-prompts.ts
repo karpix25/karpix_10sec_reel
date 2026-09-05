@@ -20,6 +20,7 @@ import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
 import { getOmniStoryboardFrameWordCounts } from "../../omni/storyboard/omni-storyboard-timing";
 import { analyzeOmniSpeechLoad } from "../../omni/storyboard/omni-speech-load";
 import { SCRIPT_PRODUCT_INTEGRATION_CONTRACT } from "./script-product-integration-contract";
+import { CREATIVE_SPEECH_PACKING_RULE } from "./creative-script-preflight";
 
 export type PromptChainInput = {
   projectName: string;
@@ -88,6 +89,7 @@ CTA произнеси после объяснения пользы продук
 Не выдумывай ссылки, артикулы, скидки или факты, которых нет во входных данных.
 ${renderRussianSpeechGenderRule(input.avatarSpeechGender)}
 ${durationInstruction}
+${CREATIVE_SPEECH_PACKING_RULE}
 Не делай больше пяти частей. Если reference длиннее, сокращай только повторы и вводные слова. Не удаляй хук, ответ на хук, конкретный механизм, обязательный пункт списка, доказательство, пользу продукта, CTA или финальный вывод.
 CTA: ${buildCtaLine(input.ctaMode, input.ctaValue)}
 
