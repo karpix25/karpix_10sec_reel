@@ -161,6 +161,20 @@ test("named answers tolerate grammatical case but cannot be replaced with anothe
   assert.deepEqual(wrongCountry.defects?.map((defect) => defect.code), ["missing_answer"]);
 });
 
+test("a malformed source price group still matches the spoken price", () => {
+  const context = { productName: "Плати по миру",
+    referenceScript: "176 1000 на двоих с полным питанием на Мальдивы.",
+    script: "Сто семьдесят шесть тысяч рублей на двоих с полным питанием на Мальдивы. Плати по миру помогает платить за границей." };
+  const evidence = { product: "Плати по миру", value: "помогает платить за границей",
+    answer: "Сто семьдесят шесть тысяч рублей на двоих", answerKind: "named_fact",
+    referenceAnswer: "176 1000 на двоих с полным питанием на Мальдивы",
+    expectedAnswer: "176 1000 на двоих с полным питанием на Мальдивы", transition: "" };
+  assert.equal(normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] }, context).passed, true);
+  const wrongPrice = normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] },
+    { ...context, script: context.script.replace("Сто семьдесят шесть тысяч", "Сто семьдесят пять тысяч") });
+  assert.deepEqual(wrongPrice.defects?.map((defect) => defect.code), ["missing_answer"]);
+});
+
 test("negated product descriptions never approve the positive version of a claim", () => {
   const context = { productName: "Карта", referenceScript: "Это Тунис.",
     script: "Это Тунис. Карта выдаёт кешбэк.", productDescription: "Карта не выдаёт кешбэк." };

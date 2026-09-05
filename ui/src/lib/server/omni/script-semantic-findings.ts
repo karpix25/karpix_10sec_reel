@@ -135,7 +135,9 @@ export function hasSpokenProductName(script: string, productName: string): boole
 function containsNamedFact(script: string, fact: string): boolean {
   if (containsQuote(script, fact)) return true;
   const expected = normalize(fact).split(" ").filter(Boolean);
-  const words = normalize(script).split(" ");
+  const words = normalize(/\d/u.test(fact)
+    ? script.replace(/(?<!\p{L})руб(?:ль|ля|лей)(?!\p{L})/giu, "")
+    : script).split(" ");
   // ponytail: conservative Russian ending tolerance; no fuzzy brand aliases or one-keyword matches.
   return expected.length > 0 && words.some((_, start) => expected.every((word, index) => {
     const candidate = words[start + index] || "";
@@ -146,7 +148,8 @@ function containsNamedFact(script: string, fact: string): boolean {
 }
 
 function normalize(value: string) {
-  return spellPromptChainNumbersInText(value).toLocaleLowerCase("ru-RU").replace(/ё/gu, "е").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  return spellPromptChainNumbersInText(value.replace(/(?<!\d)(\d{1,3})[\s\u00A0\u202F]+1000(?!\d)/gu, "$1 000"))
+    .toLocaleLowerCase("ru-RU").replace(/ё/gu, "е").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 function object(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
