@@ -1,4 +1,5 @@
 import pool from "@/lib/db";
+import { assertStoredGeneratedScriptReady } from "./generated-script-readiness";
 import type { OmniClientAvatar, OmniReel, OmniReelSegment } from "@/lib/omni/types";
 import { normalizeOmniGenerationProvider } from "@/lib/omni/provider";
 import { getCometReferenceImageFieldName, getCometReferenceImageTransport, shouldSendCometReferenceImage } from "./comet-video-client";
@@ -117,6 +118,9 @@ export async function submitOmniReel(reelId: number, providerInput?: unknown) {
 
 async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
   const { reel, segments } = await getReelBundle(reelId);
+  if (reel.source_generated_script_id) await assertStoredGeneratedScriptReady({
+    scriptId: reel.source_generated_script_id, projectId: reel.project_id, productId: reel.product_id,
+  });
   const provider = normalizeOmniGenerationProvider(providerInput ?? getReelGenerationProvider(segments));
   const directorBrief = extractDirectorBriefFromSnapshot(reel.source_snapshot);
   const savedSceneMode = reel.creative_strategy && "referenceSceneMode" in reel.creative_strategy

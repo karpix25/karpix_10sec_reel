@@ -27,6 +27,7 @@ export function getOmniErrorStatus(error: unknown) {
   if (message.startsWith("План уже готовится") || message.startsWith("Сценарий изменился")) return 409;
   if (
     message.includes("Сценарий отклонен:") ||
+    message.includes("Сценарий требует исправления") ||
     message.includes("Invalid Omni segment") ||
     message.includes("Script is too short") ||
     message.includes("Script cannot be split") ||

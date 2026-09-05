@@ -1,6 +1,7 @@
 import pool from "@/lib/db";
 import type { OmniGeneratedScript } from "@/lib/omni/types";
 import { LlmPromptChainFailure } from "./llm-prompt-chain-runner";
+import { CreativeScriptValidationError } from "./creative-script-preflight";
 
 const STALE_GENERATION_MINUTES = 30;
 
@@ -72,9 +73,11 @@ export async function updateGeneratedScriptGenerationSnapshot(scriptId: number, 
 export async function failGeneratedScriptGeneration(scriptId: number, error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   const chainFailure = error instanceof LlmPromptChainFailure ? error : null;
+  const draft = chainFailure?.partialSnapshot.creativeScriptDraft?.script ||
+    (error instanceof CreativeScriptValidationError ? error.script : "");
   await pool.query(
     `UPDATE omni_generated_scripts
-     SET status = 'failed',
+     SET status = $4,
          script = $3,
          source_snapshot = COALESCE(source_snapshot, '{}'::jsonb) || $2::jsonb,
          updated_at = CURRENT_TIMESTAMP
@@ -86,7 +89,8 @@ export async function failGeneratedScriptGeneration(scriptId: number, error: unk
         generation_error: message,
         llm_prompt_chain_partial: chainFailure?.partialSnapshot || null,
       }),
-      chainFailure?.partialSnapshot.creativeScriptDraft?.script || "",
+      draft,
+      draft.trim() ? "draft" : "failed",
     ]
   );
 }

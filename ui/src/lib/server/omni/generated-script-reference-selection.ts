@@ -3,6 +3,7 @@ import { normalizeDirectorBrief, type OmniDirectorAnalysis } from "./director-an
 import { isAvatarFreeVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import type { GeneratedScriptSourceMode } from "./generated-script-source";
 import { hasCompleteSourceTimeline } from "./omni-reference-transfer-policy";
+import { classifyDirectorProviderFailure } from "./director-analysis-retry";
 
 export const MAX_DIRECTOR_REFERENCE_ATTEMPTS = 16;
 
@@ -48,9 +49,6 @@ export async function resolveReadyGeneratedScriptReference(input: {
       throw new Error(`Выбранный референс #${input.legacyScenarioId} не найден. Другой источник не подставлен.`);
     }
     const explicitlySelected = Boolean(input.legacyScenarioId) || source.sourceMode === "selected_legacy_reference";
-    if (!explicitlySelected && source.sourceMode === "round_robin_active_legacy_reference") {
-      await input.onSourceAttempted?.(source.sourceScenario);
-    }
     const directorAnalysis = input.shouldAnalyze(source.sourceScenario)
       ? await input.ensureAnalysis({
           projectId: input.projectId,
@@ -65,6 +63,15 @@ export async function resolveReadyGeneratedScriptReference(input: {
       : input.requireCompleteTimeline && !hasCompleteSourceTimeline(directorBrief)
         ? "неполный визуальный таймлайн; повторите анализ референса"
         : null;
+    const providerFailure = classifyDirectorProviderFailure(failureReason);
+    if (providerFailure) {
+      throw new Error(`Не удалось разобрать reference video #${source.sourceScenario.id}: ` +
+        `${providerFailure === "credits" ? "провайдер требует пополнить баланс" : "провайдер отказал в доступе"}. ` +
+        `Подбор остановлен, референс не пропущен. Восстановите доступ к провайдеру и повторите запуск. ${failureReason}`);
+    }
+    if (!explicitlySelected && source.sourceMode === "round_robin_active_legacy_reference") {
+      await input.onSourceAttempted?.(source.sourceScenario);
+    }
     if (!failureReason) {
       const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(directorBrief);
       if (

@@ -35,6 +35,7 @@ try {
   stubModule("@/lib/db", "module.exports = {};");
   stubModule("@/lib/server/s3-storage", "module.exports = { getS3Config() { return {}; }, putObjectToS3() {} };");
   stubModule("@/lib/server/yandex-disk", "module.exports = { isYandexDiskConfigured() { return false; }, uploadVideoFileToYandexFolder() {} };");
+  stubModule("@/lib/server/yandex-disk-delivery", "module.exports = {};");
 
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
 

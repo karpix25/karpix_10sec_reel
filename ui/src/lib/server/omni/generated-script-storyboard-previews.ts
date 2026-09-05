@@ -1,4 +1,5 @@
 import pool from "@/lib/db";
+import { assertStoredGeneratedScriptReady } from "./generated-script-readiness";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import {
@@ -63,6 +64,7 @@ type EnsureGeneratedScriptStoryboardUrlsInput = {
   projectId: number;
   productId: number;
   scriptId: number;
+  expectedScript?: string;
   productName: string;
   productPhysicalContract?: string | null;
   avatarReferenceUrl: string | null;
@@ -86,6 +88,7 @@ export async function ensureGeneratedScriptStoryboardUrls(input: EnsureGenerated
 }
 
 async function ensureGeneratedScriptStoryboardUrlsLocked(input: EnsureGeneratedScriptStoryboardUrlsInput) {
+  await assertStoredGeneratedScriptReady(input);
   const referenceSignature = buildGeneratedScriptStoryboardReferenceSignature(
     input,
     buildStoryboardPlanSignature(input.promptPlan)

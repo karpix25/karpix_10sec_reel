@@ -92,6 +92,35 @@ try {
   assert.match(warnings[0], /source #2930/);
   assert.match(warnings[0], /empty content/);
 
+  for (const message of [
+    "ScrapeCreators Instagram post failed: 402 Looks like you're out of credits",
+    'Director analysis model request failed: 403 {"error":{"code":403,"status":"PERMISSION_DENIED"}}',
+    "Director analysis frame verification failed: 401 Unauthorized",
+    "Instagram video resolution failed. ScrapeCreators: ScrapeCreators Instagram post failed: 402 no credits; RapidAPI fallback: RAPIDAPI_KEY is not configured",
+  ]) {
+    let resolutions = 0, rotations = 0;
+    await assert.rejects(resolveReadyGeneratedScriptReference({
+      projectId: 7, productId: 9,
+      resolveSource: async () => { resolutions += 1; return { sourceScenario: selected, sourceMode: "round_robin_active_legacy_reference" }; },
+      shouldAnalyze: () => true,
+      ensureAnalysis: async () => directorAnalysis(selected.id, "failed", message),
+      onSourceAttempted: async () => { rotations += 1; },
+    }), /Подбор остановлен, референс не пропущен/);
+    assert.equal(resolutions, 1, "provider outage must not consume sixteen different references");
+    assert.equal(rotations, 0, "provider outage must preserve the rotation cursor and attempted-source history");
+  }
+  for (const message of ["RapidAPI Instagram post failed: 404 Media not found",
+    "Director analysis model request failed: 400 File exceeded max_bytes_fetched: 15728640"]) {
+    let attempts = 0;
+    const next = await resolveReadyGeneratedScriptReference({
+      projectId: 7, productId: 9,
+      resolveSource: async () => ({ sourceScenario: attempts ? fallback : selected, sourceMode: "round_robin_active_legacy_reference" }),
+      shouldAnalyze: () => true,
+      ensureAnalysis: async ({ sourceScenario }) => directorAnalysis(sourceScenario.id, attempts++ ? "completed" : "failed", attempts === 1 ? message : null),
+    });
+    assert.equal(next.sourceScenario.id, fallback.id, "source-specific failures should still allow the next reference");
+  }
+
   const invalidCompleted = legacyScenario(2934);
   const invalidWarnings = [];
   const resolvedAfterInvalidCompleted = await resolveReadyGeneratedScriptReference({

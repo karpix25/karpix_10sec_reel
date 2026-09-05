@@ -42,19 +42,23 @@ export async function runCreativeCopywriter(
         chainInput: input, attempt, maxAttempts: CREATIVE_COPYWRITER_ATTEMPTS,
         previousDraft, semanticReview: lastSemanticReview, failureReason: lastError, preflight,
       });
+      lastSemanticReview = null;
       const content = await request({
         attempt, userPrompt: creativeAttempt.prompt,
         temperature: creativeAttempt.mode === "targeted_repair" ? 0.25 : 0.8,
       });
       const draft = normalizeCreativeScriptDraft(content);
       if (!draft) throw new Error("Creative copywriter returned empty script");
-      const script = normalizeRussianSpeechGender(
-        sanitizeOmniScriptText(spellPromptChainNumbersInText(formatScenarioScript(draft.script))), input.avatarSpeechGender,
+      const normalizeSpeech = (text: string) => normalizeRussianSpeechGender(
+        sanitizeOmniScriptText(spellPromptChainNumbersInText(formatScenarioScript(text))), input.avatarSpeechGender,
       );
+      const speechSegments = draft.speechSegments?.map((segment) => ({ ...segment, voiceover: normalizeSpeech(segment.voiceover) }));
+      const script = speechSegments ? speechSegments.map((segment) => segment.voiceover).join(" ") : normalizeSpeech(draft.script);
       // Keep the candidate intact: removing whole sentences to meet a word count can erase its bridge or facts.
-      previousDraft = { ...draft, script };
-      lastSemanticReview = null;
-      const evaluation = await evaluateCreativeScriptDraft(input, script, onUsage, attempt);
+      previousDraft = { ...draft, script, ...(speechSegments ? { speechSegments } : {}) };
+      diagnostic.script = script;
+      diagnostic.speechSegments = speechSegments;
+      const evaluation = await evaluateCreativeScriptDraft(input, script, onUsage, attempt, { speechSegments, requireSpeechSegments: true, rawScriptFromModel: draft.script });
       preflight = evaluation.preflight;
       lastSemanticReview = evaluation.semanticReview;
       diagnostic.localIssues = preflight.issues;
@@ -62,9 +66,13 @@ export async function runCreativeCopywriter(
       diagnostic.segmentWordCounts = preflight.segmentPlan?.segmentWordCounts || null;
       diagnostic.semanticPassed = lastSemanticReview?.passed ?? null;
       diagnostic.semanticIssues = lastSemanticReview?.issues || [];
+      diagnostic.semanticReview = lastSemanticReview;
       if (evaluation.issues.length) throw new Error(evaluation.issues.join("\n"));
       if (!lastSemanticReview || !preflight.segmentPlan) throw new Error("Creative draft did not pass all checks");
-      return { draft: previousDraft, semanticReview: lastSemanticReview, diagnostics };
+      previousDraft.speechSegments = preflight.segmentPlan.segments.map((segment, index) => ({
+        voiceover: segment.text, durationSeconds: preflight!.segmentPlan!.segmentDurationsSeconds[index],
+      }));
+      return { draft: previousDraft, semanticReview: lastSemanticReview, diagnostics, segmentPlan: preflight.segmentPlan };
     } catch (error) {
       lastError = errorMessage(error);
       diagnostic.failure = lastError;

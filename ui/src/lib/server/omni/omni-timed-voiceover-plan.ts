@@ -1,4 +1,6 @@
 import type { OmniDurationRange } from "./omni-duration-range";
+import type { CreativeSpeechSegment } from "./llm-prompt-chain-types";
+import { validateCreativeSpeechPlan } from "./creative-speech-plan";
 import {
   hasCompletedSentenceBoundary,
   normalizeScriptText,
@@ -33,13 +35,13 @@ export type OmniTimedVoiceoverPlan = {
 
 export function buildOmniTimedVoiceoverPlan(
   script: string,
-  options: { durationRange?: OmniDurationRange } = {}
+  options: { durationRange?: OmniDurationRange; speechSegments?: readonly CreativeSpeechSegment[] } = {}
 ): OmniTimedVoiceoverPlan {
-  const segmentPlan = planOmniReelSegments(script, {
+  const segmentPlan = options.speechSegments ? validateCreativeSpeechPlan(script, options.speechSegments, options.durationRange) : planOmniReelSegments(script, {
     durationRange: options.durationRange,
     requireSentenceBoundaries: true,
   });
-  return createTimedPlan(segmentPlan, options.durationRange);
+  return buildOmniTimedVoiceoverPlanFromSegments(segmentPlan, options.durationRange);
 }
 
 export function resolveOmniTimedVoiceoverPlan(input: {
@@ -112,7 +114,7 @@ export function reconstructTimedVoiceoverPlan(plan: OmniTimedVoiceoverPlan) {
   return normalizeScriptText(plan.segments.map((segment) => segment.text).join(" "));
 }
 
-function createTimedPlan(segmentPlan: OmniReelSegmentPlan, durationRange?: OmniDurationRange): OmniTimedVoiceoverPlan {
+export function buildOmniTimedVoiceoverPlanFromSegments(segmentPlan: OmniReelSegmentPlan, durationRange?: OmniDurationRange): OmniTimedVoiceoverPlan {
   let startSeconds = 0;
   const segments = segmentPlan.segments.map((segment, index) => {
     const durationSeconds = segmentPlan.segmentDurationsSeconds[index];

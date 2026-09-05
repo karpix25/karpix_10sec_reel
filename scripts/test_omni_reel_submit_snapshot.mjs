@@ -17,8 +17,12 @@ const avatarRows = [
   { id: 17, project_id: 7, reference_url: avatarUrl, kie_character_id: "pinned-character", speech_gender: "male", kie_character_payload: { audio_ids: ["pinned-voice"] } },
   { id: 99, project_id: 7, reference_url: "https://example.com/latest-avatar.png", kie_character_id: "wrong-latest-character", speech_gender: "female", kie_character_payload: { audio_ids: ["wrong-latest-voice"] } },
 ];
-let reel, segments, tasks, avatarQueries, payloads, preflightFailures, avatarMissing;
+let reel, segments, tasks, avatarQueries, payloads, preflightFailures, avatarMissing, scriptError;
 const db = { query: async (sql, args) => {
+  if (/SELECT status, script, source_snapshot/.test(sql)) {
+    assert.deepEqual(args, [9, 7, 8]);
+    return { rows: [{ status: "draft", script: "Checked text.", source_snapshot: { generation_error: scriptError } }] };
+  }
   if (/SELECT \* FROM omni_reels/.test(sql)) { assert.deepEqual(args, [41]); return { rows: [reel] }; }
   if (/SELECT \*\s+FROM omni_reel_segments/.test(sql)) { assert.deepEqual(args, [41]); return { rows: segments }; }
   if (/FROM omni_client_avatars/.test(sql)) {
@@ -85,11 +89,17 @@ try {
   ]);
   Module._load = function (name, parent, isMain) {
     if (mocks.has(name)) return mocks.get(name);
+    if (name === "./generated-script-readiness") return originalLoad.call(this, join(output, "lib/server/omni/generated-script-readiness.js"), parent, isMain);
     if (name.startsWith("@/") || name.startsWith("./") || name.startsWith("../")) throw new Error(`Unexpected application dependency: ${name}`);
     return originalLoad.call(this, name, parent, isMain);
   };
   const runner = require(join(output, "lib/server/omni/omni-reel-runner.js"));
 
+  reset();
+  scriptError = "Unresolved script error";
+  await assert.rejects(runner.submitOmniReel(41), /требует исправления/);
+  assert.equal(tasks.length, 0, "editable failed draft must not dispatch a paid video task");
+  assert.equal(avatarQueries.length, 0);
   reset();
   await runner.submitOmniReel(41);
   assert.equal(tasks.length, 2);
@@ -164,7 +174,7 @@ function reset() {
     creative_plan: { productRole: "brief_demo" },
     storyboard_plan: { frames: [{ productPlacement: "Коллаген на столе" }] },
   }));
-  tasks = []; avatarQueries = []; payloads = []; preflightFailures = []; avatarMissing = false;
+  tasks = []; avatarQueries = []; payloads = []; preflightFailures = []; avatarMissing = false; scriptError = null;
 }
 
 function unexpected(operation) {

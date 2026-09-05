@@ -62,14 +62,25 @@ try {
   const balancedScript = [8, 7, 7].map((count) => Array(count).fill("слово").join(" ") + ".").join(" ");
   const balanced = planOmniReelSegments(balancedScript, { requireSentenceBoundaries: true });
   assert.deepEqual(balanced.segmentWordCounts, [15, 7], "equal-duration choices should avoid concentrating unused speech capacity in one segment");
+  const sentences = [8, 7, 7].map((count) => Array(count).fill("слово").join(" ") + ".");
+  const authored = buildOmniTimedVoiceoverPlan(balancedScript, { speechSegments: [
+    { durationSeconds: 4, voiceover: sentences[0] },
+    { durationSeconds: 8, voiceover: sentences.slice(1).join(" ") },
+  ] });
+  assert.deepEqual(authored.segments.map((segment) => segment.wordCount), [8, 14], "persist the approved writer boundaries instead of the fallback planner's [15, 7]");
+  assert.deepEqual(authored.segments.map((segment) => segment.durationSeconds), [4, 8]);
+  assert.deepEqual(resolveOmniTimedVoiceoverPlan({ script: balancedScript, sourceSnapshot: { timed_voiceover_plan: authored } }).segments, authored.segments);
+  assert.throws(() => buildOmniTimedVoiceoverPlan(balancedScript, { speechSegments: [
+    { durationSeconds: 4, voiceover: sentences[0] }, { durationSeconds: 4, voiceover: sentences[1] },
+  ] }), /полный сценарий/);
   const chainInput = {
     projectName: "Speech test", productName: "Карта для зарубежных покупок",
     sourceScenario: { script: balancedScript }, avatarSpeechGender: "male",
     ctaMode: "no_explicit_cta",
   };
   const writerPrompt = buildCreativeCopywriterPrompt(chainInput);
-  assert.match(writerPrompt, /сохраняя само название и подтвержденные факты/u);
-  assert.match(writerPrompt, /Не добавляй повторы, междометия/u);
+  assert.match(writerPrompt, /Длинное название продукта произносится медленнее коротких слов/u);
+  assert.match(writerPrompt, /не заполняй время повторами, междометиями/u);
   const directorPrompt = buildDirectorSegmenterPrompt({ chainInput, draft: { script: balancedScript }, segmentPlan: balanced });
   assert.match(directorPrompt, /склейка и переход на B-roll не требуют паузы/u);
   assert.match(directorPrompt, /"approximateRussianSyllables"/u);

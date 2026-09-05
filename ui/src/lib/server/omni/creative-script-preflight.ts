@@ -9,9 +9,12 @@ import { validateViralScriptContract, type ScriptQualityResult } from "./script-
 import { splitScriptIntoSentences } from "./omni-script-segmentation";
 import { planOmniReelSegments, type OmniReelSegmentPlan } from "./omni-duration-planner";
 import { OMNI_MAX_SEGMENT_COUNT, OMNI_MIN_USEFUL_SEGMENT_WORDS, getOmniSegmentWordBudget } from "./omni-speech-density";
+import type { CreativeSpeechSegment } from "./llm-prompt-chain-types";
+import { validateCreativeSpeechPlan } from "./creative-speech-plan";
 
 export const CREATIVE_SPEECH_PACKING_RULE = [
-  `Перед ответом собери весь voiceover в 2-${OMNI_MAX_SEGMENT_COUNT} последовательных групп по ${OMNI_MIN_USEFUL_SEGMENT_WORDS}-${getOmniSegmentWordBudget()} произносимых слов. Каждая группа содержит одно или несколько грамматически законченных предложений.`,
+  `Верни JSON {"segments":[{"duration_seconds":4,"voiceover":"Речь первой группы."},{"duration_seconds":6,"voiceover":"Речь следующей группы."}]}. Весь сценарий состоит из реплик этих 2-${OMNI_MAX_SEGMENT_COUNT} последовательных групп по ${OMNI_MIN_USEFUL_SEGMENT_WORDS}-${getOmniSegmentWordBudget()} произносимых слов. Каждая группа содержит одно или несколько грамматически законченных предложений.`,
+  "Длительность каждой группы: 4 секунды для 6-8 слов, 6 секунд для 9-12, 8 секунд для 13-16, 10 секунд для 17-20. Это готовые границы речи, которые режиссер сохранит без изменений. duration_seconds — число JSON; числа внутри реплик записывай словами.",
   `Отдельное предложение не длиннее ${getOmniSegmentWordBudget()} слов, включая полное название продукта и числа, записанные словами. Короткий CTA объединяй в одну группу с соседним законченным предложением, сохраняя точку между ними.`,
   "Проверь весь план: простое разбиение длинного предложения на два еще не гарантирует, что все группы помещаются. Если групп слишком много, переформулируй или сократи второстепенные детали, сохранив обязательные факты, переход к продукту, его пользу и CTA.",
   "Не разрезай незаконченную фразу, не ускоряй произношение и не добавляй пустые слова. Ориентир речи: четыре слова на две секунды; граница кадра и склейка не требуют паузы.",
@@ -28,6 +31,8 @@ export type CreativeScriptQualityContext = {
   hook?: string | null;
   rawScriptBeforeCta?: string;
   rawScriptFromModel?: string;
+  speechSegments?: readonly CreativeSpeechSegment[];
+  requireSpeechSegments?: boolean;
 };
 
 type CreativeScriptPreflightInput = {
@@ -61,7 +66,19 @@ export function collectCreativeScriptPreflight(input: CreativeScriptPreflightInp
   let qualityCheck: ScriptQualityResult | null = null;
   check(() => { qualityCheck = validateCreativeScriptQuality(input, script, context); });
   let segmentPlan: OmniReelSegmentPlan | null = null;
-  check(() => { segmentPlan = planOmniReelSegments(script, { durationRange: input.durationRange, requireSentenceBoundaries: true }); });
+  check(() => {
+    if (context.requireSpeechSegments && !context.speechSegments) throw new Error("Верни сценарий как JSON с массивом segments, duration_seconds и voiceover для каждой группы.");
+    if (context.speechSegments) {
+      try { segmentPlan = validateCreativeSpeechPlan(script, context.speechSegments, input.durationRange); }
+      catch (error) {
+        // Merge/repack complete sentences without changing one spoken word before asking for a rewrite.
+        const joined = context.speechSegments.map((segment) => segment.voiceover.trim()).join(" ");
+        if (joined !== script.trim()) throw error;
+        try { segmentPlan = planOmniReelSegments(script, { durationRange: input.durationRange, requireSentenceBoundaries: true }); }
+        catch { throw error; }
+      }
+    } else segmentPlan = planOmniReelSegments(script, { durationRange: input.durationRange, requireSentenceBoundaries: true });
+  });
   return {
     issues: [...issues], segmentPlan, qualityCheck,
     sentences: splitScriptIntoSentences(script).map((sentence, index) => ({ ...sentence, index: index + 1 })),

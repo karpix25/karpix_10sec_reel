@@ -22,7 +22,7 @@ const script = "Сначала выбираем состав спокойно. �
 const directorBrief = { camera_timeline: [{ start_sec: 0, end_sec: 4, visual_description: "presenter and product" }], wardrobe_continuity: "stable" };
 const input = {
   projectId: 1, productId: 2,
-  generatedScript: { id: 3, script, source_snapshot: { director: directorBrief }, source_legacy_client_id: 4 },
+  generatedScript: { id: 3, status: "draft", script, source_snapshot: { director: directorBrief }, source_legacy_client_id: 4 },
   product: { name: "Коллаген", description: "Состав", product_refs: [{ kind: "image", url: "https://example.com/product.png" }], cta_mode: "no_explicit_cta", cta_value: null },
   avatar: { id: 5, reference_url: "https://example.com/avatar.png", prompt: "ведущий", speech_gender: "male", kie_character_id: "avatar-5" },
   directorBrief, segmentCount: 1, segmentSeconds: 10,
@@ -54,6 +54,7 @@ const db = {
         return { rows: [{ locked }] };
       }
       if (/pg_advisory_unlock/.test(sql)) { held = false; return { rows: [] }; }
+      if (/SELECT status, script, source_snapshot/.test(sql)) return { rows: [input.generatedScript] };
       if (/SELECT prepared_prompt_plan/.test(sql)) return readRow(sql, args);
       assert.match(sql, /UPDATE omni_generated_scripts/);
       assert.deepEqual(args.slice(0, 3), [3, 1, 2]);
@@ -117,6 +118,7 @@ try {
   ]);
   Module._load = function (request, parent, isMain) {
     if (mocks.has(request)) return mocks.get(request);
+    if (request === "./generated-script-readiness") return originalLoad.call(this, join(output, "lib/server/omni/generated-script-readiness.js"), parent, isMain);
     if (request.startsWith("@/") || request.startsWith("./") || request.startsWith("../")) {
       throw new Error(`Unexpected unstubbed application dependency: ${request}`);
     }
@@ -156,6 +158,10 @@ try {
   await assert.rejects(prepared.prepareOmniPromptPlan({ ...input, directorBrief: null }), /таймлайн/);
   await assert.rejects(prepared.prepareOmniPromptPlan({ ...input, referenceSourceDurationSeconds: 15 }), /не покрывает/);
   assert.equal(counters.build, 0, "invalid inputs must fail before generation or repair");
+  await assert.rejects(prepared.prepareOmniPromptPlan({ ...input, generatedScript: { ...input.generatedScript,
+    source_snapshot: { generation_error: "Unresolved script error" },
+  } }), /требует исправления/);
+  assert.equal(counters.build, 0, "failed editable drafts must not enter paid preparation");
   await prepared.prepareOmniPromptPlan(input);
   assert.equal(counters.build, 1);
   assert.equal(counters.physical, 1);

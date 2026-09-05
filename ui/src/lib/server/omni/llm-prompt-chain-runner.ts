@@ -43,7 +43,7 @@ import { assertRussianSpeechGender, normalizeRussianSpeechGender } from "./russi
 import {
   spellPromptChainNumbersInText,
 } from "./llm-prompt-chain-number-words";
-import { planOmniReelSegments } from "./omni-duration-planner";
+import type { OmniReelSegmentPlan } from "./omni-duration-planner";
 import { resolveDirectorSegmentFormat } from "./director-analysis-timeline";
 import {
   diagnoseDirectorSegmenterOutput,
@@ -91,9 +91,6 @@ export class LlmPromptChainFailure extends Error {
   }
 }
 
-export function isLlmPromptChainEnabled() {
-  return process.env.OMNI_LLM_PROMPT_CHAIN !== "false";
-}
 export async function runLlmPromptChain(input: PromptChainInput & { model: string }): Promise<{
   result: LlmPromptChainResult;
   openRouterUsage: OpenRouterUsageRecord[];
@@ -106,7 +103,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   let creativeResult: Awaited<ReturnType<typeof runCreativeCopywriter>>;
   try {
     creativeResult = await runCreativeCopywriter(chainInput, onUsage, (request) => requestOpenRouter({
-      input: chainInput, layer: "creative_copywriter", responseFormatJson: false, onUsage, ...request,
+      input: chainInput, layer: "creative_copywriter", responseFormatJson: true, onUsage, ...request,
     }));
   } catch (error) {
     if (error instanceof CreativeCopywriterFailure) {
@@ -118,7 +115,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   const draft = creativeResult.draft;
   let directorResult: Awaited<ReturnType<typeof runDirectorSegmenter>>;
   try {
-    directorResult = await runDirectorSegmenter(chainInput, draft, onUsage);
+    directorResult = await runDirectorSegmenter(chainInput, draft, creativeResult.segmentPlan, onUsage);
   } catch (error) {
     const directorFailure = error instanceof DirectorSegmenterFailure ? error : null;
     throw new LlmPromptChainFailure("director_segmenter", getErrorMessage(error), {
@@ -193,9 +190,9 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
 async function runDirectorSegmenter(
   input: PromptChainInput & { model: string },
   draft: CreativeScriptDraft,
+  segmentPlan: OmniReelSegmentPlan,
   onUsage: (usage: OpenRouterUsageRecord) => void
 ) {
-  const segmentPlan = planOmniReelSegments(draft.script, { durationRange: input.durationRange, requireSentenceBoundaries: true });
   const format = resolveDirectorSegmentFormat(input.directorBrief);
   const basePrompt = buildDirectorSegmenterPrompt({ chainInput: input, draft, segmentPlan });
   const maxAttempts = DIRECTOR_TARGETED_REPAIR_ATTEMPTS + 2;

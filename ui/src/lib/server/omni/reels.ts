@@ -7,6 +7,7 @@ import { getLatestOmniClientAvatar } from "./avatars";
 import { ensureDirectorAnalysis, getDirectorAnalysisForLegacy } from "./director-analyses";
 import { shouldAnalyzeDirectorReference } from "./director-analysis-policy";
 import { getGeneratedScript } from "./generated-scripts";
+import { assertGeneratedScriptReady } from "./generated-script-readiness";
 import { getLegacyScenario } from "./legacy-scenarios";
 import { prepareOmniPromptPlan } from "./omni-prompt-preparation";
 import { adaptDirectorBriefForAvatarReel } from "./omni-avatar-reel-plan";
@@ -120,6 +121,7 @@ export async function createOmniReel(input: {
     throw new Error("Generated script not found for this product");
   }
   const resolvedGeneratedScript = generatedScript;
+  if (resolvedGeneratedScript) assertGeneratedScriptReady(resolvedGeneratedScript);
   const sourceLegacyScenarioId = input.sourceLegacyScenarioId || generatedScript?.source_legacy_scenario_id || null;
   const sourceScenario = sourceLegacyScenarioId ? await getLegacyScenario(sourceLegacyScenarioId) : null;
   const sourceScenarioAnalysis = sourceScenario && !generatedScript
@@ -306,6 +308,7 @@ export async function createOmniReel(input: {
   let storyboardReferenceUrls: (string | null)[];
   if (resolvedGeneratedScript) {
     const generatedStoryboardUrls = await ensureGeneratedScriptStoryboardUrls({
+      expectedScript: resolvedGeneratedScript.script,
       projectId: input.projectId,
       productId: input.productId,
       scriptId: resolvedGeneratedScript.id,

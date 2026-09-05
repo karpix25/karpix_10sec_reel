@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import pool from "@/lib/db";
+import { assertGeneratedScriptReady, assertStoredGeneratedScriptReady } from "./generated-script-readiness";
 import { buildOmniSegmentPrompts, type OmniSegmentPrompt } from "./omni-prompt-builder";
 import { repairOmniPromptPlanWithAi } from "./omni-physical-repair-pipeline";
 import { prepareOmniPromptPlanWithSemanticRepair } from "./omni-storyboard-semantic-repair";
@@ -81,6 +82,7 @@ export async function readPreparedOmniPromptPlan(input: OmniPromptPreparationInp
 
 /** Only explicit preparation / reel creation may invoke the existing paid repair stages. */
 export async function prepareOmniPromptPlan(input: OmniPromptPreparationInput): Promise<OmniSegmentPrompt[]> {
+  if (input.generatedScript) assertGeneratedScriptReady(input.generatedScript);
   input = { ...input, directorBrief: adaptDirectorBriefForAvatarReel(input.directorBrief) };
   assertOmniPreparationInputs(input);
   if (!input.generatedScript) return buildPreparedPlan(input);
@@ -94,6 +96,7 @@ export async function prepareOmniPromptPlan(input: OmniPromptPreparationInput): 
     );
     locked = Boolean(rows[0]?.locked);
     if (!locked) throw new Error("План уже готовится. Повторите запрос после завершения подготовки.");
+    await assertStoredGeneratedScriptReady({ scriptId, projectId: input.projectId, productId: input.productId, expectedScript: input.generatedScript.script }, client);
     const saved = await readPreparedOmniPromptPlan(input, client);
     if (saved) return saved;
     const segments = await buildPreparedPlan(input);

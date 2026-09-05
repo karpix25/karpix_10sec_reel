@@ -10,7 +10,6 @@ const ui = join(root, "ui");
 const output = mkdtempSync(join(tmpdir(), "omni-llm-chain-"));
 const require = createRequire(import.meta.url);
 const technicalMontageTerms = /punch[ -]?in|jump cut|match cut|speed ramp|object wipe|split[ -]?screen|freeze frame|j[ -]?cut|l[ -]?cut/iu;
-
 function findFile(base, filename) {
   const queue = [base];
   while (queue.length > 0) {
@@ -62,8 +61,8 @@ try {
   const runner = requireRunnerWithStubs(findFile(output, "llm-prompt-chain-runner.js"));
   const numberWords = require(findFile(output, "llm-prompt-chain-number-words.js"));
   const creativeRepair = require(findFile(output, "llm-prompt-chain-creative-repair.js"));
-  const lengthGuard = require(findFile(output, "omni-script-length-guard.js"));
   const qualityContract = require(findFile(output, "script-quality-contract.js"));
+  const preflight = require(findFile(output, "creative-script-preflight.js"));
   assert.ok(runner.runLlmPromptChain, "runner smoke import must expose runLlmPromptChain");
   assert.equal(numberWords.spellPromptChainNumbersInText("Диапазон 200-300 рублей"), "Диапазон от двухсот до трехсот рублей");
   assert.equal(numberWords.spellPromptChainNumbersInText("Диапазон 200–300 рублей"), "Диапазон от двухсот до трехсот рублей");
@@ -73,12 +72,12 @@ try {
     "одна тысяча, двадцать тысяч, шестьдесят восемь тысяч и сто двадцать четыре тысячи четыреста"
   );
   assert.throws(
-    () => runner.assertPromptChainNumericRangeIntegrity("Цена от 200 до 300 рублей", "Цена двести тысяч триста рублей"),
+    () => preflight.assertPromptChainNumericRangeIntegrity("Цена от 200 до 300 рублей", "Цена двести тысяч триста рублей"),
     /схлопнул числовой диапазон 200-300/u,
     "runner must reject a collapsed numeric range before saving the draft"
   );
   assert.doesNotThrow(
-    () => runner.assertPromptChainNumericRangeIntegrity("Цена от 200 до 300 рублей", "Цена от двухсот до трехсот рублей"),
+    () => preflight.assertPromptChainNumericRangeIntegrity("Цена от 200 до 300 рублей", "Цена от двухсот до трехсот рублей"),
     "runner must accept a preserved spoken range"
   );
   assert.equal(
@@ -88,88 +87,47 @@ try {
   );
   const runnerSource = readFileSync(join(ui, "src/lib/server/omni/llm-prompt-chain-runner.ts"), "utf8");
   const semanticReviewerSource = readFileSync(join(ui, "src/lib/server/omni/script-semantic-reviewer.ts"), "utf8");
-  const semanticReviewer = requireSemanticReviewerWithStubs(findFile(output, "script-semantic-reviewer.js"));
   assert.match(
     runnerSource,
     /validateStoryboard(?:DirectorPlan|ProviderPlan|ProviderAlignment)/u,
     "prompt chain must reject invalid storyboard plans before paid video generation"
   );
-  assert.match(
-    runnerSource,
-    /compactOmniScriptToWordBudget/u,
-    "prompt chain must reuse the deterministic script word-budget compactor"
-  );
-  assert.match(
-    runnerSource,
-    /assertPromptChainNumericRangeIntegrity/u,
-    "copywriter must reject collapsed numeric ranges before semantic review"
-  );
-  assert.match(
-    runnerSource,
-    /CREATIVE_COPYWRITER_ATTEMPTS = 2/u,
-    "copywriter must retain bounded retries for semantic repair"
-  );
-  const compactedConclusion = lengthGuard.compactOmniScriptToWordBudget(
-    "Хук обещает Лангкави. Лишняя вводная фраза здесь. Плати по миру виртуальная карта помогает платить за границей. Ссылка в профиле. Лангкави подходит для бюджетной зимовки.",
-    20,
-    { productName: "Плати по миру виртуальная карта" }
-  );
-  assert.ok(compactedConclusion.includes("Плати по миру виртуальная карта помогает платить за границей."), "word-budget compaction must preserve the product sentence");
-  assert.ok(compactedConclusion.includes("Ссылка в профиле."), "word-budget compaction must preserve the CTA");
-  assert.ok(compactedConclusion.endsWith("Лангкави подходит для бюджетной зимовки."), "word-budget compaction must preserve the conclusion after CTA");
-  assert.throws(
-    () => qualityContract.assertCtaConclusionContract("Ссылка в профиле. Путешествуйте дешево и с комфортом.", "link_in_profile"),
-    /утвердительный вывод/u,
-    "imperative text after CTA must fail deterministically"
-  );
-  assert.doesNotThrow(
-    () => qualityContract.assertCtaConclusionContract("Ссылка в профиле. Тунис подходит для бюджетного морского отдыха.", "link_in_profile"),
-    "declarative conclusion after CTA must pass"
-  );
-  assert.throws(
-    () => qualityContract.assertCtaConclusionContract(
-      "Плати по миру помогает платить за границей. Ссылка в профиле. Подробности о правилах я оставил в описании. Ознакомься и будь готов.",
-      "link_in_profile",
-    ),
+  const copywriterSource = readFileSync(join(ui, "src/lib/server/omni/llm-creative-copywriter.ts"), "utf8");
+  assert.match(copywriterSource, /CREATIVE_COPYWRITER_ATTEMPTS = 2/u, "one initial attempt and one repair only");
+  assert.match(runnerSource, /creativeResult.segmentPlan/u, "director must receive the canonical authored speech plan");
+  assert.doesNotThrow(() => qualityContract.assertCtaConclusionContract(
+    "Плати по миру помогает платить за границей. Ссылка в профиле.", "link_in_profile"),
+    "CTA-only ending is allowed without a manufactured conclusion");
+  assert.throws(() => qualityContract.assertCtaConclusionContract(
+    "Ссылка в профиле. Подробности я оставил в описании.", "link_in_profile"),
     /последний CTA должен вести по ссылке в профиле/u,
-    "foreign description CTA after the product CTA must fail",
-  );
-  assert.throws(
-    () => qualityContract.assertCtaConclusionContract(
-      "Плати по миру помогает платить за границей. Ссылка в профиле. Так что не слушай новости. Путешествуй.",
-      "link_in_profile",
-    ),
-    /утвердительный вывод/u,
-    "imperative conclusion with a connective must fail",
-  );
-  assert.ok(
-    semanticReviewerSource.includes("reconcileSemanticConclusion")
-      && semanticReviewerSource.includes("assertCtaConclusionContract")
-      && semanticReviewerSource.includes("finalAnswerPresent: true"),
-    "semantic reviewer must defer declarative CTA conclusions to the deterministic contract"
-  );
-  assert.ok(
-    semanticReviewerSource.includes("reconcileProductCapabilities")
-      && semanticReviewerSource.includes("оплату по QR")
-      && semanticReviewerSource.includes("снятие или выдачу наличных")
-      && semanticReviewerSource.includes("гарантированную скидку, местную цену или защиту от наценки"),
-    "semantic review must reject unsupported high-risk product capabilities"
-  );
-  const unsupportedSavingsReview = semanticReviewer.reconcileProductCapabilities(
-    passedSemanticReview(),
-    "Чтобы не платить лишнее в поездках, используй Плати по миру виртуальную карту.",
-    "Виртуальная карта помогает оплачивать покупки за границей.",
-    null,
-  );
-  assert.equal(unsupportedSavingsReview.passed, false, "unsupported savings promise before the product name must be rejected");
-  const unsupportedCoverageReview = semanticReviewer.reconcileProductCapabilities(
-    passedSemanticReview(),
-    "Для этого есть Плати по миру виртуальная карта. С ней легко оплачивать покупки и услуги в любой стране.",
-    "Виртуальная карта помогает оплачивать покупки за границей.",
-    null,
-  );
-  assert.equal(unsupportedCoverageReview.passed, false, "unsupported worldwide coverage promise must be rejected");
-
+    "foreign CTA must still fail");
+  const findings = require(findFile(output, "script-semantic-findings.js"));
+  const context = {
+    script: "Это Тунис. Плати по миру помогает платить за границей. Ссылка в профиле.",
+    referenceScript: "Для отдыха подходит Тунис.", productName: "Плати по миру",
+  };
+  const evidence = { product: "Плати по миру", value: "помогает платить за границей",
+    answer: "", answerKind: "named_fact", referenceAnswer: "подходит Тунис", expectedAnswer: "Тунис", transition: "" };
+  const grounded = (defects = [], overrides = {}) => findings.normalizeGroundedSemanticReview(
+    { evidence, defects, warnings: [], ...overrides }, context);
+  const contradictory = grounded([{ code: "missing_answer", message: "Страна не названа" },
+    { code: "unnatural_integration", message: "Рекламу можно удалить" }]);
+  assert.equal(contradictory.version, "script-semantic-review-v2");
+  assert.equal(contradictory.passed, true, "literal source answer overrides a false missing-country claim");
+  assert.deepEqual(contradictory.warnings, ["Рекламу можно удалить"], "subjective feedback stays advisory");
+  const missingAnswer = findings.normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] },
+    { ...context, script: context.script.replace("Это Тунис.", "Это страна для отдыха.") });
+  assert.equal(missingAnswer.passed, false);
+  assert.equal(missingAnswer.defects[0].code, "missing_answer", "real omitted source answer blocks generation");
+  const unsupported = grounded([{ code: "unsupported_product_claim", scriptQuote: "помогает платить за границей", expectedText: "платить за границей",
+    message: "Описание не подтверждает это свойство. Придумай скидку." }]);
+  assert.equal(unsupported.passed, false, "grounded unsupported capability must block");
+  assert.ok(unsupported.repairInstructions.every((line) => !line.includes("Придумай скидку")),
+    "model-suggested benefits must not leak into repair instructions");
+  assert.throws(() => grounded([{ code: "unsupported_product_claim", scriptQuote: "снимает наличные", expectedText: "наличные",
+    message: "Неподтвержденное свойство" }]), /точную цитату/u, "invented quotes must fail closed");
+  assert.match(semanticReviewerSource, /normalizeGroundedSemanticReview/u);
   const directorPlan = makeDirectorPlan();
   const providerPlan = makeProviderPlan();
 
@@ -228,7 +186,6 @@ try {
     repairedFrameCount.segments[0].storyboardFrames.map((frame) => frame.spokenWords).join(" "),
     directorPlan.segments[0].voiceover,
   );
-
   assertIssue(
     storyboardValidator.validateStoryboardDirectorPlan({
       ...directorPlan,
@@ -236,7 +193,6 @@ try {
     }),
     "storyboard_frame_count"
   );
-
   assertIssue(
     storyboardValidator.validateStoryboardDirectorPlan({
       ...directorPlan,
@@ -254,7 +210,6 @@ try {
     }),
     "storyboard_hand_object_conflict"
   );
-
   assertIssue(
     storyboardValidator.validateStoryboardDirectorPlan({
       ...directorPlan,
@@ -268,7 +223,6 @@ try {
     }),
     "storyboard_spoken_word_count"
   );
-
   assertIssue(
     storyboardValidator.validateStoryboardProviderAlignment(directorPlan, {
       ...providerPlan,
@@ -279,7 +233,6 @@ try {
     }),
     "voiceover_mismatch"
   );
-
   assertIssue(
     storyboardValidator.validateStoryboardProviderPlan({
       ...providerPlan,
@@ -290,7 +243,6 @@ try {
     }),
     "missing_no_music_instruction"
   );
-
   assertIssue(
     storyboardValidator.validateStoryboardDirectorPlan({
       ...directorPlan,
@@ -305,7 +257,6 @@ try {
     }),
     "cutaway_faces_camera"
   );
-
   assertIssue(
     validator.validateDirectorSegmentPlan({
       ...directorPlan,
@@ -320,7 +271,6 @@ try {
     }),
     "product_state_conflict"
   );
-
   assertIssue(
     validator.validateProviderPromptPlan({
       ...providerPlan,
@@ -333,7 +283,6 @@ try {
     }),
     "hands_conflict"
   );
-
   assertIssue(
     validator.validateProviderPromptPlan({
       ...providerPlan,
@@ -341,7 +290,6 @@ try {
     }),
     "digit"
   );
-
   assertIssue(
     validator.validateProviderPromptPlan({
       ...providerPlan,
@@ -349,7 +297,6 @@ try {
     }),
     "dash"
   );
-
   assertIssue(
     validator.validateProviderPromptPlan({
       ...providerPlan,
@@ -357,7 +304,6 @@ try {
     }),
     "emoji"
   );
-
   assertIssue(
     validator.validateProviderPromptPlan({
       ...providerPlan,
@@ -365,7 +311,6 @@ try {
     }),
     "prompt_missing_storyboard_speech_instruction"
   );
-
   assertIssue(
     validator.validateProviderPromptPlan({
       ...providerPlan,
@@ -376,7 +321,6 @@ try {
     }),
     "prompt_voiceover_leak"
   );
-
   assertIssue(
     validator.validateProviderPromptPlan({
       ...providerPlan,
@@ -387,7 +331,6 @@ try {
     }),
     "subtitle_overlay_cue"
   );
-
   assertIssue(
     validator.validateProviderPromptPlan({
       ...providerPlan,
@@ -398,7 +341,6 @@ try {
     }),
     "platform_ui_cue"
   );
-
   assertIssue(
     validator.validateProviderPromptPlan({
       ...providerPlan,
@@ -424,63 +366,24 @@ try {
     join(ui, "src/lib/server/omni/llm-prompt-chain-prompts.ts"),
     "utf8"
   );
-  assert.ok(promptChainSource.includes("Reference transcript:"), "LLM chain copywriter must use the reference as source material");
-  assert.ok(promptChainSource.includes("не копируй текст дословно"), "LLM chain must prioritize meaning over phrase count");
-  assert.ok(promptChainSource.includes("Определи тему, главный вопрос или конфликт"), "LLM chain must require an internal reference meaning map");
-  assert.ok(promptChainSource.includes("Не удаляй хук, ответ на хук, конкретный механизм"), "LLM chain must preserve concrete reference substance when compressing");
-  assert.ok(promptChainSource.includes("не переноси эту роль на аватара"), "LLM chain must strip source author expert roles");
-  assert.ok(
-    promptChainSource.includes("Продукт не является отдельной рекламной вставкой")
-      && promptChainSource.includes("может появиться в любой естественной точке"),
-    "LLM chain must integrate the product at a natural point",
-  );
-  assert.ok(promptChainSource.includes("объясни его конкретную пользу"), "LLM chain must keep the product functional");
-  assert.ok(promptChainSource.includes("Если в reference уже есть чужой продукт"), "LLM chain must replace source products with our reference only");
-  assert.ok(promptChainSource.includes("Если в reference уже есть чужой продукт"), "LLM chain must handle source products safely");
-  assert.ok(promptChainSource.includes("не копируй его название, бренд, упаковку и свойства"), "LLM chain must not copy source product identity");
-  assert.ok(promptChainSource.includes("Сохрани его сценарную роль"), "LLM chain must preserve source product narrative role");
-  assert.ok(promptChainSource.includes("После CTA закончи одной короткой полезной фразой"), "LLM chain must return to a useful conclusion after the CTA");
-  assert.ok(promptChainSource.includes("где естественно завершается рассказ о продукте"), "LLM chain CTA must be embedded at the natural product mention");
-  assert.ok(promptChainSource.includes("финальная часть ролика не состояла только из призыва"), "link CTA must be followed by a real conclusion");
-  assert.ok(promptChainSource.includes("вопросом, приказом или новым призывом"), "CTA conclusion must be declarative");
-  assert.ok(promptChainSource.includes("Для подтверждения основной мысли достаточно одного конкретного факта"), "one concrete reference fact must be enough");
-  assert.ok(promptChainSource.includes("Второй добавляй только когда"), "copywriter must not copy unnecessary reference lists");
-  assert.ok(!promptChainSource.includes("сохрани минимум два конкретных примера"), "copywriter must not require two examples");
-  assert.ok(promptChainSource.includes("без такого действия не считаются пользой"), "product benefit must name an action from the product description");
-  assert.ok(!promptChainSource.includes("CTA: последняя фраза должна"), "link CTA must not be forced into the last sentence");
-  assert.ok(!promptChainSource.includes("CTA может быть отдельной последней фразой"), "base prompt must not allow CTA-only endings");
-  const creativeRepairSource = readFileSync(
-    join(ui, "src/lib/server/omni/llm-prompt-chain-creative-repair.ts"),
-    "utf8"
-  );
-  assert.ok(!creativeRepairSource.includes("CTA отдельной последней фразой"), "targeted repair must not reintroduce CTA-only endings");
-  assert.ok(creativeRepairSource.includes("достаточно одного конкретного факта или примера"), "targeted repair must preserve one supporting fact");
-  assert.ok(!creativeRepairSource.includes("сохрани минимум два конкретных примера"), "targeted repair must not restore the old strict gate");
-  assert.ok(creativeRepairSource.includes("произнеси его до финальной полезной мысли"), "targeted repair must keep a conclusion after CTA");
-  assert.ok(creativeRepairSource.includes("Вопрос, приказ или новый призыв не считаются выводом"), "full rebuild must reject imperative endings");
-  assert.ok(creativeRepairSource.includes("до финального вывода попроси написать"), "comment CTA must precede the conclusion");
-  assert.ok(promptChainSource.includes("артикул или подробности можно найти в описании"), "LLM chain article CTA must identify the exact product variant");
-  assert.ok(promptChainSource.includes("в описании упоминается только артикул"), "LLM chain article CTA must not speak article number");
-  assert.ok(promptChainSource.includes("Не используй сухие шаблоны"), "LLM chain article CTA must avoid copy-pasted wording");
-  assert.ok(promptChainSource.includes("в описании упоминается только артикул"), "LLM chain article CTA must not add extra description info");
-  assert.ok(promptChainSource.includes("прямо раскрывает смысл spoken_words"), "storyboard frames must visualize their current speech");
-  assert.ok(promptChainSource.includes("Выбирай product_cutaway и удерживание продукта в руках только когда смысл spoken_words"), "product cutaways must be meaning-driven");
-  assert.ok(promptChainSource.includes("Для непредметных кадров создавай самостоятельную сцену"), "non-product speech must receive original visual direction");
-  assert.ok(promptChainSource.includes("Первый segment сохраняет силу и макроформат хука reference"), "first segment must preserve the hook category without copying the source shot");
-  assert.ok(promptChainSource.includes("Финальный вывод должен завершать новую продуктовую мысль"), "copywriter must conclude the adapted thesis, not only the product benefit");
-  assert.ok(semanticReviewerSource.includes("Не предлагай вопрос, приказ, CTA или императив"), "semantic repair feedback must not suggest forbidden imperative endings");
-  assert.ok(semanticReviewerSource.includes("Не отклоняй полезный сценарий только потому"), "semantic review must allow concise reference adaptation");
-  assert.ok(semanticReviewerSource.includes("Отдельная рекламная вставка") && semanticReviewerSource.includes("внезапное упоминание"), "semantic review must reject detached product ads");
-  assert.ok(promptChainSource.includes("десять секунд это пять кадров"), "prompt chain must preserve exact frame counts");
-  assert.ok(promptChainSource.includes("точный материал, крой и цвет reference не являются контрактом"), "wardrobe must not trigger paid regeneration");
-  assert.ok(promptChainSource.includes("позу, взгляд и жест выбирай под текущую реплику"), "talking-head direction must serve the new script");
+  assert.ok(promptChainSource.includes("Reference transcript:"), "original remains source material");
+  assert.ok(promptChainSource.includes("Сохрани предмет оригинала, его хук"), "rewrite preserves original subject and hook");
+  assert.ok(promptChainSource.includes("обещанное число пунктов"), "explicit list promises remain binding");
+  assert.ok(promptChainSource.includes("Верни только JSON с массивом segments"), "author returns executable speech groups");
+  assert.ok(promptChainSource.includes("не переноси весь сценарий на новую тему"), "product must not replace source topic");
+  assert.ok(promptChainSource.includes("Чужие рекламные обещания из оригинала не являются фактами"));
+  assert.ok(promptChainSource.includes("прямо раскрывает смысл spoken_words"));
+  assert.ok(promptChainSource.includes("Product_cutaway всегда отдельный B-roll без людей, рук"),
+    "product cutaways forbid avatar/product interaction");
+  assert.ok(promptChainSource.includes("артикул или подробности можно найти в описании"));
+  assert.ok(promptChainSource.includes("десять секунд это пять кадров"));
+  assert.ok(promptChainSource.includes("позу, взгляд и жест выбирай под текущую реплику"));
   assert.doesNotMatch(promptChainSource, technicalMontageTerms);
 
   console.log("LLM prompt chain contract checks passed!");
 } finally {
   rmSync(output, { recursive: true, force: true });
 }
-
 function requireRunnerWithStubs(runnerPath) {
   const originalLoad = Module._load;
   Module._load = function loadWithPromptChainStubs(request, parent, isMain) {
@@ -495,39 +398,6 @@ function requireRunnerWithStubs(runnerPath) {
     Module._load = originalLoad;
   }
 }
-
-function requireSemanticReviewerWithStubs(reviewerPath) {
-  const originalLoad = Module._load;
-  Module._load = function loadWithSemanticReviewerStubs(request, parent, isMain) {
-    if (request === "@/lib/omni/openrouter-cost") return { normalizeOpenRouterUsage: (value) => value };
-    if (request === "./openrouter-pricing") return { getOpenRouterPricingSnapshot: async () => null };
-    if (request === "./script-json-repair") return { parseAndRepairJson: () => ({}) };
-    if (request === "./script-quality-contract") return { assertCtaConclusionContract: () => {} };
-    return originalLoad.call(this, request, parent, isMain);
-  };
-  try {
-    return require(reviewerPath);
-  } finally {
-    Module._load = originalLoad;
-  }
-}
-
-function passedSemanticReview() {
-  return {
-    version: "script-semantic-review-v1",
-    passed: true,
-    productNamed: true,
-    productValueStated: true,
-    hookAnswered: true,
-    finalAnswerPresent: true,
-    productNaturallyIntegrated: true,
-    referenceMeaningPreserved: true,
-    evidence: { product: "", value: "", answer: "" },
-    issues: [],
-    repairInstructions: [],
-  };
-}
-
 function makeDirectorPlan() {
   const storyboardFrames = makeStoryboardFrames();
   return {
@@ -555,7 +425,6 @@ function makeDirectorPlan() {
     notes: "Структура держит лицо, середину и возврат.",
   };
 }
-
 function makeProviderPlan() {
   const storyboardFrames = makeStoryboardFrames();
   return {
@@ -575,7 +444,6 @@ function makeProviderPlan() {
     notes: "Готовый цельный prompt.",
   };
 }
-
 function makeStoryboardFrames() {
   return [
     {
@@ -624,7 +492,6 @@ function makeStoryboardFrames() {
     },
   ];
 }
-
 function assertIssue(issues, code) {
   assert(
     issues.some((issue) => issue.code === code),

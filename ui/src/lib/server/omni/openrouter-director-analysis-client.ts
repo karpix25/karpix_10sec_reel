@@ -6,6 +6,7 @@ import {
   DIRECTOR_ANALYSIS_SYSTEM_PROMPT,
 } from "./director-analysis-prompt";
 import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
+import { prepareDirectorAnalysisVideoUrl } from "./director-analysis-video-input";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_DIRECTOR_MODEL = "google/gemini-3.5-flash-lite";
@@ -33,6 +34,7 @@ export async function analyzeDirectorVideo(input: {
   if (!apiKey.trim()) throw new Error("OPENROUTER_API_KEY is not configured");
 
   const model = input.model || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL || DEFAULT_DIRECTOR_MODEL;
+  const analysisVideoUrl = await prepareDirectorAnalysisVideoUrl(input.videoUrl);
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: {
@@ -55,7 +57,7 @@ export async function analyzeDirectorVideo(input: {
                 transcript: input.transcript,
               }),
             },
-            { type: "video_url", video_url: { url: input.videoUrl } },
+            { type: "video_url", video_url: { url: analysisVideoUrl } },
           ],
         },
       ],

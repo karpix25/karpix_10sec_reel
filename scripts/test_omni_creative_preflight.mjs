@@ -31,17 +31,22 @@ const input = {
     minWords: 45, maxWords: 80, source: "client_settings", wasClamped: false,
   },
 };
-const bridgeIssue = "Переход от обеда к оплате пока не объяснён.";
-const passingReview = {
-  passed: true, productNamed: true, productValueStated: true, hookAnswered: true,
-  finalAnswerPresent: true, productNaturallyIntegrated: true, referenceMeaningPreserved: true,
-  evidence: { product: input.productName, value: "оплата покупок", answer: "вьетнамский обед", transition: "способ оплаты перед поездкой" },
-  issues: [], repairInstructions: [],
-};
-const failingReview = {
-  ...passingReview, passed: false, productNaturallyIntegrated: false,
-  issues: [bridgeIssue], repairInstructions: ["Объясните подготовку способа оплаты перед поездкой."],
-};
+const bridgeIssue = "Описание продукта не подтверждает оплату любых счетов.";
+function reviewFor(script, failed = false) {
+  const claim = script.includes("любые счета") ? "любые счета" : "кэшбэк";
+  return {
+    evidence: {
+      product: input.productName, value: script.includes("любые счета") ? "оплачиваю любые счета" : script.includes("кэшбэк") ? "получаю кэшбэк" : "оплачивать покупки за границей",
+      answer: "вьетнамский обед", answerKind: "explanation",
+      referenceAnswer: "Смотрите, это наш типичный вьетнамский обед на двоих.", expectedAnswer: "вьетнамский обед", transition: "",
+    },
+    defects: failed ? [{ code: "unsupported_product_claim", scriptQuote: claim, expectedText: claim, message: bridgeIssue }] : [],
+    warnings: [], repairInstructions: ["Добавь выдуманный бонус"],
+  };
+}
+const unsupportedScript = repairedScript.replace("чтобы оплачивать покупки за границей", "и получаю кэшбэк за каждую покупку");
+const passingReview = false;
+const failingReview = true;
 
 try {
   global.fetch = async () => { throw new Error("Unexpected network access in creative preflight regression"); };
@@ -64,7 +69,6 @@ try {
   };
   const preflight = require(join(output, "lib/server/omni/creative-script-preflight.js"));
   const copywriter = require(join(output, "lib/server/omni/llm-creative-copywriter.js"));
-  const retry = require(join(output, "lib/server/omni/script-generation-retry.js"));
   const prompts = require(join(output, "lib/server/omni/llm-prompt-chain-prompts.js"));
   const planner = require(join(output, "lib/server/omni/omni-duration-planner.js"));
   const failed = preflight.collectCreativeScriptPreflight(input, failedScript);
@@ -77,17 +81,18 @@ try {
   const fragmented = [8, 13, 14, 7, 8, 16, 3, 8].map((count) => `${Array(count).fill("слово").join(" ")}.`).join(" ");
   assert.throws(() => planner.planOmniReelSegments(fragmented, { requireSentenceBoundaries: true }), /Не удалось разделить/u,
     "every sentence <=20 can still need six sequential clips; never bypass sentence boundaries");
-  const missingConclusion = failedScript.replace(/ Путешествовать по миру[^.]+\.$/u, "");
-  const jointLocal = preflight.collectCreativeScriptPreflight(input, missingConclusion);
-  assert.match(jointLocal.issues.join("\n"), /после CTA/u);
+  const jointLocal = preflight.collectCreativeScriptPreflight(input, failedScript.replace("Ссылка в профиле.", "Ссылка в описании."));
+  assert.match(jointLocal.issues.join("\n"), /CTA|профил/u);
   assert.match(jointLocal.issues.join("\n"), /Не удалось разделить/u, "CTA failure must not hide timing failure");
   const mixedQuality = `${Array(24).fill("подробно").join(" ")}. В современном мире такой продукт поддержать здоровье. Ссылка в профиле.`;
   const qualityIssues = preflight.collectCreativeScriptPreflight(input, mixedQuality).issues.join("\n");
-  for (const pattern of [/хук или первое предложение слишком длинное/u, /запрещенное AI-слово/u, /текст звучит неграмотно/u, /после CTA/u]) {
+  for (const pattern of [/текст звучит неграмотно/u, /не называет продукт/u]) {
     assert.match(qualityIssues, pattern, "one quality failure must not hide another before the only repair attempt");
   }
   const valid = preflight.collectCreativeScriptPreflight(input, repairedScript);
   assert.deepEqual(valid.issues, []);
+  const endingWithCta = repairedScript.replace(" Способ оплаты теперь подготовлен ещё до начала поездки.", "");
+  assert.deepEqual(preflight.collectCreativeScriptPreflight(input, endingWithCta).issues, [], "CTA can finish an already complete story");
   const appendedCta = preflight.collectCreativeScriptPreflight(input, repairedScript, {
     rawScriptBeforeCta: repairedScript.replace("Ссылка в профиле. ", ""), rawScriptFromModel: repairedScript,
   });
@@ -105,10 +110,15 @@ try {
   assert.equal(recovered.requests.length, 2);
   assert.equal(recovered.reviews.length, 2, "semantic feedback is collected despite the first local packing failure");
   assert.match(recovered.requests[1].userPrompt, /Предложение 2, 27 слов:/u);
-  assert.ok(recovered.requests[1].userPrompt.includes(bridgeIssue), "one repair receives both timing and semantic issues");
+  assert.match(recovered.requests[1].userPrompt, /Неподтверждённое свойство продукта: «любые счета»/u, "one repair receives controlled factual feedback with timing");
+  assert.ok(!recovered.requests[1].userPrompt.includes(bridgeIssue), "raw model advice stays diagnostic, not repair instructions");
+  assert.match(recovered.requests[1].userPrompt, /Удали или исправь неподтверждённое свойство/u);
+  assert.doesNotMatch(recovered.requests[1].userPrompt, /Добавь выдуманный бонус/u);
   assert.deepEqual(recovered.usage.map((usage) => usage.attempt), [1, 2]);
   assert.equal(recovered.result.diagnostics[0].semanticPassed, false);
   assert.equal(recovered.result.diagnostics[1].failure, null);
+  assert.deepEqual(recovered.result.segmentPlan.segments.map((segment) => segment.text),
+    recovered.result.draft.speechSegments.map((segment) => segment.voiceover), "Director receives the writer's exact boundaries");
 
   const stillInvalid = await simulate([failedScript, failedScript], [passingReview, passingReview]);
   assert.ok(stillInvalid.error instanceof copywriter.CreativeCopywriterFailure);
@@ -119,15 +129,15 @@ try {
   for (const diagnostic of diagnostics) {
     assert.deepEqual(diagnostic.sentenceWordCounts, [8, 27, 7, 8, 16, 3, 8]);
     assert.equal(diagnostic.semanticPassed, true);
-    assert.match(diagnostic.failure, /Не удалось разделить/u);
+    assert.match(diagnostic.failure, /27 слов/u);
   }
-  const regressed = await simulate([repairedScript, failedScript], [failingReview, passingReview]);
+  const regressed = await simulate([unsupportedScript, failedScript], [failingReview, passingReview]);
   assert.ok(regressed.error instanceof copywriter.CreativeCopywriterFailure, "a semantic repair must revalidate its new sentence packing");
   assert.match(regressed.requests[1].userPrompt, /Разбиение уже проверено/u);
-  assert.match(regressed.error.partialSnapshot.creativeAttemptDiagnostics[1].failure, /Не удалось разделить/u);
-  const semanticFailure = await simulate([repairedScript, repairedScript], [failingReview, failingReview]);
+  assert.match(regressed.error.partialSnapshot.creativeAttemptDiagnostics[1].failure, /27 слов/u);
+  const semanticFailure = await simulate([unsupportedScript, unsupportedScript], [failingReview, failingReview]);
   assert.ok(semanticFailure.error instanceof copywriter.CreativeCopywriterFailure, "valid timing never bypasses semantic rejection");
-  assert.ok(semanticFailure.error.message.includes(bridgeIssue));
+  assert.match(semanticFailure.error.message, /Неподтверждённое свойство продукта/u);
 
   const longScript = `${repairedScript} ${"Мы заранее изучили меню ближайшего кафе. ".repeat(8).trim()}`;
   assert.ok(planner.countOmniScriptWords(longScript) > 100);
@@ -135,23 +145,6 @@ try {
   assert.ok(overflow.error instanceof copywriter.CreativeCopywriterFailure);
   assert.equal(overflow.error.partialSnapshot.creativeScriptDraft.script, longScript, "never remove whole sentences automatically to meet a budget");
   assert.ok(overflow.reviews.every((body) => body.messages.at(-1).content.endsWith(longScript)), "review the intact overflowing text");
-  let fallbackReviews = 0;
-  global.fetch = async (url, options) => {
-    assert.equal(String(url), "https://openrouter.ai/api/v1/chat/completions");
-    assert.equal(++fallbackReviews, 1);
-    assert.ok(JSON.parse(options.body).messages.at(-1).content.endsWith(failedScript));
-    return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify(failingReview) } }] }) };
-  };
-  const fallbackEvaluation = await copywriter.evaluateCreativeScriptDraft(input, failedScript, () => {}, 1);
-  const fallbackError = new preflight.CreativeScriptValidationError(fallbackEvaluation.preflight, failedScript, fallbackEvaluation.issues);
-  assert.equal(retry.isRetryableScriptGenerationError(fallbackError), true);
-  const feedback = retry.buildScriptRetryFeedback(fallbackError, { referenceScript: input.sourceScenario.script });
-  assert.match(feedback, /Предложение 2, 27 слов:/u);
-  assert.ok(feedback.includes(bridgeIssue), "fallback repair keeps semantic feedback together with packing errors");
-  assert.ok(feedback.endsWith(failedScript), "fallback repair receives the complete rejected candidate");
-  assert.match(feedback, /полный исправленный JSON по исходной схеме/u);
-  assert.match(feedback, /script и beats.voiceover должны совпадать/u);
-  assert.doesNotMatch(feedback, /только.*сценарий без JSON/u, "fallback repair must not inherit the plain-text writer output contract");
 
   const runner = require(join(output, "lib/server/omni/llm-prompt-chain-runner.js"));
   let mainCalls = 0;
@@ -159,7 +152,7 @@ try {
     assert.equal(String(url), "https://openrouter.ai/api/v1/chat/completions");
     assert.ok(++mainCalls <= 4, "invalid speech must never reach the director");
     const content = options.headers["X-Title"] === "Omni Reels Script Semantic Review"
-      ? JSON.stringify(passingReview) : failedScript;
+      ? JSON.stringify(reviewFor(failedScript)) : writerResponse(failedScript);
     return { ok: true, json: async () => ({ choices: [{ message: { content } }] }) };
   };
   await assert.rejects(runner.runLlmPromptChain(input), (error) => {
@@ -173,29 +166,28 @@ try {
 
   const generator = require(join(output, "lib/server/omni/script-generator.js"));
   process.env.OMNI_LLM_PROMPT_CHAIN = "false";
-  const fallbackRequests = [];
-  let fullFallbackReviews = 0;
-  global.fetch = async (url, options) => {
-    assert.equal(String(url), "https://openrouter.ai/api/v1/chat/completions");
-    let content;
-    if (options.headers["X-Title"] === "Omni Reels Script Semantic Review") {
-      assert.ok(++fullFallbackReviews <= 2);
-      content = JSON.stringify(fullFallbackReviews === 1 ? failingReview : passingReview);
-    } else {
-      fallbackRequests.push(JSON.parse(options.body));
-      assert.ok(fallbackRequests.length <= 2);
-      content = JSON.stringify({ script: fallbackRequests.length === 1 ? failedScript : repairedScript });
+  mainCalls = 0;
+  await assert.rejects(generator.generateScript(input), (error) => {
+    assert.ok(error instanceof runner.LlmPromptChainFailure);
+    assert.equal(error.stage, "creative_copywriter");
+    assert.equal(error.partialSnapshot.creativeAttemptDiagnostics.length, 2);
+    return true;
+  });
+  assert.equal(mainCalls, 4, "The legacy flag must use the same bounded chain, with no fallback");
+  console.log("Creative preflight passed: Ref956, v2 grounded feedback, exact JSON speech, one repair, legacy flag uses single pipeline.");
+
+  function writerResponse(script) {
+    let segments;
+    try {
+      const plan = planner.planOmniReelSegments(script, { requireSentenceBoundaries: true });
+      segments = plan.segments.map((segment, index) => ({ duration_seconds: plan.segmentDurationsSeconds[index], voiceover: segment.text }));
+    } catch {
+      const sentences = script.split(/(?<=[.!?])\s+/u);
+      while (sentences.length > 5) sentences.splice(-2, 2, sentences.slice(-2).join(" "));
+      segments = sentences.map((voiceover) => ({ duration_seconds: 10, voiceover }));
     }
-    return { ok: true, json: async () => ({ choices: [{ message: { content } }] }) };
-  };
-  const fallbackResult = await generator.generateScript(input);
-  assert.equal(fallbackResult.payload.script, repairedScript);
-  assert.equal(fallbackRequests.length, 2);
-  assert.equal(fullFallbackReviews, 2);
-  const fallbackRepairPrompt = fallbackRequests[1].messages.at(-1).content;
-  assert.ok(fallbackRepairPrompt.includes(bridgeIssue));
-  assert.match(fallbackRepairPrompt, /Предложение 2, 27 слов:/u);
-  console.log("Creative preflight regression passed: Ref 956, joint feedback, sentence packing, exact speech, bounded two-attempt repairs.");
+    return JSON.stringify({ segments });
+  }
 
   async function simulate(candidates, responses) {
     const requests = [], reviews = [], usage = [];
@@ -203,8 +195,8 @@ try {
       assert.equal(String(url), "https://openrouter.ai/api/v1/chat/completions", "only mocked semantic review is permitted");
       assert.ok(reviews.length < 2, "semantic reviewer must keep the two-call ceiling");
       const body = JSON.parse(options.body);
-      const response = responses[reviews.length];
-      assert.ok(response, "unexpected semantic call");
+      assert.ok(reviews.length < responses.length, "unexpected semantic call");
+      const response = reviewFor(candidates[reviews.length], responses[reviews.length]);
       reviews.push(body);
       return { ok: true, json: async () => ({ model: input.model, choices: [{ message: { content: JSON.stringify(response) } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }) };
     };
@@ -213,7 +205,7 @@ try {
         assert.ok(requests.length < 2, "writer must keep the two-call ceiling");
         if (requests.length === 1) assert.equal(reviews.length, 1, "semantic issues must be known before repair starts");
         requests.push(request);
-        return candidates[request.attempt - 1];
+        return writerResponse(candidates[request.attempt - 1]);
       });
       return { result, error: null, requests, reviews, usage };
     } catch (error) { return { result: null, error, requests, reviews, usage }; }

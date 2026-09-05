@@ -10,7 +10,7 @@ import {
   buildCreativeCopywriterAttemptPrompt,
   resolveCreativeCopywriterAttemptMode,
 } from "./llm-prompt-chain-creative-repair";
-import { buildReferenceMeaningContract } from "./reference-meaning-contract";
+import { normalizeGroundedSemanticReview } from "./script-semantic-findings";
 import { validateStoryboardDirectorPlan } from "./llm-prompt-chain-storyboard-validator";
 import { validateDirectorSegmentPlan } from "./provider-prompt-contract-validator";
 import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
@@ -64,181 +64,142 @@ test("video analysis visible subject policy controls non presenter formats", () 
   assert.equal(resolveReferenceSceneMode({ visible_subject_policy: "object_only" }), "object_only");
 });
 
-test("creative semantic failures keep every retry targeted", () => {
-  assert.deepEqual(
-    [1, 2, 3, 4].map((attempt) => resolveCreativeCopywriterAttemptMode({
-      attempt,
-      maxAttempts: 4,
-      hasRejectedScript: attempt > 1,
-    })),
-    ["initial", "targeted_repair", "targeted_repair", "targeted_repair"]
-  );
-
-  const review = {
-    version: "script-semantic-review-v1" as const,
-    passed: false,
-    productNamed: true,
-    productValueStated: true,
-    hookAnswered: false,
-    finalAnswerPresent: false,
-    productNaturallyIntegrated: false,
-    referenceMeaningPreserved: true,
-    evidence: { product: "Плати по миру", value: "оплачивать поездки", answer: "", transition: "в поездке удобно использовать" },
-    issues: ["Хук не получает ответа"],
-    repairInstructions: ["Добавьте ответ перед CTA"],
-  };
+test("one targeted repair preserves draft and receives every confirmed issue", () => {
+  assert.equal(resolveCreativeCopywriterAttemptMode({ attempt: 1, maxAttempts: 2, hasRejectedScript: false }), "initial");
   const rejectedScript = "Почему Австралия стала популярной? Плати по миру поможет в поездке. Ссылка в профиле.";
-  const repairAttempt = buildCreativeCopywriterAttemptPrompt({
-    chainInput: makeCreativeInput(),
-    attempt: 2,
-    maxAttempts: 4,
-    previousDraft: {
-      version: "llm-prompt-chain-v1",
-      script: rejectedScript,
-      hookAngle: null,
-      creativeNotes: null,
-    },
-    semanticReview: review,
-    failureReason: "semantic review failed",
-  });
-
-  assert.equal(repairAttempt.mode, "targeted_repair");
-  assert.ok(repairAttempt.prompt.includes("Rejected script:"));
-  assert.ok(repairAttempt.prompt.includes(rejectedScript));
-  assert.ok(repairAttempt.prompt.includes("ответ на хук, завершенный вывод, причинная и нативная связь продукта"));
-  assert.ok(repairAttempt.prompt.includes("Добавьте ответ перед CTA"));
-  assert.ok(repairAttempt.prompt.includes("ровно столько различимых пунктов из reference"));
-  assert.ok(repairAttempt.prompt.includes("Не возвращай rejected script без фактического исправления"));
-  assert.ok(repairAttempt.prompt.includes("CTA должен завершать мысль о применении продукта"));
-
-  const finalRepairAttempt = buildCreativeCopywriterAttemptPrompt({
-    chainInput: makeCreativeInput(),
-    attempt: 4,
-    maxAttempts: 4,
-    previousDraft: {
-      version: "llm-prompt-chain-v1",
-      script: rejectedScript,
-      hookAngle: null,
-      creativeNotes: null,
-    },
-    semanticReview: review,
-    failureReason: "semantic review failed",
-  });
-  assert.equal(finalRepairAttempt.mode, "targeted_repair");
-  assert.ok(finalRepairAttempt.prompt.includes("Rejected script:"));
-  assert.ok(finalRepairAttempt.prompt.includes(rejectedScript));
-});
-
-test("reference list obligations are carried into the generator contract", () => {
-  const reference = "Вот три совета для поездки. Во-первых, проверьте страховку. Во-вторых, следите за вещами на пляже. В-третьих, планируйте маршрут по погоде.";
-  const contract = buildReferenceMeaningContract(reference);
-  assert.equal(contract.requiresListPreservation, true);
-  assert.equal(contract.listItems.length, 3);
-  assert.ok(contract.listItems[1].includes("следите за вещами"));
-
-  const prompt = buildCreativeCopywriterPrompt({
-    ...makeCreativeInput(),
-    sourceScenario: { ...makeCreativeInput().sourceScenario, script: reference },
-    adaptationPlan: {
-      ...makeCreativeInput().adaptationPlan,
-      mode: "preserve_reference",
-    },
-  });
-  assert.ok(!prompt.includes("reference_format_mode"));
-  assert.ok(!prompt.includes("voiceover montage"));
-  assert.match(prompt, /voiceover.*аватар или диктор.*talking head.*B-roll/iu);
-  assert.match(prompt, /не только хук, темп и структуру, но и тему/iu);
-  assert.match(prompt, /тему, главный вопрос или конфликт/iu);
-  assert.match(prompt, /естественный переход к реальной потребности/iu);
-  assert.ok(prompt.includes("следите за вещами на пляже"));
-  assert.ok(!prompt.includes("режим адаптации"));
-  assert.ok(!prompt.includes("adjacent_bridge"));
-});
-
-test("creative repairs keep the reference topic when product is adjacent", () => {
-  const chainInput = {
-    ...makeCreativeInput(),
-    adaptationPlan: {
-      ...makeCreativeInput().adaptationPlan,
-      mode: "adjacent_bridge" as const,
-    },
-  };
-  const adjacentRepair = buildCreativeCopywriterAttemptPrompt({
-    chainInput: {
-      ...chainInput,
-      productName: "Плати по миру виртуальная карта",
-      sourceScenario: {
-        ...chainInput.sourceScenario,
-        script: "Как не платить за отели? Я неделю жил в Лондоне бесплатно, потому что присматривал за домом и питомцами.",
-      },
-      adaptationPlan: {
-        ...chainInput.adaptationPlan,
-        mode: "adjacent_bridge",
-        productBridge: "После бесплатного жилья карта помогает оплачивать остальные покупки и услуги за границей.",
-      },
-    },
-    attempt: 2,
-    maxAttempts: 2,
-    previousDraft: {
-      version: "llm-prompt-chain-v1",
-      script: "Как не платить за отели? Плати по миру виртуальная карта поможет в поездке. Ссылка в профиле.",
-      hookAngle: null,
-      creativeNotes: null,
-    },
-    semanticReview: {
-      version: "script-semantic-review-v1",
-      passed: false,
-      productNamed: true,
-      productValueStated: true,
-      hookAnswered: false,
-      finalAnswerPresent: true,
-      productNaturallyIntegrated: false,
-      referenceMeaningPreserved: false,
-      evidence: { product: "Плати по миру виртуальная карта", value: "оплачивать покупки", answer: "", transition: "" },
-      issues: ["Хук про бесплатное жильё не раскрыт"],
-      repairInstructions: ["Сначала раскройте способ получения бесплатного жилья"],
-    },
-    failureReason: "semantic review failed",
-  });
-
-  assert.match(adjacentRepair.prompt, /КРИТИЧЕСКИЙ ПОРЯДОК ДЛЯ СОСЕДНЕГО МОСТА/iu);
-  assert.match(adjacentRepair.prompt, /в этой части нельзя упоминать продукт или CTA/iu);
-  assert.match(adjacentRepair.prompt, /CTA не может идти перед названием и пользой продукта/iu);
-  assert.match(adjacentRepair.prompt, /карта не является причиной бесплатного жилья/iu);
-
-  const repair = buildCreativeCopywriterAttemptPrompt({
-    chainInput,
-    attempt: 2,
-    maxAttempts: 4,
-    previousDraft: {
-      version: "llm-prompt-chain-v1",
-      script: "Ты бы уехал жить в другую страну? Плати по миру поможет оплачивать покупки. Ссылка в профиле.",
-      hookAngle: null,
-      creativeNotes: null,
-    },
+  const attempt = buildCreativeCopywriterAttemptPrompt({
+    chainInput: makeCreativeInput(), attempt: 2, maxAttempts: 2,
+    previousDraft: { version: "llm-prompt-chain-v1", script: rejectedScript, hookAngle: null, creativeNotes: null },
     semanticReview: null,
-    failureReason: "topic drift",
+    failureReason: "Потерян ответ из оригинала. Речь не помещается в сегмент.",
   });
-
-  assert.match(repair.prompt, /Не выбрасывай тему reference ради продукта/iu);
-  assert.doesNotMatch(repair.prompt, /Не возвращай чужой механизм или предметную тему/iu);
+  assert.equal(attempt.mode, "targeted_repair");
+  assert.ok(attempt.prompt.includes(rejectedScript));
+  assert.ok(attempt.prompt.includes("Потерян ответ из оригинала. Речь не помещается в сегмент."));
+  assert.match(attempt.prompt, /Не меняй тему, исходный ответ или свойства продукта ради сокращения/u);
+  assert.match(attempt.prompt, /полный исправленный JSON с segments, duration_seconds и voiceover/u);
 });
 
-test("format transfer does not inherit source-topic requirements", () => {
-  const formatTransferPrompt = buildCreativeCopywriterPrompt(makeCreativeInput());
-  assert.match(formatTransferPrompt, /Полностью замени исходный предмет новым честным сюжетом о продукте/u);
-  assert.match(formatTransferPrompt, /Не отвечай на исходный предметный вопрос/u);
-  assert.doesNotMatch(formatTransferPrompt, /напиши новый сценарий на ту же тему/u);
+test("legacy adaptation modes cannot change the rewrite task or original list", () => {
+  const input = makeCreativeInput();
+  const reference = "Вот три совета для поездки. Проверьте страховку. Следите за вещами на пляже. Планируйте маршрут по погоде.";
+  const prompts = (["preserve_reference", "adjacent_bridge", "format_transfer"] as const).map((mode) =>
+    buildCreativeCopywriterPrompt({ ...input,
+      sourceScenario: { ...input.sourceScenario, script: reference },
+      adaptationPlan: { ...input.adaptationPlan, mode },
+    }));
+  assert.equal(new Set(prompts).size, 1, "legacy topic classifier must not switch generation strategies");
+  assert.ok(prompts[0].includes(reference));
+  assert.match(prompts[0], /Сохрани предмет оригинала, его хук/u);
+  assert.match(prompts[0], /сохрани обещанное число пунктов/u);
+  assert.match(prompts[0], /Верни только JSON с массивом segments/u);
+  assert.match(prompts[0], /четыре слова на две секунды/u);
+  assert.doesNotMatch(prompts[0], /Полностью замени исходный предмет|СОСЕДНЕГО МОСТА/u);
+});
 
-  const adjacentPrompt = buildCreativeCopywriterPrompt({
-    ...makeCreativeInput(),
-    adaptationPlan: {
-      ...makeCreativeInput().adaptationPlan,
-      mode: "adjacent_bridge",
-    },
+test("Ref969 needs the named country even when reviewer quotes an existing unrelated answer", () => {
+  const context = { productName: "Плати по миру",
+    referenceScript: "Это Республика Палау. Оформление визы занимает пять минут онлайн.",
+    script: "Это единственная страна, где туристическая виза стоит один доллар. Оформление визы занимает пять минут онлайн. Плати по миру помогает оплачивать покупки. Ссылка в профиле.",
+  };
+  const evidence = { product: "Плати по миру", value: "помогает оплачивать покупки",
+    answer: "Оформление визы занимает пять минут онлайн", answerKind: "named_fact",
+    referenceAnswer: "Это Республика Палау", expectedAnswer: "Палау", transition: "" };
+  const failed = normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] }, context);
+  assert.equal(failed.hookAnswered, false);
+  assert.deepEqual(failed.defects?.map((defect) => defect.code), ["missing_answer"]);
+  const corrected = normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] },
+    { ...context, script: `Это Палау. ${context.script}` });
+  assert.equal(corrected.passed, true);
+});
+
+test("exact product facts override unsupported-claim allegations without excusing invented claims", () => {
+  const context = { productName: "Плати по миру", productDescription: "Карта помогает оплачивать покупки.",
+    referenceScript: "Это Тунис.",
+    script: "Это Тунис. Плати по миру помогает оплачивать покупки и получать кэшбэк.",
+  };
+  const evidence = { product: "Плати по миру", value: "помогает оплачивать покупки", answer: "Тунис",
+    answerKind: "named_fact", referenceAnswer: "Это Тунис", expectedAnswer: "Тунис", transition: "" };
+  const review = (expectedText: string) => normalizeGroundedSemanticReview({ evidence, warnings: [],
+    defects: [{ code: "unsupported_product_claim", scriptQuote: "помогает оплачивать покупки и получать кэшбэк",
+      expectedText, message: "Свойство не подтверждено описанием" }],
+  }, context);
+  assert.equal(review("оплачивать покупки").passed, true);
+  assert.equal(review("получать кэшбэк").passed, false);
+});
+
+test("grounded findings reject real missing list items and discard contradictory findings", () => {
+  const context = { productName: "Плати по миру",
+    referenceScript: "Три совета: проверьте страховку, следите за вещами, планируйте маршрут.",
+    script: "Проверьте страховку. Следите за вещами. Плати по миру помогает оплачивать покупки. Ссылка в профиле.",
+  };
+  const raw = { evidence: { product: "Плати по миру", value: "помогает оплачивать покупки",
+    answer: "Проверьте страховку", answerKind: "explanation", referenceAnswer: "проверьте страховку", expectedAnswer: "страховку", transition: "" },
+    defects: [{ code: "missing_list_item", message: "Потерян третий пункт",
+      referenceQuote: "планируйте маршрут", expectedText: "маршрут", scriptQuote: "" }], warnings: [],
+  };
+  const failed = normalizeGroundedSemanticReview(raw, context);
+  assert.equal(failed.version, "script-semantic-review-v2");
+  assert.equal(failed.passed, false);
+  assert.deepEqual(failed.defects?.map((defect) => defect.code), ["missing_list_item"]);
+  const corrected = normalizeGroundedSemanticReview(raw, { ...context, script: `${context.script} Планируйте маршрут.` });
+  assert.equal(corrected.passed, true, "an existing list item cannot be rejected as absent");
+  const inaccuratePositiveEvidence = normalizeGroundedSemanticReview({ ...raw, defects: [], evidence: { ...raw.evidence,
+    referenceAnswer: "берите только наличные", expectedAnswer: "берите только наличные" } }, context);
+  assert.equal(inaccuratePositiveEvidence.passed, true, "an inaccurate positive quote is not evidence that the answer is missing");
+  assert.ok(inaccuratePositiveEvidence.warnings?.some((warning) => warning.includes("неточно процитировал")));
+});
+
+test("named answers tolerate grammatical case but cannot be replaced with another country", () => {
+  const context = { productName: "Карта", referenceScript: "Это Тунис.",
+    script: "Отдых в Тунисе. Карта помогает в поездках." };
+  const evidence = { product: "Карта", value: "помогает в поездках", answer: "Отдых в Тунисе",
+    answerKind: "named_fact", referenceAnswer: "Это Тунис", expectedAnswer: "Тунис", transition: "" };
+  assert.equal(normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] }, context).passed, true);
+  const wrongCountry = normalizeGroundedSemanticReview({ evidence: { ...evidence, answer: "Отдых в Турции" }, defects: [], warnings: [] },
+    { ...context, script: "Отдых в Турции. Карта помогает в поездках." });
+  assert.deepEqual(wrongCountry.defects?.map((defect) => defect.code), ["missing_answer"]);
+});
+
+test("negated product descriptions never approve the positive version of a claim", () => {
+  const context = { productName: "Карта", referenceScript: "Это Тунис.",
+    script: "Это Тунис. Карта выдаёт кешбэк.", productDescription: "Карта не выдаёт кешбэк." };
+  const evidence = { product: "Карта", value: "выдаёт кешбэк", answer: "Тунис", answerKind: "named_fact",
+    referenceAnswer: "Это Тунис", expectedAnswer: "Тунис", transition: "" };
+  const raw = { evidence, warnings: [], defects: [{ code: "unsupported_product_claim",
+    scriptQuote: "Карта выдаёт кешбэк", expectedText: "выдаёт кешбэк", message: "Кешбэк не поддерживается." }] };
+  const rejected = normalizeGroundedSemanticReview(raw, context);
+  assert.deepEqual(rejected.defects?.map((defect) => defect.code), ["unsupported_product_claim"]);
+  assert.equal(normalizeGroundedSemanticReview(raw, { ...context, productDescription: "Карта выдаёт кешбэк." }).passed, true);
+});
+
+test("freeform reviewer advice cannot leak through failureReason into the repair prompt", () => {
+  const context = { productName: "Карта", referenceScript: "Это Тунис.", script: "Это Тунис. Карта выдаёт кешбэк." };
+  const advice = "Добавь гарантированную скидку девяносто процентов и бесплатные перелёты.";
+  const review = normalizeGroundedSemanticReview({ evidence: { product: "Карта", value: "выдаёт кешбэк",
+    answer: "Тунис", answerKind: "named_fact", referenceAnswer: "Это Тунис", expectedAnswer: "Тунис", transition: "" },
+    defects: [{ code: "unsupported_product_claim", scriptQuote: "Карта выдаёт кешбэк", expectedText: "выдаёт кешбэк", message: advice }], warnings: [],
+  }, context);
+  assert.equal(review.defects?.[0].message, advice, "raw explanation remains available only as diagnostic data");
+  const repaired = buildCreativeCopywriterAttemptPrompt({
+    chainInput: makeCreativeInput(), attempt: 2, maxAttempts: 2,
+    previousDraft: { version: "llm-prompt-chain-v1", script: context.script, hookAngle: null, creativeNotes: null },
+    semanticReview: review, failureReason: `Сценарий требует исправления: ${review.issues.join("; ")}`,
   });
-  assert.match(adjacentPrompt, /напиши новый сценарий на ту же тему/u);
-  assert.match(adjacentPrompt, /в рамках темы reference/u);
+  assert.equal(repaired.prompt.includes(advice), false);
+  assert.match(repaired.prompt, /неподтверждённое свойство/iu);
+});
+
+test("combined named anchors and missing positive value evidence do not reject complete speech", () => {
+  const context = { productName: "Карта", referenceScript: "Первый магазин Нива. Второй магазин Заря.",
+    script: "Первый магазин называется Нива. Второй называется Заря. Карта помогает оплачивать покупки." };
+  const evidence = { product: "Карта", value: "", answer: "Первый магазин называется Нива", answerKind: "named_fact",
+    referenceAnswer: "Нива, Заря", expectedAnswer: "Нива, Заря", transition: "" };
+  const review = normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] }, context);
+  assert.equal(review.passed, true);
+  assert.equal(review.productValueStated, true, "empty positive value evidence alone does not prove absence");
+  const explicitMissingValue = normalizeGroundedSemanticReview({ evidence, warnings: [], defects: [{ code: "missing_product_value" }] }, context);
+  assert.equal(explicitMissingValue.passed, false, "an explicit missing-value finding still blocks until resolved");
 });
 
 function makePlan(): DirectorSegmentPlan {

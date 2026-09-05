@@ -26,7 +26,7 @@ export function ensureOmniScriptCta(script: string, mode: CtaMode, value?: strin
   return script;
 }
 
-export function assertOmniCtaContract(script: string, strategy: OmniCreativeStrategy) {
+export function assertOmniCtaContract(script: string, strategy: Pick<OmniCreativeStrategy, "ctaMode" | "ctaValue">) {
   const signals = analyzeCta(script);
   assertNoConflictingCta(signals, strategy.ctaMode);
   const normalized = normalize(script);

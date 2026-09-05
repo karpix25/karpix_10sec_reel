@@ -29,14 +29,14 @@ const input = {
   },
 };
 const accepted = {
-  passed: true, productNamed: true, productValueStated: true, hookAnswered: true,
-  finalAnswerPresent: true, productNaturallyIntegrated: true, referenceMeaningPreserved: true,
   evidence: {
     product: "Карта Пример", value: "помогает оплачивать покупки за границей",
-    transition: "чем оплатить покупки? Для покупки понадобится способ оплаты.",
-    answer: "Способ оплаты подготовлен заранее.",
+    transition: "Для покупки понадобится способ оплаты.",
+    answer: "В магазине из подборки есть летние рубашки.",
+    referenceAnswer: "В магазине из подборки есть летние рубашки.",
+    expectedAnswer: "летние рубашки", answerKind: "explanation",
   },
-  issues: [], repairInstructions: [],
+  defects: [], warnings: [],
 };
 let modelReview = accepted;
 
@@ -79,11 +79,7 @@ try {
   assert.equal(review.passed, true);
   assert.doesNotThrow(() => reviewer.assertScriptSemanticReviewPassed(review));
 
-  const rejection = {
-    ...accepted, passed: false, productNaturallyIntegrated: false,
-    issues: ["Не объяснена связь продукта с потребностью из сценария."],
-    repairInstructions: ["Свяжи выбор одежды с конкретной потребностью в оплате покупки."],
-  };
+  const rejection = { ...review, passed: false, issues: ["Потерян ответ."], repairInstructions: ["Верни ответ из оригинала."] };
   const repair = buildCreativeCopywriterAttemptPrompt({
     chainInput: input, attempt: 2, maxAttempts: 2,
     previousDraft: { version: "llm-prompt-chain-v1", script, hookAngle: null, creativeNotes: null },
@@ -106,26 +102,25 @@ try {
     assert.match(prompt, /остаются полезными без продуктовой фразы/iu);
   }
   assert.ok(user.includes(script), "reviewer must inspect the complete submitted script");
-  assert.match(user, /точные цитаты из готового сценария/iu);
-  assert.match(system, /конкретное исправление для каждой проваленной проверки/iu);
-  assert.match(system, /Только при исправлении finalAnswerPresent/iu);
+  assert.match(system, /точные непрерывные цитаты/iu);
+  assert.match(system, /НЕ блокирующие смысловые дефекты/u);
 
-  modelReview = rejection;
-  const failed = await reviewer.reviewScriptSemantics(reviewInput, () => {});
-  assert.equal(failed.productNaturallyIntegrated, false);
-  assert.throws(() => reviewer.assertScriptSemanticReviewPassed(failed), /Не объяснена связь/u,
-    "a genuine integration rejection must not be bypassed by shopping/card keywords");
+  modelReview = { ...accepted, warnings: ["Продукт встроен искусственно, его можно удалить."] };
+  const stylistic = await reviewer.reviewScriptSemantics(reviewInput, () => {});
+  assert.equal(stylistic.passed, true, "stylistic advice cannot block a usable rewrite");
+  assert.equal(stylistic.warnings.length, 1);
 
   modelReview = { ...accepted, evidence: { ...accepted.evidence, transition: "" } };
   const missingEvidence = await reviewer.reviewScriptSemantics(reviewInput, () => {});
-  assert.equal(missingEvidence.passed, false, "an empty transition must still fail despite a model pass");
+  assert.equal(missingEvidence.passed, true, "missing editorial transition evidence is not a factual defect");
 
-  modelReview = accepted;
+  modelReview = { ...accepted, defects: [{ code: "unsupported_product_claim", message: "Выдача наличных не подтверждена описанием продукта.", scriptQuote: "С картой можно снимать наличные в банкомате.", expectedText: "снимать наличные", referenceQuote: "" }] };
   const unsupported = await reviewer.reviewScriptSemantics({
     ...reviewInput, script: script + " С картой можно снимать наличные в банкомате.",
   }, () => {});
   assert.equal(unsupported.passed, false, "unsupported product capability must still override a model pass");
-  assert.match(unsupported.issues.join(" "), /неподтвержденную возможность/u);
+  assert.match(unsupported.issues.join(" "), /снимать наличные/u);
+  assert.ok(unsupported.repairInstructions[0].includes("снимать наличные"));
   assert.equal(requests.length, 4, "one bounded semantic request per review; no new provider stages");
   assert.equal(usage[0].layer, "script_semantic_reviewer");
   console.log("Product integration prompts: shared policy, exact review payload, targeted repair, and rejection guards passed (mocked API).");
