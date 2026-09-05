@@ -63,16 +63,13 @@ try {
   const balanced = planOmniReelSegments(balancedScript, { requireSentenceBoundaries: true });
   assert.deepEqual(balanced.segmentWordCounts, [15, 7], "equal-duration choices should avoid concentrating unused speech capacity in one segment");
   const sentences = [8, 7, 7].map((count) => Array(count).fill("слово").join(" ") + ".");
-  const authored = buildOmniTimedVoiceoverPlan(balancedScript, { speechSegments: [
-    { durationSeconds: 4, voiceover: sentences[0] },
+  const repaired = buildOmniTimedVoiceoverPlan(balancedScript, { speechSegments: [
+    { durationSeconds: 4, voiceover: sentences[0].replace(/\.$/u, ",") },
     { durationSeconds: 8, voiceover: sentences.slice(1).join(" ") },
   ] });
-  assert.deepEqual(authored.segments.map((segment) => segment.wordCount), [8, 14], "persist the approved writer boundaries instead of the fallback planner's [15, 7]");
-  assert.deepEqual(authored.segments.map((segment) => segment.durationSeconds), [4, 8]);
-  assert.deepEqual(resolveOmniTimedVoiceoverPlan({ script: balancedScript, sourceSnapshot: { timed_voiceover_plan: authored } }).segments, authored.segments);
-  assert.throws(() => buildOmniTimedVoiceoverPlan(balancedScript, { speechSegments: [
-    { durationSeconds: 4, voiceover: sentences[0] }, { durationSeconds: 4, voiceover: sentences[1] },
-  ] }), /полный сценарий/);
+  assert.deepEqual(repaired.segments.map((segment) => segment.wordCount), [15, 7], "raw model groups must never choose final speech boundaries");
+  assert.deepEqual(repaired.segments.map((segment) => segment.durationSeconds), [8, 4]);
+  assert.deepEqual(resolveOmniTimedVoiceoverPlan({ script: balancedScript, sourceSnapshot: { timed_voiceover_plan: repaired } }).segments, repaired.segments);
   const chainInput = {
     projectName: "Speech test", productName: "Карта для зарубежных покупок",
     sourceScenario: { script: balancedScript }, avatarSpeechGender: "male",

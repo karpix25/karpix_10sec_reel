@@ -1,6 +1,4 @@
 import type { OmniDurationRange } from "./omni-duration-range";
-import type { CreativeSpeechSegment } from "./llm-prompt-chain-types";
-import { validateCreativeSpeechPlan } from "./creative-speech-plan";
 import {
   hasCompletedSentenceBoundary,
   normalizeScriptText,
@@ -35,9 +33,9 @@ export type OmniTimedVoiceoverPlan = {
 
 export function buildOmniTimedVoiceoverPlan(
   script: string,
-  options: { durationRange?: OmniDurationRange; speechSegments?: readonly CreativeSpeechSegment[] } = {}
+  options: { durationRange?: OmniDurationRange } = {}
 ): OmniTimedVoiceoverPlan {
-  const segmentPlan = options.speechSegments ? validateCreativeSpeechPlan(script, options.speechSegments, options.durationRange) : planOmniReelSegments(script, {
+  const segmentPlan = planOmniReelSegments(script, {
     durationRange: options.durationRange,
     requireSentenceBoundaries: true,
   });

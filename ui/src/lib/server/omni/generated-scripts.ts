@@ -224,9 +224,7 @@ export async function createGeneratedScriptFromLegacy(input: {
       adaptationPlan: writerContentContext.adaptation,
       contentContract: writerContentContext,
     });
-    timedVoiceoverPlan = buildOmniTimedVoiceoverPlan(generated.payload.script, {
-      durationRange, speechSegments: generated.llmPromptChainSnapshot?.creativeScriptDraft.speechSegments,
-    });
+    timedVoiceoverPlan = buildOmniTimedVoiceoverPlan(generated.payload.script, { durationRange });
   } catch (error) {
     await failGeneratedScriptGeneration(pendingScript.id, error);
     throw error;
