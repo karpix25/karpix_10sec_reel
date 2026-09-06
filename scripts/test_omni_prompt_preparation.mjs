@@ -155,8 +155,7 @@ try {
   assert.equal(counters.build, 0, "cache read must not build or repair a plan");
   await assert.rejects(prepared.prepareOmniPromptPlan({ ...input, avatar: null }), /аватар/);
   await assert.rejects(prepared.prepareOmniPromptPlan({ ...input, product: { ...input.product, product_refs: [] } }), /изображение продукта/);
-  await assert.rejects(prepared.prepareOmniPromptPlan({ ...input, directorBrief: null }), /таймлайн/);
-  await assert.rejects(prepared.prepareOmniPromptPlan({ ...input, referenceSourceDurationSeconds: 15 }), /не покрывает/);
+  await assert.rejects(prepared.prepareOmniPromptPlan({ ...input, directorBrief: null }), /визуальный анализ/);
   assert.equal(counters.build, 0, "invalid inputs must fail before generation or repair");
   await assert.rejects(prepared.prepareOmniPromptPlan({ ...input, generatedScript: { ...input.generatedScript,
     source_snapshot: { generation_error: "Unresolved script error" },
@@ -171,6 +170,10 @@ try {
   assert.equal(counters.build, 1, "repeated preparation must reuse the saved plan");
   assert.equal(counters.physical, 1);
   assert.equal(counters.semantic, 1);
+  await prepared.prepareOmniPromptPlan({ ...input, referenceSourceDurationSeconds: 15 });
+  assert.equal(counters.build, 2, "a shorter source analysis must still prepare a plan");
+  assert.equal(counters.physical, 2);
+  assert.equal(counters.semantic, 2);
   assert.equal(prepared.readMatchingPreparedOmniPromptPlan({ ...saved, version: "outdated" }, originalSignature), null);
 
   saved = null;
@@ -181,7 +184,7 @@ try {
   const first = prepared.prepareOmniPromptPlan(input);
   await entered;
   await assert.rejects(prepared.prepareOmniPromptPlan(input), /уже готовится/);
-  assert.equal(counters.physical, 2, "concurrent preparation must not enter paid repair twice");
+  assert.equal(counters.physical, 3, "concurrent preparation must not enter paid repair twice");
   assert.equal(held, true, "the rejected second request must not unlock the active first request");
   resume();
   await first;

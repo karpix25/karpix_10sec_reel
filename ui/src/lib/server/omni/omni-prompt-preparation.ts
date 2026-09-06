@@ -10,7 +10,6 @@ import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-stor
 import { validateOmniStoryboardSegment } from "../../omni/storyboard/omni-storyboard-contract";
 import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
-import { hasCompleteSourceTimeline } from "./omni-reference-transfer-policy";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { validatePromptVoiceoverIsolation, validateVoiceoverSequence } from "./omni-prompt-validator";
 import { adaptDirectorBriefForAvatarReel, ensureTalkingAvatarInPromptPlan } from "./omni-avatar-reel-plan";
@@ -125,12 +124,8 @@ export async function prepareOmniPromptPlan(input: OmniPromptPreparationInput): 
 function assertOmniPreparationInputs(input: OmniPromptPreparationInput) {
   if (!input.avatar?.reference_url) throw new Error("Для разговорного ролика нужен сохранённый аватар с изображением.");
   if (!resolveProductReferenceImageUrls(input.product).length) throw new Error("Добавьте изображение продукта для товарных B-roll.");
-  if (!input.directorBrief || !hasCompleteSourceTimeline(input.directorBrief)) {
-    throw new Error("Не удалось разобрать reference video: нужен полный визуальный таймлайн выбранного референса.");
-  }
-  const analyzedEnd = Math.max(...(input.directorBrief.camera_timeline || []).map((interval) => interval.end_sec));
-  if (input.referenceSourceDurationSeconds && analyzedEnd < input.referenceSourceDurationSeconds - 0.75) {
-    throw new Error("Не удалось разобрать reference video: визуальный таймлайн не покрывает конец выбранного референса.");
+  if (!input.directorBrief) {
+    throw new Error("Не удалось разобрать reference video: нужен визуальный анализ выбранного референса.");
   }
 }
 
