@@ -69,6 +69,7 @@ try {
   };
   const preflight = require(join(output, "lib/server/omni/creative-script-preflight.js"));
   const copywriter = require(join(output, "lib/server/omni/llm-creative-copywriter.js"));
+  const repair = require(join(output, "lib/server/omni/llm-prompt-chain-creative-repair.js"));
   const prompts = require(join(output, "lib/server/omni/llm-prompt-chain-prompts.js"));
   const referenceFacts = require(join(output, "lib/server/omni/reference-fact-contract.js"));
   const planner = require(join(output, "lib/server/omni/omni-duration-planner.js"));
@@ -115,6 +116,20 @@ try {
   const hotelPrompt = prompts.buildCreativeCopywriterPrompt({ ...input, sourceScenario: { ...input.sourceScenario, script: hotelReference } });
   assert.match(hotelPrompt, /ФАКТИЧЕСКИЕ ОПОРЫ REFERENCE/u);
   assert.match(hotelPrompt, /Mia Resort/u);
+
+  const tailTrapReference = "Длина смотровой платформы составляет 48 метров.";
+  const tailTrapScript = "Я нашел тихую смотровую площадку над морем, где утром почти нет людей и слышны только волны внизу. Для оплаты экскурсий и кафе я использую Плати по миру виртуальная карта через Телеграм, чтобы платить за границей без ограничений. Ссылка в профиле.";
+  const tailTrapInput = { ...input, sourceScenario: { ...input.sourceScenario, script: tailTrapReference } };
+  const tailTrapPreflight = preflight.collectCreativeScriptPreflight(tailTrapInput, tailTrapScript);
+  assert.deepEqual(tailTrapPreflight.sentences.map((sentence) => sentence.wordCount), [17, 20, 3]);
+  assert.match(tailTrapPreflight.issues.join("\n"), /48 метров/u);
+  assert.match(tailTrapPreflight.issues.join("\n"), /Не удалось разделить/u);
+  const tailTrapRepair = repair.buildCreativeCopywriterRepairPrompt({
+    chainInput: tailTrapInput, rejectedScript: tailTrapScript, semanticReview: null,
+    failureReason: tailTrapPreflight.issues.join("\n"), repairAttempt: 1, preflight: tailTrapPreflight,
+  });
+  assert.match(tailTrapRepair, /сорок восемь метров/u);
+  assert.match(tailTrapRepair, /Нельзя склеивать Предложение 3 из 3 слов с Предложением 2 из 20 слов/u);
 
   const recovered = await simulate([failedScript, repairedScript], [failingReview, passingReview]);
   assert.ifError(recovered.error);

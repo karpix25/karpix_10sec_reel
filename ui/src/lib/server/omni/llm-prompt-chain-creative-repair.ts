@@ -4,6 +4,8 @@ import {
   type PromptChainInput,
 } from "./llm-prompt-chain-prompts";
 import { renderCreativeScriptPreflight, type CreativeScriptPreflight } from "./creative-script-preflight";
+import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
+import { buildReferenceFactContract } from "./reference-fact-contract";
 
 type CreativeRepairInput = {
   chainInput: PromptChainInput;
@@ -71,6 +73,7 @@ export function buildCreativeCopywriterRepairPrompt(input: CreativeRepairInput) 
     `Единственная точечная правка черновика, попытка ${input.repairAttempt}.`,
     "Сохрани подтверждённые свойства продукта, конкретные имена и измеримые факты reference, а также технические границы речи. Тему, порядок, примеры и формулировки можно переписать своими словами, если так сценарий звучит естественнее.",
     "Если места не хватает, сокращай повторы и второстепенные подробности. Не восстанавливай дословно исходный ответ, список или чужую рекламу.",
+    buildMechanicalRepairInstruction(input),
     `Подтвержденные причины отказа: ${input.failureReason}`,
     ...(input.semanticReview?.repairInstructions || []),
     input.preflight ? renderCreativeScriptPreflight(input.preflight) : "",
@@ -78,6 +81,22 @@ export function buildCreativeCopywriterRepairPrompt(input: CreativeRepairInput) 
     input.rejectedScript,
     "Верни полный исправленный JSON с segments, duration_seconds и voiceover, сохранив исправные границы речи.",
   ].filter(Boolean).join("\n");
+}
+
+function buildMechanicalRepairInstruction(input: CreativeRepairInput) {
+  const instructions: string[] = [];
+  const missingNumericFact = input.preflight?.issues.some((issue) => issue.includes("измеримый факт"));
+  const numericFact = buildReferenceFactContract(input.chainInput.sourceScenario.script).numericFacts[0];
+  if (missingNumericFact && numericFact) {
+    instructions.push(`Включи факт «${spellPromptChainNumbersInText(numericFact)}» в законченную группу из шести-двадцати слов. Убери столько же второстепенных слов, сколько нужно для ее вместимости.`);
+  }
+  const sentences = input.preflight?.sentences || [];
+  const tail = sentences.find((sentence, index) => index > 0 && sentence.wordCount < 6 && sentences[index - 1].wordCount >= 17);
+  if (tail) {
+    const previous = sentences[tail.index - 2];
+    instructions.push(`Нельзя склеивать Предложение ${tail.index} из ${tail.wordCount} слов с Предложением ${previous.index} из ${previous.wordCount} слов: группа переполнится. Раздели или сократи предыдущее предложение на две законченные фразы и включи короткий хвост в последнюю группу.`);
+  }
+  return instructions.join(" ");
 }
 
 export function buildCreativeCopywriterRebuildFeedback(input: {
