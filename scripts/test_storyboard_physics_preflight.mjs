@@ -168,9 +168,11 @@ try {
     }],
   };
   assert.equal(referencePlan.allowsTalkingAvatarIntro(pureBrollSource, 0), true);
+  assert.equal(referencePlan.allowsTalkingAvatarIntro({ ...pureBrollSource, segmentIndex: 2 }, 0), false);
   assert.equal(referencePlan.allowsTalkingAvatarIntro(pureBrollSource, 1), false);
   assert.equal(referencePlan.allowsTalkingAvatarIntro({ ...pureBrollSource, sceneMode: "object_only" }, 0), false);
-  assert.equal(referencePlan.allowsTalkingAvatarIntro({ ...pureBrollSource, beats: [{ ...pureBrollSource.beats[0], speechMode: "on_camera", avatarAllowed: true }] }, 0), false);
+  assert.equal(referencePlan.allowsTalkingAvatarIntro({ ...pureBrollSource, beats: [{ ...pureBrollSource.beats[0], speechMode: "on_camera", avatarAllowed: true }] }, 0), true,
+    "an explicit B-roll role still permits the one avatar lead-in");
   const storedFrames = [
     { index: 1, role: "face_open", spokenWords: "Сначала выбираем состав спокойно", productState: "продукт вне кадра",
       action: "сохранённый аватар говорит в камеру", camera: "средний крупный план аватара", visualDescription: "говорящий аватар", referenceRole: "avatar", sfx: null },

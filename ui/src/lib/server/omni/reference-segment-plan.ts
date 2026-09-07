@@ -86,6 +86,9 @@ const BROLL_SOURCE_ROLES = new Set(["environment_broll", "product_broll", "proof
 const NON_PRESENTER_SUBJECT_ROLES = new Set(["background_person", "no_people", "hands_only", "object_only"]);
 
 export function isReferencePresenterSource(beat: ReferenceSegmentBeat) {
+  // An analysis may identify a visible person in an otherwise B-roll shot.
+  // Its explicit visual role still decides whether this is an on-camera beat.
+  if (isReferenceBrollSource(beat)) return false;
   if (beat.avatarAllowed === false) return false;
   return beat.speechMode === "on_camera" ||
     beat.visibleSubjectRole === "primary_presenter" ||
@@ -100,7 +103,8 @@ export function isReferenceBrollSource(beat: ReferenceSegmentBeat) {
 }
 
 export function allowsTalkingAvatarIntro(plan: ReferenceSegmentPlan, frameIndex: number) {
-  return plan.sceneMode === "presenter" && frameIndex === 0 && !plan.beats.some(isReferencePresenterSource);
+  return plan.sceneMode === "presenter" && plan.segmentIndex === 1 && frameIndex === 0 &&
+    !plan.beats.some(isReferencePresenterSource);
 }
 
 export function resolveReferenceSegmentBeatForFrame(

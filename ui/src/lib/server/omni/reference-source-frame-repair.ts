@@ -25,21 +25,21 @@ export function repairReferenceSourceFrame(input: ReferenceSourceFrameInput) {
     };
   }
 
-  if (input.presenterSource) {
-    return {
-      role: input.frameIndex === input.frameCount - 1 ? "face_return" as const : "face_open" as const,
-      action: renderPresenterAction(input.beat, input.currentAction),
-      camera: input.beat.camera || input.currentCamera,
-      visualDescription: renderPresenterVisual(input.beat),
-    };
-  }
-
   if (input.brollSource) {
     return {
       role: "environment_cutaway" as const,
       action: "Independent source B-roll follows the verified cut and camera motion; no face or presenter in frame.",
       camera: input.beat.camera || input.currentCamera,
       visualDescription: `Independent source B-roll in ${renderSourceContext(input.beat)}; no face or presenter in frame.`,
+    };
+  }
+
+  if (input.presenterSource) {
+    return {
+      role: input.frameIndex === input.frameCount - 1 ? "face_return" as const : "face_open" as const,
+      action: renderPresenterAction(input.beat, input.currentAction),
+      camera: input.beat.camera || input.currentCamera,
+      visualDescription: renderPresenterVisual(input.beat),
     };
   }
 

@@ -147,6 +147,32 @@ try {
     "stored provider frames must be repaired before the KIE preflight"
   );
 
+  const conflictingBroll = {
+    ...mixed,
+    segmentIndex: 2,
+    sceneMode: "voiceover_broll",
+    beats: [{
+      ...mixed.beats[0],
+      speechMode: "voiceover_only",
+      sourceRole: "proof_broll",
+      visibleSubjectRole: "primary_presenter",
+      avatarAllowed: true,
+    }],
+  };
+  assert.equal(plan.isReferenceBrollSource(conflictingBroll.beats[0]), true);
+  assert.equal(plan.isReferencePresenterSource(conflictingBroll.beats[0]), false,
+    "an explicit B-roll role must win over a conflicting visible-person label");
+  const repairedConflict = plan.applyReferenceSegmentPlanToFrames(
+    conflictingBroll,
+    [frame(1, "face_return", "presenter close-up", "presenter speaks to camera")],
+    true,
+  );
+  assert.equal(repairedConflict[0].role, "environment_cutaway");
+  assert.equal(storyboardValidator.validateStoryboardFrameSourceInterval({
+    frame: repairedConflict[0], frameIndex: 0, frameCount: 1,
+    path: "frames.0", plan: conflictingBroll,
+  }).filter((issue) => issue.severity === "error").length, 0);
+
   const animation = plan.buildReferenceSegmentPlan({
     brief: { ...brief, reference_render_mode: "animation", reference_motion_mode: "animated_still" },
     segmentIndex: 1,
