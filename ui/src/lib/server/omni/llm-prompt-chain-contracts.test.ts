@@ -76,7 +76,7 @@ test("one targeted repair preserves draft and receives every confirmed issue", (
   assert.equal(attempt.mode, "targeted_repair");
   assert.ok(attempt.prompt.includes(rejectedScript));
   assert.ok(attempt.prompt.includes("Речь не помещается в сегмент."));
-  assert.match(attempt.prompt, /Тему, порядок, примеры и факты reference можно свободно переписать/u);
+  assert.match(attempt.prompt, /новый разговорный сценарий на тему и в подаче reference/u);
   assert.match(attempt.prompt, /полный исправленный JSON с segments, duration_seconds и voiceover/u);
 });
 
@@ -90,8 +90,9 @@ test("legacy adaptation modes keep one fact-based rewrite task", () => {
     }));
   assert.equal(new Set(prompts).size, 1, "legacy topic classifier must not switch generation strategies");
   assert.ok(prompts[0].includes(reference));
-  assert.match(prompts[0], /новый разговорный сценарий на тему reference/u);
-  assert.match(prompts[0], /Ты можешь менять порядок, примеры, список, числа, названия и вывод/u);
+  assert.match(prompts[0], /новый разговорный сценарий на тему и в подаче reference/u);
+  assert.match(prompts[0], /Ты можешь менять порядок, примеры, список и вывод/u);
+  assert.match(prompts[0], /Не меняй названия, места, цены и другие измеримые факты reference/u);
   assert.match(prompts[0], /Верни только JSON с массивом segments/u);
   assert.match(prompts[0], /четыре слова на две секунды/u);
   assert.doesNotMatch(prompts[0], /Полностью замени исходный предмет|СОСЕДНЕГО МОСТА/u);
@@ -108,7 +109,7 @@ test("reference answers can be freely reinterpreted", () => {
   assert.equal(normalizeGroundedSemanticReview({ evidence, defects: [], warnings: [] }, context).passed, true);
 });
 
-test("exact product facts override unsupported-claim allegations without excusing invented claims", () => {
+test("unsupported-product-claim advice stays advisory", () => {
   const context = { productName: "Плати по миру", productDescription: "Карта помогает оплачивать покупки.",
     referenceScript: "Это Тунис.",
     script: "Это Тунис. Плати по миру помогает оплачивать покупки и получать кэшбэк.",
@@ -120,7 +121,7 @@ test("exact product facts override unsupported-claim allegations without excusin
       expectedText, message: "Свойство не подтверждено описанием" }],
   }, context);
   assert.equal(review("оплачивать покупки").passed, true);
-  assert.equal(review("получать кэшбэк").passed, false);
+  assert.equal(review("получать кэшбэк").passed, true);
 });
 
 test("reference lists are optional material for adaptation", () => {
@@ -160,7 +161,7 @@ test("source prices are not exact-answer gates", () => {
     { ...context, script: context.script.replace("Сто семьдесят шесть тысяч", "Сто семьдесят пять тысяч") }).passed, true);
 });
 
-test("negated product descriptions never approve the positive version of a claim", () => {
+test("unsupported product claims do not block writing", () => {
   const context = { productName: "Карта", referenceScript: "Это Тунис.",
     script: "Это Тунис. Карта выдаёт кешбэк.", productDescription: "Карта не выдаёт кешбэк." };
   const evidence = { product: "Карта", value: "выдаёт кешбэк", answer: "Тунис", answerKind: "named_fact",
@@ -168,25 +169,27 @@ test("negated product descriptions never approve the positive version of a claim
   const raw = { evidence, warnings: [], defects: [{ code: "unsupported_product_claim",
     scriptQuote: "Карта выдаёт кешбэк", expectedText: "выдаёт кешбэк", message: "Кешбэк не поддерживается." }] };
   const rejected = normalizeGroundedSemanticReview(raw, context);
-  assert.deepEqual(rejected.defects?.map((defect) => defect.code), ["unsupported_product_claim"]);
+  assert.equal(rejected.passed, true);
+  assert.match(rejected.warnings.join(" "), /Кешбэк не поддерживается/u);
   assert.equal(normalizeGroundedSemanticReview(raw, { ...context, productDescription: "Карта выдаёт кешбэк." }).passed, true);
 });
 
-test("freeform reviewer advice cannot leak through failureReason into the repair prompt", () => {
+test("product-claim advice does not trigger a repair prompt", () => {
   const context = { productName: "Карта", referenceScript: "Это Тунис.", script: "Это Тунис. Карта выдаёт кешбэк." };
   const advice = "Добавь гарантированную скидку девяносто процентов и бесплатные перелёты.";
   const review = normalizeGroundedSemanticReview({ evidence: { product: "Карта", value: "выдаёт кешбэк",
     answer: "Тунис", answerKind: "named_fact", referenceAnswer: "Это Тунис", expectedAnswer: "Тунис", transition: "" },
     defects: [{ code: "unsupported_product_claim", scriptQuote: "Карта выдаёт кешбэк", expectedText: "выдаёт кешбэк", message: advice }], warnings: [],
   }, context);
-  assert.equal(review.defects?.[0].message, advice, "raw explanation remains available only as diagnostic data");
+  assert.equal(review.passed, true);
+  assert.match(review.warnings.join(" "), /Добавь гарантированную скидку/u);
   const repaired = buildCreativeCopywriterAttemptPrompt({
     chainInput: makeCreativeInput(), attempt: 2, maxAttempts: 2,
     previousDraft: { version: "llm-prompt-chain-v1", script: context.script, hookAngle: null, creativeNotes: null },
     semanticReview: review, failureReason: `Сценарий требует исправления: ${review.issues.join("; ")}`,
   });
   assert.equal(repaired.prompt.includes(advice), false);
-  assert.match(repaired.prompt, /неподтверждённое свойство/iu);
+  assert.doesNotMatch(repaired.prompt, /неподтверждённое свойство/iu);
 });
 
 test("combined named anchors and missing positive value evidence do not reject complete speech", () => {

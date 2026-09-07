@@ -118,9 +118,9 @@ try {
   const unsupported = await reviewer.reviewScriptSemantics({
     ...reviewInput, script: script + " С картой можно снимать наличные в банкомате.",
   }, () => {});
-  assert.equal(unsupported.passed, false, "unsupported product capability must still override a model pass");
-  assert.match(unsupported.issues.join(" "), /снимать наличные/u);
-  assert.ok(unsupported.repairInstructions[0].includes("снимать наличные"));
+  assert.equal(unsupported.passed, true, "product-claim advice must not stop script creation");
+  assert.match(unsupported.warnings.join(" "), /Выдача наличных/u);
+  assert.deepEqual(unsupported.repairInstructions, []);
   assert.equal(requests.length, 4, "one bounded semantic request per review; no new provider stages");
   assert.equal(usage[0].layer, "script_semantic_reviewer");
   console.log("Product integration prompts: shared policy, exact review payload, targeted repair, and rejection guards passed (mocked API).");

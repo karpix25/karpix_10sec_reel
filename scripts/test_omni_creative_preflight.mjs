@@ -137,12 +137,11 @@ try {
   assert.equal(recovered.requests.length, 2);
   assert.equal(recovered.reviews.length, 2, "semantic feedback is collected despite the first local packing failure");
   assert.match(recovered.requests[1].userPrompt, /Предложение 2, 27 слов:/u);
-  assert.match(recovered.requests[1].userPrompt, /Неподтверждённое свойство продукта: «любые счета»/u, "one repair receives controlled factual feedback with timing");
+  assert.doesNotMatch(recovered.requests[1].userPrompt, /Неподтверждённое свойство продукта/u, "product-claim advice must not trigger a rewrite");
   assert.ok(!recovered.requests[1].userPrompt.includes(bridgeIssue), "raw model advice stays diagnostic, not repair instructions");
-  assert.match(recovered.requests[1].userPrompt, /Удали или исправь неподтверждённое свойство/u);
   assert.doesNotMatch(recovered.requests[1].userPrompt, /Добавь выдуманный бонус/u);
   assert.deepEqual(recovered.usage.map((usage) => usage.attempt), [1, 2]);
-  assert.equal(recovered.result.diagnostics[0].semanticPassed, false);
+  assert.equal(recovered.result.diagnostics[0].semanticPassed, true);
   assert.equal(recovered.result.diagnostics[1].failure, null);
   assert.deepEqual(recovered.result.segmentPlan.segments.map((segment) => segment.text),
     recovered.result.draft.speechSegments.map((segment) => segment.voiceover), "Director receives the writer's exact boundaries");
@@ -159,12 +158,10 @@ try {
     assert.match(diagnostic.failure, /Длины предложений.*27/u);
   }
   const regressed = await simulate([unsupportedScript, failedScript], [failingReview, passingReview]);
-  assert.ok(regressed.error instanceof copywriter.CreativeCopywriterFailure, "a semantic repair must revalidate its new sentence packing");
-  assert.match(regressed.requests[1].userPrompt, /Разбиение уже проверено/u);
-  assert.match(regressed.error.partialSnapshot.creativeAttemptDiagnostics[1].failure, /Длины предложений.*27/u);
+  assert.ifError(regressed.error);
+  assert.equal(regressed.requests.length, 1, "product-claim advice must not trigger a second writer call");
   const semanticFailure = await simulate([unsupportedScript, unsupportedScript], [failingReview, failingReview]);
-  assert.ok(semanticFailure.error instanceof copywriter.CreativeCopywriterFailure, "valid timing never bypasses semantic rejection");
-  assert.match(semanticFailure.error.message, /Неподтверждённое свойство продукта/u);
+  assert.ifError(semanticFailure.error);
 
   const longScript = `${repairedScript} ${"Мы заранее изучили меню ближайшего кафе. ".repeat(8).trim()}`;
   assert.ok(planner.countOmniScriptWords(longScript) > 100);

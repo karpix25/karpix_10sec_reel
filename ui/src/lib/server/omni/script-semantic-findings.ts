@@ -4,7 +4,7 @@ import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
 type ReviewContext = { script: string; referenceScript: string; productName: string; productDescription?: string | null; productReferenceNotes?: string | null };
 
 const CODES = new Set<ScriptSemanticDefect["code"]>([
-  "missing_product", "missing_product_value", "unsupported_product_claim",
+  "missing_product", "missing_product_value",
 ]);
 
 /** Evidence is checked against the actual inputs, never against another model explanation. */
