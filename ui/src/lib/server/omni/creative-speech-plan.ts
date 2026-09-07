@@ -5,7 +5,7 @@ import { countOmniScriptWords } from "./omni-duration-planner";
 import { analyzeOmniSpeechLoad } from "../../omni/storyboard/omni-speech-load";
 import {
   OMNI_MIN_SEGMENT_COUNT, OMNI_MAX_SEGMENT_COUNT,
-  getOmniSegmentDurationForWordCount, getOmniSegmentWordBudget, getOmniSegmentMinWords,
+  OMNI_FINAL_SHORT_SEGMENT_WORDS, getOmniSegmentDurationForWordCount, getOmniSegmentWordBudget, getOmniSegmentMinWords,
 } from "./omni-speech-density";
 
 /** Validate an already approved speech plan before it is reused. */
@@ -25,7 +25,8 @@ export function validateCreativeSpeechPlan(
   }));
   const durations = segments.map((segment, index) => {
     const duration = speechSegments[index].durationSeconds;
-    const expected = getOmniSegmentDurationForWordCount(segment.wordCount);
+    const expected = segment.wordCount === OMNI_FINAL_SHORT_SEGMENT_WORDS && index < segments.length - 1
+      ? null : getOmniSegmentDurationForWordCount(segment.wordCount);
     if (!expected) {
       issues.push(`Группа ${index + 1}: ${segment.wordCount} слов, указано ${duration} секунд. ` +
         "Переформулируй реплику для части 4/6/8/10 секунд." +

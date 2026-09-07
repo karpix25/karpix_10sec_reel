@@ -7,6 +7,7 @@ import {
   OMNI_MAX_SEGMENT_COUNT,
   OMNI_MIN_SEGMENT_COUNT,
   OMNI_SEGMENT_SECONDS,
+  OMNI_FINAL_SHORT_SEGMENT_WORDS,
   OMNI_TARGET_SEGMENT_WORDS_MIN,
   describeOmniDensityGap,
   getOmniSegmentDurationForWordCount,
@@ -119,7 +120,7 @@ function buildCandidate(
           script,
           segmentCount,
           maxWordsPerSegment,
-          OMNI_TARGET_SEGMENT_WORDS_MIN,
+          OMNI_FINAL_SHORT_SEGMENT_WORDS,
           (wordCount) => getOmniSegmentDurationForWordCount(wordCount) !== null,
           targetWordCounts,
           allowAwkwardBoundaries,
@@ -169,7 +170,7 @@ function buildSentenceAwareCandidate(
       const segmentSentences = sentences.slice(startSentence, endSentence + 1);
       const text = segmentSentences.map((sentence) => sentence.text).join(" ");
       const wordCount = segmentSentences.reduce((sum, sentence) => sum + sentence.wordCount, 0);
-      if (!getOmniSegmentDurationForWordCount(wordCount)) continue;
+      if (!getOmniSegmentDurationForWordCount(wordCount) || (wordCount === OMNI_FINAL_SHORT_SEGMENT_WORDS && remainingSegments !== 1)) continue;
       visit(endSentence + 1, remainingSegments - 1, [
         ...groups,
         { index: groups.length + 1, text, wordCount },
@@ -187,7 +188,7 @@ function findTargetWordCountOptions(wordCount: number, segmentCount: number): nu
   const baseWords = Math.floor(wordCount / segmentCount);
   const remainder = wordCount % segmentCount;
   const option = Array.from({ length: segmentCount }, (_, index) => baseWords + (index < remainder ? 1 : 0));
-  return option.every((count) => count >= minimumWords && count <= maximumWords)
+  return option.every((count, index) => (count >= minimumWords || (index === option.length - 1 && count === OMNI_FINAL_SHORT_SEGMENT_WORDS)) && count <= maximumWords)
     ? [option]
     : [];
 }
@@ -197,6 +198,7 @@ function isAnySegmentCountViable(wordCount: number) {
 }
 
 function resolveSegmentDurations(segments: VoiceSegment[], durationRange?: OmniDurationRange) {
+  if (segments.some((segment, index) => segment.wordCount === OMNI_FINAL_SHORT_SEGMENT_WORDS && index < segments.length - 1)) return null;
   const options = segments.map((segment) => getOmniSegmentDurationsForWordCount(segment.wordCount));
   if (options.some((item) => item.length === 0)) return null;
   let bestDurations: OmniAllowedSegmentSeconds[] | null = null;
@@ -231,7 +233,7 @@ function buildPlanFailureMessage(script: string, wordCount: number, durationRang
   return [
     `Не удалось разделить сценарий на части 4/6/8/10 секунд: ${durationRule}`,
     sentenceWordCounts.length
-      ? `Длины предложений по порядку: ${sentenceWordCounts.join(", ")} слов. Каждое предложение должно быть не длиннее двадцати слов, а короткие предложения нужно объединять с соседними в один segment.`
+      ? `Длины предложений по порядку: ${sentenceWordCounts.join(", ")} слов. Каждое предложение должно быть не длиннее двадцати слов; финальная группа может состоять из пяти слов, остальные короткие предложения объединяй с соседними.`
       : "",
     "Сохраните смысл, но сократите второстепенные детали или объедините короткие фразы в законченные предложения. Измените формулировку сценария.",
   ].filter(Boolean).join(" ");
@@ -284,7 +286,7 @@ function buildPlanReason(
     .filter((segment) => /[.!?,;:][»"]?$/.test(segment.text)).length;
   const density = counts.every((count, index) => {
     const budget = getOmniSegmentWordBudget(durations[index] || OMNI_SEGMENT_SECONDS);
-    return count >= OMNI_TARGET_SEGMENT_WORDS_MIN && count <= budget;
+    return (count >= OMNI_TARGET_SEGMENT_WORDS_MIN || (index === segments.length - 1 && count === OMNI_FINAL_SHORT_SEGMENT_WORDS)) && count <= budget;
   }) ? "ориентир четыре слова на две секунды" : "проверьте плотность речи";
   const boundaries = naturalBoundaryCount > 0 ? " и естественные границы фраз" : "";
   const target = durationRange ? `; цель ${durationRange.minSeconds}-${durationRange.maxSeconds}с` : "";

@@ -88,10 +88,12 @@ function buildMechanicalRepairInstruction(input: CreativeRepairInput) {
   const missingNumericFact = input.preflight?.issues.some((issue) => issue.includes("измеримый факт"));
   const numericFact = buildReferenceFactContract(input.chainInput.sourceScenario.script).numericFacts[0];
   if (missingNumericFact && numericFact) {
-    instructions.push(`Включи факт «${spellPromptChainNumbersInText(numericFact)}» в законченную группу из шести-двадцати слов. Убери столько же второстепенных слов, сколько нужно для ее вместимости.`);
+    instructions.push(`Включи факт «${spellPromptChainNumbersInText(numericFact)}» в законченную группу из шести-двадцати слов или финальную группу из пяти слов. Убери столько же второстепенных слов, сколько нужно для ее вместимости.`);
   }
   const sentences = input.preflight?.sentences || [];
-  const tail = sentences.find((sentence, index) => index > 0 && sentence.wordCount < 6 && sentences[index - 1].wordCount >= 17);
+  const oversized = sentences.find((sentence) => sentence.wordCount > 20);
+  if (oversized) instructions.push(`Длина Предложения ${oversized.index}: ${oversized.wordCount}; оно слишком длинное. Раздели его на законченные фразы по шесть-двадцать слов или, если это финальная группа, оставь пять слов.`);
+  const tail = sentences.find((sentence, index) => index > 0 && sentence.wordCount < 5 && sentences[index - 1].wordCount >= 17);
   if (tail) {
     const previous = sentences[tail.index - 2];
     instructions.push(`Нельзя склеивать Предложение ${tail.index} из ${tail.wordCount} слов с Предложением ${previous.index} из ${previous.wordCount} слов: группа переполнится. Раздели или сократи предыдущее предложение на две законченные фразы и включи короткий хвост в последнюю группу.`);

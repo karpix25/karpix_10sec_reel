@@ -70,6 +70,11 @@ try {
   assert.deepEqual(repaired.segments.map((segment) => segment.wordCount), [15, 7], "raw model groups must never choose final speech boundaries");
   assert.deepEqual(repaired.segments.map((segment) => segment.durationSeconds), [8, 4]);
   assert.deepEqual(resolveOmniTimedVoiceoverPlan({ script: balancedScript, sourceSnapshot: { timed_voiceover_plan: repaired } }).segments, repaired.segments);
+  const shortClosingScript = [6, 6, 14, 12, 16, 5]
+    .map((count) => `${Array(count).fill("слово").join(" ")}.`).join(" ");
+  const shortClosing = buildOmniTimedVoiceoverPlan(shortClosingScript);
+  assert.equal(shortClosing.segments.at(-1).durationSeconds, 4);
+  assert.deepEqual(shortClosing.segments.at(-1).frameWordCounts, [3, 2]);
   const chainInput = {
     projectName: "Speech test", productName: "Карта для зарубежных покупок",
     sourceScenario: { script: balancedScript }, avatarSpeechGender: "male",

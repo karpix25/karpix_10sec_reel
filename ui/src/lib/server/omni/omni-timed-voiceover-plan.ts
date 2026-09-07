@@ -5,12 +5,7 @@ import {
   type VoiceSegment,
 } from "./omni-script-segmentation";
 import { planOmniReelSegments, type OmniReelSegmentPlan } from "./omni-duration-planner";
-import {
-  OMNI_STORYBOARD_MAX_FRAME_WORDS,
-  OMNI_STORYBOARD_MIN_FRAME_WORDS,
-  getOmniStoryboardFrameWordCounts,
-  isOmniStoryboardDuration,
-} from "../../omni/storyboard/omni-storyboard-timing";
+import { getOmniStoryboardFrameWordCounts, isOmniStoryboardDuration } from "../../omni/storyboard/omni-storyboard-timing";
 
 export const OMNI_TIMED_VOICEOVER_PLAN_VERSION = "omni-timed-voiceover-v1" as const;
 
@@ -92,6 +87,7 @@ export function assertOmniTimedVoiceoverPlanMatchesScript(
     const expectedFrameWordCounts = getOmniStoryboardFrameWordCounts(segment.wordCount, segment.durationSeconds);
     if (
       segment.index !== index + 1 ||
+      (segment.wordCount === 5 && index < plan.segments.length - 1) ||
       segment.wordCount !== countWords(segment.text) ||
       segment.startSeconds !== expectedStartSeconds ||
       segment.endSeconds !== expectedStartSeconds + segment.durationSeconds ||
@@ -171,7 +167,7 @@ function normalizeSegment(raw: unknown): OmniTimedVoiceoverSegment {
   if (
     Number(source.index) < 1 || !text || !isOmniStoryboardDuration(durationSeconds) ||
     !Number.isFinite(startSeconds) || !Number.isFinite(endSeconds) || endSeconds - startSeconds !== durationSeconds ||
-    !frameWordCounts.length || frameWordCounts.some((count) => !Number.isInteger(count) || count < OMNI_STORYBOARD_MIN_FRAME_WORDS || count > OMNI_STORYBOARD_MAX_FRAME_WORDS)
+    !frameWordCounts.length || frameWordCounts.some((count) => !Number.isInteger(count) || count < 1)
   ) throw new Error("Invalid timed plan segment");
   return {
     index: Number(source.index),

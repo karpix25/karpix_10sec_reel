@@ -60,6 +60,10 @@ try {
   assert.deepEqual(plan.segmentDurationsSeconds, [4, 6]);
   assert.deepEqual(validateCreativeSpeechPlan(script, groups.map((group) => ({ ...group, durationSeconds: 10 }))).segmentDurationsSeconds,
     [4, 6], "Code computes durations without stretching speech or spending another author request");
+  const shortClosingGroups = [groups[0], { durationSeconds: 4, voiceover: "Ссылка ждёт вас в профиле." }];
+  const shortClosingScript = shortClosingGroups.map((group) => group.voiceover).join(" ");
+  assert.deepEqual(validateCreativeSpeechPlan(shortClosingScript, shortClosingGroups).segmentDurationsSeconds, [4, 4]);
+  assert.throws(() => validateCreativeSpeechPlan(shortClosingScript, [...shortClosingGroups].reverse()), /Группа 1: 5 слов/u);
   assert.throws(() => validateCreativeSpeechPlan(`${script} Лишнее.`, groups), /без пропусков/u);
   const fragment = [{ ...groups[0], voiceover: groups[0].voiceover.replace(/\.$/u, ",") }, groups[1]];
   assert.throws(() => validateCreativeSpeechPlan(fragment.map((group) => group.voiceover).join(" "), fragment), /законченным предложением/u);
@@ -75,6 +79,7 @@ try {
   assert.equal(requests.length, 2);
   assert.equal(reviews, 2, "Both local timing and semantic review run before the sole repair");
   assert.match(requests[1].userPrompt, /21 слов/u);
+  assert.match(requests[1].userPrompt, /Длина Предложения 1: 21/u);
   assert.equal(result.draft.script, script);
   assert.deepEqual(result.segmentPlan.segments.map((segment) => segment.text), groups.map((group) => group.voiceover));
   assert.equal(result.diagnostics[0].script, invalidGroups.map((group) => group.voiceover).join(" "));
