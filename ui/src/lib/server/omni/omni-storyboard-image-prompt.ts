@@ -10,6 +10,8 @@ import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-
 import type { ReferenceSegmentPlan } from "./reference-segment-plan";
 import { resolveReferenceTransferMode } from "./omni-reference-transfer-policy";
 
+const FEATURED_IDENTITY_EXCLUSIVITY = "IDENTITY: @file1 only; other people are background extras.";
+
 export function buildStoryboardImagePrompt(input: {
   segmentIndex: number;
   storyboard: OmniStoryboardSegment;
@@ -93,7 +95,7 @@ export function buildStoryboardImagePrompt(input: {
           ? `@file${canonicalFile} - эталон монтажной композиции и B-roll ритма из первого утверждённого storyboard; лицо и личность всё равно бери из avatar reference @file1.`
         : continuousPresenterWardrobe
           ? `@file${canonicalFile} - эталон одежды из первого утверждённого storyboard. Одежду сохрани; окружение, камеру и действие бери из панелей ниже.`
-          : `@file${canonicalFile} - предыдущий визуальный контекст и идентичность главного аватара. Это не точный lock одежды, камеры, локации или композиции.`
+          : `@file${canonicalFile}: same avatar as @file1, never a new person. Visual context only; wardrobe, camera, location and composition may change.`
       : strictReferencePlan
         ? "Первый storyboard задаёт эталон одежды, света и внешнего вида продукта. Каждый кадр следует утверждённой адаптированной панели ниже."
         : objectOnlyReferenceScene
@@ -136,6 +138,9 @@ export function buildStoryboardImagePrompt(input: {
         : montageReference || voiceoverBrollReference
         ? "FEATURED PERSON LOCK: главный или акцентный человек берётся из @file1. Фоновые прохожие допустимы; людей из reference не копируй как нового главного героя."
         : "FEATURED PERSON LOCK: лицо и личность главного героя берутся из @file1. Фоновые люди допустимы."
+      : "",
+    !avatarFreeReferenceScene && !objectOnlyReferenceScene && !facelessReferenceScene
+      ? FEATURED_IDENTITY_EXCLUSIVITY
       : "",
     isPipLayout && !avatarFreeReferenceScene
       ? strictReferencePlan
