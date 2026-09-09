@@ -473,7 +473,11 @@ export async function ensureOmniSchema() {
       for (const statement of statements) {
         await pool.query(statement);
       }
-    })();
+    })().catch((error) => {
+      // Retry after transient database startup/connectivity failures instead of caching a rejected promise forever.
+      schemaReady = null;
+      throw error;
+    });
   }
 
   return schemaReady;
