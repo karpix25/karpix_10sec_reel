@@ -191,6 +191,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   const referencePolicy = buildReferenceTransferPolicy({
     hasProductReference: Boolean(productReference),
     directorBrief,
+    adaptationMode: input.generatedScript ? "writer_owned" : undefined,
   });
   const layoutContract = buildDirectorLayoutContract(directorBrief, referencePolicy);
   const strategy = selectOmniCreativeStrategy({
@@ -337,6 +338,7 @@ function buildStoredProviderPromptSegments(
   const referencePolicy = buildReferenceTransferPolicy({
     hasProductReference: Boolean(productReference),
     directorBrief,
+    adaptationMode: input.generatedScript ? "writer_owned" : undefined,
   });
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,

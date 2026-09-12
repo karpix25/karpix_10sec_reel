@@ -135,7 +135,9 @@ export async function createGeneratedScriptFromLegacy(input: {
     }),
     shouldAnalyze: shouldAnalyzeDirectorReference,
     ensureAnalysis: ensureDirectorAnalysis,
-    requireCompleteTimeline: true,
+    // The writer-owned flow needs the reference's topic and visual direction;
+    // an incomplete source timeline must not block the new script.
+    requireCompleteTimeline: false,
     warn: (message) => console.warn(message),
   });
   const durationRange = await resolveOmniDurationRange({
@@ -155,6 +157,7 @@ export async function createGeneratedScriptFromLegacy(input: {
   const referenceTransferPlan = buildReferenceTransferPolicy({
     hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),
     directorBrief,
+    adaptationMode: "writer_owned",
   });
   const referenceTranscript = resolveGeneratedScriptReferenceTranscript(
     sourceScenario,

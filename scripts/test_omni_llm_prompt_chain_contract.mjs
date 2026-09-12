@@ -121,11 +121,13 @@ try {
   assert.equal(reinterpretedReference.passed, true, "reference facts guide a new script but never block it by exact wording");
   const unsupported = grounded([{ code: "unsupported_product_claim", scriptQuote: "помогает платить за границей", expectedText: "платить за границей",
     message: "Описание не подтверждает это свойство. Придумай скидку." }]);
-  assert.equal(unsupported.passed, false, "grounded unsupported capability must block");
-  assert.ok(unsupported.repairInstructions.every((line) => !line.includes("Придумай скидку")),
-    "model-suggested benefits must not leak into repair instructions");
-  assert.throws(() => grounded([{ code: "unsupported_product_claim", scriptQuote: "снимает наличные", expectedText: "наличные",
-    message: "Неподтвержденное свойство" }]), /точную цитату/u, "invented quotes must fail closed");
+  assert.equal(unsupported.passed, true, "unsupported capability feedback stays advisory");
+  assert.ok(unsupported.warnings.some((line) => line.includes("Придумай скидку")),
+    "model-suggested feedback remains visible only as a warning");
+  const malformedUnsupported = grounded([{ code: "unsupported_product_claim", scriptQuote: "снимает наличные", expectedText: "наличные",
+    message: "Неподтвержденное свойство" }]);
+  assert.ok(malformedUnsupported.warnings.includes("Неподтвержденное свойство"),
+    "unsupported product feedback stays advisory even when the model quote is incomplete");
   assert.match(semanticReviewerSource, /normalizeGroundedSemanticReview/u);
   const directorPlan = makeDirectorPlan();
   const providerPlan = makeProviderPlan();
@@ -366,8 +368,8 @@ try {
     "utf8"
   );
   assert.ok(promptChainSource.includes("Reference transcript:"), "original remains source material");
-  assert.ok(promptChainSource.includes("Сделай новый разговорный сценарий на тему и в подаче reference"), "rewrite starts from the original topic and delivery");
-  assert.ok(promptChainSource.includes("Не меняй названия, места, цены и другие измеримые факты reference"), "specific reference facts must survive the rewrite");
+  assert.ok(promptChainSource.includes("Reference задаёт тему, угол, хук и визуально-сценарный ритм"), "rewrite starts from the reference creative brief");
+  assert.ok(promptChainSource.includes("Выбери для новой связки ноль, одну или несколько деталей reference"), "reference facts are optional inputs");
   assert.match(promptChainSource, /renderReferenceFactContract/u, "writer receives an explicit source fact card");
   assert.ok(promptChainSource.includes("Верни только JSON с массивом segments"), "author returns executable speech groups");
   assert.ok(promptChainSource.includes("Не уходи в несвязанную тему"), "product must stay connected to the source topic");

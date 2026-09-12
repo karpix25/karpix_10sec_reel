@@ -90,9 +90,9 @@ test("legacy adaptation modes keep one fact-based rewrite task", () => {
     }));
   assert.equal(new Set(prompts).size, 1, "legacy topic classifier must not switch generation strategies");
   assert.ok(prompts[0].includes(reference));
-  assert.match(prompts[0], /новый разговорный сценарий на тему и в подаче reference/u);
-  assert.match(prompts[0], /Ты можешь менять порядок, примеры, список и вывод/u);
-  assert.match(prompts[0], /Не меняй названия, места, цены и другие измеримые факты reference/u);
+  assert.match(prompts[0], /Reference задаёт тему, угол, хук и визуально-сценарный ритм/u);
+  assert.match(prompts[0], /Выбери для новой связки ноль, одну или несколько деталей reference/u);
+  assert.match(prompts[0], /ВЫБИРАЕМЫЕ ФАКТЫ REFERENCE/u);
   assert.match(prompts[0], /Верни только JSON с массивом segments/u);
   assert.match(prompts[0], /четыре слова на две секунды/u);
   assert.doesNotMatch(prompts[0], /Полностью замени исходный предмет|СОСЕДНЕГО МОСТА/u);
@@ -170,7 +170,7 @@ test("unsupported product claims do not block writing", () => {
     scriptQuote: "Карта выдаёт кешбэк", expectedText: "выдаёт кешбэк", message: "Кешбэк не поддерживается." }] };
   const rejected = normalizeGroundedSemanticReview(raw, context);
   assert.equal(rejected.passed, true);
-  assert.match(rejected.warnings.join(" "), /Кешбэк не поддерживается/u);
+  assert.match((rejected.warnings || []).join(" "), /Кешбэк не поддерживается/u);
   assert.equal(normalizeGroundedSemanticReview(raw, { ...context, productDescription: "Карта выдаёт кешбэк." }).passed, true);
 });
 
@@ -182,7 +182,7 @@ test("product-claim advice does not trigger a repair prompt", () => {
     defects: [{ code: "unsupported_product_claim", scriptQuote: "Карта выдаёт кешбэк", expectedText: "выдаёт кешбэк", message: advice }], warnings: [],
   }, context);
   assert.equal(review.passed, true);
-  assert.match(review.warnings.join(" "), /Добавь гарантированную скидку/u);
+  assert.match((review.warnings || []).join(" "), /Добавь гарантированную скидку/u);
   const repaired = buildCreativeCopywriterAttemptPrompt({
     chainInput: makeCreativeInput(), attempt: 2, maxAttempts: 2,
     previousDraft: { version: "llm-prompt-chain-v1", script: context.script, hookAngle: null, creativeNotes: null },

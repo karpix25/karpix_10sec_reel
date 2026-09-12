@@ -10,6 +10,7 @@ import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-stor
 import { validateOmniStoryboardSegment } from "../../omni/storyboard/omni-storyboard-contract";
 import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
+import { resolveReferenceTransferMode } from "./omni-reference-transfer-policy";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { validatePromptVoiceoverIsolation, validateVoiceoverSequence } from "./omni-prompt-validator";
 import { adaptDirectorBriefForAvatarReel, ensureTalkingAvatarInPromptPlan } from "./omni-avatar-reel-plan";
@@ -147,6 +148,7 @@ async function buildPreparedPlan(input: OmniPromptPreparationInput) {
     directorBrief,
     referenceSceneMode: resolveReferenceSceneMode(directorBrief),
     referenceFormatMode: resolveReferenceFormatMode(directorBrief),
+    referenceTransferMode: input.generatedScript ? "style_only" : resolveReferenceTransferMode(directorBrief),
     model: process.env.OMNI_STORYBOARD_SEMANTIC_REVIEW_MODEL?.trim()
       || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL?.trim()
       || process.env.SCENARIO_MODEL?.trim() || "google/gemini-2.5-flash",

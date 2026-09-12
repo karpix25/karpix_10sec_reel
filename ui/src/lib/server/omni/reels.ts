@@ -144,6 +144,7 @@ export async function createOmniReel(input: {
   const referenceTransferPlan = buildReferenceTransferPolicy({
     hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),
     directorBrief,
+    adaptationMode: resolvedGeneratedScript ? "writer_owned" : undefined,
   });
   const directorReferenceImageUrls = sourceScenarioAnalysis
     ? extractDirectorReferenceImageUrls({ directorAnalysis: sourceScenarioAnalysis })
@@ -319,6 +320,7 @@ export async function createOmniReel(input: {
       directorReferenceImageUrls,
       directorReferenceImageUrlsBySegment: storyboardDirectorReferenceImageUrlsBySegment,
       directorBrief,
+      adaptationMode: "writer_owned",
       referenceSceneMode,
       referenceFormatMode: resolveReferenceFormatMode(directorBrief),
       promptPlan: promptPlan.map((segment) => ({

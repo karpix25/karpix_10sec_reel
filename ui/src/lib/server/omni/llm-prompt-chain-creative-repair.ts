@@ -4,8 +4,6 @@ import {
   type PromptChainInput,
 } from "./llm-prompt-chain-prompts";
 import { renderCreativeScriptPreflight, type CreativeScriptPreflight } from "./creative-script-preflight";
-import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
-import { buildReferenceFactContract } from "./reference-fact-contract";
 
 type CreativeRepairInput = {
   chainInput: PromptChainInput;
@@ -71,7 +69,7 @@ export function buildCreativeCopywriterRepairPrompt(input: CreativeRepairInput) 
     buildCreativeCopywriterPrompt(input.chainInput),
     "",
     `Единственная точечная правка черновика, попытка ${input.repairAttempt}.`,
-    "Сохрани подтверждённые свойства продукта, конкретные имена и измеримые факты reference, а также технические границы речи. Тему, порядок, примеры и формулировки можно переписать своими словами, если так сценарий звучит естественнее.",
+    "Сохрани подтверждённые свойства продукта, уже выбранные факты reference и технические границы речи. Тему, порядок, примеры и формулировки можно переписать своими словами; детали reference, которые не помогают новой связке, можно опустить.",
     "Если места не хватает, сокращай повторы и второстепенные подробности. Не восстанавливай дословно исходный ответ, список или чужую рекламу.",
     buildMechanicalRepairInstruction(input),
     `Подтвержденные причины отказа: ${input.failureReason}`,
@@ -85,11 +83,6 @@ export function buildCreativeCopywriterRepairPrompt(input: CreativeRepairInput) 
 
 function buildMechanicalRepairInstruction(input: CreativeRepairInput) {
   const instructions: string[] = [];
-  const missingNumericFact = input.preflight?.issues.some((issue) => issue.includes("измеримый факт"));
-  const numericFact = buildReferenceFactContract(input.chainInput.sourceScenario.script).numericFacts[0];
-  if (missingNumericFact && numericFact) {
-    instructions.push(`Включи факт «${spellPromptChainNumbersInText(numericFact)}» в законченную группу из шести-двадцати слов или финальную группу из пяти слов. Убери столько же второстепенных слов, сколько нужно для ее вместимости.`);
-  }
   const sentences = input.preflight?.sentences || [];
   const oversized = sentences.find((sentence) => sentence.wordCount > 20);
   if (oversized) instructions.push(`Длина Предложения ${oversized.index}: ${oversized.wordCount}; оно слишком длинное. Раздели его на законченные фразы по шесть-двадцать слов или, если это финальная группа, оставь пять слов.`);

@@ -9,6 +9,7 @@ import { requiresContinuousPresenterWardrobe } from "./director-wardrobe";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import type { ReferenceSegmentPlan } from "./reference-segment-plan";
 import { resolveReferenceTransferMode } from "./omni-reference-transfer-policy";
+import type { ScriptAdaptationMode } from "./script-adaptation-contract";
 
 const FEATURED_IDENTITY_EXCLUSIVITY = "IDENTITY: @file1 only; other people are background extras.";
 
@@ -24,13 +25,17 @@ export function buildStoryboardImagePrompt(input: {
   canonicalStoryboardReferenceUrl?: string | null;
   previousStoryboardReferenceUrl?: string | null;
   directorBrief?: DirectorBrief | null;
+  adaptationMode?: ScriptAdaptationMode;
   referenceSegmentPlan?: ReferenceSegmentPlan | null;
   referenceSceneMode?: ReferenceSceneMode;
   repairInstructions?: readonly string[];
 }) {
   const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(input.directorBrief);
   const referenceFormatMode = resolveReferenceFormatMode(input.directorBrief);
-  const detailedSourceTimeline = resolveReferenceTransferMode(input.directorBrief) === "full_reference";
+  const detailedSourceTimeline = resolveReferenceTransferMode(
+    input.directorBrief,
+    input.adaptationMode,
+  ) === "full_reference";
   const strictReferencePlan = Boolean(
     input.referenceSegmentPlan && detailedSourceTimeline
   );

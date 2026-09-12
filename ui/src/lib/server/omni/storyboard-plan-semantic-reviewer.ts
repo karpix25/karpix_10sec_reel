@@ -3,6 +3,7 @@ import { normalizeOpenRouterUsage } from "@/lib/omni/openrouter-cost";
 import type { DirectorBrief } from "./director-analysis-types";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
+import type { ReferenceTransferMode } from "./omni-reference-transfer-policy";
 import {
   renderSemanticStoryboardMemoryRules,
   type SemanticStoryboardMemoryRule,
@@ -32,6 +33,7 @@ export type StoryboardPlanSemanticReviewInput = {
   directorBrief: DirectorBrief | null;
   referenceSceneMode: ReferenceSceneMode;
   referenceFormatMode: ReferenceFormatMode;
+  referenceTransferMode?: ReferenceTransferMode;
   learnedRules?: readonly SemanticStoryboardMemoryRule[];
   segments: readonly {
     index: number;
@@ -108,9 +110,9 @@ export const STORYBOARD_PLAN_REVIEW_SYSTEM_PROMPT = [
   "Ты строгий режиссерский редактор раскадровок коротких видео.",
   "Проверяй, получается ли из плана ясный самостоятельный ролик по текущему сценарию и продукту.",
   "Верни только JSON: {passed:boolean, issues:[{segmentIndex:number, code:string, explanation:string}], repairInstructions:string[]}.",
-  "Референс задаёт сеттинг, свет, одежду, композицию и сценарную механику. Сохраняй эти проверенные факты; не разрешай произвольную смену локации или постановку несвязанной сцены.",
+  "Режим переноса reference указан в пользовательском блоке. В режиме style_only сохраняй макроформат, визуальное настроение и ритм, но не требуй точной локации, реквизита, действий или покадрового совпадения. В режиме full_reference сохраняй проверенный сеттинг, свет, одежду и композицию.",
   "Адаптированный формат: разговорный аватар, тематические B-roll и отдельные товарные B-roll. Исходное взаимодействие человека с товаром заменяется предметной вставкой, даже если источник показывает on_camera; такое изменение не является нарушением референса.",
-  "Если исходник целиком состоит из B-roll, разрешён разговорный кадр нашего аватара в том же сеттинге. Сохраняй эту утверждённую адаптацию при проверке остальных перебивок.",
+  "Если исходник целиком состоит из B-roll, в full_reference разрешён разговорный кадр нашего аватара в том же сеттинге; в style_only сцену аватара поставь заново в том же общем визуальном языке.",
   "Проверяй смысловую связность, идентичность аватара, форму продукта и физическую выполнимость плана. В товарных вставках продукт неподвижен на устойчивой опоре, без людей и рук; меняется камера или фокус. Между вставками допустим возврат к аватару.",
   "Когда voiceover прямо говорит о продукте, storyboard обязан поддерживать эту реплику видимым продуктом или согласованной демонстрацией. Фраза «продукт вне кадра» в этот момент является ошибкой.",
   "Финальный сегмент должен завершать главный тезис или отвечать на вопрос reference, а CTA не может быть единственным содержанием финала.",
@@ -120,12 +122,16 @@ export const STORYBOARD_PLAN_REVIEW_SYSTEM_PROMPT = [
 ].join("\n");
 
 function buildReviewPrompt(input: StoryboardPlanSemanticReviewInput) {
+  const referenceContract = input.referenceTransferMode === "style_only"
+    ? "Reference transfer contract: style_only. Сохраняй только макроформат, настроение, крупность и ритм. Точные локации, действия, реквизит, одежда и порядок source shots можно поставить заново под текущий сценарий."
+    : "Reference transfer contract: full_reference. Проверенный таймлайн задаёт сеттинг, свет, одежду и композицию; не требуй чужой продукт и разрешай его замену отдельным product B-roll.";
   return [
     `Продукт: ${input.productName}`,
     `Описание продукта: ${input.productDescription || "не указано"}`,
     `Текущий product contract: ${input.productPhysicalContract || "не указан"}`,
     `Reference scene mode: ${input.referenceSceneMode}`,
     `Reference format mode: ${input.referenceFormatMode}`,
+    referenceContract,
     "Текущий режиссерский анализ reference, обязательный источник правды:",
     JSON.stringify(input.directorBrief || {}, null, 2),
     renderSemanticStoryboardMemoryRules(input.learnedRules),

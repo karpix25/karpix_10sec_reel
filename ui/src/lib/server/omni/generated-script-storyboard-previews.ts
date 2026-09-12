@@ -72,6 +72,7 @@ type EnsureGeneratedScriptStoryboardUrlsInput = {
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   directorBrief?: DirectorBrief | null;
+  adaptationMode?: "writer_owned";
   referenceSceneMode?: ReferenceSceneMode;
   referenceFormatMode?: ReferenceFormatMode;
   promptPlan: readonly StoryboardPromptSegment[];
@@ -206,6 +207,7 @@ async function tryGenerateStoryboardPreview(input: {
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   directorBrief?: DirectorBrief | null;
+  adaptationMode?: "writer_owned";
   referenceSceneMode?: ReferenceSceneMode;
   referenceFormatMode?: ReferenceFormatMode;
   referenceSignature: string;
@@ -263,6 +265,7 @@ async function tryGenerateStoryboardPreview(input: {
       referenceSegmentPlan: input.referenceSegmentPlan,
       canonicalStoryboardReferenceUrl: input.canonicalStoryboardReferenceUrl,
       directorBrief: input.directorBrief,
+      adaptationMode: input.adaptationMode,
       referenceSceneMode: input.referenceSceneMode,
       generationProvider: input.generationProvider,
       pendingKieStoryboardTaskId: kieSubmission?.kind === "poll"

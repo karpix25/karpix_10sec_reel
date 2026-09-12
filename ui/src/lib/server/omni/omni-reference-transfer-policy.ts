@@ -2,6 +2,7 @@ import { mentionsOmniProduct } from "./omni-intro-product-contract";
 import { hasConsumptionAction } from "./physical-scene-model";
 import type { OmniStoryboardReferenceTransfer } from "../../omni/storyboard/omni-storyboard-types";
 import type { DirectorBrief, DirectorVisualTransferContract } from "./director-analysis-types";
+import type { ScriptAdaptationMode } from "./script-adaptation-contract";
 
 export type ReferenceTransferMode = "full_reference" | "style_only";
 
@@ -82,11 +83,12 @@ export const DEFAULT_REFERENCE_TRANSFER_POLICY: ReferenceTransferPolicy = {
 export function buildReferenceTransferPolicy(input: {
   hasProductReference: boolean;
   directorBrief?: DirectorBrief | null;
+  adaptationMode?: ScriptAdaptationMode;
 }): ReferenceTransferPolicy {
   const productDecision: ReferenceTransferDecision = input.hasProductReference
     ? "replace_with_product"
     : "remove";
-  const mode = resolveReferenceTransferMode(input.directorBrief);
+  const mode = resolveReferenceTransferMode(input.directorBrief, input.adaptationMode);
   const decisions: ReferenceTransferDecisions = mode === "full_reference"
     ? {
       ...DEFAULT_REFERENCE_TRANSFER_POLICY.decisions,
@@ -110,7 +112,11 @@ export function buildReferenceTransferPolicy(input: {
   };
 }
 
-export function resolveReferenceTransferMode(brief?: DirectorBrief | null): ReferenceTransferMode {
+export function resolveReferenceTransferMode(
+  brief?: DirectorBrief | null,
+  adaptationMode?: ScriptAdaptationMode,
+): ReferenceTransferMode {
+  if (adaptationMode === "writer_owned") return "style_only";
   return hasCompleteSourceTimeline(brief) ? "full_reference" : DEFAULT_REFERENCE_TRANSFER_POLICY.mode;
 }
 

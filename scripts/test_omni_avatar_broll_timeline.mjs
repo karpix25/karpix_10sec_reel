@@ -74,6 +74,13 @@ try {
   const { buildReferenceTransferPolicy } = server("omni-reference-transfer-policy.js");
   Module._load = originalLoad;
 
+  const writerOwnedPolicy = buildReferenceTransferPolicy({
+    directorBrief: normalizeDirectorBrief(buildBrief(10)),
+    hasProductReference: true,
+    adaptationMode: "writer_owned",
+  });
+  assert.equal(writerOwnedPolicy.mode, "style_only", "writer-owned scripts must never re-enter strict source transfer");
+
   for (const durationSeconds of [4, 6, 8, 10]) {
     const storyboard = buildStoryboard(durationSeconds);
     const visibleByFrame = storyboard.frames.map((_, index) => index === 1);
@@ -114,6 +121,15 @@ try {
       assert.match(panels[1], /subject=product_only; avatar_allowed=false/u);
       assert.doesNotMatch(panels[1], /SOURCE_CONTACT_SENTINEL|holds/u);
       assert.doesNotMatch(imagePrompt, /preserve the referenceSegmentPlan's presenter|hard source-continuity/u);
+
+      const writerOwnedImagePrompt = buildStoryboardImagePrompt({
+        segmentIndex: 1, storyboard: normalized, productName, avatarReferenceUrl: "https://example.test/avatar.png",
+        productReferenceUrls: ["https://example.test/product.png"], directorReferenceImageUrls: ["https://example.test/source.png"],
+        canonicalStoryboardReferenceUrl, directorBrief: brief, referenceSegmentPlan: sourcePlan,
+        productRole: "brief_demo", adaptationMode: "writer_owned",
+      });
+      assert.doesNotMatch(writerOwnedImagePrompt, /APPROVED STORYBOARD|ADAPTED PLAN PRIORITY/u,
+        "writer-owned storyboard images must use the new plan, not the source timeline");
     }
 
     const physical = normalizeOmniPromptPlanWithPhysicalRules({

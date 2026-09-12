@@ -46,12 +46,18 @@ try {
   const { normalizeLegacyReelsUrl } = require(findFile(compiled, "legacy-reels-url.js"));
   const { normalizeDirectorBrief } = require(findFile(compiled, "director-analysis-types.js"));
   const { buildDirectorSegmenterPrompt } = require(findFile(compiled, "llm-prompt-chain-prompts.js"));
+  const { resolveReferenceTransferMode } = require(findFile(compiled, "omni-reference-transfer-policy.js"));
   const sourceSelectorSource = readFileSync(join(ui, "src/lib/server/omni/generated-script-source.ts"), "utf8");
+  const generatedScriptsSource = readFileSync(join(ui, "src/lib/server/omni/generated-scripts.ts"), "utf8");
   assert.match(sourceSelectorSource, /omni_generated_script_source_cursors/u);
   assert.match(sourceSelectorSource, /omni_generated_script_source_attempts/u);
   assert.match(sourceSelectorSource, /ON CONFLICT \(project_id, product_id\)/u);
   assert.match(sourceSelectorSource, /\.\.\.attemptedIds/u);
+  assert.match(generatedScriptsSource, /requireCompleteTimeline: false/u,
+    "writer-owned script creation must not fail on an incomplete source timeline");
   assert.equal(MAX_DIRECTOR_REFERENCE_ATTEMPTS, 16);
+  assert.equal(resolveReferenceTransferMode(validDirectorBrief(true), "writer_owned"), "style_only",
+    "writer-owned adaptation must select style-only visual transfer");
   assert.equal(
     normalizeLegacyReelsUrl("https://www.instagram.com/reels/DTaokiODjgF/?utm_source=test"),
     normalizeLegacyReelsUrl("https://www.instagram.com/reel/DTaokiODjgF"),

@@ -5,6 +5,7 @@ import type { OmniSegmentPrompt } from "./omni-prompt-builder";
 import type { DirectorBrief } from "./director-analysis-types";
 import { applyReferenceSceneModeToOmniPrompt, type ReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
+import type { ReferenceTransferMode } from "./omni-reference-transfer-policy";
 import { repairPhysicalScenePrompt, validatePhysicalScene } from "./physical-scene-validator";
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
 import {
@@ -43,7 +44,6 @@ type SemanticRepairSegment = {
   voiceoverText?: string;
   storyboardPlan: unknown;
 };
-
 export async function prepareOmniPromptPlanWithSemanticRepair(input: {
   projectId: number;
   productId: number;
@@ -55,6 +55,7 @@ export async function prepareOmniPromptPlanWithSemanticRepair(input: {
   directorBrief: DirectorBrief | null;
   referenceSceneMode: ReferenceSceneMode;
   referenceFormatMode: ReferenceFormatMode;
+  referenceTransferMode?: ReferenceTransferMode;
   model: string;
 }) {
   let promptPlan = [...input.promptPlan];
@@ -229,7 +230,7 @@ const SEMANTIC_REBUILD_SYSTEM_PROMPT = [
   "Верни только JSON формата {segments:[{index:number,voiceoverText:string,storyboardPlan:{segmentIndex:number,durationSeconds:number,voiceoverText:string,frames:[{visualAction:string,camera:string,environment:string,wardrobe:string,productPlacement:string,sfxNotes:string,effectNotes?:string|null,speechMode?:string}]}}]}.",
   "Верни каждый сегмент текущего плана ровно один раз, в том же порядке, с тем же segmentIndex, durationSeconds и количеством кадров.",
   "Не меняй и не перефразируй voiceoverText. Сохрани исходную последовательность слов побуквенно после нормализации.",
-  "Пересобери ошибочные визуальные решения с учётом проверки, сохранив сеттинг, свет, одежду и композицию референса. Продукт показывай отдельным неподвижным B-roll без людей и рук, разговорного аватара — в его кадрах.",
+  "Пересобери ошибочные визуальные решения с учётом transfer contract: в full_reference сохрани проверенный сеттинг, свет, одежду и композицию, а в style_only сохрани только макроформат, настроение и ритм, поставив точные сцены заново. Продукт показывай отдельным неподвижным B-roll без людей и рук, разговорного аватара — в его кадрах.",
   "Не добавляй и не удаляй слова, сегменты или кадры. Не добавляй новые утверждения.",
 ].join(" ");
 
@@ -247,6 +248,7 @@ function buildReviewInput(
     directorBrief: input.directorBrief,
     referenceSceneMode: input.referenceSceneMode,
     referenceFormatMode: input.referenceFormatMode,
+    referenceTransferMode: input.referenceTransferMode,
     learnedRules,
     segments: promptPlan.map((segment) => ({
       index: segment.index,
@@ -266,6 +268,7 @@ function buildRepairPrompt(input: {
   directorBrief: DirectorBrief | null;
   referenceSceneMode: ReferenceSceneMode;
   referenceFormatMode: ReferenceFormatMode;
+  referenceTransferMode?: ReferenceTransferMode;
   review: StoryboardPlanSemanticReview;
   learnedRules: readonly SemanticStoryboardMemoryRule[];
 }) {
@@ -275,6 +278,9 @@ function buildRepairPrompt(input: {
     `Текущий product contract, обязательный источник правды: ${input.productPhysicalContract || "не указан"}`,
     `Reference scene mode: ${input.referenceSceneMode}`,
     `Reference format mode: ${input.referenceFormatMode}`,
+    input.referenceTransferMode === "style_only"
+      ? "Reference transfer contract: style_only. Сохраняй макроформат, настроение и ритм; точные source локации, действия, реквизит и покадровое совпадение поставь заново под текущий сценарий."
+      : "Reference transfer contract: full_reference. Сохраняй проверенный source timeline, адаптируя только смысл, аватара и клиентский продукт.",
     "Текущий режиссерский анализ reference, обязательный источник правды:",
     JSON.stringify(input.directorBrief || {}, null, 2),
     renderSemanticStoryboardMemoryRules(input.learnedRules),
@@ -485,9 +491,7 @@ function throwSemanticRepairExhausted(
   ));
 }
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
+function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error); }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));

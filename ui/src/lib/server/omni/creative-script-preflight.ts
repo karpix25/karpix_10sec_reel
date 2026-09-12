@@ -11,13 +11,12 @@ import { planOmniReelSegments, type OmniReelSegmentPlan } from "./omni-duration-
 import { OMNI_MAX_SEGMENT_COUNT, OMNI_MIN_USEFUL_SEGMENT_WORDS, getOmniSegmentWordBudget } from "./omni-speech-density";
 import type { CreativeSpeechSegment } from "./llm-prompt-chain-types";
 import { validateCreativeSpeechPlan } from "./creative-speech-plan";
-import { assertReferenceFactsUsed } from "./reference-fact-contract";
 
 export const CREATIVE_SPEECH_PACKING_RULE = [
   `Верни JSON {"segments":[{"duration_seconds":4,"voiceover":"Речь первой группы."},{"duration_seconds":6,"voiceover":"Речь следующей группы."}]}. Весь сценарий состоит из реплик этих 2-${OMNI_MAX_SEGMENT_COUNT} последовательных групп по ${OMNI_MIN_USEFUL_SEGMENT_WORDS}-${getOmniSegmentWordBudget()} произносимых слов. Финальная группа может содержать пять слов. Каждая группа содержит одно или несколько грамматически законченных предложений.`,
   "Длительность каждой группы: 4 секунды для 6-8 слов или для финальной группы из 5 слов, 6 секунд для 9-12, 8 секунд для 13-16, 10 секунд для 17-20. Это готовые границы речи, которые режиссер сохранит без изменений. duration_seconds — число JSON; числа внутри реплик записывай словами.",
   `Отдельное предложение не длиннее ${getOmniSegmentWordBudget()} слов, включая полное название продукта и числа, записанные словами. Короткий CTA объединяй с соседним законченным предложением только если группа остается в пределах шести-двадцати слов или финальных пяти слов. Если после фразы на семнадцать-двадцать слов остается хвост из одного-четырех слов, раздели или сократи предыдущую фразу на две законченные, а не приклеивай хвост к ней.`,
-  "Проверь весь план: простое разбиение длинного предложения на два еще не гарантирует, что все группы помещаются. Если групп слишком много, переформулируй или сократи второстепенные детали, сохранив обязательные факты, переход к продукту, его пользу и CTA.",
+  "Проверь весь план: простое разбиение длинного предложения на два еще не гарантирует, что все группы помещаются. Если групп слишком много, переформулируй или сократи второстепенные детали, сохранив выбранные факты, переход к продукту, его пользу и CTA.",
   "Не разрезай незаконченную фразу, не ускоряй произношение и не добавляй пустые слова. Ориентир речи: четыре слова на две секунды; граница кадра и склейка не требуют паузы.",
 ].join(" ");
 
@@ -62,7 +61,6 @@ export function collectCreativeScriptPreflight(input: CreativeScriptPreflightInp
     try { run(); } catch (error) { issues.add(error instanceof Error ? error.message : String(error)); }
   };
   check(() => assertOmniScriptTextContract(script));
-  check(() => assertReferenceFactsUsed(input.sourceScenario.script, script));
   check(() => assertPromptChainNumericRangeIntegrity(input.sourceScenario.script, script));
   check(() => assertRussianSpeechGender(script, input.avatarSpeechGender));
   let qualityCheck: ScriptQualityResult | null = null;

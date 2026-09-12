@@ -25,6 +25,17 @@ export function repairReferenceSourceFrame(input: ReferenceSourceFrameInput) {
     };
   }
 
+  if (input.brollSource && input.beat.sourceRole === "product_broll" && !input.productVisible) {
+    // The client's product is shown only on an explicit spoken product beat;
+    // keep the already adapted thematic action when the source product is hidden.
+    return {
+      role: "environment_cutaway",
+      action: input.currentAction,
+      camera: input.currentCamera,
+      visualDescription: input.currentVisualDescription,
+    };
+  }
+
   if (input.brollSource) {
     return {
       role: "environment_cutaway" as const,
