@@ -72,18 +72,17 @@ export type ReferenceMeaningCoverage = {
 export function buildReferenceMeaningGuidance(referenceScript: string) {
   const contract = buildReferenceMeaningContract(referenceScript);
   const lines = [
-    "Смысл reference обязателен: сохрани главный тезис, вопрос или возражение, механизм, доказательство или пример и вывод.",
-    "Перепиши под наш продукт и наш бренд, но не превращай в общую рекламу и не выбрасывай объяснение, на котором держался оригинал.",
+    "Reference — материал для нового сценария: возьми тему, форму хука и подходящие проверяемые факты, но не сохраняй их дословно.",
+    "Выбирай только факты, которые делают новую связку с продуктом естественной. Список, порядок и вывод reference не обязательны.",
   ];
   if (contract.anchors.length) {
     lines.push(`Смысловые опоры reference: ${contract.anchors.join(" / ")}`);
   }
   if (contract.criticalSignals.length) {
-    lines.push(`Механизм и доказательные сигналы, которые нельзя потерять по смыслу: ${contract.criticalSignals.join(", ")}.`);
+    lines.push(`Проверяемые сигналы reference, которые можно использовать в новой истории: ${contract.criticalSignals.join(", ")}.`);
   }
   if (contract.requiresListPreservation) {
-    lines.push(`В reference есть список из ${contract.listItems.length} обязательных пунктов. Сохрани каждый пункт по смыслу; продукт и CTA должны быть встроены в соответствующую потребность, а не вставлены отдельным рекламным блоком.`);
-    lines.push(`Обязательные пункты reference: ${contract.listItems.join(" / ")}`);
+    lines.push(`В reference есть список из ${contract.listItems.length} пунктов. Возьми из него только пункты, полезные для новой истории: ${contract.listItems.join(" / ")}`);
   }
   return lines.join("\n");
 }
@@ -91,18 +90,15 @@ export function buildReferenceMeaningGuidance(referenceScript: string) {
 export function buildReferenceMeaningRepairGuidance(referenceScript: string) {
   const contract = buildReferenceMeaningContract(referenceScript);
   return [
-    "КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: предыдущий сценарий потерял причинно следственную логику reference.",
-    "Верни механизм или доказательство естественной фразой внутри сценария, а не списком терминов и не общей рекламой.",
+    "КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: собери новую естественную связку темы reference и подтвержденной пользы продукта.",
+    "Выбери подходящий факт или механизм reference, но не восстанавливай исходный ответ, список или порядок фраз.",
     contract.anchors.length
       ? `Опоры исходной мысли: ${contract.anchors.join(" / ")}.`
-      : "Сохрани главный тезис, объяснение и вывод original reference.",
+      : "Используй тему и сильный хук original reference.",
     contract.criticalSignals.length
-      ? `Обязательные смысловые маркеры: ${contract.criticalSignals.join(", ")}.`
-      : "Сохрани конкретный механизм или доказательство original reference.",
-    contract.requiresListPreservation
-      ? `Обязательные пункты списка reference: ${contract.listItems.join(" / ")}. Не заменяй их продуктом или CTA.`
-      : "Если reference содержит список, сохрани его обещанное количество и каждый пункт по смыслу.",
-    "Это требование сохраняется даже при исправлении длины, CTA, хука или грамматики. Не добавляй новый CTA и не выдумывай новых обещаний.",
+      ? `Доступные смысловые маркеры: ${contract.criticalSignals.join(", ")}.`
+      : "Не добавляй новых фактов вне reference и данных продукта.",
+    "Это требование сохраняется при исправлении длины, CTA, хука или грамматики. Не добавляй новый CTA и не выдумывай новых обещаний.",
   ].join(" ");
 }
 

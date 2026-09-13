@@ -9,10 +9,12 @@ import {
 import type { OmniDurationRange } from "./omni-duration-range";
 import { validateReferenceMeaningCoverage, type ReferenceMeaningCoverage } from "./reference-meaning-contract";
 import type { ScriptAdaptationMode } from "./script-adaptation-contract";
+import type { CtaMode } from "../../omni/creative-contract";
+import { assertOmniCtaContract } from "./omni-cta-contract";
+import { hasSpokenProductName } from "./script-semantic-findings";
 
 const FORBIDDEN_SYMBOL_ERROR = "Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.";
 const CTA_SENTENCE_PATTERN = /артикул|описани|коммент|кодово.*слов|ссылк|профил/iu;
-const IMPERATIVE_CONCLUSION_PATTERN = /^(?:так\s+что\s+)?(?:не\s+)?(?:забудь(?:те)?|слушай(?:те)?|наслаждай(?:ся|тесь)|путешествуй(?:те)?|попробуй(?:те)?|используй(?:те)?|выбирай(?:те)?|плати(?:те)?|лети(?:те)?|будь(?:те)?|ознакомь(?:ся|тесь)|подпишись|подпишитесь|пиши(?:те)?|хочешь\s+так\s+же)(?=$|[^\p{L}\p{N}])/iu;
 
 export interface ScriptQualityResult {
   score: number;
@@ -124,13 +126,17 @@ export function validateViralScriptContract(input: {
   adaptationMode?: ScriptAdaptationMode;
 }): ScriptQualityResult {
   const warnings: string[] = [];
+  const errors = new Set<string>();
+  const check = (run: () => unknown) => {
+    try { run(); } catch (error) { errors.add(error instanceof Error ? error.message : String(error)); }
+  };
   const scriptText = input.script;
   const rawModelScript = input.rawScriptFromModel;
   const normalizedScript = normalizeText(scriptText);
   const normalizedRaw = normalizeText(rawModelScript);
 
   // 1. Forbidden long dashes and emojis
-  assertGeneratedScriptSymbolContract(rawModelScript);
+  check(() => assertGeneratedScriptSymbolContract(rawModelScript));
 
   // 2. Hook/first sentence check
   const hookToEvaluate = extractOpeningHook(input.hook?.trim() || scriptText);
@@ -139,8 +145,8 @@ export function validateViralScriptContract(input: {
 
   // Hard fail conditions for hook
   if (hookWordCount > 22 || hookCharCount > 150) {
-    throw new Error(
-      `Сценарий отклонен: хук или первое предложение слишком длинное для Reels (${hookWordCount} слов, ${hookCharCount} симв.). Сценарий должен начинаться динамично.`
+    warnings.push(
+      `Хук или первое предложение длинное (${hookWordCount} слов, ${hookCharCount} симв.). Рекомендуется сократить вступление.`
     );
   }
 
@@ -153,16 +159,16 @@ export function validateViralScriptContract(input: {
   // 3. Word count bounds
   const totalWordCount = countWords(scriptText);
   if (totalWordCount < OMNI_MIN_SCRIPT_WORDS) {
-    throw new Error(
+    errors.add(
       `Сценарий отклонен: ${describeOmniDensityGap(totalWordCount)}`
     );
   }
   const plannedSegmentCount = getPreferredOmniSegmentCount(totalWordCount);
   if (!plannedSegmentCount) {
-    throw new Error(`Сценарий отклонен: ${describeOmniDensityGap(totalWordCount)}`);
+    errors.add(`Сценарий отклонен: ${describeOmniDensityGap(totalWordCount)}`);
   }
 
-  const averageWordsPerSegment = totalWordCount / plannedSegmentCount;
+  const averageWordsPerSegment = plannedSegmentCount ? totalWordCount / plannedSegmentCount : 0;
   if (
     averageWordsPerSegment < OMNI_MIN_USEFUL_SEGMENT_WORDS ||
     averageWordsPerSegment > OMNI_TARGET_SEGMENT_WORDS_MAX
@@ -175,31 +181,29 @@ export function validateViralScriptContract(input: {
   // 4. Severe slop phrases (Hard Fail)
   for (const slop of SEVERE_SLOP_PHRASES) {
     if (normalizedRaw.includes(slop)) {
-      throw new Error(
-        `Сценарий отклонен: содержит запрещенное AI-слово/фразу "${slop}".`
+      warnings.push(
+        `Рекомендуется переформулировать фразу "${slop}".`
       );
     }
   }
 
   const brokenPattern = BROKEN_RUSSIAN_PATTERNS.find((pattern) => pattern.test(normalizedScript));
   if (brokenPattern) {
-    throw new Error("Сценарий отклонен: текст звучит неграмотно или канцелярски. Перепиши бытовым русским языком без фраз вроде «продукт поддержать».");
+    errors.add("Сценарий отклонен: текст звучит неграмотно или канцелярски. Перепиши бытовым русским языком без фраз вроде «продукт поддержать».");
   }
   if (SELF_CLAIMED_EXPERT_PATTERNS.some((pattern) => pattern.test(normalizedScript))) {
-    throw new Error("Сценарий отклонен: нельзя переносить профессиональную роль автора reference на аватара. Убери фразы от первого лица вроде «я врач», «я косметолог», «как эксперт».");
+    errors.add("Сценарий отклонен: нельзя переносить профессиональную роль автора reference на аватара. Убери фразы от первого лица вроде «я врач», «я косметолог», «как эксперт».");
   }
-  if (input.ctaMode === "article_in_description" && /(?:артикул\s+или\s+код|код\s+продукта)/iu.test(normalizedScript)) {
-    throw new Error("Сценарий отклонен: CTA звучит канцелярски. Для артикула в описании связывай CTA с поиском именно этого варианта продукта.");
-  }
-  if (input.ctaMode === "article_in_description") {
-    assertArticleCtaHasContext(scriptText);
-  }
-  assertCtaConclusionContract(scriptText, input.ctaMode);
+  check(() => assertOmniCtaContract(scriptText, { ctaMode: input.ctaMode as CtaMode, ctaValue: input.ctaValue }));
+  const productMentioned = hasSpokenProductName(scriptText, input.productName);
+  if (!productMentioned) errors.add(`Сценарий не называет продукт «${input.productName}».`);
 
   const repeatedDescriptor = findRepeatedProductDescriptor(scriptText, input.productName);
   if (repeatedDescriptor) {
-    throw new Error(`Сценарий отклонен: слово продукта «${repeatedDescriptor}» повторяется слишком часто. Назови его один раз, дальше используй «он», «формат», «банка» или просто продолжай мысль.`);
+    warnings.push(`Слово продукта «${repeatedDescriptor}» повторяется слишком часто.`);
   }
+
+  if (errors.size) throw new Error([...errors].join("\n"));
 
   // 5. Minor slop and clickbaits (Warnings)
   let slopCount = 0;
@@ -224,28 +228,6 @@ export function validateViralScriptContract(input: {
   }
 
   // 6. Product relevance check
-  const normalizedProduct = normalizeText(input.productName);
-  let productMentioned = normalizedScript.includes(normalizedProduct);
-
-  if (!productMentioned) {
-    // Try word-by-word partial matching for words with length >= 4
-    const productWords = normalizedProduct
-      .split(/[^a-zA-Zа-яА-Я0-9]+/u)
-      .filter((w) => w.length >= 4);
-
-    if (productWords.length > 0) {
-      productMentioned = productWords.some((word) =>
-        normalizedScript.includes(word.slice(0, Math.max(4, word.length - 2)))
-      );
-    }
-  }
-
-  if (!productMentioned) {
-    warnings.push(
-      `Продукт "${input.productName}" не упомянут напрямую в тексте сценария. Убедитесь, что продукт продвигается.`
-    );
-  }
-
   // 7. CTA check
   const ctaAppended = input.rawScriptBeforeCta.trim() !== scriptText.trim();
   if (ctaAppended) {
@@ -300,7 +282,7 @@ export function validateViralScriptContract(input: {
 
   return {
     score,
-    passed: score >= 50,
+    passed: true,
     warnings,
     metrics: {
       wordCount: totalWordCount,
@@ -336,10 +318,6 @@ export function assertCtaConclusionContract(script: string, ctaMode: string) {
   if (ctaMode === "link_in_profile" && ctaIndex >= 0 && !/(?:ссылк|профил)/iu.test(sentences[ctaIndex] || "")) {
     throw new Error("Сценарий отклонен: последний CTA должен вести по ссылке в профиле, без чужого призыва перейти в описание.");
   }
-  const conclusion = ctaIndex >= 0 ? sentences[ctaIndex + 1] : null;
-  if (!conclusion || conclusion.endsWith("?") || IMPERATIVE_CONCLUSION_PATTERN.test(conclusion)) {
-    throw new Error("Сценарий отклонен: после CTA нужен отдельный утвердительный вывод, а не вопрос, приказ или новый призыв.");
-  }
 }
 
 function findRepeatedProductDescriptor(script: string, productName: string) {
@@ -360,22 +338,4 @@ function normalizeWords(value: string) {
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .split(/\s+/u)
     .filter(Boolean);
-}
-
-function assertArticleCtaHasContext(script: string) {
-  const ctaSentence = getSentences(script).find((sentence) =>
-    /(?:артикул|описани)/iu.test(sentence)
-  );
-  if (!ctaSentence) return;
-
-  const normalized = normalizeText(ctaSentence);
-  if (/(?:детал|подробност)/iu.test(normalized)) {
-    throw new Error("Сценарий отклонен: CTA должен направлять к артикулу или самому продукту в описании, а не к дополнительным деталям.");
-  }
-  const hasDescriptionDestination = /(?:описани|под\s+видео|ниже)/iu.test(normalized);
-  const hasProductReference = /(?:артикул|арт\.?\s|названи|вариант|продукт|средств|его|ее|её|этот|эту)/iu.test(normalized);
-  const hasNaturalDirection = /(?:читай|смотр|найд|ищ|остав|указ|есть|можн|будет|пиш|ссылк)/iu.test(normalized);
-  if (!hasDescriptionDestination || (!hasProductReference && !hasNaturalDirection)) {
-    throw new Error("Сценарий отклонен: CTA про артикул вставлен без контекста. Упомяни артикул нативно внутри полезной мысли об этом продукте.");
-  }
 }

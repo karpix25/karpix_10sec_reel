@@ -1,24 +1,22 @@
 import React from "react";
 import { Settings } from "@/types";
+import { OMNI_STORYBOARD_TARGET_FRAME_WORDS, OMNI_STORYBOARD_SECONDS_PER_FRAME } from "@/lib/omni/storyboard/omni-storyboard-timing";
 import { Check, FolderOpen, LoaderCircle, Play, RefreshCw } from "lucide-react";
-
 interface AutomationSettingsProps {
   draftSettings: Settings;
+  legacySettingsAvailable: boolean;
   setDraftSettings: React.Dispatch<React.SetStateAction<Settings>>;
   isManualFinalRunPending: boolean;
   onManualFinalRun: () => void;
 }
-
 type YandexDiskFolderNode = {
   name: string;
   path: string;
   children: YandexDiskFolderNode[];
 };
-
-const OMNI_WORDS_PER_SECOND_HINT = 2.45;
+const OMNI_WORDS_PER_SECOND_HINT = OMNI_STORYBOARD_TARGET_FRAME_WORDS / OMNI_STORYBOARD_SECONDS_PER_FRAME;
 const OMNI_MAX_DURATION_HINT_SECONDS = 40;
 const [DEFAULT_TARGET_MIN_SECONDS, DEFAULT_TARGET_MAX_SECONDS] = [30, 40];
-
 const FolderTree: React.FC<{
   nodes: YandexDiskFolderNode[];
   selectedPath: string;
@@ -28,7 +26,6 @@ const FolderTree: React.FC<{
   if (!nodes.length) {
     return null;
   }
-
   return (
     <div className="space-y-1">
       {nodes.map((node) => {
@@ -55,9 +52,9 @@ const FolderTree: React.FC<{
     </div>
   );
 };
-
 export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
   draftSettings,
+  legacySettingsAvailable,
   setDraftSettings,
   isManualFinalRunPending,
   onManualFinalRun,
@@ -77,32 +74,25 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
   const [folderRoot, setFolderRoot] = React.useState<YandexDiskFolderNode | null>(null);
   const [isLoadingFolders, setIsLoadingFolders] = React.useState(false);
   const [folderLoadError, setFolderLoadError] = React.useState<string | null>(null);
-
   const targetMin = draftSettings.target_duration_min_seconds || draftSettings.target_duration_seconds || DEFAULT_TARGET_MIN_SECONDS;
   const targetMax = draftSettings.target_duration_max_seconds || draftSettings.target_duration_seconds || DEFAULT_TARGET_MAX_SECONDS;
   const [targetMinInput, setTargetMinInput] = React.useState(String(targetMin));
   const [targetMaxInput, setTargetMaxInput] = React.useState(String(targetMax));
-
   React.useEffect(() => {
     setTargetMinInput(String(targetMin));
   }, [targetMin]);
-
   React.useEffect(() => {
     setTargetMaxInput(String(targetMax));
   }, [targetMax]);
-
   React.useEffect(() => {
     setDailyLimitInput(String(dailyLimit));
   }, [dailyLimit]);
-
   React.useEffect(() => {
     setProjectLimitInput(String(projectLimit));
   }, [projectLimit]);
-
   const loadYandexFolders = React.useCallback(async () => {
     setIsLoadingFolders(true);
     setFolderLoadError(null);
-
     try {
       const response = await fetch("/api/yandex-disk/automation-folders", { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
@@ -116,15 +106,12 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
       setIsLoadingFolders(false);
     }
   }, []);
-
   React.useEffect(() => {
     loadYandexFolders();
   }, [loadYandexFolders]);
-
   const commitDailyLimitInput = () => {
     const parsed = Number(dailyLimitInput);
     let committedDaily = dailyLimit;
-
     setDraftSettings((prev) => {
       const fallbackDaily = Number(prev.daily_final_video_limit || 1);
       const normalizedDaily = Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : fallbackDaily;
@@ -134,14 +121,11 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
         daily_final_video_limit: normalizedDaily,
       };
     });
-
     setDailyLimitInput(String(committedDaily));
   };
-
   const commitProjectLimitInput = () => {
     const parsed = Number(projectLimitInput);
     let committedProject = projectLimit;
-
     setDraftSettings((prev) => {
       const fallbackMonthly = Number(prev.monthly_final_video_limit || 1);
       const normalizedMonthlyCandidate = Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : fallbackMonthly;
@@ -152,15 +136,12 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
         monthly_final_video_limit: normalizedMonthly,
       };
     });
-
     setProjectLimitInput(String(committedProject));
   };
-
   const commitTargetMinInput = () => {
     const parsed = Number(targetMinInput);
     let committedMin = targetMin;
     let committedMax = targetMax;
-
     setDraftSettings((prev) => {
       const fallbackMin =
         Number(prev.target_duration_min_seconds || prev.target_duration_seconds || DEFAULT_TARGET_MIN_SECONDS);
@@ -179,16 +160,13 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
         target_duration_max_seconds: normalizedMax,
       };
     });
-
     setTargetMinInput(String(committedMin));
     setTargetMaxInput(String(committedMax));
   };
-
   const commitTargetMaxInput = () => {
     const parsed = Number(targetMaxInput);
     let committedMin = targetMin;
     let committedMax = targetMax;
-
     setDraftSettings((prev) => {
       const fallbackMin =
         Number(prev.target_duration_min_seconds || prev.target_duration_seconds || DEFAULT_TARGET_MIN_SECONDS);
@@ -208,14 +186,11 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
         target_duration_max_seconds: normalizedMax,
       };
     });
-
     setTargetMinInput(String(committedMin));
     setTargetMaxInput(String(committedMax));
   };
-
   const estMin = Math.round(Math.min(targetMin, OMNI_MAX_DURATION_HINT_SECONDS) * OMNI_WORDS_PER_SECOND_HINT);
   const estMax = Math.round(Math.min(targetMax, OMNI_MAX_DURATION_HINT_SECONDS) * OMNI_WORDS_PER_SECOND_HINT);
-
   const dailyProgress = Math.min(100, Math.round((dailyCount / Math.max(1, dailyLimit)) * 100));
   const projectProgress = Math.min(100, Math.round((projectCount / Math.max(1, projectLimit)) * 100));
   const manualRunHint = `Ручной запуск добавляет до ${dailyLimit} задач в очередь с учетом лимита проекта.`;
@@ -228,7 +203,6 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
         minute: "2-digit",
       }).format(new Date(automationStoppedAt))
     : null;
-
   return (
     <div className="space-y-6">
       <div className="space-y-5 rounded-2xl border border-[#e5ebf0] bg-[#fbfcfd] p-6 shadow-sm">
@@ -238,7 +212,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
               Автоматика финальных роликов
             </div>
             <p className="text-sm text-muted-foreground">
-              Включает контур автопроизводства: сценарий, озвучка, перебивки, аватар, монтаж.
+              Создаёт ролики по референсам с аватаром и продуктом выбранного бренда.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -256,7 +230,6 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
               )}
               {isManualFinalRunPending ? "Запускаю..." : "Запуск вручную"}
             </button>
-
             <label className="flex items-center gap-3 rounded-xl bg-white border border-[#e5ebf0] px-4 py-2.5 text-sm font-semibold text-foreground cursor-pointer hover:bg-[#f8fafc] transition-colors">
               <input
                 type="checkbox"
@@ -270,17 +243,16 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
             </label>
           </div>
         </div>
-
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-4 rounded-xl border border-white/70 bg-white p-4 shadow-sm">
             <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Статистика</div>
             <div className="space-y-2 text-xs font-semibold">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Сделано сегодня (запрошено сегодня):</span>
+                <span className="text-muted-foreground">Готово сегодня:</span>
                 <span className="text-foreground">{dailyCount} / {dailyLimit}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Создано в проекте (запрошено):</span>
+                <span className="text-muted-foreground">Готово в проекте:</span>
                 <span className="text-foreground">{projectCount} / {projectLimit}</span>
               </div>
               <div className="flex justify-between">
@@ -303,7 +275,6 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
               ) : null}
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -345,7 +316,6 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
             </div>
           </div>
         </div>
-
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -366,8 +336,7 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
             </div>
           </div>
         </div>
-
-        <div className="space-y-2 rounded-xl border border-white/70 bg-white p-4 shadow-sm">
+        <fieldset disabled={!legacySettingsAvailable} className="space-y-2 rounded-xl border border-white/70 bg-white p-4 shadow-sm disabled:opacity-50">
           <div className="flex items-center justify-between gap-3">
             <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
               <FolderOpen className="h-4 w-4" />
@@ -433,10 +402,9 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
               </div>
             )}
           </div>
-        </div>
+        </fieldset>
       </div>
-
-      <div className="space-y-5 rounded-2xl border border-[#e5ebf0] bg-[#fbfcfd] p-6 shadow-sm">
+      <fieldset disabled={!legacySettingsAvailable} className="space-y-5 rounded-2xl border border-[#e5ebf0] bg-[#fbfcfd] p-6 shadow-sm disabled:opacity-50">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Длина сценария</div>
@@ -446,7 +414,6 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
             {targetMin} - {targetMax} сек
           </div>
         </div>
-
         <div className="grid gap-6 md:grid-cols-[1fr_200px] items-center">
           <div className="grid grid-cols-2 gap-4">
              <div className="space-y-2">
@@ -482,18 +449,16 @@ export const AutomationSettings: React.FC<AutomationSettingsProps> = ({
                 </div>
              </div>
           </div>
-
           <div className="bg-white rounded-2xl border border-white/70 p-4 shadow-inner text-center">
             <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Примерно слов</div>
             <div className="text-xl font-black text-primary">{estMin} – {estMax}</div>
-            <div className="text-[9px] font-bold uppercase tracking-tight text-slate-400 mt-1">2.45 с/с, Omni max 40с</div>
+            <div className="text-[9px] font-bold uppercase tracking-tight text-slate-400 mt-1">{OMNI_STORYBOARD_TARGET_FRAME_WORDS} слова на {OMNI_STORYBOARD_SECONDS_PER_FRAME} с</div>
           </div>
         </div>
-
         <p className="text-xs italic text-muted-foreground leading-relaxed">
           Генератор будет подбирать сюжет так, чтобы итоговый хронометраж попал в этот диапазон. Для Omni 2-4 сегмента сейчас поддерживают до 40 сек.
         </p>
-      </div>
+      </fieldset>
     </div>
   );
 };

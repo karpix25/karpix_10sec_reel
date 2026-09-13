@@ -9,6 +9,7 @@ import {
   isBlockingStoryboardQaViolation,
   isStoryboardQaMetadataOnly,
   normalizeStoryboardQaViolation,
+  STORYBOARD_STATIC_PHYSICS_QA_PROMPT,
 } from "./storyboard-qa-contract";
 import { requiresContinuousPresenterWardrobe, type DirectorWardrobeContinuity } from "./director-wardrobe";
 import type { ReferenceFormatMode } from "./omni-reference-format-mode";
@@ -19,7 +20,7 @@ const DEFAULT_MODEL = "minimax/minimax-m3";
 const MIN_CONFIDENCE = 0.65;
 const MAX_JSON_REPAIR_ATTEMPTS = 2;
 const MAX_JSON_REPAIR_SOURCE_CHARS = 12_000;
-export const STORYBOARD_SET_QA_POLICY_VERSION = "storyboard-set-qa-v10";
+export const STORYBOARD_SET_QA_POLICY_VERSION = "storyboard-set-qa-v11";
 
 export class StoryboardSetVisionJsonFormatError extends Error {
   readonly rawResponse: string;
@@ -219,6 +220,7 @@ function buildStoryboardSetVisionPrompt(input: {
       required_support_props: frame.referenceTransfer?.requiredSupportProps || [],
       product_placement: frame.productPlacement,
       physical_plan: frame.physicalPlan || null,
+      visual_action: frame.visualAction,
     })),
   }));
   return [
@@ -229,11 +231,12 @@ function buildStoryboardSetVisionPrompt(input: {
     input.hasAvatarReference ? "The next image is the saved avatar identity authority for any featured/main human. Ignore its clothing and background." : "No avatar identity reference was supplied; check only clear identity changes between featured people.",
     input.productReferenceCount ? `The next ${input.productReferenceCount} image(s) are product references for ${input.productName || "the client product"}. When the storyboard plan shows the product, its visible package must match these references.` : "No product reference images were supplied.",
     continuousPresenterWardrobe
-      ? "This is one continuous on-screen presenter. Contact sheet one establishes the canonical outfit. A clear visible change in garment type, sleeve length, neckline, color, fabric, or visible accessories in a later segment is a blocker. Compare contact sheets only; never compare clothing with the avatar or source reference. Cropped, hidden, or ambiguous clothing is not evidence. Location, camera, gesture, mouth state, background people, cut order, and source-reference similarity are never blockers."
-      : "Do not use this pass to enforce exact reference continuity. Clothing, location, camera, gesture, mouth state, background people, cut order, and source-reference similarity are never blockers.",
+      ? "This is one continuous on-screen presenter. Contact sheet one establishes the canonical outfit. A clear visible change in garment type, sleeve length, neckline, color, fabric, or visible accessories in a later segment is a blocker. Compare contact sheets only; never compare clothing with the avatar or source reference. Cropped, hidden, or ambiguous clothing is not evidence. Location, camera, gesture, mouth state, background people in non-product panels, cut order, and source-reference similarity are never blockers."
+      : "Do not use this pass to enforce exact reference continuity. Clothing, location, camera, gesture, mouth state, background people in non-product panels, cut order, and source-reference similarity are never blockers.",
     continuousPresenterWardrobe
-      ? "The only allowed error codes are FEATURED_IDENTITY_MISMATCH, PRESENTER_WARDROBE_CONTINUITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use the wardrobe code only for a clear change on the same featured presenter between contact sheets. Use the other codes only for a clear featured-person identity change between segments, a planned client product missing from every intended panel, a visibly wrong physical form of the client product, a foreign advertised product replacing it, or gross visual corruption. Ordinary props and uncertain details are not evidence."
-      : "The only allowed error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only for a clear featured-person identity change between segments, a planned client product missing from every intended panel, a visibly wrong physical form of the client product, a foreign advertised product replacing it, or gross visual corruption. Ordinary props and uncertain details are not evidence.",
+      ? "Identity and form error codes are FEATURED_IDENTITY_MISMATCH, PRESENTER_WARDROBE_CONTINUITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use the wardrobe code only for a clear change on the same featured presenter between contact sheets. Use the other codes only for a clear featured-person identity change between segments, a planned client product missing from every intended panel, a visibly wrong physical form of the client product, a foreign advertised product replacing it, or gross visual corruption. Ordinary props and uncertain details are not evidence."
+      : "Identity and form error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only for a clear featured-person identity change between segments, a planned client product missing from every intended panel, a visibly wrong physical form of the client product, a foreign advertised product replacing it, or gross visual corruption. Ordinary props and uncertain details are not evidence.",
+    STORYBOARD_STATIC_PHYSICS_QA_PROMPT,
     `Visual-mechanics contracts: ${JSON.stringify(visualContracts)}.`,
     "Return only JSON: { status: pass|repair|block, confidence: number, canonical_identity: string, violations: [{ segment_index: integer, panels: integer[], code: string, severity: error|warning, evidence: string }], repair_instructions: string[] }.",
     "All other observations are warnings or omitted. If every segment avoids the hard errors, return pass with an empty violations array.",

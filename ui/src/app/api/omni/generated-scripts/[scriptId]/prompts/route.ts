@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { buildGeneratedScriptPromptPreview } from "@/lib/server/omni/generated-scripts";
+import { getGeneratedScriptPromptPreview, prepareGeneratedScriptPromptPlan } from "@/lib/server/omni/generated-script-prompt-preparation";
 import { getOmniErrorStatus, jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
 import { normalizeOmniGenerationProvider } from "@/lib/omni/provider";
 
-export async function GET(
+async function handle(
   request: Request,
-  { params }: { params: Promise<{ scriptId: string }> }
+  { params }: { params: Promise<{ scriptId: string }> },
+  prepare: boolean,
 ) {
   const auth = await requireOmniUser(request);
   if (auth.errorResponse) return auth.errorResponse;
@@ -22,8 +23,9 @@ export async function GET(
   if (!scriptId) return jsonError("scriptId is required");
 
   try {
+    if (prepare) await prepareGeneratedScriptPromptPlan({ projectId, productId, scriptId, generationProvider });
     return NextResponse.json(
-      await buildGeneratedScriptPromptPreview({
+      await getGeneratedScriptPromptPreview({
         projectId,
         productId,
         scriptId,
@@ -34,4 +36,12 @@ export async function GET(
     console.error("Omni generated script prompt preview error:", error);
     return jsonError(error instanceof Error ? error.message : "Internal Server Error", getOmniErrorStatus(error));
   }
+}
+
+export function GET(request: Request, context: { params: Promise<{ scriptId: string }> }) {
+  return handle(request, context, false);
+}
+
+export function POST(request: Request, context: { params: Promise<{ scriptId: string }> }) {
+  return handle(request, context, true);
 }

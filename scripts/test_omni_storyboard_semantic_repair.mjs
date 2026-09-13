@@ -82,7 +82,7 @@ async function runScenario(prepare, options) {
     productId: 1,
     promptPlan,
     script: "Это тестовая реплика для нового короткого ролика сегодня",
-    productName: "Тестовый продукт",
+    productName: "Флакон Альфа",
     productDescription: null,
     productPhysicalContract: null,
     directorBrief: null,

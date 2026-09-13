@@ -15,18 +15,32 @@ import {
   getOmniStoryboardFrameCount,
 } from "../../omni/storyboard/omni-storyboard-timing";
 import { splitStoryboardSpeech } from "./storyboard/omni-storyboard-speech";
+import { parseAndRepairJson } from "./script-json-repair";
 
 export function normalizeCreativeScriptDraft(raw: unknown): CreativeScriptDraft | null {
-  const script = typeof raw === "string" ? clean(raw) : clean(asRecord(raw)?.script);
+  const parsed = typeof raw === "string" && /^\s*(?:\{|```)/u.test(raw)
+    ? parseAndRepairJson<Record<string, unknown>>(raw) : raw;
+  const data = asRecord(parsed);
+  const rawSegments = data?.segments ?? data?.speechSegments;
+  // Keep malformed entries visible to preflight; never drop part of the author's speech silently.
+  const speechSegments = Array.isArray(rawSegments) ? rawSegments.map((value) => {
+    const segment = asRecord(value);
+    return { voiceover: speechText(segment?.voiceover), durationSeconds: Number(segment?.duration_seconds ?? segment?.durationSeconds) };
+  }) : undefined;
+  const script = speechSegments?.length
+    ? speechSegments.map((segment) => segment.voiceover).join(" ")
+    : typeof parsed === "string" ? speechText(parsed) : speechText(data?.script);
   if (!script) return null;
-  const data = asRecord(raw);
   return {
     version: LLM_PROMPT_CHAIN_VERSION,
     script,
     hookAngle: clean(data?.hook_angle || data?.hookAngle) || null,
     creativeNotes: clean(data?.creative_notes || data?.creativeNotes) || null,
+    ...(speechSegments ? { speechSegments } : {}),
   };
 }
+
+function speechText(value: unknown) { return typeof value === "string" ? value.replace(/\s+/gu, " ").trim() : ""; }
 
 export function normalizeDirectorSegmentPlan(raw: unknown): DirectorSegmentPlan | null {
   const data = asRecord(raw);

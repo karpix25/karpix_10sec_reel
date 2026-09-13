@@ -30,7 +30,7 @@ try {
   const { normalizeOmniDurationRange } = require(findFile(output, "omni-duration-range.js"));
   const { reconstructVoiceSegments, splitScriptIntoSentences, splitScriptIntoVoiceSegments } = require(findFile(output, "omni-script-segmentation.js"));
 
-  assert.equal(getOmniSegmentDurationForWordCount(5), null, "segments below the storyboard speech floor are invalid");
+  assert.equal(getOmniSegmentDurationForWordCount(5), 4, "a five-word closing segment uses four seconds");
   assert.equal(getOmniSegmentDurationForWordCount(8), 4);
   assert.equal(getOmniSegmentDurationForWordCount(10), 6);
   assert.equal(getOmniSegmentDurationForWordCount(11), 6);
@@ -191,9 +191,9 @@ try {
   );
 
   assert.throws(
-    () => planOmniReelSegments(makeScript(11)),
+    () => planOmniReelSegments(makeScript(10)),
     (error) => error instanceof Error && /слишком короткий/u.test(error.message),
-    "plans below two useful segments should be rejected"
+    "plans below a standard segment plus a short closing segment should be rejected"
   );
 
   const exactThirtyPlan = planOmniReelSegments(makeScript(60), { durationRange: exactThirty });
@@ -244,6 +244,13 @@ try {
   assert.ok(sentencePlan.segments.slice(0, -1).every((segment) => /[.!?…]$/u.test(segment.text)));
   assert.equal(splitScriptIntoSentences(realisticScript).length, 5);
 
+  const shortClosingScript = [6, 6, 14, 12, 16, 5].map(makeSentence).join(" ");
+  const shortClosingPlan = planOmniReelSegments(shortClosingScript, { requireSentenceBoundaries: true });
+  assert.equal(shortClosingPlan.segmentCount, 5);
+  assert.equal(shortClosingPlan.segmentWordCounts.at(-1), 5);
+  assert.equal(shortClosingPlan.segmentDurationsSeconds.at(-1), 4);
+  assert.ok(shortClosingPlan.segmentWordCounts.slice(0, -1).every((count) => count >= 6 && count <= 20));
+
   console.log("Omni segment planner regression checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
@@ -254,6 +261,10 @@ function makeScript(wordCount) {
     { length: wordCount },
     (_, index) => `слово${index + 1}`
   ).join(" ");
+}
+
+function makeSentence(wordCount) {
+  return `${makeScript(wordCount)}.`;
 }
 
 function findFile(dir, fileName) {

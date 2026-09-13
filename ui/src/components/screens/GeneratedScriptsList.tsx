@@ -38,6 +38,7 @@ import {
   type VideoFilter,
 } from "./GeneratedScriptVideoPreparationStatus";
 import { GeneratedScriptVideoPanel } from "./GeneratedScriptVideoPanel";
+import { GeneratedScriptEditor } from "./GeneratedScriptEditor";
 
 type ViewMode = "compact" | "detail";
 type CardTab = "script" | "video" | "prompts";
@@ -274,7 +275,8 @@ function GeneratedScriptCard({
     : null;
   const isScriptGenerating = script.status === "generating";
   const isScriptFailed = script.status === "failed";
-  const isScriptUnavailable = isScriptGenerating || isScriptFailed;
+  const needsCorrection = Boolean(script.source_snapshot?.generation_error);
+  const isScriptUnavailable = isScriptGenerating || isScriptFailed || needsCorrection;
   const isPendingVideo = pendingVideo?.scriptId === script.id && automationJob?.status !== "failed";
   const videoStage = latestReel
     ? getVideoStageLabel(latestReel, latestSegments)
@@ -365,6 +367,12 @@ function GeneratedScriptCard({
             Этап: {getScriptGenerationStageLabel(generationStage)}
           </p>
           <p className="mt-1 break-words text-xs leading-5">{generationError || "Неизвестная ошибка генерации"}</p>
+        </div>
+      ) : null}
+
+      {isExpanded && !latestReel && !isScriptGenerating && script.script && projectId && productId ? (
+        <div className="border-t border-border p-4">
+          <GeneratedScriptEditor key={script.id} script={script} projectId={projectId} productId={productId} />
         </div>
       ) : null}
 

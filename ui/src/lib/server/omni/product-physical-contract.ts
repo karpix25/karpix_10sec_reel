@@ -29,7 +29,7 @@ export function renderProductPhysicalContractForOmni(contract: string | null | u
     OMNI_CONTRACT_MARKER,
     clean,
     "Stable product state: keep the stated material, consistency, visible contents, package shape, label layout, colors, scale, shadows, and highlights continuous from the first frame to the last frame.",
-    "Motion behavior: the product moves only through visible hand contact, gravity, or camera movement while preserving the same physical form and reference design.",
+    "Motion behavior: keep the product on the same stable support; only camera reframing or focus changes, with no human contact.",
     "This contract is mandatory whenever the product appears in motion.",
   ].join(" ");
 }

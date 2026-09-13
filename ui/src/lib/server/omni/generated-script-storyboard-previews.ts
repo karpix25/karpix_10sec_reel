@@ -1,4 +1,5 @@
 import pool from "@/lib/db";
+import { assertStoredGeneratedScriptReady } from "./generated-script-readiness";
 import type { OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
 import { hasProductVisibleStoryboardFrame } from "./omni-intro-product-contract";
 import {
@@ -63,6 +64,7 @@ type EnsureGeneratedScriptStoryboardUrlsInput = {
   projectId: number;
   productId: number;
   scriptId: number;
+  expectedScript?: string;
   productName: string;
   productPhysicalContract?: string | null;
   avatarReferenceUrl: string | null;
@@ -70,6 +72,7 @@ type EnsureGeneratedScriptStoryboardUrlsInput = {
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   directorBrief?: DirectorBrief | null;
+  adaptationMode?: "writer_owned";
   referenceSceneMode?: ReferenceSceneMode;
   referenceFormatMode?: ReferenceFormatMode;
   promptPlan: readonly StoryboardPromptSegment[];
@@ -86,6 +89,7 @@ export async function ensureGeneratedScriptStoryboardUrls(input: EnsureGenerated
 }
 
 async function ensureGeneratedScriptStoryboardUrlsLocked(input: EnsureGeneratedScriptStoryboardUrlsInput) {
+  await assertStoredGeneratedScriptReady(input);
   const referenceSignature = buildGeneratedScriptStoryboardReferenceSignature(
     input,
     buildStoryboardPlanSignature(input.promptPlan)
@@ -203,6 +207,7 @@ async function tryGenerateStoryboardPreview(input: {
   directorReferenceImageUrls?: readonly string[];
   directorReferenceImageUrlsBySegment?: ReadonlyMap<number, readonly string[]>;
   directorBrief?: DirectorBrief | null;
+  adaptationMode?: "writer_owned";
   referenceSceneMode?: ReferenceSceneMode;
   referenceFormatMode?: ReferenceFormatMode;
   referenceSignature: string;
@@ -260,6 +265,7 @@ async function tryGenerateStoryboardPreview(input: {
       referenceSegmentPlan: input.referenceSegmentPlan,
       canonicalStoryboardReferenceUrl: input.canonicalStoryboardReferenceUrl,
       directorBrief: input.directorBrief,
+      adaptationMode: input.adaptationMode,
       referenceSceneMode: input.referenceSceneMode,
       generationProvider: input.generationProvider,
       pendingKieStoryboardTaskId: kieSubmission?.kind === "poll"
@@ -389,10 +395,10 @@ function buildSetRepairInstructions(
     .map((violation) => `${violation.code}: ${violation.evidence}`);
   return [
     propagateCanonicalRepair
-      ? "Regenerate only this failed storyboard. Preserve the saved avatar identity, approved product form, and exact voiceover; clothing, environment, and source continuity are creative choices."
+      ? "Regenerate only this failed storyboard from its approved adapted plan. Preserve the saved avatar identity, product form, exact voiceover, wardrobe, setting, light, and panel order."
       : repairMode === "fresh"
-      ? "Create a fresh storyboard with the saved avatar for any featured human and the approved client product form. Direct the scene freely from the current script."
-      : "Patch only the hard identity, missing product, product-form, foreign-product, or gross-corruption defect. Preserve every unaffected panel.",
+      ? "Create a fresh storyboard from the same approved adapted plan using the saved avatar identity and approved product form. Preserve its wardrobe, setting, light, and panel order."
+      : "Patch only the named visible identity, product, or static physical defect. Keep product panels object-only on stable support and preserve every unaffected panel.",
     ...instructions,
     ...targeted,
   ];

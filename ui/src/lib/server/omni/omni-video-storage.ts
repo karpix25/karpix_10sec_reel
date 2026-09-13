@@ -1,7 +1,8 @@
 import { readFile } from "fs/promises";
 import pool from "@/lib/db";
 import { getReadableS3Url, getS3Config, putObjectToS3 } from "@/lib/server/s3-storage";
-import { isYandexDiskConfigured, uploadVideoFileToYandexFolder } from "@/lib/server/yandex-disk";
+import { isYandexDiskConfigured } from "@/lib/server/yandex-disk";
+import { buildYandexDeliveryPath, deliverVideoToYandex } from "@/lib/server/yandex-disk-delivery";
 import type { OmniProduct, OmniProject, OmniReel } from "@/lib/omni/types";
 import { buildOmniStorageKey } from "./omni-storage-path";
 
@@ -161,12 +162,13 @@ export async function uploadOmniFinalVideo(input: {
     return { fileName, s3Url, yandexStatus: "skipped" as const, yandexPath: null, yandexPublicUrl: null, yandexError: null };
   }
 
+  let yandexPath: string | null = null;
   try {
     const folderPath = await resolveOmniYandexFolderPath(input);
-    const yandex = await uploadVideoFileToYandexFolder({
+    yandexPath = buildYandexDeliveryPath(folderPath, fileName);
+    const yandex = await deliverVideoToYandex({
       localFilePath: input.localFilePath,
-      folderPath,
-      fileName,
+      filePath: yandexPath,
     });
     return {
       fileName,
@@ -181,7 +183,7 @@ export async function uploadOmniFinalVideo(input: {
       fileName,
       s3Url,
       yandexStatus: "failed" as const,
-      yandexPath: null,
+      yandexPath,
       yandexPublicUrl: null,
       yandexError: error instanceof Error ? error.message : "Yandex Disk upload failed",
     };

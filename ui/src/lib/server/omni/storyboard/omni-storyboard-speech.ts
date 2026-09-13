@@ -12,6 +12,7 @@ export type StoryboardSpeechChunk = {
   boundary: "sentence" | "segment_end" | "continuation";
 };
 
+// Chunks align spoken meaning to visuals. A continuation boundary is not an audio pause.
 export function splitStoryboardSpeech(text: string, frameCount: number) {
   const chunks = splitStoryboardSpeechWithBoundaries(text, frameCount);
   return chunks.map((chunk) => chunk.text);

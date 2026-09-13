@@ -58,7 +58,6 @@ Next.js process отвечает за web UI, API routes, auth, большую �
 | `services/v1/automation` | Python pipeline stages, final-video queue worker, scheduler, poller, prompt и TTS services |
 | `services/v1/providers` | Python provider clients для CometAPI, KIE, HeyGen, MiniMax, ElevenLabs и OpenAI image generation |
 | `services/v1/ingestion` | Telegram bot и Instagram/RapidAPI ingestion |
-| `services/v1/reels_factory` | Side-effect-free skeleton для будущего provider-neutral reel planning |
 | `scripts` | Migration, cleanup и targeted smoke-test scripts |
 
 ## Generation flows

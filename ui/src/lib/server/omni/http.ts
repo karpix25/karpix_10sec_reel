@@ -24,14 +24,20 @@ export function jsonError(message: string, status = 400) {
 
 export function getOmniErrorStatus(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
+  if (message.startsWith("План уже готовится") || message.startsWith("Сценарий изменился")) return 409;
   if (
     message.includes("Сценарий отклонен:") ||
+    message.includes("Сценарий требует исправления") ||
     message.includes("Invalid Omni segment") ||
     message.includes("Script is too short") ||
     message.includes("Script cannot be split") ||
     message.includes("Не удалось разделить сценарий") ||
     message.includes("Reference video analysis failed") ||
-    message.includes("Не удалось разобрать reference video")
+    message.includes("Не удалось разобрать reference video") ||
+    message.includes("Для разговорного ролика") ||
+    message.includes("Для разговорного аватара") ||
+    message.includes("Добавьте изображение продукта") ||
+    message.includes("отсутствует разговорный аватар")
   ) {
     return 422;
   }

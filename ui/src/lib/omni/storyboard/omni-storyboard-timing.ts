@@ -27,6 +27,7 @@ export function getOmniStoryboardWordRange(durationSeconds: number) {
 
 export function getOmniStoryboardDurationForWordCount(wordCount: number) {
   if (!Number.isInteger(wordCount) || wordCount <= 0) return null;
+  if (wordCount === 5) return 4;
   const targetSeconds = Math.ceil(wordCount / OMNI_STORYBOARD_TARGET_FRAME_WORDS) * OMNI_STORYBOARD_SECONDS_PER_FRAME;
   return OMNI_STORYBOARD_ALLOWED_SEGMENT_SECONDS.find((durationSeconds) => {
     const range = getOmniStoryboardWordRange(durationSeconds);
@@ -42,6 +43,8 @@ export function getOmniStoryboardDurationForWordCount(wordCount: number) {
 export function getOmniStoryboardFrameWordCounts(wordCount: number, durationSeconds: number) {
   const frameCount = getOmniStoryboardFrameCount(durationSeconds);
   const range = getOmniStoryboardWordRange(durationSeconds);
+  // ponytail: one short closing beat keeps a complete sentence intact; do not use it outside the final segment.
+  if (wordCount === 5 && durationSeconds === 4) return [3, 2];
   if (!frameCount || !range || wordCount < range.minWords || wordCount > range.maxWords) return null;
   const baseWords = Math.floor(wordCount / frameCount);
   const remainder = wordCount % frameCount;

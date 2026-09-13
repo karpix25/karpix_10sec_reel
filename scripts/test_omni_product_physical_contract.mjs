@@ -99,7 +99,8 @@ try {
   assert.ok(omniBlock.includes("PRODUCT PHYSICAL CONTRACT:"));
   assert.ok(omniBlock.includes("mandatory whenever the product appears"));
   assert.ok(omniBlock.includes("Stable product state:"));
-  assert.ok(omniBlock.includes("same physical form and reference design"));
+  assert.ok(omniBlock.includes("only camera reframing or focus changes"));
+  assert.ok(omniBlock.includes("no human contact"));
 
   const storyboardHint = renderProductPhysicalHintForStoryboard(omniBlock);
   assert.ok(storyboardHint.startsWith("физическое состояние продукта:"));
@@ -116,6 +117,8 @@ try {
     productReferenceUrls: ["https://example.com/jelly.jpg"],
   });
   assert.ok(imagePrompt.includes("cohesive soft translucent jelly dessert"));
+  assert.match(imagePrompt, /PRODUCT B-ROLL/iu);
+  assert.match(imagePrompt, /без людей и рук/iu);
   assert.ok(!imagePrompt.includes("PRODUCT PHYSICAL CONTRACT:"), "GPT Image prompt must not receive provider heading");
 
   const omniPrompt = renderCompactRussianOmniStoryboardPrompt({
@@ -123,6 +126,7 @@ try {
     productPhysicalContract: omniBlock,
   });
   assert.ok(omniPrompt.includes("PRODUCT PHYSICAL CONTRACT:"));
+  assert.match(omniPrompt, /product B-roll без людей и рук/iu);
   assert.equal(countMatches(omniPrompt, "PRODUCT PHYSICAL CONTRACT:"), 1);
 
   process.env.OPENROUTER_API_KEY = "test-key";
@@ -176,10 +180,10 @@ function buildStoryboard(productPhysicalHint) {
   return {
     segmentIndex: 1,
     durationSeconds: 4,
-    voiceoverText: "Это желе держит форму и мягко дрожит на тарелке",
+    voiceoverText: "Желе держит форму; оно мягко дрожит",
     frames: [
       {
-        spokenText: "Это желе держит форму",
+        spokenText: "Желе держит форму",
         visualAction: "герой показывает продукт рядом с тарелкой",
         camera: "крупный бытовой ракурс",
         environment: "кухонный стол с мягким дневным светом",
@@ -190,7 +194,7 @@ function buildStoryboard(productPhysicalHint) {
         modelMusicNotes: null,
       },
       {
-        spokenText: "и мягко дрожит на тарелке",
+        spokenText: "оно мягко дрожит",
         visualAction: "легкое касание ложкой",
         camera: "макро перебивка продукта",
         environment: "тот же стол",

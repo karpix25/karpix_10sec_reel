@@ -20,10 +20,21 @@ export type CreativeScriptDraft = {
   script: string;
   hookAngle: string | null;
   creativeNotes: string | null;
+  speechSegments?: CreativeSpeechSegment[];
+};
+
+export type CreativeSpeechSegment = { durationSeconds: number; voiceover: string };
+
+export type ScriptSemanticDefect = {
+  code: "missing_product" | "missing_product_value" | "missing_answer" | "missing_list_item" | "unsupported_product_claim";
+  message: string;
+  referenceQuote: string;
+  scriptQuote: string;
+  expectedText: string;
 };
 
 export type ScriptSemanticReview = {
-  version: "script-semantic-review-v1";
+  version: "script-semantic-review-v1" | "script-semantic-review-v2";
   passed: boolean;
   productNamed: boolean;
   productValueStated: boolean;
@@ -39,6 +50,21 @@ export type ScriptSemanticReview = {
   };
   issues: string[];
   repairInstructions: string[];
+  defects?: ScriptSemanticDefect[];
+  warnings?: string[];
+};
+
+export type CreativeScriptAttemptDiagnostic = {
+  attempt: number;
+  sentenceWordCounts: number[];
+  segmentWordCounts: number[] | null;
+  localIssues: string[];
+  semanticPassed: boolean | null;
+  semanticIssues: string[];
+  failure: string | null;
+  script?: string;
+  speechSegments?: CreativeSpeechSegment[];
+  semanticReview?: ScriptSemanticReview | null;
 };
 
 export type DirectorShot = {
@@ -114,6 +140,7 @@ export type LlmPromptChainSnapshot = {
   directorSegmentPlan: DirectorSegmentPlan;
   providerPromptPlan: ProviderPromptPlan;
   semanticReview: ScriptSemanticReview;
+  creativeAttemptDiagnostics?: CreativeScriptAttemptDiagnostic[];
   validationIssues: PromptValidationIssue[];
 };
 

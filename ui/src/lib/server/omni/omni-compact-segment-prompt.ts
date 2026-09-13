@@ -21,6 +21,7 @@ import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-
 import { isAvatarFreeReferenceScene, isFacelessReferenceScene, isObjectOnlyReferenceScene, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { renderDirectorTimelineForPrompt, resolveDirectorSegmentFormat } from "./director-analysis-timeline";
+import { OMNI_PRODUCT_BROLL_RULE } from "./omni-product-broll-contract";
 
 export function renderCompactSegmentPrompt(input: {
   plan: OmniSegmentCreativePlan;
@@ -142,6 +143,7 @@ export function renderCompactSegmentPrompt(input: {
       : `CHARACTER: ${input.characterContract.identityLine}.`,
     referenceBrief.wardrobeLine,
     `PRODUCT: ${input.productName}. ${renderProductRole(input.plan.productRole)}`,
+    input.plan.productRole !== "hidden" ? OMNI_PRODUCT_BROLL_RULE : null,
     OMNI_REFERENCE_PRODUCT_EXCLUSION_PROMPT,
     input.productVisualPassport,
     input.productPhysicalityContract && input.plan.productRole !== "hidden" && input.plan.productRole !== "digital_demo" ? input.productPhysicalityContract : null,
@@ -168,13 +170,13 @@ function renderProductRole(role: ProductRole) {
     return "Do not show the product in this part.";
   }
   if (role === "background_prop") {
-    return "When visible, keep it a real object in the scene with contact shadows, perspective, and one simple hand/camera-driven movement.";
+    return "When visible, show it only as standalone product B-roll on a stable surface; no people, hands, face, body, holding, touching, pickup, or interaction.";
   }
   if (role === "brief_demo") {
-    return "Show one short physical product interaction: pick up, turn slightly, or place down with visible hand contact.";
+    return "Show it only as standalone product B-roll on a stable surface; no people, hands, face, body, holding, touching, pickup, or interaction.";
   }
   if (role === "digital_demo") {
-    return "Show only the approved product screen on a smartphone when the storyboard calls for it; never turn it into a plastic card, package, or physical prop.";
+    return "Show only the approved product screen on a smartphone resting on a stable surface; no people, hands, face, body, holding, touching, pickup, or interaction.";
   }
-  return "Use it as a real routine object, never as a pasted still image or overlay.";
+  return "When visible, show it only as standalone product B-roll on a stable surface; no people, hands, face, body, holding, touching, pickup, or interaction.";
 }

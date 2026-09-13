@@ -1,25 +1,6 @@
 import React from "react";
-import { HeygenAvatarConfig, Settings, Voice } from "@/types";
-import { useSettingsState } from "./useSettingsState";
+import { useSettingsState, type SettingsScreenProps } from "./useSettingsState";
 import { AutomationSettings } from "./components/AutomationSettings";
-
-interface SettingsScreenProps {
-  settings: Settings;
-  avatarConfigs: HeygenAvatarConfig[];
-  selectedClientId: string | null;
-  minimaxVoices: Voice[];
-  elevenlabsVoices: Voice[];
-  heygenCatalog: HeygenAvatarConfig[];
-  onSave: (settings: Settings) => void;
-  onSaveHeygenAvatars: (avatars: HeygenAvatarConfig[]) => void;
-  onDeleteProject: () => void;
-  canDeleteProject: boolean;
-  onRefreshHeygenCatalog?: () => Promise<HeygenAvatarConfig[]>;
-  onRefreshWorkspace?: () => void;
-  isSaving: boolean;
-  isSavingHeygenAvatars: boolean;
-  isDeletingProject: boolean;
-}
 
 const SettingsScreen: React.FC<SettingsScreenProps> = (props) => {
   const state = useSettingsState(props);
@@ -37,14 +18,22 @@ const SettingsScreen: React.FC<SettingsScreenProps> = (props) => {
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
             Здесь управляются автоматический режим, лимиты production-пайплайна и проектная длина сценария.
           </p>
+          {state.savedProviderLabel ? <p className="mt-2 text-sm text-muted-foreground">
+            Автоматический режим: {state.savedProviderLabel}. Ручной запуск: {state.manualProviderLabel}.
+            При изменении настроек для автоматики сохраняется выбранный провайдер.
+          </p> : null}
         </header>
 
-        <AutomationSettings
-          draftSettings={state.draftSettings}
-          setDraftSettings={state.setDraftSettings}
-          isManualFinalRunPending={state.isManualFinalRunPending}
-          onManualFinalRun={state.handleManualFinalAutomationRun}
-        />
+        {state.error ? <p role="alert" className="text-sm text-red-600">{state.error}</p> : null}
+        <fieldset disabled={!state.isReady || state.isSaving} className="disabled:opacity-60">
+          <AutomationSettings
+            legacySettingsAvailable={Boolean(props.selectedClientId)}
+            draftSettings={state.draftSettings}
+            setDraftSettings={state.setDraftSettings}
+            isManualFinalRunPending={state.isManualFinalRunPending}
+            onManualFinalRun={state.handleManualFinalAutomationRun}
+          />
+        </fieldset>
       </div>
     </div>
   );

@@ -117,7 +117,7 @@ function getDiskFolderAncestors(diskPath: string) {
   return segments.map((_, index) => `disk:/${segments.slice(0, index + 1).join("/")}`);
 }
 
-async function yandexRequest(pathname: string, init: RequestInit = {}) {
+export async function yandexRequest(pathname: string, init: RequestInit = {}) {
   const token = getAccessToken();
   if (!token) {
     throw new Error("YANDEX_DISK_OAUTH_TOKEN is not configured");
@@ -151,7 +151,7 @@ async function ensureFolderExists(diskPath: string) {
   throw new Error(`Yandex Disk folder create failed for ${diskPath}: ${message}`);
 }
 
-async function ensureFolderTreeExists(diskPath: string) {
+export async function ensureFolderTreeExists(diskPath: string) {
   for (const folderPath of getDiskFolderAncestors(diskPath)) {
     await ensureFolderExists(folderPath);
   }

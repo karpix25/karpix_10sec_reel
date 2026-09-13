@@ -36,6 +36,7 @@ try {
   stubModule("@/lib/db", "module.exports = {};");
   stubModule("@/lib/server/s3-storage", "module.exports = { getS3Config() { return {}; }, putObjectToS3() { return 'https://s3.example.com/storyboard.jpg'; } };");
   stubModule("@/lib/server/yandex-disk", "module.exports = { isYandexDiskConfigured() { return false; }, uploadVideoFileToYandexFolder() {} };");
+  stubModule("@/lib/server/yandex-disk-delivery", "module.exports = { buildYandexDeliveryPath() { return ''; }, deliverVideoToYandex() {} };");
 
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", tsconfig], { cwd: ui, stdio: "inherit" });
 
@@ -98,6 +99,7 @@ try {
       segmentIndex: 1,
       storyboard: storyboard(),
       productName: "Коллаген",
+      referenceSceneMode: "presenter",
       avatarReferenceUrl: "https://cdn.example.com/avatar.jpg",
       canonicalStoryboardReferenceUrl: "https://cdn.example.com/first-storyboard.jpg",
       productReferenceUrls: ["https://cdn.example.com/product.jpg"],
@@ -107,7 +109,7 @@ try {
     assert.equal(result, "https://s3.example.com/storyboard.jpg");
     assert.match(warnings[0].message, /Optional storyboard reference image skipped/u);
     assert.equal(visionRequests, 2, "a repairable storyboard gets one retry");
-    assert.ok(cometPrompts[0].includes("Exact reference or cross-panel clothing continuity is not a QA requirement"));
+    assert.match(cometPrompts[0], /IDENTITY: @file1 only; other people are background extras/u);
     assert.ok(cometPrompts[1].includes("PHYSICAL REPAIR FROM PRIOR CHECK"));
     const visionImages = visionPayloads[0].messages[1].content.filter((item) => item.type === "image_url");
     assert.equal(visionImages.length, 4, "vision compares the candidate with the avatar, prior storyboard context, and product reference");

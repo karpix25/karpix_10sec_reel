@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { jsonError, parsePositiveInt, requireOmniUser } from "@/lib/server/omni/http";
 import { submitOmniReel } from "@/lib/server/omni/omni-reel-runner";
-import { normalizeOmniGenerationProvider } from "@/lib/omni/provider";
 
 export async function POST(request: Request, context: { params: Promise<{ reelId: string }> }) {
   const auth = await requireOmniUser(request);
@@ -13,7 +12,7 @@ export async function POST(request: Request, context: { params: Promise<{ reelId
 
   try {
     const body = await request.json().catch(() => ({}));
-    const reel = await submitOmniReel(reelId, normalizeOmniGenerationProvider(body.provider));
+    const reel = await submitOmniReel(reelId, body.provider);
     return NextResponse.json(reel);
   } catch (error) {
     console.error("Omni reel run error:", error);

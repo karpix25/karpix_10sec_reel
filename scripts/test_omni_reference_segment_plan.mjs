@@ -66,7 +66,11 @@ try {
       strict: true,
       skipLibCheck: true,
     },
-    files: [join(ui, "src/lib/server/omni/reference-segment-plan.ts"), join(ui, "src/lib/audio-library/moods.ts")],
+    files: [
+      join(ui, "src/lib/server/omni/reference-segment-plan.ts"),
+      join(ui, "src/lib/server/omni/llm-prompt-chain-storyboard-validator.ts"),
+      join(ui, "src/lib/audio-library/moods.ts"),
+    ],
   }));
   execFileSync(join(ui, "node_modules/.bin/tsc"), ["--project", join(output, "tsconfig.json")], { cwd: ui, stdio: "inherit" });
 
@@ -76,6 +80,7 @@ try {
   copyFileSync(moodsOutput, aliasMoods);
 
   const plan = require(findFile(compiled, "reference-segment-plan.js"));
+  const storyboardValidator = require(findFile(compiled, "llm-prompt-chain-storyboard-validator.js"));
   const presenter = plan.buildReferenceSegmentPlan({
     brief,
     segmentIndex: 1,
@@ -86,8 +91,8 @@ try {
   });
   assert.equal(presenter.renderMode, "talking_head");
   assert.equal(presenter.motionMode, "continuous_motion");
-  assert.equal(presenter.recommendedReferenceFrameCount, 3);
-  assert.equal(presenter.beats.length, 3);
+  assert.equal(presenter.recommendedReferenceFrameCount, 2, "simple presenter footage uses the existing two-reference budget");
+  assert.deepEqual(presenter.beats.map((beat) => [beat.startSeconds, beat.endSeconds]), [[0, 10]], "a complete source interval must not invent extra cuts");
   assert.equal(presenter.sourceStartSeconds, 0);
   assert.equal(presenter.sourceEndSeconds, 10);
 
@@ -112,10 +117,61 @@ try {
     segmentIndex: 1,
     segmentCount: 1,
     segmentSeconds: 10,
+    sourceDurationSeconds: 20,
   });
   assert.equal(mixed.renderMode, "mixed");
   assert.equal(mixed.motionMode, "montage");
-  assert.equal(mixed.recommendedReferenceFrameCount, 5);
+  assert.equal(mixed.recommendedReferenceFrameCount, 4);
+  assert.deepEqual(mixed.beats.map((beat) => [beat.startSeconds, beat.endSeconds]), [[0, 5], [5, 10]]);
+  const repairedFrames = plan.applyReferenceSegmentPlanToFrames(mixed, [
+    frame(1, "environment_cutaway", "city street", "camera moves through the street"),
+    frame(2, "environment_cutaway", "shopfront", "camera tracks the scene"),
+    frame(3, "face_open", "presenter close-up", "presenter speaks to camera"),
+    frame(4, "face_return", "presenter close-up", "presenter concludes on camera"),
+    frame(5, "face_return", "presenter close-up", "presenter speaks to camera"),
+  ], true);
+  assert.deepEqual(
+    repairedFrames.map((frame) => frame.role),
+    ["face_open", "face_open", "environment_cutaway", "environment_cutaway", "environment_cutaway"],
+    "stored frames must take the verified source presenter/B-roll role"
+  );
+  assert.equal(
+    repairedFrames.flatMap((frame, index) => storyboardValidator.validateStoryboardFrameSourceInterval({
+      frame,
+      frameIndex: index,
+      frameCount: repairedFrames.length,
+      path: `frames.${index}`,
+      plan: mixed,
+    })).filter((issue) => issue.severity === "error").length,
+    0,
+    "stored provider frames must be repaired before the KIE preflight"
+  );
+
+  const conflictingBroll = {
+    ...mixed,
+    segmentIndex: 2,
+    sceneMode: "voiceover_broll",
+    beats: [{
+      ...mixed.beats[0],
+      speechMode: "voiceover_only",
+      sourceRole: "proof_broll",
+      visibleSubjectRole: "primary_presenter",
+      avatarAllowed: true,
+    }],
+  };
+  assert.equal(plan.isReferenceBrollSource(conflictingBroll.beats[0]), true);
+  assert.equal(plan.isReferencePresenterSource(conflictingBroll.beats[0]), false,
+    "an explicit B-roll role must win over a conflicting visible-person label");
+  const repairedConflict = plan.applyReferenceSegmentPlanToFrames(
+    conflictingBroll,
+    [frame(1, "face_return", "presenter close-up", "presenter speaks to camera")],
+    true,
+  );
+  assert.equal(repairedConflict[0].role, "environment_cutaway");
+  assert.equal(storyboardValidator.validateStoryboardFrameSourceInterval({
+    frame: repairedConflict[0], frameIndex: 0, frameCount: 1,
+    path: "frames.0", plan: conflictingBroll,
+  }).filter((issue) => issue.severity === "error").length, 0);
 
   const animation = plan.buildReferenceSegmentPlan({
     brief: { ...brief, reference_render_mode: "animation", reference_motion_mode: "animated_still" },
@@ -125,9 +181,23 @@ try {
   });
   assert.equal(animation.renderMode, "animation");
   assert.equal(animation.motionMode, "animated_still");
-  assert.match(plan.renderReferenceSegmentPlanForPrompt(animation), /REFERENCE INSPIRATION/iu);
-  assert.doesNotMatch(plan.renderReferenceSegmentPlanForPrompt(animation), /Beat 1/iu);
+  assert.match(plan.renderReferenceSegmentPlanForPrompt(animation), /REFERENCE SHOT CONTRACT/iu);
+  assert.match(plan.renderReferenceSegmentPlanForPrompt(animation), /Beat 0-10s; source 0-10s/iu);
   console.log("Omni reference segment plan checks passed");
 } finally {
   rmSync(output, { recursive: true, force: true });
+}
+
+function frame(index, role, visualDescription, action) {
+  return {
+    index,
+    role,
+    spokenWords: "четыре слова ровно здесь",
+    visualDescription,
+    camera: "medium shot",
+    action,
+    productState: "product out of frame",
+    sfx: null,
+    referenceRole: "none",
+  };
 }

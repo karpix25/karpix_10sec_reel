@@ -5,6 +5,10 @@ venv/
 *.pyc
 .env
 .env.local
+.env.*
+!.env.example
+/tmp/
+/start_tunnels.sh
 .DS_Store
 temp_videos/
 *.mp4

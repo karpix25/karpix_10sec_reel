@@ -1,9 +1,11 @@
 import pool from "@/lib/db";
+import { OMNI_GENERATION_PROVIDERS, normalizeOmniGenerationProvider, type OmniGenerationProvider } from "@/lib/omni/provider";
 import { ensureOmniSchema } from "./schema";
 
 type SettingsRow = {
   id: number;
   auto_generate_reels: boolean;
+  automation_provider: OmniGenerationProvider | null;
   daily_reel_limit: number;
   project_reel_limit: number;
   automation_started_job_count: number;
@@ -29,6 +31,7 @@ export async function getOmniAutomationSettings(projectId: number) {
     `SELECT
        project.id,
        project.auto_generate_reels,
+       project.automation_provider,
        project.daily_reel_limit,
        project.project_reel_limit,
        project.automation_started_job_count,
@@ -58,15 +61,19 @@ export async function getOmniAutomationSettings(projectId: number) {
     [projectId]
   );
   if (!rows[0]) throw new Error("Omni client project not found");
-  return rows[0];
+  return { ...rows[0], automation_provider: normalizeOmniGenerationProvider(rows[0].automation_provider ?? process.env.OMNI_AUTOMATION_PROVIDER) };
 }
 
 export async function updateOmniAutomationSettings(input: {
   projectId: number;
+  provider?: unknown;
   autoGenerateReels?: unknown;
   dailyReelLimit?: unknown;
   projectReelLimit?: unknown;
 }) {
+  if (input.provider !== undefined && !OMNI_GENERATION_PROVIDERS.includes(input.provider as OmniGenerationProvider)) {
+    throw new Error("Unsupported generation provider");
+  }
   await ensureOmniSchema();
   const current = await getOmniAutomationSettings(input.projectId);
   const nextAuto =
@@ -83,6 +90,7 @@ export async function updateOmniAutomationSettings(input: {
      SET auto_generate_reels = $2,
          daily_reel_limit = $3,
          project_reel_limit = $4,
+         automation_provider = COALESCE($8, automation_provider),
          automation_stopped_at = CASE
            WHEN $7 THEN CURRENT_TIMESTAMP
            WHEN $5 THEN NULL
@@ -106,6 +114,7 @@ export async function updateOmniAutomationSettings(input: {
       turningOn,
       turningOff,
       projectLimitReached,
+      input.provider ?? null,
     ]
   );
 

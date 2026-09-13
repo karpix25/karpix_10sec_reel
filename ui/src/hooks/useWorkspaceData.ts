@@ -1,16 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Client, ElevenLabsVoiceOption, Reference, Scenario, TopicCard, StructureCard, Settings, HeygenAvatarConfig, MinimaxVoiceOption, PaginatedResponse } from "@/types";
+import { Client, Reference, Scenario, TopicCard, StructureCard, Settings, PaginatedResponse } from "@/types";
 
 const API_BASE = "/api";
 const SCENARIO_POLL_WINDOW_MS = 90_000;
 const SCENARIO_POLL_INTERVAL_MS = 4_000;
-const EMPTY_COST_STATS = {
-  totalPrompts: 0,
-  totalHeygenDuration: 0,
-  totalCostUsd: 0,
-};
 
 const normalizeProductMediaAssets = (value: unknown) => {
   if (!Array.isArray(value)) {
@@ -41,12 +36,8 @@ const normalizeProductMediaAssets = (value: unknown) => {
     .filter(Boolean);
 };
 
-export function useWorkspaceData(
-  selectedClientId: string,
-  options: { loadLegacyProviders?: boolean } = {}
-) {
+export function useWorkspaceData(selectedClientId: string) {
   const queryClient = useQueryClient();
-  const loadLegacyProviders = Boolean(options.loadLegacyProviders);
   const [scenarioPolling, setScenarioPolling] = useState<{ clientId: string; deadline: number; baselineCount: number } | null>(null);
 
   // Pagination & Filter State
@@ -146,74 +137,10 @@ export function useWorkspaceData(
     staleTime: 60000,
   });
 
-  const heygenAvatarsQuery = useQuery<HeygenAvatarConfig[]>({
-    queryKey: ["heygen-avatars", selectedClientId],
-    queryFn: async () => {
-      if (!selectedClientId) return [];
-      const { data } = await axios.get(`${API_BASE}/heygen/avatars?clientId=${selectedClientId}`);
-      return data;
-    },
-    enabled: !!selectedClientId && loadLegacyProviders,
-    staleTime: 60000,
-  });
-
-  const heygenCatalogQuery = useQuery<HeygenAvatarConfig[]>({
-    queryKey: ["heygen-catalog"],
-    queryFn: async () => {
-      const { data } = await axios.get(`${API_BASE}/heygen/catalog`);
-      return data;
-    },
-    enabled: loadLegacyProviders,
-    staleTime: 1000 * 60 * 30, // 30 minutes
-  });
-
-  const minimaxVoicesQuery = useQuery<MinimaxVoiceOption[]>({
-    queryKey: ["minimax-voices"],
-    queryFn: async () => {
-      const { data } = await axios.get(`${API_BASE}/minimax/voices`);
-      return data;
-    },
-    enabled: loadLegacyProviders,
-    staleTime: 0,
-    refetchOnMount: "always",
-  });
-
-  const elevenlabsVoicesQuery = useQuery<ElevenLabsVoiceOption[]>({
-    queryKey: ["elevenlabs-voices"],
-    queryFn: async () => {
-      const { data } = await axios.get(`${API_BASE}/elevenlabs/voices`);
-      return data;
-    },
-    enabled: loadLegacyProviders,
-    staleTime: 0,
-    refetchOnMount: "always",
-  });
-
-  const costStatsQuery = useQuery<{
-    totalPrompts: number;
-    totalHeygenDuration: number;
-    totalCostUsd: number;
-  }>({
-    queryKey: ["reports-costs", selectedClientId],
-    queryFn: async () => {
-      if (!selectedClientId) return EMPTY_COST_STATS;
-      const { data } = await axios.get(`${API_BASE}/reports/costs`, {
-        params: { clientId: selectedClientId },
-      });
-      return {
-        totalPrompts: Number(data?.totalPrompts || 0),
-        totalHeygenDuration: Number(data?.totalHeygenDuration || 0),
-        totalCostUsd: Number(data?.totalCostUsd || 0),
-      };
-    },
-    enabled: !!selectedClientId,
-    staleTime: 60_000,
-  });
-
   const saveSettingsMutation = useMutation({
-    mutationFn: async (settings: Settings) => {
+    mutationFn: async ({ clientId, ...settings }: Settings & { clientId: number }) => {
       await axios.put(`${API_BASE}/clients`, {
-        id: Number(selectedClientId),
+        id: clientId,
         ...settings,
         product_media_assets: normalizeProductMediaAssets(settings.product_media_assets),
       });
@@ -233,7 +160,6 @@ export function useWorkspaceData(
       queryClient.removeQueries({ queryKey: ["scenarios", String(clientId)] });
       queryClient.removeQueries({ queryKey: ["topic-cards", String(clientId)] });
       queryClient.removeQueries({ queryKey: ["structure-cards", String(clientId)] });
-      queryClient.removeQueries({ queryKey: ["heygen-avatars", String(clientId)] });
     },
   });
 
@@ -263,18 +189,6 @@ export function useWorkspaceData(
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["structure-cards", selectedClientId] });
-    },
-  });
-
-  const saveHeygenAvatarsMutation = useMutation({
-    mutationFn: async (avatars: HeygenAvatarConfig[]) => {
-      await axios.put(`${API_BASE}/heygen/avatars`, {
-        clientId: Number(selectedClientId),
-        avatars,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["heygen-avatars", selectedClientId] });
     },
   });
 
@@ -336,33 +250,23 @@ export function useWorkspaceData(
     totalScenarios: scenariosQuery.data?.totalCount || 0,
     topicCards: topicCardsQuery.data || [],
     structureCards: structureCardsQuery.data || [],
-    heygenAvatars: heygenAvatarsQuery.data || [],
-    heygenCatalog: heygenCatalogQuery.data || [],
-    minimaxVoices: minimaxVoicesQuery.data || [],
-    elevenlabsVoices: elevenlabsVoicesQuery.data || [],
     refreshWorkspace: () => {
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       queryClient.invalidateQueries({ queryKey: ["references", selectedClientId] });
       queryClient.invalidateQueries({ queryKey: ["scenarios", selectedClientId] });
       queryClient.invalidateQueries({ queryKey: ["topic-cards", selectedClientId] });
       queryClient.invalidateQueries({ queryKey: ["structure-cards", selectedClientId] });
-      queryClient.invalidateQueries({ queryKey: ["heygen-avatars", selectedClientId] });
     },
     saveSettingsMutation,
     deleteClientMutation,
     deleteReferenceMutation,
     deleteTopicCardMutation,
     deleteStructureCardMutation,
-    saveHeygenAvatarsMutation,
     batchRewriteMutation,
     batchMixMutation,
     singleRewriteMutation,
     referencesQuery,
     scenariosQuery,
-    heygenAvatarsQuery,
-    heygenCatalogQuery,
-    minimaxVoicesQuery,
-    elevenlabsVoicesQuery,
     
     // Pagination & Filter Controls
     scenarioPage,
@@ -388,8 +292,5 @@ export function useWorkspaceData(
       setReferenceStatusFilter(filter);
       setReferencePage(0);
     },
-    // Stats
-    costStats: costStatsQuery.data || EMPTY_COST_STATS,
-    isLoadingStats: costStatsQuery.isLoading,
   };
 }

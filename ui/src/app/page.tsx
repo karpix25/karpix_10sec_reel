@@ -176,6 +176,17 @@ export default function CuratorDashboard() {
   const [selectedTopic, setSelectedTopic] = useState<TopicCard | null>(null);
   const [selectedStructure, setSelectedStructure] = useState<StructureCard | null>(null);
 
+  const omniProjectsQuery = useOmniProjects();
+  const omniProjects = useMemo(() => omniProjectsQuery.data || [], [omniProjectsQuery.data]);
+  const selectedOmniProject = useMemo(
+    () => omniProjects.find((project) => project.id === selectedOmniProjectId) || null,
+    [omniProjects, selectedOmniProjectId]
+  );
+
+  const settingsClientId = selectedOmniProjectId
+    ? selectedOmniProject?.legacy_client_id?.toString() || ""
+    : selectedClientId;
+
   // --- Data Fetching ---
   const {
     clients,
@@ -184,7 +195,6 @@ export default function CuratorDashboard() {
     structureCards,
     scenarios,
     scenariosQuery,
-    heygenCatalogQuery,
     scenarioPage,
     setScenarioPage,
     scenarioPageSize,
@@ -199,27 +209,14 @@ export default function CuratorDashboard() {
     setReferenceStatusFilter,
     totalScenarios,
     totalReferences,
-    heygenAvatars,
-    heygenCatalog,
-    minimaxVoices,
-    elevenlabsVoices,
-    refreshWorkspace,
     saveSettingsMutation,
-    deleteClientMutation,
     deleteReferenceMutation,
     deleteTopicCardMutation,
     deleteStructureCardMutation,
-    saveHeygenAvatarsMutation,
     batchMixMutation,
     singleRewriteMutation,
-  } = useWorkspaceData(selectedClientId, { loadLegacyProviders: screen === "settings" });
+  } = useWorkspaceData(settingsClientId);
 
-  const omniProjectsQuery = useOmniProjects();
-  const omniProjects = useMemo(() => omniProjectsQuery.data || [], [omniProjectsQuery.data]);
-  const selectedOmniProject = useMemo(
-    () => omniProjects.find((project) => project.id === selectedOmniProjectId) || null,
-    [omniProjects, selectedOmniProjectId]
-  );
 
   const defaultClient = useMemo(() => {
     if (!clients.length) return undefined;
@@ -232,7 +229,7 @@ export default function CuratorDashboard() {
   }, [clients]);
 
   const activeClientId =
-    selectedClientId || (screen === "omni" || selectedOmniProjectId ? "" : defaultClient?.id?.toString() || "");
+    selectedOmniProjectId ? settingsClientId : selectedClientId || (screen === "omni" ? "" : defaultClient?.id?.toString() || "");
 
   // --- Derived State ---
   const selectedClient = useMemo(
@@ -532,7 +529,7 @@ export default function CuratorDashboard() {
 
   // --- Handlers ---
   const handleSaveSettings = (settings: Settings) => {
-    saveSettingsMutation.mutate(settings);
+    return saveSettingsMutation.mutateAsync({ ...settings, clientId: Number(activeClientId) });
   };
 
   const handleGenerateMix = () => {
@@ -555,18 +552,6 @@ export default function CuratorDashboard() {
 
   const handleSingleRewrite = (id: number) => {
     singleRewriteMutation.mutate(id);
-  };
-
-  const handleDeleteProject = () => {
-    if (!activeClientId) return;
-    const currentId = Number(activeClientId);
-    deleteClientMutation.mutate(currentId, {
-      onSuccess: () => {
-        const remainingClients = clients.filter((client) => client.id !== currentId);
-        setSelectedClientId(remainingClients[0]?.id?.toString() || "");
-        setScreen("dashboard");
-      },
-    });
   };
 
   const handleDeleteReference = (referenceId: number) => {
@@ -666,7 +651,7 @@ export default function CuratorDashboard() {
           screen={screen}
           setScreen={setScreen}
           showSettingsSaveStatus={screen === "settings"}
-          isSavingSettings={saveSettingsMutation.isPending || saveHeygenAvatarsMutation.isPending}
+          isSavingSettings={saveSettingsMutation.isPending}
         />
 
         <section className="px-4 pb-20 pt-36 xl:px-8">
@@ -746,25 +731,13 @@ export default function CuratorDashboard() {
           {screen === "settings" && (
             <div className="h-[calc(100vh-14rem)] min-h-0">
               <SettingsScreen
-                key={`${activeClientId}-${heygenAvatars.length}-${heygenCatalog.length}`}
+                key={`${selectedOmniProjectId}-${activeClientId}`}
                 settings={clientSettings}
                 onSave={handleSaveSettings}
-                onDeleteProject={handleDeleteProject}
-                canDeleteProject={Boolean(authUser?.isSuperAdmin)}
-                isSaving={saveSettingsMutation.isPending}
-                isDeletingProject={deleteClientMutation.isPending}
                 selectedClientId={activeClientId}
-                heygenAvatars={heygenAvatars}
-                heygenCatalog={heygenCatalog}
-                minimaxVoices={minimaxVoices}
-                elevenlabsVoices={elevenlabsVoices}
-                onSaveHeygenAvatars={(avatars) => saveHeygenAvatarsMutation.mutate(avatars)}
-                onRefreshHeygenCatalog={async () => {
-                  const result = await heygenCatalogQuery.refetch();
-                  return result.data || [];
-                }}
-                onRefreshWorkspace={refreshWorkspace}
-                isSavingHeygenAvatars={saveHeygenAvatarsMutation.isPending}
+                projectId={selectedOmniProjectId}
+                productId={selectedOmniProductId}
+                provider={omniGenerationProvider}
               />
             </div>
           )}

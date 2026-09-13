@@ -191,6 +191,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
   const referencePolicy = buildReferenceTransferPolicy({
     hasProductReference: Boolean(productReference),
     directorBrief,
+    adaptationMode: input.generatedScript ? "writer_owned" : undefined,
   });
   const layoutContract = buildDirectorLayoutContract(directorBrief, referencePolicy);
   const strategy = selectOmniCreativeStrategy({
@@ -268,7 +269,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       wardrobeSource: input.wardrobeSource,
       referenceTransferPolicy: referencePolicy,
       referenceSceneMode,
-    }), referencePolicy.mode === "full_reference");
+    }), referencePolicy.mode === "full_reference", { productVisibleByFrame: plan.productVisibleByFrame });
     const validation = validatePhysicalScene({
       storyboard: storyboardPlan,
       creativePlan: plan,
@@ -337,6 +338,7 @@ function buildStoredProviderPromptSegments(
   const referencePolicy = buildReferenceTransferPolicy({
     hasProductReference: Boolean(productReference),
     directorBrief,
+    adaptationMode: input.generatedScript ? "writer_owned" : undefined,
   });
   const strategy = selectOmniCreativeStrategy({
     script: scriptText,
@@ -442,7 +444,7 @@ function buildStoredProviderPromptSegments(
       productRole,
       referenceTransferPolicy: referencePolicy,
       referenceSceneMode,
-    }), referencePolicy.mode === "full_reference");
+    }), referencePolicy.mode === "full_reference", { productVisibleByFrame });
     const validation = validatePhysicalScene({
       storyboard: storyboardPlan,
       creativePlan,

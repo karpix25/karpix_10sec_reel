@@ -7,6 +7,7 @@ import {
   OMNI_MAX_SEGMENT_COUNT,
   OMNI_MIN_SEGMENT_COUNT,
   OMNI_SEGMENT_SECONDS,
+  OMNI_FINAL_SHORT_SEGMENT_WORDS,
   OMNI_TARGET_SEGMENT_WORDS_MIN,
   describeOmniDensityGap,
   getOmniSegmentDurationForWordCount,
@@ -18,6 +19,7 @@ import {
   type OmniAllowedSegmentSeconds,
 } from "./omni-speech-density";
 import type { OmniDurationRange } from "./omni-duration-range";
+import { analyzeOmniSpeechLoad, type OmniSpeechLoad } from "../../omni/storyboard/omni-speech-load";
 
 export {
   OMNI_MAX_SEGMENT_COUNT,
@@ -35,6 +37,7 @@ export type OmniReelSegmentPlan = {
   segments: VoiceSegment[];
   segmentDurationsSeconds: OmniAllowedSegmentSeconds[];
   segmentWordCounts: number[];
+  speechDiagnostics: OmniSpeechLoad[];
   durationRange?: OmniDurationRange;
 };
 
@@ -83,6 +86,7 @@ export function planOmniReelSegments(script: string, options: OmniReelSegmentPla
     segments: selected.segments,
     segmentDurationsSeconds: selected.segmentDurationsSeconds,
     segmentWordCounts: selected.segments.map((segment) => segment.wordCount),
+    speechDiagnostics: selected.segments.map((segment, index) => analyzeOmniSpeechLoad(segment.text, selected.segmentDurationsSeconds[index])),
     durationRange: options.durationRange,
   };
 }
@@ -116,7 +120,7 @@ function buildCandidate(
           script,
           segmentCount,
           maxWordsPerSegment,
-          OMNI_TARGET_SEGMENT_WORDS_MIN,
+          OMNI_FINAL_SHORT_SEGMENT_WORDS,
           (wordCount) => getOmniSegmentDurationForWordCount(wordCount) !== null,
           targetWordCounts,
           allowAwkwardBoundaries,
@@ -166,7 +170,7 @@ function buildSentenceAwareCandidate(
       const segmentSentences = sentences.slice(startSentence, endSentence + 1);
       const text = segmentSentences.map((sentence) => sentence.text).join(" ");
       const wordCount = segmentSentences.reduce((sum, sentence) => sum + sentence.wordCount, 0);
-      if (!getOmniSegmentDurationForWordCount(wordCount)) continue;
+      if (!getOmniSegmentDurationForWordCount(wordCount) || (wordCount === OMNI_FINAL_SHORT_SEGMENT_WORDS && remainingSegments !== 1)) continue;
       visit(endSentence + 1, remainingSegments - 1, [
         ...groups,
         { index: groups.length + 1, text, wordCount },
@@ -184,7 +188,7 @@ function findTargetWordCountOptions(wordCount: number, segmentCount: number): nu
   const baseWords = Math.floor(wordCount / segmentCount);
   const remainder = wordCount % segmentCount;
   const option = Array.from({ length: segmentCount }, (_, index) => baseWords + (index < remainder ? 1 : 0));
-  return option.every((count) => count >= minimumWords && count <= maximumWords)
+  return option.every((count, index) => (count >= minimumWords || (index === option.length - 1 && count === OMNI_FINAL_SHORT_SEGMENT_WORDS)) && count <= maximumWords)
     ? [option]
     : [];
 }
@@ -194,6 +198,7 @@ function isAnySegmentCountViable(wordCount: number) {
 }
 
 function resolveSegmentDurations(segments: VoiceSegment[], durationRange?: OmniDurationRange) {
+  if (segments.some((segment, index) => segment.wordCount === OMNI_FINAL_SHORT_SEGMENT_WORDS && index < segments.length - 1)) return null;
   const options = segments.map((segment) => getOmniSegmentDurationsForWordCount(segment.wordCount));
   if (options.some((item) => item.length === 0)) return null;
   let bestDurations: OmniAllowedSegmentSeconds[] | null = null;
@@ -228,7 +233,7 @@ function buildPlanFailureMessage(script: string, wordCount: number, durationRang
   return [
     `Не удалось разделить сценарий на части 4/6/8/10 секунд: ${durationRule}`,
     sentenceWordCounts.length
-      ? `Длины предложений по порядку: ${sentenceWordCounts.join(", ")} слов. Каждое предложение должно быть не длиннее двадцати слов, а короткие предложения нужно объединять с соседними в один segment.`
+      ? `Длины предложений по порядку: ${sentenceWordCounts.join(", ")} слов. Каждое предложение должно быть не длиннее двадцати слов; финальная группа может состоять из пяти слов, остальные короткие предложения объединяй с соседними.`
       : "",
     "Сохраните смысл, но сократите второстепенные детали или объедините короткие фразы в законченные предложения. Измените формулировку сценария.",
   ].filter(Boolean).join(" ");
@@ -245,10 +250,8 @@ function scoreSegments(
   return segmentCountPenalty + durationRangePenalty + segments.reduce((score, segment, index) => {
     const duration = durations[index] || OMNI_SEGMENT_SECONDS;
     const budget = getOmniSegmentWordBudget(duration);
-    const segmentBudget = budget;
-    const densityRatio = segment.wordCount / segmentBudget;
-    const sparsePenalty = densityRatio < 0.72 ? Math.pow((0.72 - densityRatio) * 10, 2) : 0;
-    const overflowPenalty = segment.wordCount > segmentBudget ? Math.pow(segment.wordCount - segmentBudget, 2) * 20 : 0;
+    const sparsePenalty = Math.pow(Math.max(0, budget - segment.wordCount), 2);
+    const overflowPenalty = segment.wordCount > budget ? Math.pow(segment.wordCount - budget, 2) * 20 : 0;
     const durationPenalty = duration * 0.5;
     return score + sparsePenalty + overflowPenalty + durationPenalty + (index < segments.length - 1 ? endingPenalty(segment.text) : 0);
   }, 0);
@@ -283,8 +286,8 @@ function buildPlanReason(
     .filter((segment) => /[.!?,;:][»"]?$/.test(segment.text)).length;
   const density = counts.every((count, index) => {
     const budget = getOmniSegmentWordBudget(durations[index] || OMNI_SEGMENT_SECONDS);
-    return count >= OMNI_TARGET_SEGMENT_WORDS_MIN && count <= budget;
-  }) ? "плотная речь без пауз" : "безопасная плотность речи";
+    return (count >= OMNI_TARGET_SEGMENT_WORDS_MIN || (index === segments.length - 1 && count === OMNI_FINAL_SHORT_SEGMENT_WORDS)) && count <= budget;
+  }) ? "ориентир четыре слова на две секунды" : "проверьте плотность речи";
   const boundaries = naturalBoundaryCount > 0 ? " и естественные границы фраз" : "";
   const target = durationRange ? `; цель ${durationRange.minSeconds}-${durationRange.maxSeconds}с` : "";
   return `${segments.length} части: ${density}${boundaries}; ${counts.join(" / ")} слов; длительности ${durationText}${target}`;

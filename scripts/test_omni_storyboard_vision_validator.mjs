@@ -51,7 +51,7 @@ try {
   assert.equal(wardrobe.requiresContinuousPresenterWardrobe({
     referenceFormatMode: "voiceover_montage",
     referenceSceneMode: "presenter",
-  }), true);
+  }), false, "montage alone does not require one outfit across independent setups");
   assert.equal(wardrobe.requiresContinuousPresenterWardrobe({
     referenceFormatMode: "continuous_story",
     referenceSceneMode: "voiceover_broll",
@@ -272,7 +272,8 @@ try {
     referenceSceneMode: "voiceover_broll",
   });
   const montageSetPrompt = setRequests[2].messages[0].content[0].text;
-  assert.match(montageSetPrompt, /Clothing, location, camera, gesture, mouth state, background people, cut order, and source-reference similarity are never blockers/u);
+  assert.match(montageSetPrompt, /background people in non-product panels/u);
+  assert.match(montageSetPrompt, /PRODUCT_BROLL_HAS_HUMAN_INTERACTION/u);
   assert.doesNotMatch(montageSetPrompt, /PRESENTER_WARDROBE_CONTINUITY_MISMATCH/u);
 
   const avatarWardrobeFalsePositive = setVisionValidator.normalizeStoryboardSetVisionValidation({

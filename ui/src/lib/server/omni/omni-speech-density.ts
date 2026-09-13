@@ -19,7 +19,8 @@ export const OMNI_MIN_USEFUL_SEGMENT_WORDS = OMNI_STORYBOARD_ALLOWED_SEGMENT_SEC
 export const OMNI_TARGET_SEGMENT_WORDS_MIN = OMNI_MIN_USEFUL_SEGMENT_WORDS;
 export const OMNI_TARGET_SEGMENT_WORDS_MAX = OMNI_SEGMENT_SECONDS / 2 * OMNI_STORYBOARD_MAX_FRAME_WORDS;
 export const OMNI_MIN_VIABLE_SEGMENT_WORDS = OMNI_MIN_USEFUL_SEGMENT_WORDS;
-export const OMNI_MIN_SCRIPT_WORDS = OMNI_MIN_SEGMENT_COUNT * OMNI_MIN_USEFUL_SEGMENT_WORDS;
+export const OMNI_FINAL_SHORT_SEGMENT_WORDS = OMNI_MIN_USEFUL_SEGMENT_WORDS - 1;
+export const OMNI_MIN_SCRIPT_WORDS = (OMNI_MIN_SEGMENT_COUNT - 1) * OMNI_MIN_USEFUL_SEGMENT_WORDS + OMNI_FINAL_SHORT_SEGMENT_WORDS;
 
 export function getOmniSegmentWordBudget(segmentSeconds = OMNI_SEGMENT_SECONDS) {
   return getOmniStoryboardWordRange(segmentSeconds)?.maxWords || 0;
@@ -46,7 +47,7 @@ export function isOmniSegmentCountViable(wordCount: number, segmentCount: number
   if (segmentCount < OMNI_MIN_SEGMENT_COUNT) return false;
   const tailWords = wordCount % OMNI_STORYBOARD_MIN_FRAME_WORDS;
   if (wordCount > segmentCount * getOmniSegmentWordBudget() + tailWords) return false;
-  return wordCount >= segmentCount * OMNI_MIN_VIABLE_SEGMENT_WORDS;
+  return wordCount >= (segmentCount - 1) * OMNI_MIN_VIABLE_SEGMENT_WORDS + OMNI_FINAL_SHORT_SEGMENT_WORDS;
 }
 
 export function getPreferredOmniSegmentCount(wordCount: number) {

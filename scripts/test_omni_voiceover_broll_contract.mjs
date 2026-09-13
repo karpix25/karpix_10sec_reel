@@ -116,11 +116,11 @@ try {
 
   const digitalStep = digital.buildDigitalProductDemoStep({ productName: "Плати по миру", frameIndex: 3, frameCount: 5 });
   const digitalOpening = digital.buildDigitalProductDemoStep({ productName: "Плати по миру", frameIndex: 1, frameCount: 5 });
-  assert.match(digitalOpening.action, /молча/iu);
-  assert.doesNotMatch(digitalOpening.action, /говорит/iu);
-  assert.match(digitalStep.action, /поднимает смартфон.*одной руке/iu);
-  assert.match(digitalStep.placement, /держит смартфон.*экран повернут к камере/iu);
-  assert.doesNotMatch(digitalStep.placement, /столе|поверхности|лежит|стоит/iu);
+  assert.match(digitalOpening.action, /самостоятельная предметная B-roll/iu);
+  assert.doesNotMatch(digitalOpening.action, /говорит|держит|поднимает/iu);
+  assert.match(digitalStep.action, /смартфон.*устойчивой поверхности/iu);
+  assert.match(digitalStep.placement, /экраном вверх.*устойчивой поверхности/iu);
+  assert.doesNotMatch(digitalStep.placement, /держит|поднимает|касается/iu);
 
   const voiceSegments = [
     "Покажу мобильное приложение Плати по миру для спокойных поездок без лишних банковских поисков и сложных переводов.",

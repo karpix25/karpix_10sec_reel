@@ -21,6 +21,8 @@ import {
 import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contract";
 import type { DirectorSourceRole, DirectorVisibleSubjectRole } from "./director-source-interval";
 import { reconcileReferenceSegmentPlanToSpeech } from "./omni-speech-visual-alignment";
+import { buildProductBrollAction, buildProductBrollCamera } from "./omni-product-broll-contract";
+import { repairReferenceSourceFrame } from "./reference-source-frame-repair";
 
 export type ReferenceSpeechAlignmentDecision = {
   sourceBeatIndex: number;
@@ -84,6 +86,9 @@ const BROLL_SOURCE_ROLES = new Set(["environment_broll", "product_broll", "proof
 const NON_PRESENTER_SUBJECT_ROLES = new Set(["background_person", "no_people", "hands_only", "object_only"]);
 
 export function isReferencePresenterSource(beat: ReferenceSegmentBeat) {
+  // An analysis may identify a visible person in an otherwise B-roll shot.
+  // Its explicit visual role still decides whether this is an on-camera beat.
+  if (isReferenceBrollSource(beat)) return false;
   if (beat.avatarAllowed === false) return false;
   return beat.speechMode === "on_camera" ||
     beat.visibleSubjectRole === "primary_presenter" ||
@@ -95,6 +100,11 @@ export function isReferenceBrollSource(beat: ReferenceSegmentBeat) {
     beat.speechMode === "voiceover_only" ||
     beat.avatarAllowed === false ||
     NON_PRESENTER_SUBJECT_ROLES.has(beat.visibleSubjectRole || "");
+}
+
+export function allowsTalkingAvatarIntro(plan: ReferenceSegmentPlan, frameIndex: number) {
+  return plan.sceneMode === "presenter" && plan.segmentIndex === 1 && frameIndex === 0 &&
+    !plan.beats.some(isReferencePresenterSource);
 }
 
 export function resolveReferenceSegmentBeatForFrame(
@@ -124,15 +134,30 @@ export function applyReferenceSegmentPlanToFrames<T extends {
   return frames.map((frame, index) => {
     const beat = resolveReferenceSegmentBeatForFrame(plan, index + 1, frames.length);
     if (!beat) return frame;
-    const visualDescription = beat.visualDescription || beat.action;
-    const role = resolveReferenceFrameRole(
+    const productVisible = options.productVisibleByFrame?.[index] === true;
+    const avatarIntro = !productVisible && allowsTalkingAvatarIntro(plan, index) &&
+      (frame.role === "face_open" || frame.role === "face_return");
+    const sourceFrame = repairReferenceSourceFrame({
       beat,
-      frame.role,
-      index,
-      frames.length,
-      options.productVisibleByFrame?.[index] === true,
-    );
-    return { ...frame, role, action: beat.action, camera: beat.camera, visualDescription };
+      currentRole: frame.role,
+      currentAction: frame.action,
+      currentCamera: frame.camera,
+      currentVisualDescription: frame.visualDescription,
+      frameIndex: index,
+      frameCount: frames.length,
+      productVisible,
+      avatarIntro,
+      presenterSource: isReferencePresenterSource(beat),
+      brollSource: isReferenceBrollSource(beat),
+    });
+    return {
+      ...frame,
+      ...sourceFrame,
+      role: productVisible ? "product_cutaway" : sourceFrame.role,
+      action: productVisible ? buildProductBrollAction("продукт клиента", false) : sourceFrame.action,
+      camera: productVisible ? buildProductBrollCamera() : sourceFrame.camera,
+      visualDescription: productVisible ? "Предметный B-roll: продукт на устойчивой поверхности, без людей и рук" : sourceFrame.visualDescription,
+    };
   });
 }
 
@@ -140,6 +165,7 @@ export function applyReferenceSegmentPlanToStoryboard(
   plan: ReferenceSegmentPlan | null | undefined,
   storyboard: OmniStoryboardSegment,
   enabled = false,
+  options: { productVisibleByFrame?: readonly boolean[] } = {},
 ): OmniStoryboardSegment {
   if (!plan || !enabled) return storyboard;
   return {
@@ -148,38 +174,25 @@ export function applyReferenceSegmentPlanToStoryboard(
       const beat = resolveReferenceSegmentBeatForFrame(plan, index + 1, storyboard.frames.length);
       if (!beat) return frame;
       const environment = [beat.setting, beat.environment, beat.lighting].filter(Boolean).join("; ");
+      const productVisible = options.productVisibleByFrame?.[index] === true;
+      const avatarIntro = !productVisible && allowsTalkingAvatarIntro(plan, index) && frame.speechMode === "on_camera";
+      const speechMode = productVisible ? "voiceover_only" : avatarIntro ? "on_camera" : beat.speechMode;
       return {
         ...frame,
-        camera: [beat.camera, beat.composition ? `composition ${beat.composition}` : ""].filter(Boolean).join("; "),
+        camera: productVisible
+          ? buildProductBrollCamera()
+          : avatarIntro ? frame.camera : [beat.camera, beat.composition ? `composition ${beat.composition}` : ""].filter(Boolean).join("; "),
         environment: environment || frame.environment,
-        speechMode: beat.speechMode,
+        speechMode,
         physicalPlan: frame.physicalPlan
-          ? { ...frame.physicalPlan, speechMode: beat.speechMode }
+          ? {
+              ...frame.physicalPlan,
+              speechMode,
+            }
           : frame.physicalPlan,
       };
     }),
   };
-}
-
-function resolveReferenceFrameRole(
-  beat: ReferenceSegmentBeat,
-  currentRole: StoryboardFrame["role"],
-  frameIndex: number,
-  frameCount: number,
-  productVisible: boolean,
-) {
-  const presenterSource = isReferencePresenterSource(beat);
-  if (presenterSource && (currentRole === "environment_cutaway" || currentRole === "product_cutaway")) {
-    return frameIndex === frameCount - 1 ? "face_return" : "face_open";
-  }
-  const brollSource = isReferenceBrollSource(beat);
-  if (brollSource) {
-    if (productVisible || beat.sourceRole === "product_broll") return "product_cutaway";
-    if (currentRole === "face_open" || currentRole === "face_return" || currentRole === "product_cutaway") {
-      return "environment_cutaway";
-    }
-  }
-  return currentRole;
 }
 
 export function buildReferenceSegmentPlan(input: {

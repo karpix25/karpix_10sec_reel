@@ -52,6 +52,6 @@ export function renderVisibleSubjectPolicy(policy: DirectorVisibleSubjectPolicy)
     case "animation":
       return "VISIBLE SUBJECT POLICY: preserve the observed animated or illustrated production; do not replace it with a live presenter.";
     default:
-      return "VISIBLE SUBJECT POLICY: the presenter remains visible; preserve the observed face-to-camera delivery when the reference uses it.";
+      return "VISIBLE SUBJECT POLICY: the saved avatar speaks in the assigned on-camera panels; narration continues off-camera during the approved thematic and product B-roll panels.";
   }
 }
