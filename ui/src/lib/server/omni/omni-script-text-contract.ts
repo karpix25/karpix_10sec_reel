@@ -1,9 +1,14 @@
+const SANITIZABLE_DASH_PATTERN = /[-\u2012\u2013\u2014\u2015\u2212]/gu;
 const LONG_DASH_PATTERN = /[\u2012\u2013\u2014\u2015\u2212]/gu;
 const EMOJI_PATTERN = /[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0F\u20E3]/gu;
 
 export function sanitizeOmniScriptText(value: string) {
   return value
-    .replace(LONG_DASH_PATTERN, ", ")
+    .replace(SANITIZABLE_DASH_PATTERN, (match, offset: number, source: string) => {
+      const previous = source[offset - 1] || "";
+      const next = source[offset + match.length] || "";
+      return previous && next && !/\s/u.test(previous) && !/\s/u.test(next) ? " " : ", ";
+    })
     .replace(EMOJI_PATTERN, "")
     .replace(/\s+([,.!?;:])/g, "$1")
     .replace(/,{2,}/g, ",")
