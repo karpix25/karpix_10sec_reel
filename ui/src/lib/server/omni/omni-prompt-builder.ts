@@ -385,7 +385,10 @@ function buildStoredProviderPromptSegments(
       outputTotalDurationSeconds,
       sourceDurationSeconds: input.referenceSourceDurationSeconds,
     });
-    const productVisibleByFrame = buildOmniProductVisualIntent({ voiceoverText, durationSeconds: segment.durationSeconds, productName: input.product.name, productRole, referenceSegmentPlan }).visibleByFrame;
+    const explicitProductFrames = segment.storyboardFrames.map((frame) => frame.referenceRole === "product" && frame.productBeat === true);
+    const productVisibleByFrame = explicitProductFrames.some(Boolean)
+      ? explicitProductFrames
+      : buildOmniProductVisualIntent({ voiceoverText, durationSeconds: segment.durationSeconds, productName: input.product.name, productRole, referenceSegmentPlan }).visibleByFrame;
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,
       segmentCount: providerPromptPlan.segmentPrompts.length,

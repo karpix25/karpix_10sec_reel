@@ -7,6 +7,7 @@ import {
   updateOmniClientAvatarActive,
   updateOmniClientAvatarName,
   updateOmniClientAvatarSpeechGender,
+  updateOmniClientAvatarVoice,
   updateOmniClientAvatarStatus,
 } from "@/lib/server/omni/avatars";
 import { normalizeAvatarSpeechGender } from "@/lib/omni/avatar-speech-gender";
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
     const speechGender = normalizeAvatarSpeechGender(body.speechGender ?? body.speech_gender);
     if (!speechGender) return jsonError("Avatar speech gender must be male or female");
     const displayName = typeof body.displayName === "string" ? body.displayName.trim() : "";
+    const voicePresetId = typeof body.voicePresetId === "string" ? body.voicePresetId.trim() : "";
 
     const manualReferenceUrl = typeof body.referenceUrl === "string" ? body.referenceUrl.trim() : "";
     const generatedReference = manualReferenceUrl
@@ -56,6 +58,7 @@ export async function POST(request: Request) {
       referenceUrl: manualReferenceUrl || generatedReference?.referenceUrl || null,
       status: "draft",
       provider: manualReferenceUrl ? "manual_reference" : "gpt-image-2",
+      voicePresetId: voicePresetId || undefined,
     });
     return NextResponse.json({ ...avatar, revised_prompt: generatedReference?.revisedPrompt || null }, { status: 201 });
   } catch (error) {
@@ -92,6 +95,15 @@ export async function PATCH(request: Request) {
       if (!speechGender) return jsonError("Avatar speech gender must be male or female");
       return NextResponse.json(
         await updateOmniClientAvatarSpeechGender({ projectId, avatarId, speechGender })
+      );
+    }
+
+    if (body.voicePresetId !== undefined || body.voice_preset_id !== undefined) {
+      const voicePresetId = typeof (body.voicePresetId ?? body.voice_preset_id) === "string"
+        ? String(body.voicePresetId ?? body.voice_preset_id).trim()
+        : "";
+      return NextResponse.json(
+        await updateOmniClientAvatarVoice({ projectId, avatarId, voicePresetId: voicePresetId || undefined })
       );
     }
 

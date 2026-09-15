@@ -17,6 +17,12 @@ export type KieOmniTask = {
   raw: Record<string, unknown>;
 };
 
+export type KieOmniAudio = {
+  id: string;
+  name?: string;
+  raw: Record<string, unknown>;
+};
+
 export type KieOmniVideoInput = {
   prompt: string;
   duration: 4 | 6 | 8 | 10;
@@ -187,6 +193,37 @@ export async function createKieOmniCharacter(input: {
   }
 
   throw new Error(`KIE Gemini Omni character create did not return characterId after ${attempts} attempts: ${formatKieError(lastError)}`);
+}
+
+export async function createKieOmniAudio(input: {
+  audioId: string;
+  name: string;
+  voiceDescription: string;
+  exampleDialogue: string;
+}): Promise<KieOmniAudio> {
+  const response = await fetch(`${getBaseUrl()}/api/v1/omni/audio/create`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getApiKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(omitEmptyFields({
+      audio_id: input.audioId,
+      name: input.name,
+      voice_description: input.voiceDescription,
+      example_dialogue: input.exampleDialogue,
+    })),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`KIE Gemini Omni audio create failed: ${response.status} ${await parseError(response)}`);
+  }
+
+  const raw = (await response.json()) as Record<string, unknown>;
+  const data = isRecord(raw.data) ? raw.data : raw;
+  const id = pickString(data, ["kieAudioId", "kie_audio_id", "audioId", "audio_id"]);
+  if (!id) throw new Error("KIE Gemini Omni audio create did not return kieAudioId");
+  return { id, name: pickString(data, ["name"]) || undefined, raw };
 }
 
 async function postCreateCharacter(payload: Record<string, unknown>) {

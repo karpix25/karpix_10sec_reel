@@ -12,7 +12,7 @@ import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni
 export type OmniCharacterClothingSource =
   | "product_avatar_notes"
   | "avatar_prompt"
-  | "fallback";
+  | "reference_image";
 
 export interface OmniCharacterContract {
   identityLine: string;
@@ -28,9 +28,6 @@ const CLOTHING_PATTERNS = [
   /\b(?:outfit|wearing|wears|dressed)\b/iu,
   /футболк|рубашк|худи|свитер|свитшот|толстовк|плать|джинс|брюк|штан|костюм|куртк|пиджак|юбк|топ|майк|фартук|форм[аеуы]|униформ|халат|жилет|кроссовк|ботинк|туфл|обув/iu,
 ] as const;
-
-const FALLBACK_CLOTHING =
-  "один фиксированный бытовой outfit: однотонный светлый верх без логотипов, нейтральные брюки или джинсы, простая обувь; одежда не меняется между частями";
 
 export function buildOmniCharacterContract(input: {
   product: Pick<OmniProduct, "avatar_reference_notes">;
@@ -54,7 +51,7 @@ export function buildOmniCharacterContract(input: {
     : input.wardrobeContinuity || "stable";
   const allowsReferenceWardrobeVariation = normalizeOmniWardrobeSource(input.wardrobeSource) !== "avatar_reference" &&
     wardrobeContinuity !== "stable";
-  const clothing = clothingFromProduct || clothingFromAvatar || FALLBACK_CLOTHING;
+  const clothing = clothingFromProduct || clothingFromAvatar || "одежда и внешний вид строго из avatar reference, без добавления нового outfit";
   const clothingLine = allowsReferenceWardrobeVariation
     ? removeFixedClothingLanguage(clothing).replace(/^один фиксированный/iu, "базовый")
     : clothing;
@@ -75,7 +72,7 @@ export function buildOmniCharacterContract(input: {
       : allowsReferenceWardrobeVariation
       ? "источник outfit для каждой независимой сцены - соответствующий reference-кадр и строка ОДЕЖДА; товарные image_urls задают продукт, а не одежду героя; лицо, волосы и личность сохраняются у одного персонажа"
       : "единственный источник outfit - строка ОДЕЖДА и описание главного персонажа; товарные image_urls задают продукт, а не одежду героя; одежда сохраняется одинаковой во всех частях",
-    clothingSource: clothingFromProduct ? "product_avatar_notes" : clothingFromAvatar ? "avatar_prompt" : "fallback",
+    clothingSource: clothingFromProduct ? "product_avatar_notes" : clothingFromAvatar ? "avatar_prompt" : "reference_image",
     speechGender,
     speechGenderLine: renderRussianSpeechGenderRule(speechGender),
   };

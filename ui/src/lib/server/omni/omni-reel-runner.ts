@@ -91,15 +91,25 @@ async function getSnapshotAvatar(reel: OmniReel) {
 
 async function resolveKieAudioIds(reel: OmniReel) {
   const latestAvatar = await getSnapshotAvatar(reel);
+  const snapshot = reel.avatar_snapshot || {};
+  const snapshotAudioId = typeof (snapshot as { kie_audio_id?: unknown }).kie_audio_id === "string"
+    ? (snapshot as { kie_audio_id: string }).kie_audio_id.trim()
+    : "";
   const source = {
-    ...(reel.avatar_snapshot || {}),
+    ...snapshot,
+    ...(snapshotAudioId ? { audio_ids: [snapshotAudioId] } : {}),
     latestAvatar,
     data: latestAvatar?.kie_character_payload,
+    ...(latestAvatar?.kie_audio_id ? { audio_ids: [latestAvatar.kie_audio_id] } : {}),
   };
   return {
     // One reel has one narrator. Resolve once before the segment loop and reuse this single profile for every segment/retry.
-    audioIds: resolveKieOmniAudioIds(source).slice(0, 1),
-    voiceGender: detectKieOmniVoiceGender(source),
+      audioIds: resolveKieOmniAudioIds(source).slice(0, 1),
+      voiceGender: detectKieOmniVoiceGender(source),
+      voicePresetId:
+        typeof (snapshot as { voice_preset_id?: unknown }).voice_preset_id === "string"
+          ? (snapshot as { voice_preset_id: string }).voice_preset_id.trim() || null
+          : latestAvatar?.voice_preset_id || null,
   };
 }
 
@@ -149,11 +159,16 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
   const avatarCharacterId = avatarFreeReferenceScene ? null : await resolveAvatarCharacterId(reel);
   let kieAudioIds: string[] = [];
   let kieVoiceGender: KieOmniVoiceGender = "unknown";
+  let kieVoicePresetId: string | null = null;
   if (provider === "kie-ai") {
     try {
       const resolvedAudio = await resolveKieAudioIds(reel);
       kieAudioIds = resolvedAudio.audioIds;
       kieVoiceGender = resolvedAudio.voiceGender;
+      kieVoicePresetId = resolvedAudio.voicePresetId;
+      if (!kieAudioIds.length) {
+        throw new Error("KIE.ai Omni requires an approved avatar voice selected by LLM or manually before video generation");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await markOmniReelPreflightFailure({ reelId: reel.id, provider, message });
@@ -312,6 +327,7 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
       image_urls: selectedReferenceImages.sent.map((image) => image.url),
       ...(provider === "kie-ai" && videoCharacterId ? { character_ids: [videoCharacterId] } : {}),
       audio_ids: provider === "kie-ai" ? kieAudioIds : [],
+      voice_preset_id: provider === "kie-ai" ? kieVoicePresetId : null,
       audio_voice_gender: provider === "kie-ai" ? kieVoiceGender : null,
       reference_images_sent: selectedReferenceImages.sent.length > 0,
       reference_image_field: selectedReferenceImages.sent.length ? referenceImageField : null,

@@ -4,7 +4,7 @@ import type { ReferenceFormatMode } from "./omni-reference-format-mode";
 import type { DirectorWardrobeContinuity } from "./director-wardrobe";
 import type { ReferenceTransferPolicy } from "./omni-reference-transfer-policy";
 import type { ReferenceSegmentPlan } from "./reference-segment-plan";
-import { buildProductBrollAction, buildProductBrollPlacement, OMNI_PRODUCT_BROLL_RULE } from "./omni-product-broll-contract";
+import { buildProductBrollAction, buildProductBrollPlacement } from "./omni-product-broll-contract";
 
 export type OmniGenerationContinuityState = {
   segmentIndex: number;
@@ -36,7 +36,7 @@ export function buildOmniGenerationContinuityDirection(
 ): OmniGenerationContinuityDirection {
   const montageReference = input.referenceFormatMode === "voiceover_montage";
   const voiceoverBrollReference = input.plan.referenceSceneMode === "voiceover_broll";
-  const productVisible = input.plan.productVisibleByFrame?.some(Boolean) ?? input.plan.productRole !== "hidden";
+  const productVisible = input.plan.productVisibleByFrame?.some(Boolean) ?? false;
   const productAction = buildProductAction({
     productName: input.productName,
     role: input.plan.productRole,

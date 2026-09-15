@@ -213,7 +213,7 @@ async function rebuildOmniStoryboardPlanWithAi(input: SemanticRepairInput) {
 
 const SEMANTIC_REPAIR_SYSTEM_PROMPT = [
   "Ты исправляешь раскадровку короткого видео после строгой смысловой проверки.",
-  "Верни только JSON формата {segments:[{index:number,storyboardPlan:{segmentIndex:number,durationSeconds:number,voiceoverText:string,frames:[{visualAction:string,camera:string,environment:string,wardrobe:string,productPlacement:string,sfxNotes:string,effectNotes?:string|null,speechMode?:string}]} }]}.",
+  "Верни только JSON формата {segments:[{index:number,storyboardPlan:{segmentIndex:number,durationSeconds:number,voiceoverText:string,frames:[{visualAction:string,camera:string,environment:string,wardrobe:string,productPlacement:string,sfxNotes:string,effectNotes?:string|null,speechMode?:string,narratorVisible?:boolean}]} }]}.",
   "Верни только сегменты, которые нужно изменить. Сохрани segmentIndex, durationSeconds и количество кадров.",
   "Сохрани точную реплику каждого сегмента и каждого кадра. Речевые границы утверждены; не перераспределяй слова между сегментами или кадрами.",
   "Не добавляй, не удаляй и не перефразируй слова сценария. Исправляй только визуальную часть и не заполняй паузы новыми словами.",
@@ -222,15 +222,15 @@ const SEMANTIC_REPAIR_SYSTEM_PROMPT = [
   "Для voiceover_montage с visible_subject_policy=no_people используй самостоятельные пейзажные, предметные, food и product-UI B-roll кадры с voiceover_only.",
   "Для финального сегмента покажи визуальное завершение главной мысли; CTA не должен быть единственным содержанием кадра.",
   "Сохрани положительный визуальный план reference и меняй только то, на что указывает semantic review.",
-  "Сохрани адаптацию: разговорный аватар отдельно, продукт только в предметных B-roll без людей и рук на устойчивой опоре. На склейках та же речь продолжается; исходные действия с товаром не восстанавливай.",
+  "Сохрани адаптацию: в каждом segment минимум один frame должен иметь narratorVisible=true и показывать сохранённый аватар, который ведёт повествование голосом или движением; продукт только в предметных B-roll без людей и рук на устойчивой опоре. На склейках та же речь продолжается; исходные действия с товаром не восстанавливай.",
 ].join(" ");
 
 const SEMANTIC_REBUILD_SYSTEM_PROMPT = [
   "Ты полностью пересобираешь раскадровку короткого видео после неудачной локальной смысловой правки.",
-  "Верни только JSON формата {segments:[{index:number,voiceoverText:string,storyboardPlan:{segmentIndex:number,durationSeconds:number,voiceoverText:string,frames:[{visualAction:string,camera:string,environment:string,wardrobe:string,productPlacement:string,sfxNotes:string,effectNotes?:string|null,speechMode?:string}]}}]}.",
+  "Верни только JSON формата {segments:[{index:number,voiceoverText:string,storyboardPlan:{segmentIndex:number,durationSeconds:number,voiceoverText:string,frames:[{visualAction:string,camera:string,environment:string,wardrobe:string,productPlacement:string,sfxNotes:string,effectNotes?:string|null,speechMode?:string,narratorVisible?:boolean}]}}]}.",
   "Верни каждый сегмент текущего плана ровно один раз, в том же порядке, с тем же segmentIndex, durationSeconds и количеством кадров.",
   "Не меняй и не перефразируй voiceoverText. Сохрани исходную последовательность слов побуквенно после нормализации.",
-  "Пересобери ошибочные визуальные решения с учётом transfer contract: в full_reference сохрани проверенный сеттинг, свет, одежду и композицию, а в style_only сохрани только макроформат, настроение и ритм, поставив точные сцены заново. Продукт показывай отдельным неподвижным B-roll без людей и рук, разговорного аватара — в его кадрах.",
+  "Пересобери ошибочные визуальные решения с учётом transfer contract: в full_reference сохрани проверенный сеттинг, свет, одежду и композицию, а в style_only сохрани только макроформат, настроение и ритм, поставив точные сцены заново. В каждом segment поставь минимум один frame с narratorVisible=true и сохранённым аватаром. Продукт показывай отдельным неподвижным B-roll без людей и рук.",
   "Не добавляй и не удаляй слова, сегменты или кадры. Не добавляй новые утверждения.",
 ].join(" ");
 
@@ -380,7 +380,7 @@ function applySemanticRepairResponse(input: {
       creativePlan: {
         ...segment.creativePlan,
         voiceoverText,
-        productVisibleByFrame: buildOmniProductVisualIntent({ voiceoverText, durationSeconds: segment.storyboardPlan.durationSeconds, productName: input.productName, productRole: segment.creativePlan.productRole, referenceSegmentPlan: segment.referenceSegmentPlan }).visibleByFrame,
+        productVisibleByFrame: segment.creativePlan.productVisibleByFrame || buildOmniProductVisualIntent({ voiceoverText, durationSeconds: segment.storyboardPlan.durationSeconds, productName: input.productName, productRole: segment.creativePlan.productRole, referenceSegmentPlan: segment.referenceSegmentPlan }).visibleByFrame,
       },
       prompt,
       storyboardPlan: storyboard,
@@ -424,6 +424,7 @@ function mergeRepairedFrame(original: OmniStoryboardFrame, value: unknown): Omni
     "effectNotes",
     "modelMusicNotes",
     "speechMode",
+    "narratorVisible",
   ]);
   if (Object.keys(value).some((key) => !allowedFields.has(key))) {
     throw new Error("Semantic storyboard repair attempted to change a protected storyboard field");
@@ -432,6 +433,7 @@ function mergeRepairedFrame(original: OmniStoryboardFrame, value: unknown): Omni
     ...original,
     ...value,
     spokenText: original.spokenText,
+    narratorVisible: typeof value.narratorVisible === "boolean" ? value.narratorVisible : original.narratorVisible,
   } as OmniStoryboardFrame;
 }
 

@@ -42,6 +42,7 @@ export function useCreateOmniAvatar() {
       speechGender: OmniAvatarSpeechGender;
       displayName?: string;
       referenceUrl?: string;
+      voicePresetId?: string;
     }) => (await axios.post(`${API_BASE}/avatars`, payload)).data as OmniClientAvatar,
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["omni-client-avatars", variables.projectId] });
@@ -72,6 +73,19 @@ export function useUpdateOmniAvatarSpeechGender() {
       avatarId: number;
       speechGender: OmniAvatarSpeechGender;
     }) => (await axios.patch(`${API_BASE}/avatars`, payload)).data as OmniClientAvatar,
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["omni-client-avatars", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });
+    },
+  });
+}
+
+export function useUpdateOmniAvatarVoice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: { projectId: number; avatarId: number; voicePresetId?: string }) =>
+      (await axios.patch(`${API_BASE}/avatars`, payload)).data as OmniClientAvatar,
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["omni-client-avatars", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ["omni-generated-script-prompts"] });

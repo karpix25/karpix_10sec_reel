@@ -78,10 +78,10 @@ function normalizeFrame(input: {
   productRole?: ProductRole;
   referenceSceneMode?: ReferenceSceneMode;
 }): OmniStoryboardFrame {
-  const { frame, productName, productVisible } = input;
+  const { frame, productName } = input;
   const product = productName.trim() || "продукт";
   const spokenText = frame.spokenText.trim();
-  const visibleInFrame = input.productVisibleByFrame?.[input.frameIndex - 1] ?? productVisible;
+  const visibleInFrame = input.productVisibleByFrame?.[input.frameIndex - 1] ?? false;
   const speechMode = visibleInFrame || input.referenceSceneMode === "voiceover_broll"
     ? "voiceover_only"
     : frame.speechMode || frame.physicalPlan?.speechMode;

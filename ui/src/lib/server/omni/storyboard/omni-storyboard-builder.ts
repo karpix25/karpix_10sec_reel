@@ -138,10 +138,11 @@ export function buildStoryboardFromPromptChainFrames(input: {
       return isFacelessReferenceScene(input.referenceSceneMode)
         ? {
             ...storedFrame,
+            narratorVisible: !productVisible && frame.referenceRole === "avatar",
             visualAction: sanitizeFacelessStoryboardText(storedFrame.visualAction, input.referenceSceneMode),
             camera: sanitizeFacelessStoryboardText(storedFrame.camera, input.referenceSceneMode),
           }
-        : storedFrame;
+        : { ...storedFrame, narratorVisible: !productVisible && frame.referenceRole === "avatar" };
     }),
   };
 }
@@ -193,7 +194,7 @@ function buildFrame(input: {
   const beat = input.plan.beats.find((item) => startSeconds >= item.startSeconds && startSeconds < item.endSeconds) ||
     input.plan.beats[0];
   const layoutLocked = !noPeopleReference && /REFERENCE LAYOUT|collage\/PIP/iu.test(beat?.action || "");
-  const productVisible = input.plan.productVisibleByFrame?.[input.frameIndex - 1] ?? input.plan.productRole !== "hidden";
+  const productVisible = input.plan.productVisibleByFrame?.[input.frameIndex - 1] ?? false;
   const speechMode = productVisible || noPeopleReference ? "voiceover_only" : referenceProfile?.speech_mode || "on_camera";
   const referencePolicy = resolveReferenceTransferPolicy(input.referenceTransferPolicy);
   const referenceAction = layoutLocked || referencePolicy.mode === "style_only"
@@ -299,6 +300,7 @@ function buildFrame(input: {
     effectNotes: renderFrameTransitionNote(input.directorBrief, input.frameIndex),
     modelMusicNotes: null,
     speechMode,
+    narratorVisible: !productVisible && !noPeopleReference && !facelessReferenceScene,
     physicalPlan,
     referenceTransfer,
   };

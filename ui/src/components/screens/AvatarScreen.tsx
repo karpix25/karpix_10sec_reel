@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Bot, ImagePlus, Link, Sparkles, UploadCloud } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AvatarPreviewPanel } from "@/components/screens/AvatarPreviewPanel";
@@ -16,10 +16,12 @@ import {
   useRenameOmniAvatar,
   useSetOmniAvatarActive,
   useUpdateOmniAvatarSpeechGender,
+  useUpdateOmniAvatarVoice,
   useUpdateOmniProjectProfile,
   useUploadOmniAvatarReference,
 } from "@/hooks/useOmniStudio";
 import { getDefaultAvatarPrompt } from "@/lib/omni/avatar-prompts";
+import { AvatarVoiceControl } from "@/components/screens/AvatarVoiceControl";
 import {
   findClientWorkspaceProject,
   getClientWorkspaceDescription,
@@ -39,6 +41,7 @@ type AvatarScreenProps = {
 export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProject }: AvatarScreenProps) {
   const [displayName, setDisplayName] = useState("");
   const [speechGender, setSpeechGender] = useState<OmniAvatarSpeechGender>("female");
+  const [voicePresetId, setVoicePresetId] = useState("");
   const [prompt, setPrompt] = useState("");
   const [referenceUrl, setReferenceUrl] = useState("");
 
@@ -49,6 +52,7 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
   const deleteAvatarMutation = useDeleteOmniAvatar();
   const renameAvatarMutation = useRenameOmniAvatar();
   const updateAvatarSpeechGenderMutation = useUpdateOmniAvatarSpeechGender();
+  const updateAvatarVoiceMutation = useUpdateOmniAvatarVoice();
   const setAvatarActiveMutation = useSetOmniAvatarActive();
   const updateProjectMutation = useUpdateOmniProjectProfile();
   const uploadAvatarReferenceMutation = useUploadOmniAvatarReference();
@@ -65,6 +69,7 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
   const avatars = avatarsQuery.data || [];
   const latestAvatar = getLatestAvatar(avatars);
   const defaultPrompt = getDefaultAvatarPrompt(activeProject?.name || selectedClient?.name);
+  const effectivePrompt = prompt.trim() || defaultPrompt.trim();
   const isBusy =
     createAvatarMutation.isPending ||
     uploadAvatarReferenceMutation.isPending ||
@@ -72,13 +77,8 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
     deleteAvatarMutation.isPending ||
     renameAvatarMutation.isPending ||
     updateAvatarSpeechGenderMutation.isPending ||
+    updateAvatarVoiceMutation.isPending ||
     setAvatarActiveMutation.isPending;
-
-  useEffect(() => {
-    if (!prompt.trim() && defaultPrompt) {
-      setPrompt(defaultPrompt);
-    }
-  }, [defaultPrompt, prompt]);
 
   const handleCreateWorkspace = () => {
     if (!selectedClient) return;
@@ -103,19 +103,21 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
   };
 
   const handleCreateAvatar = () => {
-    if (!activeProjectId || !prompt.trim()) return;
+    if (!activeProjectId || !effectivePrompt) return;
     createAvatarMutation.mutate(
       {
         projectId: activeProjectId,
         displayName: displayName.trim() || undefined,
         speechGender,
-        prompt: prompt.trim(),
+        voicePresetId: voicePresetId || undefined,
+        prompt: effectivePrompt,
         referenceUrl: referenceUrl.trim() || undefined,
       },
       {
         onSuccess: () => {
           setDisplayName("");
           setReferenceUrl("");
+          setVoicePresetId("");
         },
       }
     );
@@ -151,6 +153,15 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
       projectId: activeProjectId,
       avatarId: avatar.id,
       speechGender: nextGender,
+    });
+  };
+
+  const handleUpdateAvatarVoice = (avatar: OmniClientAvatar, nextVoicePresetId: string) => {
+    if (!activeProjectId || avatar.voice_preset_id === (nextVoicePresetId || null)) return;
+    updateAvatarVoiceMutation.mutate({
+      projectId: activeProjectId,
+      avatarId: avatar.id,
+      voicePresetId: nextVoicePresetId || undefined,
     });
   };
 
@@ -255,7 +266,7 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
           </label>
           <textarea
             id="avatar-prompt"
-            value={prompt}
+            value={prompt || defaultPrompt}
             onChange={(event) => setPrompt(event.target.value)}
             rows={7}
             className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm leading-6 outline-none transition focus:border-primary"
@@ -264,7 +275,17 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
 
           <AvatarSpeechGenderControl
             value={speechGender}
-            onChange={setSpeechGender}
+            onChange={(nextGender) => {
+              setSpeechGender(nextGender);
+              setVoicePresetId("");
+            }}
+            disabled={isBusy}
+          />
+
+          <AvatarVoiceControl
+            value={voicePresetId}
+            speechGender={speechGender}
+            onChange={setVoicePresetId}
             disabled={isBusy}
           />
 
@@ -306,7 +327,7 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
           <button
             type="button"
             onClick={handleCreateAvatar}
-            disabled={!prompt.trim() || !activeProjectId || isBusy}
+            disabled={!effectivePrompt || !activeProjectId || isBusy}
             className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <ImagePlus className="h-4 w-4" />
@@ -323,6 +344,7 @@ export function AvatarScreen({ selectedClient, selectedProjectId, onSelectProjec
           onDelete={handleDeleteAvatar}
           onRename={handleRenameAvatar}
           onUpdateSpeechGender={handleUpdateAvatarSpeechGender}
+          onUpdateVoice={handleUpdateAvatarVoice}
           onToggleActive={handleToggleAvatarActive}
         />
       </div>

@@ -1,25 +1,7 @@
-const DEFAULT_FEMALE_KIE_OMNI_AUDIO_ID = "4a786461922c4383a2010d9b8a4b4f33";
-
 export type KieOmniVoiceGender = "female" | "male" | "unknown";
 
 export function resolveKieOmniAudioIds(source?: unknown) {
-  const manualAudioIds =
-    parseAudioIds(process.env.KIE_OMNI_AUDIO_IDS) ||
-    parseAudioIds(process.env.KIE_OMNI_AUDIO_ID) ||
-    parseAudioIds(process.env.KIE_AUDIO_IDS) ||
-    parseAudioIds(process.env.KIE_AUDIO_ID);
-  if (manualAudioIds) return manualAudioIds;
-
-  const payloadAudioIds = extractAudioIds(source);
-  if (payloadAudioIds) return payloadAudioIds;
-
-  const gender = detectKieOmniVoiceGender(source);
-  const genderAudioIds = resolveGenderAudioIds(gender);
-  if (genderAudioIds) return genderAudioIds;
-
-  if (gender === "male") return [];
-
-  return [DEFAULT_FEMALE_KIE_OMNI_AUDIO_ID];
+  return extractAudioIds(source) || [];
 }
 
 export function detectKieOmniVoiceGender(source?: unknown): KieOmniVoiceGender {
@@ -30,31 +12,6 @@ export function detectKieOmniVoiceGender(source?: unknown): KieOmniVoiceGender {
   return textGender;
 }
 
-function resolveGenderAudioIds(gender: KieOmniVoiceGender) {
-  if (gender === "male") {
-    return parseAudioIds(process.env.KIE_OMNI_MALE_AUDIO_IDS) ||
-      parseAudioIds(process.env.KIE_OMNI_MALE_AUDIO_ID) ||
-      parseAudioIds(process.env.KIE_MALE_AUDIO_IDS) ||
-      parseAudioIds(process.env.KIE_MALE_AUDIO_ID);
-  }
-
-  if (gender === "female") {
-    return parseAudioIds(process.env.KIE_OMNI_FEMALE_AUDIO_IDS) ||
-      parseAudioIds(process.env.KIE_OMNI_FEMALE_AUDIO_ID) ||
-      parseAudioIds(process.env.KIE_FEMALE_AUDIO_IDS) ||
-      parseAudioIds(process.env.KIE_FEMALE_AUDIO_ID) ||
-      [DEFAULT_FEMALE_KIE_OMNI_AUDIO_ID];
-  }
-
-  return null;
-}
-
-function parseAudioIds(value: unknown) {
-  if (typeof value !== "string") return null;
-  const ids = uniqueIds(value.split(","));
-  return ids.length ? ids : null;
-}
-
 function extractAudioIds(value: unknown): string[] | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
@@ -63,6 +20,8 @@ function extractAudioIds(value: unknown): string[] | null {
     ...toArray(record.audioIds),
     record.audio_id,
     record.audioId,
+    record.kie_audio_id,
+    record.kieAudioId,
   ]);
   if (direct.length) return direct;
 
@@ -71,6 +30,8 @@ function extractAudioIds(value: unknown): string[] | null {
     ...toArray((record.data as Record<string, unknown> | undefined)?.audioIds),
     (record.data as Record<string, unknown> | undefined)?.audio_id,
     (record.data as Record<string, unknown> | undefined)?.audioId,
+    (record.data as Record<string, unknown> | undefined)?.kie_audio_id,
+    (record.data as Record<string, unknown> | undefined)?.kieAudioId,
   ]);
   if (nested.length) return nested;
 

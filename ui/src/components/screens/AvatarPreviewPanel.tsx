@@ -2,6 +2,8 @@
 
 import { Check, Power, RotateCcw, Trash2 } from "lucide-react";
 import { AvatarSpeechGenderControl } from "@/components/screens/AvatarSpeechGenderControl";
+import { AvatarVoiceControl } from "@/components/screens/AvatarVoiceControl";
+import { getOmniVoicePresetLabel } from "@/lib/omni/omni-voice-profile";
 import { getAvatarSpeechGenderLabel, type OmniAvatarSpeechGender } from "@/lib/omni/avatar-speech-gender";
 import type { OmniClientAvatar } from "@/lib/omni/types";
 
@@ -14,6 +16,7 @@ type AvatarPreviewPanelProps = {
   onDelete: (avatar: OmniClientAvatar) => void;
   onRename: (avatar: OmniClientAvatar, nextName: string) => void;
   onUpdateSpeechGender: (avatar: OmniClientAvatar, nextGender: OmniAvatarSpeechGender) => void;
+  onUpdateVoice: (avatar: OmniClientAvatar, nextVoicePresetId: string) => void;
   onToggleActive: (avatar: OmniClientAvatar) => void;
 };
 
@@ -26,6 +29,7 @@ export function AvatarPreviewPanel({
   onDelete,
   onRename,
   onUpdateSpeechGender,
+  onUpdateVoice,
   onToggleActive,
 }: AvatarPreviewPanelProps) {
   return (
@@ -111,6 +115,19 @@ export function AvatarPreviewPanel({
               {getAvatarSpeechGenderLabel(selectedAvatar.speech_gender)}
             </span>
           </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">Голос</span>
+            <span className="max-w-48 truncate text-right font-semibold text-foreground">
+              {getOmniVoicePresetLabel(selectedAvatar.voice_preset_id)}
+            </span>
+          </div>
+          <AvatarVoiceControl
+            value={selectedAvatar.voice_preset_id || ""}
+            speechGender={selectedAvatar.speech_gender || "female"}
+            disabled={isBusy}
+            compact
+            onChange={(value) => onUpdateVoice(selectedAvatar, value)}
+          />
           <div className="flex items-center justify-between gap-3">
             <span className="text-muted-foreground">KIE character</span>
             <span className="max-w-40 truncate font-semibold text-foreground">
