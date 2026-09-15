@@ -1,13 +1,10 @@
-import { createKieOmniVideoTask } from "./kie-omni-client";
 import {
   createProviderVideoTask,
-  getProviderDuration,
   type ProviderTask,
 } from "./omni-provider-tasks";
 
 export async function createOmniVideoTask(input: {
   provider: "kie-ai" | "cometapi";
-  avatarFreeReferenceScene: boolean;
   prompt: string;
   durationSeconds: number;
   resolution: string;
@@ -16,17 +13,6 @@ export async function createOmniVideoTask(input: {
   characterId: string | null;
   audioIds: string[];
 }): Promise<ProviderTask> {
-  if (input.provider === "kie-ai" && input.avatarFreeReferenceScene) {
-    return createKieOmniVideoTask({
-      prompt: input.prompt,
-      duration: getProviderDuration(input.provider, input.durationSeconds),
-      aspectRatio: "9:16",
-      resolution: input.resolution,
-      imageUrls: input.imageUrls,
-      audioIds: input.audioIds,
-    });
-  }
-
   return createProviderVideoTask({
     provider: input.provider,
     prompt: input.prompt,

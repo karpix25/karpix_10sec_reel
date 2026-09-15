@@ -121,6 +121,8 @@ try {
       assert.match(panels[1], /subject=product_only; avatar_allowed=false/u);
       assert.doesNotMatch(panels[1], /SOURCE_CONTACT_SENTINEL|holds/u);
       assert.doesNotMatch(imagePrompt, /preserve the referenceSegmentPlan's presenter|hard source-continuity/u);
+      assert.match(imagePrompt, /IDENTITY: @file1 only; other people are background extras/u,
+        "every avatar-led storyboard must keep the featured identity on the supplied avatar reference");
 
       const writerOwnedImagePrompt = buildStoryboardImagePrompt({
         segmentIndex: 1, storyboard: normalized, productName, avatarReferenceUrl: "https://example.test/avatar.png",
