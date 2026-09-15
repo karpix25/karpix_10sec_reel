@@ -135,8 +135,13 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
   const directorBrief = extractDirectorBriefFromSnapshot(reel.source_snapshot);
   const savedSceneMode = reel.creative_strategy && "referenceSceneMode" in reel.creative_strategy
     ? normalizeReferenceSceneMode(reel.creative_strategy.referenceSceneMode) : null;
-  const referenceSceneMode = savedSceneMode || resolveReferenceSceneMode(directorBrief || reel.creative_strategy);
-  const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
+  const resolvedReferenceSceneMode = savedSceneMode || resolveReferenceSceneMode(directorBrief || reel.creative_strategy);
+  // This product flow is always avatar-led. A reference may inspire the edit,
+  // but it cannot turn the narrator into a faceless/object-only scene.
+  const referenceSceneMode = isAvatarFreeReferenceScene(resolvedReferenceSceneMode)
+    ? "presenter"
+    : resolvedReferenceSceneMode;
+  const avatarFreeReferenceScene = false;
   const referenceFormatMode = resolveReferenceFormatMode(
     directorBrief || reel.source_snapshot
   );
@@ -303,14 +308,19 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
       continuityPrompt,
       selectedReferenceImages.sent
     );
+    const videoCharacterId = provider === "kie-ai" ? avatarCharacterId : null;
     const providerPrompt =
       provider === "kie-ai"
-        ? appendKieReferenceOrderPrompt(kieStoryboardPrompt, selectedReferenceImages.sent, referenceFormatMode)
+        ? appendKieReferenceOrderPrompt(
+            kieStoryboardPrompt,
+            selectedReferenceImages.sent,
+            referenceFormatMode,
+            Boolean(videoCharacterId),
+          )
         : continuityPrompt;
     const finalProviderPrompt = providerPrompt;
     assertReferenceScenePromptContract(finalProviderPrompt, referenceSceneMode);
     const usesStoryboardReference = selectedReferenceImages.sent.some((image) => image.role === "storyboard");
-    const videoCharacterId = provider === "kie-ai" && !avatarFreeReferenceScene ? avatarCharacterId : null;
     const continuitySourceSegmentId =
       typeof continuity.metadata.sourceSegmentId === "number"
         ? continuity.metadata.sourceSegmentId
@@ -381,7 +391,6 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
     try {
       task = await createOmniVideoTask({
         provider,
-        avatarFreeReferenceScene,
         prompt: finalProviderPrompt,
         durationSeconds: segment.duration_seconds || 10,
         resolution: requestPayload.resolution,

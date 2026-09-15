@@ -20,7 +20,7 @@ export type OmniPromptPreparationInput = Parameters<typeof buildOmniSegmentPromp
   productId: number;
 };
 
-export const OMNI_PREPARED_PLAN_VERSION = "avatar-broll-timeline-v1";
+export const OMNI_PREPARED_PLAN_VERSION = "avatar-broll-timeline-v2-avatar-identity";
 const PROMPT_LOCK_NAMESPACE = 53_902;
 type SavedPromptPlan = { version: string; signature: string; segments: OmniSegmentPrompt[] };
 

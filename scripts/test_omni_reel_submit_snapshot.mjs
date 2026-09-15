@@ -106,9 +106,9 @@ try {
   assert.equal(avatarQueries.length, 2, "character and audio fallbacks both query the pinned identity once before the loop");
   for (const task of tasks) {
     assert.equal(task.provider, "kie-ai", "missing provider must preserve the stored provider");
-    assert.equal(task.avatarFreeReferenceScene, false, "saved presenter production mode must override the raw hands-only source");
     assert.equal(task.characterId, "pinned-character");
     assert.deepEqual(task.audioIds, ["pinned-voice"]);
+    assert.match(task.prompt, /CHARACTER IDENTITY AUTHORITY/u);
     assert.ok(task.imageUrls.includes("https://example.com/product.png"));
     assert.ok(!task.imageUrls.includes(avatarUrl), "KIE avatar must be a character ID, not another image reference");
   }
@@ -136,7 +136,7 @@ try {
   reset();
   reel.creative_strategy = {};
   await runner.submitOmniReel(41);
-  assert.ok(tasks.every((task) => task.avatarFreeReferenceScene && task.characterId === null), "legacy faceless fallback remains valid when no production override exists");
+  assert.ok(tasks.every((task) => task.characterId === "pinned-character"), "every Omni reel must keep the pinned avatar when the stored strategy is incomplete");
 
   mocks.set("@/lib/server/omni/omni-reel-runner", runner);
   mocks.set("next/server", { NextResponse: { json: (body) => Response.json(body) } });

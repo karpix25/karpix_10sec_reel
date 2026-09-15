@@ -1,14 +1,16 @@
 import type { OmniClientAvatar } from "@/lib/omni/types";
 import { resolveNarratorSpeechGender, type OmniAvatarSpeechGender } from "../../omni/avatar-speech-gender";
-import { isAvatarFreeReferenceScene, isFacelessReferenceScene, resolveReferenceSceneMode, type ReferenceSceneMode } from "./omni-reference-scene-mode";
+import type { ReferenceSceneMode } from "./omni-reference-scene-mode";
 
 export function resolveOmniAvatarContext(input: {
   avatar: OmniClientAvatar | null;
   directorBrief: unknown;
 }) {
-  const referenceSceneMode = resolveReferenceSceneMode(input.directorBrief);
-  const facelessReferenceScene = isFacelessReferenceScene(referenceSceneMode);
-  const avatarFreeReferenceScene = isAvatarFreeReferenceScene(referenceSceneMode);
+  // Omni reels always have a visible avatar narrator. The reference can guide
+  // styling and edit rhythm, but it cannot remove the saved avatar from the reel.
+  const referenceSceneMode: ReferenceSceneMode = "presenter";
+  const facelessReferenceScene = false;
+  const avatarFreeReferenceScene = false;
   return {
     referenceSceneMode,
     facelessReferenceScene,

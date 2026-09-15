@@ -58,23 +58,21 @@ try {
   };
 
   await createOmniVideoTask(buildDispatchInput({
-    characterId: null,
-    facelessReferenceScene: true,
-    referenceImages: [{ url: "https://example.com/storyboard.jpg", role: "storyboard" }],
-  }));
-  assert.equal(lastPayload.input.character_ids, undefined, "storyboard reference must disable character_id to prevent wardrobe conflicts");
-
-  await createOmniVideoTask(buildDispatchInput({
     characterId: "char_1",
-    facelessReferenceScene: true,
-    referenceImages: [{ url: "https://example.com/storyboard.jpg", role: "storyboard" }],
+    referenceImages: [
+      { url: "https://example.com/storyboard.jpg", role: "storyboard" },
+      { url: "https://example.com/product.jpg", role: "product" },
+    ],
   }));
-  assert.equal(lastPayload.input.character_ids, undefined, "character_id must stay omitted when storyboard is visual authority");
+  assert.deepEqual(lastPayload.input.character_ids, ["char_1"], "the saved character_id must stay attached to every storyboard-led video task");
+  assert.deepEqual(lastPayload.input.image_urls, [
+    "https://example.com/storyboard.jpg",
+    "https://example.com/product.jpg",
+  ], "storyboard and product references must both reach video generation");
 
   await assert.rejects(
     () => createOmniVideoTask(buildDispatchInput({
       characterId: null,
-      facelessReferenceScene: false,
       referenceImages: [{ url: "https://example.com/product.jpg", role: "product" }],
     })),
     /requires an approved avatar character id/
@@ -88,7 +86,6 @@ try {
 function buildDispatchInput(overrides) {
   return {
     provider: "kie-ai",
-    facelessReferenceScene: false,
     prompt: "prompt",
     durationSeconds: 10,
     resolution: "1080p",
