@@ -117,7 +117,20 @@ export type DirectorVisualTransferContract = {
   }>;
 };
 
+export type DirectorContentMeaning = {
+  topic: string;
+  core_concept: string;
+  hook_mechanism: string;
+  narrative_structure: string[];
+  problem_or_question: string;
+  key_arguments: string[];
+  proof_or_examples: string[];
+  conclusion: string;
+  cta_mechanism: string;
+};
+
 export type DirectorBrief = {
+  content_meaning?: DirectorContentMeaning;
   content_adaptation?: ScriptAdaptationPlan;
   reference_subject_mode?: ReferenceSceneMode;
   visible_subject_policy?: DirectorVisibleSubjectPolicy;
@@ -206,6 +219,7 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
   const camera = candidate.camera;
   const montage = candidate.montage_rhythm;
   const mechanics = candidate.reusable_mechanics;
+  const contentMeaning = normalizeDirectorContentMeaning(candidate.content_meaning ?? candidate.contentMeaning);
   const contentAdaptation = normalizeScriptAdaptationPlan(candidate.content_adaptation ?? candidate.contentAdaptation);
   const wardrobeTimeline = candidate.wardrobe_timeline ?? candidate.wardrobeTimeline;
   if (
@@ -220,6 +234,7 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
   }
 
   const brief: DirectorBrief = {
+    content_meaning: contentMeaning || undefined,
     content_adaptation: contentAdaptation || undefined,
     reference_subject_mode: normalizeReferenceSceneMode(
       candidate.reference_subject_mode ?? candidate.referenceSceneMode ?? candidate.reference_scene_mode ?? candidate.referenceSubjectMode
@@ -297,6 +312,21 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
   };
 
   return hasRequiredDirectorText(brief) ? brief : null;
+}
+
+function normalizeDirectorContentMeaning(value: unknown): DirectorContentMeaning | null {
+  if (!isRecord(value)) return null;
+  return {
+    topic: stringValue(value.topic),
+    core_concept: stringValue(value.core_concept ?? value.coreConcept),
+    hook_mechanism: stringValue(value.hook_mechanism ?? value.hookMechanism),
+    narrative_structure: stringArray(value.narrative_structure ?? value.narrativeStructure),
+    problem_or_question: stringValue(value.problem_or_question ?? value.problemOrQuestion),
+    key_arguments: stringArray(value.key_arguments ?? value.keyArguments),
+    proof_or_examples: stringArray(value.proof_or_examples ?? value.proofOrExamples),
+    conclusion: stringValue(value.conclusion),
+    cta_mechanism: stringValue(value.cta_mechanism ?? value.ctaMechanism),
+  };
 }
 
 export function extractDirectorBriefFromSnapshot(snapshot: unknown): DirectorBrief | null {

@@ -1,8 +1,10 @@
 import pool from "@/lib/db";
 import { OmniClientAvatar } from "@/lib/omni/types";
 import { requireAvatarSpeechGender } from "../../omni/avatar-speech-gender";
+import { getOmniVoicePreset } from "@/lib/omni/omni-voice-profile";
 import { ensureOmniSchema } from "./schema";
-import { createKieOmniCharacter } from "./kie-omni-client";
+import { createKieOmniAudio, createKieOmniCharacter } from "./kie-omni-client";
+import { selectOmniAvatarVoice } from "./omni-avatar-voice-selector";
 
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -59,6 +61,7 @@ export async function createOmniClientAvatar(input: {
   referenceUrl?: unknown;
   status?: unknown;
   provider?: unknown;
+  voicePresetId?: unknown;
 }) {
   await ensureOmniSchema();
   const prompt = cleanText(input.prompt);
@@ -67,6 +70,12 @@ export async function createOmniClientAvatar(input: {
   const displayName = cleanText(input.displayName);
   const status = cleanText(input.status) || "draft";
   const provider = cleanText(input.provider) || "gpt-image-2";
+  const selectedVoice = await resolveAvatarVoice({
+    displayName,
+    prompt,
+    speechGender,
+    voicePresetId: input.voicePresetId,
+  });
 
   const { rows } = await pool.query<OmniClientAvatar>(
     `INSERT INTO omni_client_avatars (
@@ -74,19 +83,23 @@ export async function createOmniClientAvatar(input: {
        display_name,
        prompt,
        speech_gender,
+       voice_preset_id,
+       voice_selection_source,
        reference_url,
        status,
        provider,
        is_active,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, CURRENT_TIMESTAMP)
      RETURNING *`,
     [
       input.projectId,
       displayName || null,
       prompt,
       speechGender,
+      selectedVoice.preset.id,
+      selectedVoice.source,
       cleanText(input.referenceUrl) || null,
       status,
       provider,
@@ -126,23 +139,48 @@ export async function updateOmniClientAvatarStatus(input: {
 async function approveOmniClientAvatar(projectId: number, avatarId: number) {
   const current = await getOmniClientAvatar(projectId, avatarId);
   if (!current.reference_url) throw new Error("Avatar reference image is required before approval");
-  requireAvatarSpeechGender(current.speech_gender);
+  const speechGender = requireAvatarSpeechGender(current.speech_gender);
+  const selectedVoice = await resolveAvatarVoice({
+    displayName: current.display_name,
+    prompt: current.prompt,
+    speechGender,
+    voicePresetId: current.voice_preset_id,
+  });
 
   const readyCharacterId = getReadyKieCharacterId(current);
-  if (readyCharacterId && current.kie_character_status !== "queued") {
+  if (
+    readyCharacterId &&
+    current.kie_character_status !== "queued" &&
+    current.voice_preset_id === selectedVoice.preset.id &&
+    cleanText(current.kie_audio_id)
+  ) {
     return updateAvatarApproval({
       projectId,
       avatarId,
       kieCharacterId: readyCharacterId,
       kieCharacterStatus: current.kie_character_status || "ready",
       kieCharacterPayload: current.kie_character_payload,
+      voicePresetId: selectedVoice.preset.id,
+      voiceSelectionSource: selectedVoice.source,
+      kieAudioId: current.kie_audio_id || "",
+      kieAudioPayload: current.kie_audio_payload || {},
     });
   }
+
+  const audio = cleanText(current.kie_audio_id) && current.voice_preset_id === selectedVoice.preset.id
+    ? { id: current.kie_audio_id || "", raw: current.kie_audio_payload || {} }
+    : await createKieOmniAudio({
+        audioId: selectedVoice.preset.id,
+        name: `${selectedVoice.preset.label} для ${current.display_name || `аватара ${current.id}`}`,
+        voiceDescription: selectedVoice.preset.description,
+        exampleDialogue: selectedVoice.preset.exampleDialogue,
+      });
 
   const character = await createKieOmniCharacter({
     characterName: current.display_name || `Omni Avatar ${current.id}`,
     imageUrl: current.reference_url,
     description: current.prompt,
+    audioIds: [audio.id],
   });
 
   return updateAvatarApproval({
@@ -151,6 +189,32 @@ async function approveOmniClientAvatar(projectId: number, avatarId: number) {
     kieCharacterId: character.character_id || "",
     kieCharacterStatus: character.status,
     kieCharacterPayload: character.raw,
+    voicePresetId: selectedVoice.preset.id,
+    voiceSelectionSource: selectedVoice.source,
+    kieAudioId: audio.id,
+    kieAudioPayload: audio.raw,
+  });
+}
+
+async function resolveAvatarVoice(input: {
+  displayName: string | null;
+  prompt: string;
+  speechGender: "female" | "male";
+  voicePresetId?: unknown;
+}) {
+  const requestedPresetId = cleanText(input.voicePresetId);
+  if (requestedPresetId) {
+    const preset = getOmniVoicePreset(requestedPresetId);
+    if (!preset) throw new Error("Unsupported avatar voice preset");
+    if (preset.gender !== input.speechGender) {
+      throw new Error("Avatar voice must match the selected speech gender");
+    }
+    return { preset, source: "manual" as const };
+  }
+  return selectOmniAvatarVoice({
+    displayName: input.displayName,
+    prompt: input.prompt,
+    speechGender: input.speechGender,
   });
 }
 
@@ -175,15 +239,23 @@ async function updateAvatarApproval(input: {
   kieCharacterId: string;
   kieCharacterStatus: string;
   kieCharacterPayload: Record<string, unknown> | null;
+  voicePresetId: string;
+  voiceSelectionSource: "llm" | "manual";
+  kieAudioId: string;
+  kieAudioPayload: Record<string, unknown>;
 }) {
   if (!input.kieCharacterId) throw new Error("KIE.ai character create did not return characterId");
 
   const { rows } = await pool.query<OmniClientAvatar>(
     `UPDATE omni_client_avatars
      SET status = 'approved',
-         kie_character_id = $3,
-         kie_character_status = $4,
-         kie_character_payload = $5::jsonb,
+         voice_preset_id = $3,
+         voice_selection_source = $4,
+         kie_audio_id = $5,
+         kie_audio_payload = $6::jsonb,
+         kie_character_id = $7,
+         kie_character_status = $8,
+         kie_character_payload = $9::jsonb,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1
        AND project_id = $2
@@ -191,6 +263,10 @@ async function updateAvatarApproval(input: {
     [
       input.avatarId,
       input.projectId,
+      input.voicePresetId,
+      input.voiceSelectionSource,
+      input.kieAudioId,
+      JSON.stringify(input.kieAudioPayload),
       input.kieCharacterId,
       input.kieCharacterStatus,
       JSON.stringify(input.kieCharacterPayload),
@@ -252,17 +328,66 @@ export async function updateOmniClientAvatarSpeechGender(input: {
 }) {
   await ensureOmniSchema();
   const speechGender = requireAvatarSpeechGender(input.speechGender);
+  const current = await getOmniClientAvatar(input.projectId, input.avatarId);
+  const selectedVoice = await resolveAvatarVoice({
+    displayName: current.display_name,
+    prompt: current.prompt,
+    speechGender,
+  });
 
   const { rows } = await pool.query<OmniClientAvatar>(
     `UPDATE omni_client_avatars
      SET speech_gender = $3,
+         voice_preset_id = $4,
+         voice_selection_source = $5,
+         status = 'draft',
+         kie_audio_id = NULL,
+         kie_audio_payload = NULL,
+         kie_character_id = NULL,
+         kie_character_status = NULL,
+         kie_character_payload = NULL,
          updated_at = CURRENT_TIMESTAMP
      WHERE id = $1
        AND project_id = $2
      RETURNING *`,
-    [input.avatarId, input.projectId, speechGender]
+    [input.avatarId, input.projectId, speechGender, selectedVoice.preset.id, selectedVoice.source]
   );
 
+  if (!rows[0]) throw new Error("Avatar was not found");
+  return rows[0];
+}
+
+export async function updateOmniClientAvatarVoice(input: {
+  projectId: number;
+  avatarId: number;
+  voicePresetId?: unknown;
+}) {
+  await ensureOmniSchema();
+  const current = await getOmniClientAvatar(input.projectId, input.avatarId);
+  const speechGender = requireAvatarSpeechGender(current.speech_gender);
+  const selectedVoice = await resolveAvatarVoice({
+    displayName: current.display_name,
+    prompt: current.prompt,
+    speechGender,
+    voicePresetId: input.voicePresetId,
+  });
+
+  const { rows } = await pool.query<OmniClientAvatar>(
+    `UPDATE omni_client_avatars
+     SET voice_preset_id = $3,
+         voice_selection_source = $4,
+         status = 'draft',
+         kie_audio_id = NULL,
+         kie_audio_payload = NULL,
+         kie_character_id = NULL,
+         kie_character_status = NULL,
+         kie_character_payload = NULL,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1
+       AND project_id = $2
+     RETURNING *`,
+    [input.avatarId, input.projectId, selectedVoice.preset.id, selectedVoice.source]
+  );
   if (!rows[0]) throw new Error("Avatar was not found");
   return rows[0];
 }

@@ -135,6 +135,7 @@ export function buildStoredStoryboardFrame(input: {
     effectNotes: null,
     modelMusicNotes: null,
     speechMode,
+    narratorVisible: !productVisible && !noPeopleReference && input.frame.referenceRole === "avatar",
     physicalPlan,
     referenceTransfer,
   };

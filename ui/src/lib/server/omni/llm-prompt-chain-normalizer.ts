@@ -122,7 +122,7 @@ export function buildProviderPromptPlanFromDirector(directorPlan: DirectorSegmen
       prompt: directorPlan.format === "voiceover_broll"
         ? "Используй раскадровку как источник сцен. Диктор читает только реплики из раскадровки за кадром. Не показывай панели раскадровки. Только естественные звуки, без музыки."
         : "Используй раскадровку как источник сцен. Персонаж читает только реплики из раскадровки. Не показывай панели раскадровки. Только естественные звуки, без музыки.",
-      referenceRole: segment.storyboardFrames.some((frame) => frame.referenceRole === "product")
+      referenceRole: segment.storyboardFrames.some((frame) => frame.referenceRole === "product" && frame.productBeat === true)
         ? "product"
         : segment.storyboardFrames.some((frame) => frame.referenceRole === "avatar")
           ? "avatar"
@@ -213,6 +213,7 @@ function normalizeStoryboardFrame(raw: unknown): StoryboardFrame | null {
     productState,
     sfx: clean(data.sfx || data.sound_effects || data.soundEffects) || null,
     referenceRole,
+    productBeat: data.product_beat === true || data.productBeat === true,
   };
 }
 

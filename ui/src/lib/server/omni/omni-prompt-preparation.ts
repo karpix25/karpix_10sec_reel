@@ -13,7 +13,7 @@ import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { resolveReferenceTransferMode } from "./omni-reference-transfer-policy";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
 import { validatePromptVoiceoverIsolation, validateVoiceoverSequence } from "./omni-prompt-validator";
-import { adaptDirectorBriefForAvatarReel, ensureTalkingAvatarInPromptPlan } from "./omni-avatar-reel-plan";
+import { adaptDirectorBriefForAvatarReel, assertAvatarNarratorPlan } from "./omni-avatar-reel-plan";
 
 export type OmniPromptPreparationInput = Parameters<typeof buildOmniSegmentPrompts>[0] & {
   projectId: number;
@@ -133,7 +133,7 @@ function assertOmniPreparationInputs(input: OmniPromptPreparationInput) {
 async function buildPreparedPlan(input: OmniPromptPreparationInput) {
   const directorBrief = input.directorBrief || null;
   const repaired = await repairOmniPromptPlanWithAi({
-    promptPlan: ensureTalkingAvatarInPromptPlan(buildOmniSegmentPrompts(input), input.product.name),
+    promptPlan: buildOmniSegmentPrompts(input),
     productName: input.product.name,
     productPhysicalContract: input.product.product_physical_contract,
     segmentCount: input.segmentCount,
@@ -172,12 +172,10 @@ async function buildPreparedPlan(input: OmniPromptPreparationInput) {
 function assertPreparedOmniPromptPlan(input: OmniPromptPreparationInput, plan: readonly OmniSegmentPrompt[]) {
   assertPhysicalPromptPlan(plan);
   assertStoryboardPromptContracts(plan, input.product.name, { wardrobeContinuity: input.directorBrief?.wardrobe_continuity });
+  assertAvatarNarratorPlan(plan);
   const script = input.generatedScript?.script || input.legacyTranscript || input.brief || "";
   if (plan.length !== input.segmentCount || !validateVoiceoverSequence(script, plan.map((segment) => segment.creativePlan)) ||
     validatePromptVoiceoverIsolation(plan).length) throw new Error("План изменил утверждённую последовательность речи.");
-  if (!plan.some((segment) => segment.storyboardPlan?.frames.some((frame) => frame.speechMode === "on_camera"))) {
-    throw new Error("В плане отсутствует разговорный аватар. Нужны кадры с речью аватара и отдельные B-roll.");
-  }
   for (const segment of plan) {
     if (!segment.storyboardPlan || !validateOmniStoryboardSegment(segment.storyboardPlan).valid ||
       segment.durationSeconds !== segment.storyboardPlan.durationSeconds) throw new Error(`Invalid Omni segment ${segment.index}`);

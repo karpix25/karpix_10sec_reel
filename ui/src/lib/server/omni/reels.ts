@@ -249,6 +249,9 @@ export async function createOmniReel(input: {
         speech_gender: avatarSpeechGender,
         kie_character_id: latestAvatar.kie_character_id,
         kie_character_status: latestAvatar.kie_character_status,
+        voice_preset_id: latestAvatar.voice_preset_id,
+        voice_selection_source: latestAvatar.voice_selection_source,
+        kie_audio_id: latestAvatar.kie_audio_id,
         voice_gender: detectKieOmniVoiceGender(latestAvatar),
         wardrobe_source: project.wardrobe_source,
       }

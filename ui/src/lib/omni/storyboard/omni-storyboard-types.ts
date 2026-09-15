@@ -49,6 +49,8 @@ export type OmniStoryboardFrame = {
   effectNotes?: string | null;
   modelMusicNotes?: string | null;
   speechMode?: PhysicalSpeechMode;
+  /** Explicit narrator presence. Product B-roll never counts as narrator presence. */
+  narratorVisible?: boolean;
   physicalPlan?: PhysicalFramePlan | null;
   referenceTransfer?: OmniStoryboardReferenceTransfer | null;
 };

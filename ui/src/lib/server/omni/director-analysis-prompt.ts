@@ -25,7 +25,7 @@ export function buildDirectorAnalysisUserPrompt(input: {
     "Analyze the attached video and the supplied transcript when present.",
     "If the supplied transcript is empty or marked as unavailable, transcribe only the audible spoken words into spoken_transcript. Do not summarize or interpret the meaning in that field.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "spoken_transcript, reference_subject_mode, visible_subject_policy, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, wardrobe_continuity, subject_continuity, wardrobe_timeline, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
+    "spoken_transcript, content_meaning, reference_subject_mode, visible_subject_policy, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, wardrobe_continuity, subject_continuity, wardrobe_timeline, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -38,6 +38,7 @@ export function buildDirectorAnalysisUserPrompt(input: {
     "Important constraints:",
     "- Values must be descriptive but compact.",
     "- spoken_transcript is a technical transcription only. Do not turn it into a summary, content strategy, product recommendation, or adaptation decision.",
+    "- content_meaning is the semantic source for the new writer: extract the topic, core concept, hook mechanism, narrative structure, problem or question, key arguments, proof or examples, conclusion, and CTA mechanism from the spoken content. Preserve the idea and structure, never copy wording. Do not add product facts or claims that are absent from the transcript and supplied product data.",
     "- reference_subject_mode MUST be classified from visible frames and narration, not transcript alone: presenter, voiceover_broll, faceless_hands, body_crop, or object_only. Use voiceover_broll when the meaning is carried by off-camera voiceover over independent B-roll cutaways; the saved avatar may remain the silent visual protagonist, but there is no stable talking-head performance. Use faceless_hands only when only hands/props are visible; never invent a face or avatar.",
     "- visible_subject_policy MUST be classified from visible frames: presenter when a person speaks to camera, silent_avatar when the same person appears but narration is off-camera, no_people when no person or hands are visible, hands_only when only hands/body crop are visible, object_only when only an object or surface is visible, and animation when the source is illustrated or animated. Never choose silent_avatar for a reference that contains no person.",
     "- reference_format_mode MUST be classified from the visible edit and narration: continuous_story when one scene and physical state continue between segments; voiceover_montage when one narrator carries the meaning across independent cutaways where location, action, camera setup, or outfit can change while the main presenter remains the same.",
@@ -88,6 +89,24 @@ export function renderDirectorBriefForScriptPrompt(brief: DirectorBrief | null) 
   ].join("\n");
 }
 
+export function renderDirectorContentMeaningForScriptPrompt(brief: DirectorBrief | null) {
+  const meaning = brief?.content_meaning;
+  if (!meaning) return "СМЫСЛОВОЙ BRIEF REFERENCE: структурированный смысл не сохранён; извлекай только проверяемую тему и ход мысли из транскрипции, не копируя её формулировки.";
+  return [
+    "СМЫСЛОВОЙ BRIEF REFERENCE. Это источник темы и структуры, а не готовый текст:",
+    `- Тема: ${meaning.topic || "не указана"}.`,
+    `- Центральная концепция: ${meaning.core_concept || "не указана"}.`,
+    `- Механика хука: ${meaning.hook_mechanism || "не указана"}.`,
+    `- Структура: ${meaning.narrative_structure.join("; ") || "не указана"}.`,
+    `- Проблема или вопрос: ${meaning.problem_or_question || "не указаны"}.`,
+    `- Аргументы: ${meaning.key_arguments.join("; ") || "не указаны"}.`,
+    `- Доказательства и примеры: ${meaning.proof_or_examples.join("; ") || "не указаны"}.`,
+    `- Вывод: ${meaning.conclusion || "не указан"}.`,
+    `- Механика CTA: ${meaning.cta_mechanism || "не указана"}.`,
+    "Обязательно создай новый текст с нашим продуктом: сохраняй смысловую функцию и порядок раскрытия, но не копируй фразы, список или ответ reference. Если продукт не подтверждает исходный тезис, честно перестрой переход к реальной пользе продукта.",
+  ].join("\n");
+}
+
 export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
   if (!brief) return null;
   const handObjectInteractions = brief.hand_object_interactions || [];
@@ -134,6 +153,17 @@ function renderWardrobeTimelineForPrompt(brief: DirectorBrief) {
 function buildDirectorBriefSkeleton() {
   return {
     spoken_transcript: "",
+    content_meaning: {
+      topic: "",
+      core_concept: "",
+      hook_mechanism: "",
+      narrative_structure: [""],
+      problem_or_question: "",
+      key_arguments: [""],
+      proof_or_examples: [""],
+      conclusion: "",
+      cta_mechanism: "",
+    },
     reference_subject_mode: "presenter|voiceover_broll|faceless_hands|body_crop|object_only",
     visible_subject_policy: "presenter|silent_avatar|no_people|hands_only|object_only|animation",
     reference_format_mode: "continuous_story|voiceover_montage",

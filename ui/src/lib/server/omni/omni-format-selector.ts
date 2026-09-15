@@ -70,7 +70,7 @@ export function selectOmniCreativeStrategy(input: SelectOmniFormatInput): OmniCr
     scope: "reel",
     lifeFormatId: selected.format.id,
     providerFormatDescription: input.referenceSceneMode === "voiceover_broll"
-      ? "режиссёрский B-roll с закадровым voiceover; главный человек использует сохранённый аватар, фоновые люди и короткие talking-head кадры допустимы"
+      ? "режиссёрский B-roll с закадровым voiceover; в каждом segment сохранённый аватар физически ведёт повествование, фоновые люди не заменяют аватара"
       : selected.format.providerDescription,
     setting: voiceoverBrollReference ? "самостоятельные сцены по смыслу текущей реплики" : visualStyle.sceneArc.setting,
     continuityProps: voiceoverBrollReference ? [] : visualStyle.sceneArc.fixedProps,

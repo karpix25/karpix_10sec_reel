@@ -3,7 +3,7 @@ import type { OmniLegacyScenario } from "@/lib/omni/types";
 import type { OmniAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type { DirectorBrief } from "./director-analysis-types";
-import { renderDirectorBriefForScriptPrompt } from "./director-analysis-prompt";
+import { renderDirectorBriefForScriptPrompt, renderDirectorContentMeaningForScriptPrompt } from "./director-analysis-prompt";
 import type { OmniDurationRange } from "./omni-duration-range";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
 import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
@@ -31,6 +31,7 @@ export function buildPrompt(input: {
   contentContract?: ScriptContentContract;
 }) {
   const referenceMeaningGuidance = buildReferenceMeaningGuidance(input.sourceScenario.script);
+  const semanticReferenceMeaning = renderDirectorContentMeaningForScriptPrompt(input.directorBrief || null);
   const durationInstruction = buildDurationInstruction(input.durationRange);
   const wardrobeSource = normalizeOmniWardrobeSource(input.wardrobeSource);
   const directorGuidance = wardrobeSource === "avatar_reference"
@@ -42,10 +43,11 @@ export function buildPrompt(input: {
     : "сохраненный аватар в самостоятельной сцене по смыслу реплики; без субтитров";
   return `
 Создай один новый сценарий для Instagram Reels по методологии сценариста Reels.
-Voiceover это текст, который произносит аватар или диктор; визуально ролик может быть talking head, B-roll или их сочетанием.
+Voiceover это текст, который произносит сохранённый аватар; визуально ролик может быть talking head, B-roll с аватаром в движении или их сочетанием.
 
 Правила:
 ${referenceMeaningGuidance}
+${semanticReferenceMeaning}
 1. Сначала разберись в теме, конфликте, форме хука и фактах reference. Не показывай этот разбор в ответе.
 1. Reference передаёт тему, угол подачи, темп и набор возможных фактов. Выбери подходящие факты и напиши новый сценарий с нашим продуктом, не копируя исходный ответ, список или порядок раскрытия.
 1а. Перед написанием внутренне выбери ситуацию из reference, которая естественно ведёт к подтверждённой пользе продукта. Не показывай этот разбор в ответе.
@@ -79,6 +81,7 @@ ${CREATIVE_SPEECH_PACKING_RULE}
     voiceover: точная произносимая реплика этого бита.
 20. ${visualCueInstruction}
 21. Для каждого visual_cue сначала пойми смысл текущего voiceover, затем покажи именно этот смысл через персонажа, предметы или окружение. Продукт показывай только когда текущая реплика говорит о самом продукте, его свойствах или применении. Остальные темы показывай самостоятельной тематической сценой без продукта. Не копируй из reference несвязанные с текущей репликой процессы и предметы.
+21а. Каждый beat обязан содержать физически присутствующего сохранённого аватара, который ведёт повествование: говорит в камеру или находится в движении с voiceover. Если текущая реплика прямо говорит о продукте, этот beat обязан содержать отдельную предметную product B-roll вставку без людей и рук; продукт не показывай в остальных beats.
 22. Поле script должно совпадать с beats.voiceover, склеенными по порядку.
 23. Пиши без канцелярита и грамматических склеек. Нельзя: "продукт поддержать", "в идеале выбор зависит", повторять одно описательное слово продукта три раза.
 24. Перед финальным JSON проверь все текстовые значения: нет emoji, нет дефисов, нет тире, нет минусов, нет цифр.
@@ -110,7 +113,7 @@ ${input.retryFeedback ? `\nПовторная попытка:\n${input.retryFeed
   "beats": [
     {
       "stage": "hook",
-      "visual_cue": "${visualCueExample}; продукт в кадре только если он был в первом кадре reference",
+      "visual_cue": "${visualCueExample}; продукт в отдельной предметной B-roll вставке только если текущая реплика прямо говорит о продукте",
       "voiceover": "законченный хук, с продуктом только если продукт был в первом hook reference"
     },
     {

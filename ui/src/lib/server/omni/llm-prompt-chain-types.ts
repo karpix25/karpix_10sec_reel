@@ -82,6 +82,7 @@ export type StoryboardFrame = {
   productState: string;
   sfx: string | null;
   referenceRole: StoryboardReferenceRole;
+  productBeat?: boolean;
 };
 
 export type DirectorSegment = {
