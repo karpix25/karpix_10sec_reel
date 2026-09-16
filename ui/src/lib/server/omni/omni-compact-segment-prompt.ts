@@ -158,7 +158,11 @@ export function renderCompactSegmentPrompt(input: {
       : null,
     "SPEECH:",
     "Start speaking on frame 0. Use simple natural conversational Russian. Say only the current part once. Do not repeat, skip, restart, paraphrase, continue a neighbor part, or add subtitles.",
-    `${voiceoverBrollReference || avatarFreeReferenceScene ? "The off-camera narrator says" : hybridDelivery ? "The avatar or off-camera narrator says according to each storyboard frame's speech_mode" : "The avatar says"}: ${input.plan.voiceoverText}`,
+    `ТОЧНАЯ РЕПЛИКА: ${voiceoverBrollReference || avatarFreeReferenceScene
+      ? "закадровый голос произносит дословно и только эту прямую речь"
+      : hybridDelivery
+        ? "персонаж в кадре или закадровый голос, согласно speech_mode раскадровки, произносит дословно и только эту прямую речь"
+        : "человек в кадре произносит дословно и только эту прямую речь"}: "${input.plan.voiceoverText}". Не перефразируй, не сокращай, не повторяй и не добавляй слов.`,
     `CONTINUITY: ${strictReference ? "the verified source interval and hard reference contract are authoritative; preserve location, light, composition, camera, subject distribution, and physical state, with changes only at analyzed cuts." : "preserve only featured avatar identity, exact approved product form, and the physical state needed inside the current action. Exact reference scene continuity is not required."} ${wardrobeDirection} ${continuity}`,
     "CLEAN FRAME: no on-screen text, subtitles, captions, progress bars, overlay icons, buttons, watermarks, logos, or app interface.",
     OMNI_NO_VISIBLE_FILMING_GEAR_PROMPT,
