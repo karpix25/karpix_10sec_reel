@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { validateApiRequest } from "@/lib/server/telegram-auth";
 
 let isDbInitialized = false;
 
@@ -22,6 +23,9 @@ async function ensureDashboardColumns() {
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export async function GET(req: NextRequest) {
+  const { errorResponse } = await validateApiRequest(req);
+  if (errorResponse) return errorResponse;
+
   const { searchParams } = new URL(req.url);
   const clientIdRaw = searchParams.get("clientId");
   const monthRaw = String(searchParams.get("month") || "").trim();

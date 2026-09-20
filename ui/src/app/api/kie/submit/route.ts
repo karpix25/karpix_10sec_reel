@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 
 import pool from "@/lib/db";
+import { validateApiRequest } from "@/lib/server/telegram-auth";
 import { submitSavedKieTasks } from "@/lib/server/kie-submit";
 
 export async function POST(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const body = await request.json().catch(() => ({}));
     const scenarioId = Number(body?.scenarioId);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { validateApiRequest } from '@/lib/server/telegram-auth';
 
 let isDbInitialized = false;
 
@@ -17,6 +18,9 @@ async function ensureCostColumns() {
 }
 
 export async function GET(req: NextRequest) {
+  const { errorResponse } = await validateApiRequest(req);
+  if (errorResponse) return errorResponse;
+
   const { searchParams } = new URL(req.url);
   const clientId = searchParams.get('clientId');
 

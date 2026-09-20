@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { validateApiRequest } from '@/lib/server/telegram-auth';
 
 let isDbInitialized = false;
 
@@ -26,6 +27,9 @@ async function ensureScenarioDurationColumn() {
 }
 
 export async function GET(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   const { searchParams } = new URL(request.url);
   const clientId = searchParams.get('clientId');
   const niche = searchParams.get('niche');
@@ -105,6 +109,9 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     await ensureScenarioDurationColumn();
     const { scenarioId, backgroundAudioTag } = await request.json();

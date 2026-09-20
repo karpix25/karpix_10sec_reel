@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
+import { validateApiRequest } from '@/lib/server/telegram-auth';
 
 export async function POST(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const { clientId, count = 1, niche, topic, angle, mode = 'rewrite', topicId, structureId } = await request.json();
 
@@ -10,16 +14,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Client ID is required' }, { status: 400 });
     }
 
+    const batchCount = Math.min(Math.max(Number.parseInt(String(count), 10) || 1, 1), 50);
+
     // Path to the python script relative to the project root
     const scriptPath = path.resolve(process.cwd(), '..', 'services', 'v1', 'automation', 'batch_generator.py');
     const pythonPath = 'python3'; // Assuming python3 is in the path
 
-    console.log(`Starting batch generation for client ${clientId}, count ${count}`);
+    console.log(`Starting batch generation for client ${clientId}, count ${batchCount}`);
 
     // Execute the script
     const pythonProcess = spawn(pythonPath, [
       scriptPath,
-      '--count', count.toString(),
+      '--count', batchCount.toString(),
       '--client_id', clientId.toString(),
       ...(niche ? ['--niche', niche] : []),
       ...(topic ? ['--topic', topic] : []),
@@ -55,9 +61,9 @@ export async function POST(request: Request) {
     // We don't wait for completion if it's a long process, 
     // but for now let's return a "started" response or wait briefly
     
-    return NextResponse.json({ 
-      message: 'Batch generation started', 
-      job: { clientId, count, niche, topic, angle, mode } 
+    return NextResponse.json({
+      message: 'Batch generation started',
+      job: { clientId, count: batchCount, niche, topic, angle, mode }
     });
 
   } catch (error) {

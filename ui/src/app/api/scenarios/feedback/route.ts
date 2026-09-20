@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { validateApiRequest } from "@/lib/server/telegram-auth";
 
 const AUTO_OPTIMIZE_MIN_COMMENT_LENGTH = 20;
 const OPTIMIZABLE_CATEGORIES = new Set(["scenario", "visual", "video"]);
@@ -72,6 +73,9 @@ async function runOptimization(
 }
 
 export async function POST(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const { scenarioId, rating, comment, categories } = await request.json();
     const resolvedId = Number.parseInt(String(scenarioId), 10);

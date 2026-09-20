@@ -465,6 +465,14 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
 }
 
 export async function syncOmniReel(reelId: number) {
+  return withOmniReelExecutionLock(reelId, {
+    // Lock owner (submit or sync) progresses the reel; report current state for the next poll.
+    onLocked: async () => getReelBundle(reelId),
+    run: () => syncOmniReelUnlocked(reelId),
+  });
+}
+
+async function syncOmniReelUnlocked(reelId: number) {
   const { reel, segments } = await getReelBundle(reelId);
   await syncOmniReelSegments({ reel, segments });
 
@@ -490,7 +498,8 @@ export async function syncOmniReel(reelId: number) {
       [reelId]
     );
   } else if (isOmniContinuityChainEnabled() && hasPendingDraft) {
-    await submitOmniReel(reelId, getReelGenerationProvider(updated.segments));
+    // This sync already holds the execution lock, so the locked submitOmniReel would no-op.
+    await submitOmniReelUnlocked(reelId, getReelGenerationProvider(updated.segments));
   }
 
   if (!stitchedNow) {

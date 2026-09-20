@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { validateApiRequest } from "@/lib/server/telegram-auth";
 import { pollSavedKieTasks } from "@/lib/server/kie-poll";
 
 const kiePollSignatureCache = new Map<string, string>();
@@ -25,6 +26,9 @@ function buildKiePollSignature(updated: { stdout: string; stderr: string }) {
 }
 
 export async function POST(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const body = await request.json().catch(() => ({}));
     const jobId = body?.jobId ? String(body.jobId) : null;

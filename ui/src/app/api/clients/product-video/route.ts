@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile, rm } from "fs/promises";
 import path from "path";
 import { spawn } from "child_process";
 import pool from "@/lib/db";
+import { validateApiRequest } from "@/lib/server/telegram-auth";
 import { getS3Config, isS3Configured, putObjectToS3 } from "@/lib/server/s3-storage";
 
 const PRODUCT_ASSET_WIDTH = 720;
@@ -95,6 +96,9 @@ async function convertImageToVerticalVideo(imagePath: string, outputPath: string
 }
 
 export async function POST(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const formData = await request.formData();
     const clientId = formData.get("clientId");
