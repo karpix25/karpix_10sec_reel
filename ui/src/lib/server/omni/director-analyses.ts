@@ -10,6 +10,7 @@ import { resolveInstagramVideoWithScrapeCreators } from "./scrapecreators-client
 import { normalizeDirectorBrief, type OmniDirectorAnalysis } from "./director-analysis-types";
 import { verifyDirectorBriefAgainstReferenceFrames } from "./director-analysis-frame-verifier";
 import { isRetryableDirectorAnalysisError } from "./director-analysis-retry";
+import { upsertReferenceMaterialForAnalysis } from "./omni-reference-materials";
 import { requireOmniProductInProject } from "./products";
 import { buildDirectorTimelineSeekSeconds } from "./director-source-interval";
 import { extractDirectorReferenceFrameBuffers } from "./storyboard-director-references";
@@ -267,7 +268,14 @@ async function runDirectorAnalysis(
         JSON.stringify(analyzed.transcript || sourceScenario.script.trim() || null),
       ]
     );
-    return normalizeAnalysis(rows[0]);
+    const completed = normalizeAnalysis(rows[0]);
+    try {
+      await upsertReferenceMaterialForAnalysis(completed);
+    } catch (error) {
+      // The materials library is additive; its failure must never fail the analysis itself.
+      console.warn("Reference material upsert failed:", { analysisId, error: formatError(error) });
+    }
+    return completed;
   } catch (error) {
     const { rows } = await pool.query<DirectorAnalysisRow>(
       `UPDATE omni_legacy_video_analyses
