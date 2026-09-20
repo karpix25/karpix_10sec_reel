@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { createReadStream, existsSync } from "fs";
 import { stat } from "fs/promises";
 import pool from "@/lib/db";
+import { validateApiRequest } from "@/lib/server/telegram-auth";
 
 export async function GET(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const { searchParams } = new URL(request.url);
     const scenarioId = searchParams.get("scenarioId");

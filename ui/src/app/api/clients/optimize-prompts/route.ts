@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { validateApiRequest } from "@/lib/server/telegram-auth";
 
 import { processOptimization } from "@/lib/optimize-prompts-service";
 
 export async function POST(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const { clientId, category } = await request.json();
     const result = await processOptimization(clientId, category);
@@ -18,6 +22,9 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");

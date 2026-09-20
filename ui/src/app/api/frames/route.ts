@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { validateApiRequest } from '@/lib/server/telegram-auth';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const query = `
       SELECT 

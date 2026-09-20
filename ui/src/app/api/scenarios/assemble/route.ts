@@ -4,6 +4,7 @@ import { mkdir, readFile, stat, writeFile } from "fs/promises";
 import path from "path";
 import { spawn } from "child_process";
 import pool from "@/lib/db";
+import { validateApiRequest } from "@/lib/server/telegram-auth";
 import {
   getBackgroundAudioTrackByDiskPath,
   getRandomBackgroundAudioTrack,
@@ -1511,6 +1512,9 @@ async function buildMontage(scenarioId: number) {
 }
 
 export async function POST(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   const body = await request.json().catch(() => ({}));
   const resolvedScenarioId = Number.parseInt(String(body?.scenarioId), 10);
   let lockClient:

@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
+import { validateApiRequest } from '@/lib/server/telegram-auth';
 
 /**
  * API Route to trigger generation for a single reference.
  */
 export async function POST(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const { contentId, clientId } = await request.json();
 

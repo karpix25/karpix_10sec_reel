@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import pool from "@/lib/db";
+import { validateApiRequest } from "@/lib/server/telegram-auth";
 
 const CATEGORY_FIELD_MAP: Record<string, string> = {
   scenario: "learned_rules_scenario",
@@ -8,6 +9,9 @@ const CATEGORY_FIELD_MAP: Record<string, string> = {
 };
 
 export async function GET(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get("clientId");
@@ -50,6 +54,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const { clientId, category, historyId } = await request.json();
     const resolvedClientId = Number.parseInt(String(clientId), 10);

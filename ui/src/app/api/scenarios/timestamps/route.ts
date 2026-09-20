@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { validateApiRequest } from '@/lib/server/telegram-auth';
 
 export async function POST(request: Request) {
+  const { errorResponse } = await validateApiRequest(request);
+  if (errorResponse) return errorResponse;
+
   try {
     const { scenarioId, transcript, words } = await request.json();
 

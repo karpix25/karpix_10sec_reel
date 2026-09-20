@@ -4,6 +4,13 @@ const DEFAULT_REFERENCE_IMAGE_FIELD = "input_reference";
 const DEFAULT_REFERENCE_IMAGE_TRANSPORT = "url";
 const TERMINAL_STATUSES = new Set(["completed", "failed", "error"]);
 
+const CREATE_TIMEOUT_MS = 120_000;
+const RETRIEVE_TIMEOUT_MS = 30_000;
+const DOWNLOAD_TIMEOUT_MS = 300_000;
+const REFERENCE_IMAGE_TIMEOUT_MS = 60_000;
+const MAX_ATTEMPTS = 3;
+const GET_RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+
 export type CometVideoTask = {
   id: string;
   model?: string;
@@ -76,6 +83,57 @@ async function parseError(response: Response) {
   }
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getRetryDelayMs(attempt: number, retryAfterHeader: string | null) {
+  const retryAfterSeconds = Number.parseInt(String(retryAfterHeader || ""), 10);
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 && retryAfterSeconds <= 60) {
+    return retryAfterSeconds * 1000;
+  }
+  return Math.min(1000 * 2 ** attempt, 10_000);
+}
+
+/**
+ * GET requests retry on transient statuses and network errors.
+ * POST video creation retries only on 429: higher statuses may mean the task
+ * was already created, and a blind retry would bill twice.
+ */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  options: { label: string; timeoutMs: number; retryableStatuses?: Set<number> }
+) {
+  const retryableStatuses = options.retryableStatuses ?? GET_RETRYABLE_STATUSES;
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) {
+      await sleep(getRetryDelayMs(attempt - 1, null));
+    }
+    try {
+      const response = await fetch(url, {
+        ...init,
+        cache: "no-store",
+        signal: AbortSignal.timeout(options.timeoutMs),
+      });
+      if (response.ok || !retryableStatuses.has(response.status)) {
+        return response;
+      }
+      lastError = new Error(`${options.label} failed: ${response.status} ${await parseError(response)}`);
+    } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") {
+        lastError = new Error(`${options.label} timed out after ${options.timeoutMs} ms`);
+      } else {
+        lastError = error;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
 export function isCometTerminalStatus(status: string) {
   return TERMINAL_STATUSES.has(status.toLowerCase());
 }
@@ -113,12 +171,15 @@ export async function createCometOmniVideoTask(input: {
     }
   }
 
-  const response = await fetch(`${getBaseUrl()}/v1/videos`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${getApiKey()}` },
-    body: form,
-    cache: "no-store",
-  });
+  const response = await fetchWithRetry(
+    `${getBaseUrl()}/v1/videos`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${getApiKey()}` },
+      body: form,
+    },
+    { label: "CometAPI Omni create", timeoutMs: CREATE_TIMEOUT_MS, retryableStatuses: new Set([429]) }
+  );
   if (!response.ok) {
     throw new Error(`CometAPI Omni create failed: ${response.status} ${await parseError(response)}`);
   }
@@ -127,7 +188,7 @@ export async function createCometOmniVideoTask(input: {
 }
 
 async function downloadReferenceImage(url: string) {
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await fetchWithRetry(url, {}, { label: "CometAPI Omni reference image download", timeoutMs: REFERENCE_IMAGE_TIMEOUT_MS });
   if (!response.ok) {
     throw new Error(`CometAPI Omni reference image download failed: ${response.status} ${url}`);
   }
@@ -163,10 +224,11 @@ function buildRoleFileName(role: string | undefined, fallback: string) {
 }
 
 export async function retrieveCometOmniVideoTask(taskId: string) {
-  const response = await fetch(`${getBaseUrl()}/v1/videos/${encodeURIComponent(taskId)}`, {
-    headers: { Authorization: `Bearer ${getApiKey()}` },
-    cache: "no-store",
-  });
+  const response = await fetchWithRetry(
+    `${getBaseUrl()}/v1/videos/${encodeURIComponent(taskId)}`,
+    { headers: { Authorization: `Bearer ${getApiKey()}` } },
+    { label: "CometAPI Omni retrieve", timeoutMs: RETRIEVE_TIMEOUT_MS }
+  );
   if (!response.ok) {
     throw new Error(`CometAPI Omni retrieve failed: ${response.status} ${await parseError(response)}`);
   }
@@ -175,10 +237,11 @@ export async function retrieveCometOmniVideoTask(taskId: string) {
 }
 
 export async function downloadCometOmniVideo(taskId: string) {
-  const response = await fetch(`${getBaseUrl()}/v1/videos/${encodeURIComponent(taskId)}/content`, {
-    headers: { Authorization: `Bearer ${getApiKey()}` },
-    cache: "no-store",
-  });
+  const response = await fetchWithRetry(
+    `${getBaseUrl()}/v1/videos/${encodeURIComponent(taskId)}/content`,
+    { headers: { Authorization: `Bearer ${getApiKey()}` } },
+    { label: "CometAPI Omni download", timeoutMs: DOWNLOAD_TIMEOUT_MS }
+  );
   if (!response.ok) {
     throw new Error(`CometAPI Omni download failed: ${response.status} ${await parseError(response)}`);
   }
