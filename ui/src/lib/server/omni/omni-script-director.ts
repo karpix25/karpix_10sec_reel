@@ -198,7 +198,8 @@ async function defaultDirectorRequest(input: { attempt: number; userPrompt: stri
     body: JSON.stringify({
       model,
       temperature: input.temperature,
-      max_tokens: 4_000,
+      max_tokens: 8_000,
+      reasoning: { effort: "low" },
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: "Верни только валидный JSON без markdown." },

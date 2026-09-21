@@ -118,7 +118,8 @@ export async function defaultTopicAxesRequest(input: { userPrompt: string }) {
     body: JSON.stringify({
       model,
       temperature: 0.4,
-      max_tokens: 2_000,
+      max_tokens: 4_000,
+      reasoning: { effort: "low" },
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: "Верни только валидный JSON без markdown." },
