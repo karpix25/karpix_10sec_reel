@@ -12,8 +12,11 @@ export const DIRECTOR_ANALYSIS_MAX_BYTES = 15 * 1024 * 1024;
 const MAX_SOURCE_BYTES = 80 * 1024 * 1024;
 const exec = promisify(execFile);
 
+// Container egress to Instagram CDN can be ~10x slower than the host network.
+const DIRECTOR_ANALYSIS_VIDEO_FETCH_TIMEOUT_MS = 240_000;
+
 export async function prepareDirectorAnalysisVideoUrl(videoUrl: string): Promise<string> {
-  const response = await fetch(videoUrl, { cache: "no-store", signal: AbortSignal.timeout(90_000) });
+  const response = await fetch(videoUrl, { cache: "no-store", signal: AbortSignal.timeout(DIRECTOR_ANALYSIS_VIDEO_FETCH_TIMEOUT_MS) });
   if (!response.ok) throw new Error(`Reference analysis video download failed: HTTP ${response.status}`);
   const body = await readDirectorAnalysisVideo(response);
   if (body.length <= DIRECTOR_ANALYSIS_MAX_BYTES) return videoUrl;
