@@ -121,7 +121,15 @@ try {
   assert.ok(prompt.includes("быстрый утренний уход"), "topic in prompt");
   assert.ok(prompt.includes("вопрос в первую секунду"), "material hook in prompt");
   assert.ok(prompt.includes("ПРИМЕРЫ ФОРМЫ ИЗ РЕФЕРЕНСОВ"), "form-only framing section");
-  assert.ok(prompt.includes("keyword_in_comments"), "cta mode in prompt");
+  assert.ok(prompt.includes("кодовое слово") && prompt.includes("уход"), "keyword CTA wording in prompt");
+  const profileCardPrompt = buildScriptwriterPrompt({
+    topic: "т",
+    frame: frames[0],
+    product: { ...card, cta_mode: "link_in_profile", cta_value: null },
+    materials: [],
+    wordBudget: 44,
+  });
+  assert.ok(profileCardPrompt.includes("НЕ задавай аудитории финальный вопрос"), "profile-link mode forbids audience questions");
   assert.ok(prompt.includes("Лангкави в Малайзии — бюджетная альтернатива"), "material content facts in prompt");
   assert.ok(prompt.includes("обязано быть закрыто"), "hook-payoff rule in prompt");
   assert.ok(prompt.includes("дословно"), "verbatim facts rule in prompt");
