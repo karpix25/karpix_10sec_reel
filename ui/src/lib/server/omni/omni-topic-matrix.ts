@@ -53,8 +53,9 @@ function cooldownExpired(lastUsedAt: Date | null, now: Date) {
 }
 
 /**
- * Rank cells: unused first, then oldest reuse; rotate frames so consecutive
- * proposals vary the format, and audiences so they vary the target.
+ * Rank cells: unused first, then oldest reuse; greedy interleaving so
+ * consecutive proposals vary audience, benefit and frame instead of walking
+ * one row of the matrix.
  */
 export function pickMatrixProposals(input: {
   cells: MatrixCell[];
@@ -65,39 +66,50 @@ export function pickMatrixProposals(input: {
   const now = input.now || new Date();
   const fresh = input.cells.filter((cell) => cooldownExpired(input.usage.get(cell.signature)?.lastUsedAt ?? null, now));
   const pool = fresh.length >= input.limit ? fresh : input.cells;
-  const lastFrame = new Map<string, number>();
-  const lastAudience = new Map<string, number>();
-  let rotationCounter = 0;
-
-  return [...pool]
+  const candidates = [...pool]
     .map((cell) => {
       const used = input.usage.get(cell.signature);
-      rotationCounter += 1;
-      const frameSlot = lastFrame.get(cell.frameId) ?? 0;
-      const audienceSlot = lastAudience.get(cell.audienceTitle) ?? 0;
       return {
         cell,
-        rank: [
-          used ? 1 : 0,                       // unused first
-          used ? used.lastUsedAt?.getTime() ?? 0 : 0, // then oldest reuse
-          audienceSlot,                        // spread audiences
-          frameSlot,                           // spread frames
-        ] as const,
-        order: rotationCounter,
+        usedRank: used ? 1 : 0,
+        lastUsed: used?.lastUsedAt?.getTime() ?? 0,
       };
     })
-    .sort((left, right) => {
-      for (let index = 0; index < left.rank.length; index += 1) {
-        if (left.rank[index] !== right.rank[index]) return left.rank[index] - right.rank[index];
+    .sort((left, right) =>
+      left.usedRank - right.usedRank || left.lastUsed - right.lastUsed
+    );
+
+  const audienceCount = new Map<string, number>();
+  const benefitCount = new Map<string, number>();
+  const frameCount = new Map<string, number>();
+  const count = (map: Map<string, number>, key: string) => map.get(key) ?? 0;
+
+  const proposals: MatrixCell[] = [];
+  while (proposals.length < input.limit && candidates.length) {
+    let bestIndex = 0;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < candidates.length; index += 1) {
+      const candidate = candidates[index];
+      // Audience variety dominates, then benefit, then frame; usedRank keeps
+      // unused cells ahead of stale-reuse ones within the same spread score.
+      const score =
+        candidate.usedRank * 1000 +
+        count(audienceCount, candidate.cell.audienceTitle) * 9 +
+        count(benefitCount, candidate.cell.benefitTitle) * 3 +
+        count(frameCount, candidate.cell.frameId);
+      if (score < bestScore) {
+        bestScore = score;
+        bestIndex = index;
       }
-      return left.order - right.order;
-    })
-    .slice(0, input.limit)
-    .map((entry) => {
-      lastFrame.set(entry.cell.frameId, (lastFrame.get(entry.cell.frameId) ?? 0) + 1);
-      lastAudience.set(entry.cell.audienceTitle, (lastAudience.get(entry.cell.audienceTitle) ?? 0) + 1);
-      return entry.cell;
-    });
+    }
+    const [picked] = candidates.splice(bestIndex, 1);
+    proposals.push(picked.cell);
+    audienceCount.set(picked.cell.audienceTitle, count(audienceCount, picked.cell.audienceTitle) + 1);
+    benefitCount.set(picked.cell.benefitTitle, count(benefitCount, picked.cell.benefitTitle) + 1);
+    frameCount.set(picked.cell.frameId, count(frameCount, picked.cell.frameId) + 1);
+  }
+
+  return proposals;
 }
 
 export function matrixUsageFromRows(rows: Array<{ matrix_cell: unknown; created_at: string }>) {
