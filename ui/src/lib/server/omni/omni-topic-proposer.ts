@@ -13,6 +13,7 @@ export type TopicProposalMaterial = {
   topic: string | null;
   core_concept: string | null;
   hook_mechanism: string | null;
+  visual_hook_action: string | null;
   format_mode: string | null;
   product_position: string | null;
   narrative_structure: string[];
@@ -80,18 +81,19 @@ export function proposeScriptwriterTopics(
 ): ScriptwriterTopicProposal[] {
   const frames = collectScriptwriterFrames(materials);
 
+  // Older analyses have no content_meaning block; fall back to the snapshot topic
+  // so the whole accumulated library still yields proposals.
   const candidates = materials
-    .filter((material) => (material.core_concept || "").trim().length >= 8)
+    .filter((material) => ((material.core_concept || material.topic) || "").trim().length >= 8)
     .map((material) => {
-      const concept = (material.core_concept || "").trim();
+      const concept = (material.core_concept || material.topic || "").trim();
       return {
         material,
         concept,
         covered: isConceptCoveredByScripts(concept, existingScripts),
         priority: materialProductPriority(material.product_position),
       };
-    })
-    .filter((candidate) => candidate.concept.length >= 8);
+    });
 
   const uncovered = candidates.filter((candidate) => !candidate.covered);
   const covered = candidates.filter((candidate) => candidate.covered);
@@ -119,7 +121,9 @@ export function proposeScriptwriterTopics(
       id: `topic-${material.material_id}`,
       topic: candidate.concept,
       rationale: [
-        material.hook_mechanism ? `хук-механика: ${material.hook_mechanism}` : null,
+        material.hook_mechanism || material.visual_hook_action
+          ? `хук: ${material.hook_mechanism || material.visual_hook_action}`
+          : null,
         material.format_mode ? `формат: ${material.format_mode}` : null,
         candidate.covered ? "похожая тема уже снималась — нужен новый угол" : "тема ещё не раскрыта для этого продукта",
       ]
