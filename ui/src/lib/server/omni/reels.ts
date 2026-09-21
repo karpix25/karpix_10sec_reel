@@ -10,6 +10,7 @@ import { getGeneratedScript } from "./generated-scripts";
 import { assertGeneratedScriptReady } from "./generated-script-readiness";
 import { getLegacyScenario } from "./legacy-scenarios";
 import { prepareOmniPromptPlan } from "./omni-prompt-preparation";
+import { resolveDirectorSceneSegmentPatches } from "./omni-director-plan-integration";
 import { adaptDirectorBriefForAvatarReel } from "./omni-avatar-reel-plan";
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
@@ -257,7 +258,7 @@ export async function createOmniReel(input: {
       }
     : null;
   const recentFormatIds = await listRecentLifeFormatIds(input.projectId, input.productId);
-  const promptPlan = await prepareOmniPromptPlan({
+  const preparedPromptPlan = await prepareOmniPromptPlan({
     projectId: input.projectId,
     productId: input.productId,
     generatedScript: resolvedGeneratedScript,
@@ -275,6 +276,30 @@ export async function createOmniReel(input: {
     recentFormatIds,
     wardrobeSource: project.wardrobe_source,
     referenceSourceDurationSeconds,
+  });
+  // Director plan scenes (when the source script has one) enrich segment plans
+  // additively: extra creative_plan.director_scenes plus a prompt section.
+  const directorScenePatches = resolvedGeneratedScript
+    ? await resolveDirectorSceneSegmentPatches({
+        scriptId: resolvedGeneratedScript.id,
+        segments: preparedPromptPlan.map((segment) => ({
+          segment_index: segment.index,
+          voiceover_text: segment.voiceoverText,
+          duration_seconds: segment.durationSeconds,
+        })),
+      })
+    : [];
+  const directorScenePatchBySegmentIndex = new Map(
+    directorScenePatches.map((patch) => [patch.segment_index, patch])
+  );
+  const promptPlan = preparedPromptPlan.map((segment) => {
+    const patch = directorScenePatchBySegmentIndex.get(segment.index);
+    if (!patch?.director_scenes.length) return segment;
+    return {
+      ...segment,
+      prompt: patch.prompt_section ? `${segment.prompt}\n\n${patch.prompt_section}` : segment.prompt,
+      creativePlan: { ...segment.creativePlan, director_scenes: patch.director_scenes },
+    };
   });
   const creativeStrategy = promptPlan[0]?.creativeStrategy || null;
   const referenceSceneMode = resolveReferenceSceneMode(creativeStrategy);

@@ -173,16 +173,52 @@ async function runScriptStage(job: OmniAutomationJob) {
     return updateOmniAutomationJobStage({ jobId: job.id, stage: "reel" });
   }
 
+  const scriptId = await resolveAutomationScriptId(job);
+  return updateOmniAutomationJobStage({
+    jobId: job.id,
+    stage: "reel",
+    generatedScriptId: scriptId,
+  });
+}
+
+/**
+ * Env-gated script source for automation jobs. The default stays the legacy
+ * flow; OMNI_SCRIPT_SOURCE=scriptwriter routes the job through the two-layer
+ * topic engine (proven references, then matrix cells). Any failure in the new
+ * path only downgrades to legacy — it must never fail the job itself.
+ */
+async function resolveAutomationScriptId(job: OmniAutomationJob): Promise<number> {
+  if (process.env.OMNI_SCRIPT_SOURCE === "scriptwriter") {
+    try {
+      const { pickNextTopicsForProduct } = await import("./omni-topic-engine");
+      const [proposal] = await pickNextTopicsForProduct({
+        projectId: job.project_id,
+        productId: job.product_id,
+      });
+      if (proposal) {
+        const { runOmniScriptwriter } = await import("./omni-scriptwriter");
+        const written = await runOmniScriptwriter({
+          projectId: job.project_id,
+          productId: job.product_id,
+          topic: proposal.topic,
+          frameId: proposal.frameId,
+          materialIds: proposal.materialIds,
+          matrixCell: proposal.matrixCell,
+        });
+        return written.scriptId;
+      }
+      console.warn("Omni scriptwriter script source produced no topic proposal, falling back to legacy flow");
+    } catch (error) {
+      console.warn("Omni scriptwriter script source failed, falling back to legacy flow:", getErrorMessage(error));
+    }
+  }
+
   const script = await createGeneratedScriptFromLegacy({
     projectId: job.project_id,
     productId: job.product_id,
     legacyScenarioId: job.source_legacy_scenario_id,
   });
-  return updateOmniAutomationJobStage({
-    jobId: job.id,
-    stage: "reel",
-    generatedScriptId: script.id,
-  });
+  return script.id;
 }
 
 async function runReelStage(job: OmniAutomationJob) {
