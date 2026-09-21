@@ -317,7 +317,10 @@ async function defaultScriptwriterRequest(input: { attempt: number; userPrompt: 
     body: JSON.stringify({
       model,
       temperature: input.temperature,
-      max_tokens: 4_000,
+      // Reasoning models (qwen3.8) can burn the whole budget thinking and
+      // return empty content; keep reasoning cheap and leave room for output.
+      max_tokens: 8_000,
+      reasoning: { effort: "low" },
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: "Верни только валидный JSON без markdown." },
