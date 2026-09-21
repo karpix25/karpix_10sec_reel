@@ -79,16 +79,16 @@ try {
   // ---- topic proposer ----
   const { proposeScriptwriterTopics, isConceptCoveredByScripts } = proposerModule;
   const materials = [
-    { material_id: 1, topic: "тема из снапшота старого анализа", core_concept: "быстрый утренний уход без лишних шагов", hook_mechanism: "вопрос в первую секунду", visual_hook_action: null, format_mode: "voiceover_montage", product_position: "body", narrative_structure: materialStructure },
-    { material_id: 2, topic: null, core_concept: "ошибки в выборе крема для зимы", hook_mechanism: null, visual_hook_action: "резкий зум на флакон", format_mode: "continuous_story", product_position: "never", narrative_structure: BUILTIN_SCRIPTWRITER_FRAMES[2].structure.slice() },
-    { material_id: 3, topic: "старый анализ без content_meaning", core_concept: null, hook_mechanism: null, visual_hook_action: "продукт появляется внезапно", format_mode: null, product_position: null, narrative_structure: [] },
+    { material_id: 1, topic: "тема из снапшота старого анализа", core_concept: "быстрый утренний уход без лишних шагов", conclusion: null, hook_mechanism: "вопрос в первую секунду", visual_hook_action: null, format_mode: "voiceover_montage", product_position: "body", narrative_structure: materialStructure },
+    { material_id: 2, topic: null, core_concept: "ошибки в выборе крема для зимы", conclusion: "Лангкави тут ни при чём, это другой сценарий", hook_mechanism: null, visual_hook_action: "резкий зум на флакон", format_mode: "continuous_story", product_position: "never", narrative_structure: BUILTIN_SCRIPTWRITER_FRAMES[2].structure.slice() },
+    { material_id: 3, topic: "старый анализ без content_meaning", core_concept: null, conclusion: "Итог разбора: крем для зимы выбирают по составу", hook_mechanism: null, visual_hook_action: "продукт появляется внезапно", format_mode: null, product_position: null, narrative_structure: [] },
   ];
   const proposals = proposeScriptwriterTopics(materials, [], 5);
   assert.equal(proposals.length, 3, "snapshot-topic fallback keeps old analyses usable");
   assert.equal(proposals[0].source_material_id, 1, "product-bearing material ranks first");
   assert.ok(proposals[0].rationale.includes("ещё не раскрыта"), "uncovered rationale");
   const legacy = proposals.find((p) => p.source_material_id === 3);
-  assert.equal(legacy.topic, "старый анализ без content_meaning", "topic falls back to snapshot");
+  assert.equal(legacy.topic, "Итог разбора: крем для зимы выбирают по составу", "conclusion anchors the topic when concept is missing");
   assert.ok(legacy.rationale.includes("продукт появляется внезапно"), "hook falls back to visual action");
   const covered = proposeScriptwriterTopics(materials, [{ script: "утренний уход теперь быстрый и без лишних шагов вообще", title: null, hook: null }], 5);
   assert.equal(covered[0].source_material_id, 2, "covered concept sinks below uncovered");
@@ -123,6 +123,7 @@ try {
   assert.ok(prompt.includes("keyword_in_comments"), "cta mode in prompt");
   assert.ok(prompt.includes("Лангкави в Малайзии — бюджетная альтернатива"), "material content facts in prompt");
   assert.ok(prompt.includes("обязано быть закрыто"), "hook-payoff rule in prompt");
+  assert.ok(prompt.includes("дословно"), "verbatim facts rule in prompt");
   assert.ok(!prompt.includes("position"), "no product-position leakage from references");
 
   const validDraftJson = JSON.stringify({

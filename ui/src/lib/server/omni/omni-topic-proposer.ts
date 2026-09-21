@@ -12,6 +12,7 @@ export type TopicProposalMaterial = {
   material_id: number;
   topic: string | null;
   core_concept: string | null;
+  conclusion: string | null;
   hook_mechanism: string | null;
   visual_hook_action: string | null;
   format_mode: string | null;
@@ -117,9 +118,13 @@ export function proposeScriptwriterTopics(
     const formatKey = candidate.material.format_mode || "";
     formatRotation.set(formatKey, (formatRotation.get(formatKey) || 0) + 1);
     const material = candidate.material;
+    // Prefer the conclusion as the topic: it carries the concrete subject
+    // ("Langkawi, Malaysia is the ultimate budget escape") while core concepts
+    // stay generic, which previously let the model invent a different place.
+    const topicText = (material.conclusion || candidate.concept).trim().slice(0, 160);
     proposals.push({
       id: `topic-${material.material_id}`,
-      topic: candidate.concept,
+      topic: topicText,
       rationale: [
         material.hook_mechanism || material.visual_hook_action
           ? `хук: ${material.hook_mechanism || material.visual_hook_action}`
