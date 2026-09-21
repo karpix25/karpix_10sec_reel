@@ -369,7 +369,9 @@ export async function runOmniScriptwriter(input: {
     throw new Error("Product not found in project");
   }
 
-  const library = await listProductReferenceMaterials(input.productId, 50);
+  // Load the full library: the default 50-item window silently dropped
+  // explicitly requested materials that sit deeper in the list.
+  const library = await listProductReferenceMaterials(input.productId, 500);
   const selectedMaterials = (
     input.materialIds?.length
       ? library.filter((item) => input.materialIds!.includes(item.material_id))

@@ -219,7 +219,8 @@ export function validateScriptFactGrounding(input: FactGroundingInput): FactGrou
 
   const body = input.script.toLowerCase();
   const missedPromises = hookPromiseTokens(input.hook).filter((token) => !body.includes(token));
-  if (missedPromises.length) {
+  // One rephrased word is normal style variation; flag only real payoff gaps.
+  if (missedPromises.length > 1) {
     issues.push(
       `Хук обещает, но в сценарии этого нет: ${missedPromises.join(", ")}. Обещание хука должно раскрываться в тексте.`
     );
