@@ -113,6 +113,22 @@ export function extractMaterialForm(material: OmniProductReferenceLibraryItem): 
   };
 }
 
+function ctaRequirementLine(product: ScriptwriterProductCard) {
+  switch (product.cta_mode) {
+    case "no_explicit_cta":
+      return "- Финального призыва к действию не добавляй.";
+    case "link_in_profile":
+      // An audience question in the finale reads as a comment CTA and fails the contract.
+      return "- НЕ задавай аудитории финальный вопрос и НЕ проси писать в комментарии. Заверши фразой про ссылку в профиле, например: «Все подробности по ссылке в профиле».";
+    case "keyword_in_comments":
+      return `- Заверши призывом написать кодовое слово${product.cta_value ? ` «${product.cta_value}»` : ""} в комментариях.`;
+    case "article_in_description":
+      return "- Заверши нативным упоминанием артикула продукта в описании.";
+    default:
+      return `- Заверши призывом к действию (${product.cta_mode}).`;
+  }
+}
+
 export function buildScriptwriterPrompt(input: {
   topic: string;
   frame: ScriptwriterFrame;
@@ -172,9 +188,7 @@ export function buildScriptwriterPrompt(input: {
     `- Общая длительность озвучки: ${input.product.target_duration_seconds} секунд, примерно ${input.wordBudget} слов (допуск 25%).`,
     "- Пиши числа словами (не цифрами). Запрещены длинные тире, эмодзи и любые символы, кроме обычного текста и короткого дефиса.",
     "- Живой разговорный русский, без канцелярита и штампов. Хук — первая фраза, которая останавливает палец.",
-    input.product.cta_mode === "no_explicit_cta"
-      ? "- Финального призыва к действию не добавляй."
-      : `- Заверши призывом к действию (${input.product.cta_mode}${input.product.cta_value ? `: ${input.product.cta_value}` : ""}), встроенным в текст естественно.`,
+    ctaRequirementLine(input.product),
     "",
     "Верни только валидный JSON без markdown:",
     '{"hook": "первая фраза-хук", "script": "полный текст озвучки одним куском", "cta_keyword": "ключевое слово призыва или null"}'
