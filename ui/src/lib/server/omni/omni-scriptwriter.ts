@@ -22,7 +22,9 @@ import type { CtaMode } from "../../omni/creative-contract";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const SCRIPTWRITER_REQUEST_TIMEOUT_MS = 120_000;
-const SCRIPTWRITER_ATTEMPTS = 2;
+// The fact gate makes drafts strictly verified; give the model one extra
+// repair pass so grounding rejections convert into compliant scripts.
+const SCRIPTWRITER_ATTEMPTS = 3;
 const WORDS_PER_SECOND_BUDGET = 2.2;
 const WORD_BUDGET_TOLERANCE = 0.25;
 
