@@ -221,7 +221,7 @@ try {
     "Meals cost 1-2 dollars",
     "Accommodation on the first line for 100 dollars a week",
   ];
-  const factCard = { productCardText: "Плати по миру виртуальная карта" };
+  const factCard = { productCardText: "Плати по миру виртуальная карта для российских карт за рубежом" };
 
   const sriLankaScript = validateScriptFactGrounding({
     script: "Знакомьтесь, Шри Ланка, где аренда бунгало стоит десять тысяч рублей в сутки, а ужин обходится в триста рублей. Спасает карта Плати по миру.",
@@ -248,6 +248,16 @@ try {
     ...factCard,
   });
   assert.deepEqual(langkawiScript, [], `grounded Langkawi script passes: ${JSON.stringify(langkawiScript)}`);
+
+  const composedAmounts = validateScriptFactGrounding({
+    script: "Жизнь на двоих стоит шестьдесят шесть тысяч рублей в месяц. Карта Плати по миру выручает в России и за рубежом.",
+    hook: "Сколько стоит жизнь на двоих за границей в месяц?",
+    facts: [...langkawiFacts, "total monthly living cost for two is 66,000 rubles"],
+    ...factCard,
+  });
+  assert.ok(!composedAmounts.some((issue) => issue.includes("суммы")), `composed "66 тысяч" matches fact 66000: ${JSON.stringify(composedAmounts)}`);
+  assert.ok(!composedAmounts.some((issue) => issue.includes("места")), `card-context "России" not flagged: ${JSON.stringify(composedAmounts)}`);
+  assert.ok(sriLankaScript.some((issue) => issue.includes("суммы")), "invented 'триста' still caught after composer");
 
   console.log("Omni scriptwriter and director role checks passed");
 } finally {
