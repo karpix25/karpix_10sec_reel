@@ -132,10 +132,12 @@ async function resolveSourceOrThrow(input: {
 }
 
 function isDirectorReferenceReady(directorAnalysis: OmniDirectorAnalysis | null) {
-  return !directorAnalysis ||
-    (directorAnalysis.director_analysis_status === "completed" &&
-      hasDurableDirectorReference(directorAnalysis) &&
-      Boolean(normalizeDirectorBrief(directorAnalysis.director_analysis_json)));
+  return Boolean(
+    directorAnalysis &&
+    directorAnalysis.director_analysis_status === "completed" &&
+    hasDurableDirectorReference(directorAnalysis) &&
+    normalizeDirectorBrief(directorAnalysis.director_analysis_json)
+  );
 }
 
 function hasDurableDirectorReference(directorAnalysis: OmniDirectorAnalysis) {
@@ -145,7 +147,7 @@ function hasDurableDirectorReference(directorAnalysis: OmniDirectorAnalysis) {
 }
 
 function getDirectorFailureReason(directorAnalysis: OmniDirectorAnalysis | null) {
-  if (!directorAnalysis) return "not_requested";
+  if (!directorAnalysis) return "у референса нет Instagram video URL или визуальный анализ не был запущен";
   if (directorAnalysis.director_analysis_status === "completed" && !normalizeDirectorBrief(directorAnalysis.director_analysis_json)) {
     return "director analysis is invalid";
   }

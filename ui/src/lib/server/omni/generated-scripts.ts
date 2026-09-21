@@ -140,15 +140,21 @@ export async function createGeneratedScriptFromLegacy(input: {
     requireCompleteTimeline: false,
     warn: (message) => console.warn(message),
   });
+  if (!sourceScenario.reels_url?.trim() || !directorAnalysis) {
+    throw new Error("Сценарий можно создать только из legacy-reference с Instagram URL и готовым визуальным анализом.");
+  }
   const durationRange = await resolveOmniDurationRange({
     project,
     product,
     legacyClientId: sourceScenario.client_id,
   });
   const directorBrief = adaptDirectorBriefForAvatarReel(
-    directorAnalysis?.director_analysis_status === "completed"
+    directorAnalysis.director_analysis_status === "completed"
       ? normalizeDirectorBrief(directorAnalysis.director_analysis_json)
       : null);
+  if (!directorBrief) {
+    throw new Error("Сценарий можно создать только после успешного визуального анализа legacy-reference.");
+  }
   const avatarSpeechGender = resolveNarratorSpeechGender(
     avatar?.speech_gender,
     isAvatarFreeReferenceScene(resolveReferenceSceneMode(directorBrief))

@@ -98,6 +98,21 @@ try {
   assert.match(warnings[0], /source #2930/);
   assert.match(warnings[0], /empty content/);
 
+  const missingVideoUrl = { ...legacyScenario(2940), reels_url: null };
+  const resolvedAfterMissingVideoUrl = await resolveReadyGeneratedScriptReference({
+    projectId: 7,
+    productId: 9,
+    maxAttempts: 2,
+    resolveSource: async (input) => ({
+      sourceScenario: input.excludedLegacyScenarioIds?.length ? fallback : missingVideoUrl,
+      sourceMode: "round_robin_active_legacy_reference",
+    }),
+    shouldAnalyze: (sourceScenario) => Boolean(sourceScenario.reels_url),
+    ensureAnalysis: async ({ sourceScenario }) => directorAnalysis(sourceScenario.id, "completed", null),
+  });
+  assert.equal(resolvedAfterMissingVideoUrl.sourceScenario.id, fallback.id,
+    "a transcript without an Instagram video must be skipped before script creation");
+
   for (const message of [
     "ScrapeCreators Instagram post failed: 402 Looks like you're out of credits",
     'Director analysis model request failed: 403 {"error":{"code":403,"status":"PERMISSION_DENIED"}}',
@@ -229,7 +244,7 @@ try {
     resolveSource: async () => ({ sourceScenario: selected, sourceMode: "selected_legacy_reference" }),
     shouldAnalyze: () => false,
     ensureAnalysis: async () => { throw new Error("must not run"); },
-  }), /неполный визуальный таймлайн/u, "strict preparation must not silently accept absent analysis");
+  }), /визуальный анализ не был запущен/u, "strict preparation must not silently accept absent analysis");
 
   const incompleteTimeline = directorAnalysis(selected.id, "completed", null, { completeTimeline: true });
   incompleteTimeline.director_analysis_json.camera_timeline[0].start_sec = 2;
