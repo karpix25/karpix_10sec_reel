@@ -135,13 +135,30 @@ export function validateScriptFactGrounding(input: FactGroundingInput): FactGrou
   const allowedSources = [...input.facts, input.productCardText];
 
   const allowedPlaces = collectAllowedPlaces(allowedSources);
-  const inventedPlaces = [...extractScriptPlaces(input.script)].filter(
+  const factPlaces = collectAllowedPlaces(input.facts);
+  const scriptPlaces = extractScriptPlaces(input.script);
+  const inventedPlaces = [...scriptPlaces].filter(
     (place) => ![...allowedPlaces].some((allowed) => placeMatches(place, allowed))
   );
   if (inventedPlaces.length) {
     issues.push(
       `Сценарий называет места, которых нет в фактах референса и карточке продукта: ${inventedPlaces.join(", ")}. Используй только места из блока фактов.`
     );
+  }
+
+  // Positive requirement: when the facts name a concrete subject (place), the
+  // script must use it — otherwise the model dodges into vague wording.
+  if (factPlaces.size > 0) {
+    const scriptTokens = input.script.toLowerCase().split(/[^\p{L}\p{N}-]+/u).filter(Boolean);
+    const mentionsFactPlace = [...factPlaces].some((allowed) =>
+      scriptTokens.some((token) => placeMatches(token, allowed)) ||
+      [...scriptPlaces].some((place) => placeMatches(place, allowed))
+    );
+    if (!mentionsFactPlace) {
+      issues.push(
+        "Факты референса называют конкретное место — сценарий обязан его назвать. Не уходи в расплывчатые формулировки."
+      );
+    }
   }
 
   const allowedAmounts = collectAllowedAmounts(allowedSources);

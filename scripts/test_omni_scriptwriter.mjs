@@ -225,6 +225,14 @@ try {
   assert.ok(sriLankaScript.some((issue) => issue.includes("суммы")), "invented amounts (ten thousand rubles) are caught");
   assert.ok(sriLankaScript.some((issue) => issue.includes("обещает")), "hollow island promise is caught");
 
+  const vagueScript = validateScriptFactGrounding({
+    script: "Переплачивать за раскрученные курорты больше не нужно. Есть отличная бюджетная альтернатива с бирюзовым морем и пальмами. Спасает карта Плати по миру.",
+    hook: "Как улететь в тропический рай и не разориться?",
+    facts: langkawiFacts,
+    ...factCard,
+  });
+  assert.ok(vagueScript.some((issue) => issue.includes("обязан его назвать")), "vague dodge without naming the fact place is caught");
+
   const langkawiScript = validateScriptFactGrounding({
     script: "Лангкави в Малайзии это бюджетный тропический остров. Еда стоит один-два доллара, жилье на первой линии сто долларов за неделю. Плати по миру решает оплату картой.",
     hook: "Нашел бюджетный тропический остров Лангкави в Малайзии.",
