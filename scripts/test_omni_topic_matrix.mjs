@@ -106,7 +106,11 @@ try {
   const staleProposals = pickMatrixProposals({ cells, usage: staleOnly, limit: 3, now });
   assert.ok(staleProposals.some((cell) => cell.signature === cells[1].signature), "stale cell (2 months ago) returns when fresh pool is empty");
   const audiencesInRow = proposals.slice(0, 3).map((cell) => cell.audienceTitle);
-  assert.ok(new Set(audiencesInRow).size >= 2 || proposals.length < 3, "audiences rotate across proposals");
+  assert.ok(new Set(audiencesInRow).size >= 2, "audiences rotate across consecutive proposals");
+  const benefitsInRow = proposals.slice(0, 4).map((cell) => cell.benefitTitle);
+  assert.ok(new Set(benefitsInRow).size >= 2, "benefits rotate across consecutive proposals");
+  const framesInRow = proposals.slice(0, 6).map((cell) => cell.frameId);
+  assert.ok(new Set(framesInRow).size >= 3, "frames rotate across consecutive proposals");
 
   // everything cooled down -> fall back to oldest reuse instead of empty list
   const allFresh = new Map(cells.map((cell, index) => [cell.signature, { lastUsedAt: new Date(now.getTime() - 86_400_000 * (index + 1)), timesUsed: 1 }]));
