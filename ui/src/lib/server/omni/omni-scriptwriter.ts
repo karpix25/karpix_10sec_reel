@@ -21,7 +21,7 @@ import type { CtaMode } from "../../omni/creative-contract";
  */
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const SCRIPTWRITER_REQUEST_TIMEOUT_MS = 120_000;
+const SCRIPTWRITER_REQUEST_TIMEOUT_MS = 180_000;
 // The fact gate makes drafts strictly verified; give the model one extra
 // repair pass so grounding rejections convert into compliant scripts.
 const SCRIPTWRITER_ATTEMPTS = 3;
@@ -275,9 +275,10 @@ export async function composeScriptwriterDraft(input: {
     const userPrompt = lastError
       ? `${basePrompt}\n\nПовторная попытка. Исправь эти проблемы предыдущего драфта:\n${lastError}`
       : basePrompt;
-    const content = await input.request({ attempt, userPrompt, temperature: attempt === 1 ? 0.8 : 0.25 });
 
     try {
+    const content = await input.request({ attempt, userPrompt, temperature: attempt === 1 ? 0.8 : 0.25 });
+
       const draft = parseScriptwriterDraft(content);
       const script = normalizeDraftText(draft.script);
       const hook = normalizeDraftText(draft.hook);
