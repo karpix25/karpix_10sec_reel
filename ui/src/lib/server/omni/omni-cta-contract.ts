@@ -50,9 +50,11 @@ export function assertOmniCtaContract(script: string, strategy: Pick<OmniCreativ
 function analyzeCta(script: string): CtaSignals {
   const normalized = normalize(script);
   return {
-    asksForComment: /напиш|коммент|кодово.*слов/iu.test(normalized),
+    // "напишу итог" is narration, not a CTA: writing verbs must sit near
+    // comment/keyword context to count as asking the audience.
+    asksForComment: /(?:напиши\w*|пиши\w*)[^.!?]{0,60}(?:коммент|слов)|коммент|кодово\w*\s+слов/iu.test(normalized),
     mentionsProfileLink: /ссылк.*(?:профил|био)/iu.test(normalized),
-    mentionsArticle: /артикул|арт\.?\s|описани/iu.test(normalized),
+    mentionsArticle: /артикул|арт\.?\s|(?:в|см\.)\s?описани/iu.test(normalized),
   };
 }
 

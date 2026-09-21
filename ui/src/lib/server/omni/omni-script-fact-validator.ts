@@ -9,15 +9,6 @@
 
 const MIN_PLACE_LENGTH = 4;
 
-// Number words that carry money-magnitude meaning; small counts ("три причины")
-// are structural and allowed freely.
-const RUSSIAN_NUMBER_WORDS: Record<string, number> = {
-  сто: 100, двести: 200, триста: 300, четыреста: 400, пятьсот: 500,
-  шестьсот: 600, семьсот: 700, восемьсот: 800, девятьсот: 900,
-  тысяча: 1000, тысячи: 1000, тысяч: 1000, миллиона: 1_000_000,
-  миллион: 1_000_000, миллионов: 1_000_000,
-};
-
 const LATIN_TO_CYRILLIC: Record<string, string> = {
   a: "а", b: "б", v: "в", g: "г", d: "д", e: "е", z: "з", i: "и", k: "к",
   l: "л", m: "м", n: "н", o: "о", p: "п", r: "р", s: "с", t: "т", u: "у",
