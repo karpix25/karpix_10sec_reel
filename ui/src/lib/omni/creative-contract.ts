@@ -140,6 +140,22 @@ export interface OmniScriptBeatCue {
   voiceover: string;
 }
 
+/**
+ * One scene of the script director plan (раскадровка) mapped onto a reel
+ * segment. Times are absolute reel seconds; speech_excerpt is kept for
+ * provenance only and is never rendered into provider prompts.
+ */
+export interface OmniSegmentDirectorScene {
+  scene_index: number;
+  start_sec: number;
+  end_sec: number;
+  purpose: string;
+  visual_description: string;
+  product_visible: boolean;
+  product_action: string | null;
+  speech_excerpt: string | null;
+}
+
 export interface OmniSegmentCreativePlan {
   segmentIndex: number;
   lifeFormatId: LifeFormatId;
@@ -151,6 +167,8 @@ export interface OmniSegmentCreativePlan {
   productVisibleByFrame?: readonly boolean[];
   continuityProps: readonly OmniContinuityProp[];
   scriptBeats?: readonly OmniScriptBeatCue[];
+  /** Director plan scenes whose midpoints fall inside this segment; absent on legacy scripts. */
+  director_scenes?: readonly OmniSegmentDirectorScene[];
   beats: readonly [OmniCreativeBeat, OmniCreativeBeat, OmniCreativeBeat];
 }
 

@@ -46,6 +46,10 @@ const SCHEMA_STATEMENTS = [
   "CREATE INDEX IF NOT EXISTS idx_omni_reference_materials_project ON omni_reference_materials(project_id)",
   "CREATE INDEX IF NOT EXISTS idx_omni_reference_materials_format ON omni_reference_materials(format_mode)",
   "CREATE INDEX IF NOT EXISTS idx_omni_product_reference_library_product ON omni_product_reference_library(product_id, created_at DESC)",
+  // Views come from the provider payload snapshot; they power the "proven"
+  // layer of the topic engine (reference topics ranked by real reach).
+  "ALTER TABLE omni_reference_materials ADD COLUMN IF NOT EXISTS views INTEGER",
+  "ALTER TABLE omni_reference_materials ADD COLUMN IF NOT EXISTS views_source TEXT",
 ];
 
 let materialsSchemaReady: Promise<void> | null = null;
@@ -79,6 +83,7 @@ export type OmniReferenceMaterialDigest = {
   source_reels_url: string | null;
   source_title: string | null;
   material_json: Record<string, unknown>;
+  views: number | null;
 };
 
 type AnalysisLike = {
@@ -90,6 +95,7 @@ type AnalysisLike = {
     duration_seconds?: unknown;
   } | null;
   original_reels_url?: string | null;
+  scrapecreators_payload?: unknown;
 };
 
 function stringOrNull(value: unknown): string | null {
@@ -99,6 +105,40 @@ function stringOrNull(value: unknown): string | null {
 function durationOrNull(value: unknown): number | null {
   const duration = Number(value);
   return Number.isFinite(duration) && duration > 0 ? Math.round(duration) : null;
+}
+
+const VIEW_COUNT_KEYS = ["video_play_count", "video_view_count", "play_count", "view_count"] as const;
+
+function viewsFromNode(node: unknown): number | null {
+  if (!node || typeof node !== "object" || Array.isArray(node)) return null;
+  let best: number | null = null;
+  for (const key of VIEW_COUNT_KEYS) {
+    const raw = (node as Record<string, unknown>)[key];
+    if (raw === null || raw === undefined || typeof raw === "boolean") continue;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0) continue;
+    const views = Math.round(value);
+    if (best === null || views > best) best = views;
+  }
+  return best;
+}
+
+/**
+ * Parse the reference view count out of a stored ScrapeCreators-style payload.
+ * Looks at the root object and one level into {data:{xdt_shortcode_media:{...}}}
+ * because the payload is stored either as the raw provider response or as the
+ * flattened metadata node. Returns the max found value, null when absent.
+ */
+export function extractViewsFromPayload(payload: unknown): number | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const root = payload as Record<string, unknown>;
+  const data = root.data && typeof root.data === "object" && !Array.isArray(root.data) ? root.data : null;
+  const media = data
+    ? (data as Record<string, unknown>).xdt_shortcode_media
+    : null;
+  const candidates = [viewsFromNode(root), viewsFromNode(data), viewsFromNode(media)];
+  const found = candidates.filter((value): value is number => value !== null);
+  return found.length ? Math.max(...found) : null;
 }
 
 /** Pure projection of a completed director analysis into a material digest. */
@@ -146,6 +186,7 @@ export function deriveReferenceMaterialDigest(analysis: AnalysisLike): OmniRefer
     source_reels_url: stringOrNull(snapshot.reels_url) || stringOrNull(analysis.original_reels_url),
     source_title: stringOrNull(snapshot.title),
     material_json: materialJson,
+    views: extractViewsFromPayload(analysis.scrapecreators_payload ?? null),
   };
 }
 
@@ -161,9 +202,10 @@ export async function upsertReferenceMaterialForAnalysis(analysis: OmniDirectorA
        format_mode, render_mode, motion_mode, product_position,
        topic, core_concept, hook_mechanism, visual_hook_action, retention_trigger,
        narrative_structure, duration_seconds, source_reels_url, source_title, material_json,
+       views, views_source,
        updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17::jsonb, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17::jsonb, $18, $19, CURRENT_TIMESTAMP)
      ON CONFLICT (analysis_id) DO UPDATE SET
        project_id = EXCLUDED.project_id,
        product_id = EXCLUDED.product_id,
@@ -181,6 +223,8 @@ export async function upsertReferenceMaterialForAnalysis(analysis: OmniDirectorA
        source_reels_url = EXCLUDED.source_reels_url,
        source_title = EXCLUDED.source_title,
        material_json = EXCLUDED.material_json,
+       views = EXCLUDED.views,
+       views_source = EXCLUDED.views_source,
        updated_at = CURRENT_TIMESTAMP
      RETURNING id`,
     [
@@ -201,6 +245,8 @@ export async function upsertReferenceMaterialForAnalysis(analysis: OmniDirectorA
       digest.source_reels_url,
       digest.source_title,
       JSON.stringify(digest.material_json),
+      digest.views,
+      digest.views === null ? null : "scrapecreators",
     ]
   );
   const materialId = rows[0]?.id;
@@ -215,13 +261,15 @@ export async function upsertReferenceMaterialForAnalysis(analysis: OmniDirectorA
 
 export async function backfillReferenceMaterials(limit = 200) {
   await ensureReferenceMaterialsSchema();
+  // Re-derive not only missing materials but also existing ones that predate
+  // the views column (the upsert is idempotent via ON CONFLICT).
   const { rows } = await pool.query<{ id: number }>(
     `SELECT a.id
      FROM omni_legacy_video_analyses a
      LEFT JOIN omni_reference_materials m ON m.analysis_id = a.id
      WHERE a.director_analysis_status = 'completed'
        AND a.director_analysis_json IS NOT NULL
-       AND m.id IS NULL
+       AND (m.id IS NULL OR m.views IS NULL)
      ORDER BY a.completed_at DESC NULLS LAST
      LIMIT $1`,
     [limit]
@@ -240,6 +288,35 @@ export async function backfillReferenceMaterials(limit = 200) {
     if (await countMaterials() > before) created += 1;
   }
   return { processed: rows.length, created, total: await countMaterials() };
+}
+
+/**
+ * Bulk-refresh the views column for existing materials straight from their
+ * source analyses' provider payloads. One pass, no pagination: the analyses
+ * table stays in the hundreds of rows.
+ */
+export async function refreshReferenceMaterialViews() {
+  await ensureReferenceMaterialsSchema();
+  const { rows } = await pool.query<{ id: number; scrapecreators_payload: unknown }>(
+    `SELECT a.id, a.scrapecreators_payload
+     FROM omni_legacy_video_analyses a
+     JOIN omni_reference_materials m ON m.analysis_id = a.id
+     WHERE a.director_analysis_status = 'completed'`
+  );
+
+  let updated = 0;
+  for (const row of rows) {
+    const views = extractViewsFromPayload(row.scrapecreators_payload);
+    if (views === null) continue;
+    await pool.query(
+      `UPDATE omni_reference_materials
+       SET views = $2, views_source = 'scrapecreators', updated_at = CURRENT_TIMESTAMP
+       WHERE analysis_id = $1`,
+      [row.id, views]
+    );
+    updated += 1;
+  }
+  return { scanned: rows.length, updated };
 }
 
 async function countMaterials() {
@@ -268,6 +345,7 @@ export type OmniProductReferenceLibraryItem = {
   source_reels_url: string | null;
   source_title: string | null;
   material_json: Record<string, unknown> | null;
+  views: number | null;
 };
 
 export async function listProductReferenceMaterials(productId: number, limit = 50): Promise<OmniProductReferenceLibraryItem[]> {
@@ -276,7 +354,7 @@ export async function listProductReferenceMaterials(productId: number, limit = 5
     `SELECT l.id AS library_entry_id, l.note, l.added_by,
             m.id AS material_id, m.format_mode, m.product_position, m.topic, m.core_concept,
             m.hook_mechanism, m.visual_hook_action, m.retention_trigger, m.narrative_structure,
-            m.duration_seconds, m.source_reels_url, m.source_title, m.material_json
+            m.duration_seconds, m.source_reels_url, m.source_title, m.material_json, m.views
      FROM omni_product_reference_library l
      JOIN omni_reference_materials m ON m.id = l.material_id
      WHERE l.product_id = $1
@@ -300,6 +378,7 @@ export async function listProductReferenceMaterials(productId: number, limit = 5
     duration_seconds: row.duration_seconds === null || row.duration_seconds === undefined ? null : Number(row.duration_seconds),
     source_reels_url: stringOrNull(row.source_reels_url),
     source_title: stringOrNull(row.source_title),
+    views: row.views === null || row.views === undefined ? null : Number(row.views),
     material_json: (row.material_json && typeof row.material_json === "object")
       ? row.material_json as Record<string, unknown>
       : null,

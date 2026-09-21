@@ -66,7 +66,7 @@ function materialProductPriority(productPosition: string | null) {
   return 3; // never / unknown: pure form reference
 }
 
-function suggestFrameId(material: TopicProposalMaterial, frames: ScriptwriterFrame[]) {
+export function suggestFrameId(material: TopicProposalMaterial, frames: ScriptwriterFrame[]) {
   const referenceFrame = frames.find(
     (frame) => frame.source === "reference" && frame.structure.join(">") === material.narrative_structure.join(">")
   );
