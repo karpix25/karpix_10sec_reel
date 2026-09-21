@@ -44,6 +44,7 @@ type ScriptwriterMaterialForm = {
   retention_trigger: string | null;
   narrative_structure: string[];
   reusable_visual_mechanics: string[];
+  content_facts: string[];
 };
 
 export type ScriptwriterRequest = (input: {
@@ -80,8 +81,15 @@ function targetDuration_seconds_safe(value: number) {
 
 export function extractMaterialForm(material: OmniProductReferenceLibraryItem): ScriptwriterMaterialForm {
   const materialJson = material.material_json as
-    | { reusable_mechanics?: { visual_mechanics?: unknown } }
+    | {
+        reusable_mechanics?: { visual_mechanics?: unknown };
+        key_arguments?: unknown;
+        proof_or_examples?: unknown;
+        conclusion?: unknown;
+      }
     | null;
+  const stringList = (value: unknown) =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
   return {
     material_id: material.material_id,
     format_mode: material.format_mode,
@@ -89,9 +97,16 @@ export function extractMaterialForm(material: OmniProductReferenceLibraryItem): 
     visual_hook_action: material.visual_hook_action,
     retention_trigger: material.retention_trigger,
     narrative_structure: material.narrative_structure,
-    reusable_visual_mechanics: Array.isArray(materialJson?.reusable_mechanics?.visual_mechanics)
-      ? materialJson!.reusable_mechanics!.visual_mechanics.filter((item): item is string => typeof item === "string")
-      : [],
+    reusable_visual_mechanics: stringList(materialJson?.reusable_mechanics?.visual_mechanics),
+    // Content substance (destination, prices, details) — the script needs it for
+    // concreteness; product facts still come only from the product card.
+    content_facts: [
+      ...stringList(materialJson?.key_arguments),
+      ...stringList(materialJson?.proof_or_examples),
+      ...(typeof materialJson?.conclusion === "string" && materialJson.conclusion.trim()
+        ? [materialJson.conclusion.trim()]
+        : []),
+    ].slice(0, 8),
   };
 }
 
@@ -135,11 +150,21 @@ export function buildScriptwriterPrompt(input: {
         ""
       );
     });
+
+    const facts = input.materials.flatMap((material) => material.content_facts).filter(Boolean).slice(0, 10);
+    if (facts.length) {
+      lines.push(
+        "ФАКТЫ ИЗ РЕФЕРЕНСА (конкретика для сценария: места, суммы, детали):",
+        ...facts.map((fact) => `- ${fact}`),
+        ""
+      );
+    }
   }
 
   lines.push(
     "ТРЕБОВАНИЯ К СЦЕНАРИЮ:",
     "- Продукт вписывается нативно и органично: он часть истории, а не рекламная вставка. Опирайся только на карточку продукта.",
+    "- Обещание хука обязано быть закрыто в тексте: назвал «остров за копейки» — назови остров и суммы. Конкретику бери из блока фактов; выдумывать факты нельзя.",
     `- Общая длительность озвучки: ${input.product.target_duration_seconds} секунд, примерно ${input.wordBudget} слов (допуск 25%).`,
     "- Пиши числа словами (не цифрами). Запрещены длинные тире, эмодзи и любые символы, кроме обычного текста и короткого дефиса.",
     "- Живой разговорный русский, без канцелярита и штампов. Хук — первая фраза, которая останавливает палец.",

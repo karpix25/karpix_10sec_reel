@@ -113,7 +113,7 @@ try {
     topic: "быстрый утренний уход",
     frame: frames[0],
     product: card,
-    materials: [{ material_id: 1, format_mode: "voiceover_montage", hook_mechanism: "вопрос в первую секунду", visual_hook_action: "крупный план рук", retention_trigger: "интрига", narrative_structure: materialStructure, reusable_visual_mechanics: ["продукт в руке"] }],
+    materials: [{ material_id: 1, format_mode: "voiceover_montage", hook_mechanism: "вопрос в первую секунду", visual_hook_action: "крупный план рук", retention_trigger: "интрига", narrative_structure: materialStructure, reusable_visual_mechanics: ["продукт в руке"], content_facts: ["Лангкави в Малайзии — бюджетная альтернатива", "еда стоит один-два доллара"] }],
     wordBudget: 44,
   });
   assert.ok(prompt.includes("Крем «Аура»"), "product card in prompt");
@@ -121,6 +121,8 @@ try {
   assert.ok(prompt.includes("вопрос в первую секунду"), "material hook in prompt");
   assert.ok(prompt.includes("ПРИМЕРЫ ФОРМЫ ИЗ РЕФЕРЕНСОВ"), "form-only framing section");
   assert.ok(prompt.includes("keyword_in_comments"), "cta mode in prompt");
+  assert.ok(prompt.includes("Лангкави в Малайзии — бюджетная альтернатива"), "material content facts in prompt");
+  assert.ok(prompt.includes("обязано быть закрыто"), "hook-payoff rule in prompt");
   assert.ok(!prompt.includes("position"), "no product-position leakage from references");
 
   const validDraftJson = JSON.stringify({
@@ -187,7 +189,7 @@ try {
     script: "текст сценария для проверки промпта режиссёра",
     productSummary: "Крем «Аура» — лёгкий дневной крем",
     targetDurationSeconds: 20,
-    materials: [{ material_id: 1, format_mode: null, hook_mechanism: null, visual_hook_action: "крупный план рук", retention_trigger: null, narrative_structure: [], reusable_visual_mechanics: ["продукт в руке"] }],
+    materials: [{ material_id: 1, format_mode: null, hook_mechanism: null, visual_hook_action: "крупный план рук", retention_trigger: null, narrative_structure: [], reusable_visual_mechanics: ["продукт в руке"], content_facts: [] }],
   });
   assert.ok(directorPrompt.includes("раскадровка"), "director role framing");
   assert.ok(directorPrompt.includes("продукт в руке"), "visual mechanics from materials");
