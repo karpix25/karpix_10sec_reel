@@ -35,6 +35,7 @@ try {
         join(ui, "src/lib/server/omni/omni-topic-proposer.ts"),
         join(ui, "src/lib/server/omni/omni-scriptwriter.ts"),
         join(ui, "src/lib/server/omni/omni-script-director.ts"),
+        join(ui, "src/lib/server/omni/omni-script-fact-validator.ts"),
       ],
     })
   );
@@ -204,6 +205,33 @@ try {
     request: async () => validPlan,
   });
   assert.equal(composedPlan.scenes.length, 3);
+
+  // ---- fact grounding validator ----
+  const { validateScriptFactGrounding } = require(findFile(dist, "omni-script-fact-validator.js"));
+  const langkawiFacts = [
+    "Langkawi, Malaysia is the ultimate budget tropical escape",
+    "Meals cost 1-2 dollars",
+    "Accommodation on the first line for 100 dollars a week",
+  ];
+  const factCard = { productCardText: "Плати по миру виртуальная карта" };
+
+  const sriLankaScript = validateScriptFactGrounding({
+    script: "Знакомьтесь, Шри Ланка, где аренда бунгало стоит десять тысяч рублей в сутки, а ужин обходится в триста рублей. Спасает карта Плати по миру.",
+    hook: "Все летят на дорогие курорты, а я нашел тропический остров дешевле Турции.",
+    facts: langkawiFacts,
+    ...factCard,
+  });
+  assert.ok(sriLankaScript.some((issue) => issue.includes("места")), "invented place (Sri Lanka) is caught");
+  assert.ok(sriLankaScript.some((issue) => issue.includes("суммы")), "invented amounts (ten thousand rubles) are caught");
+  assert.ok(sriLankaScript.some((issue) => issue.includes("обещает")), "hollow island promise is caught");
+
+  const langkawiScript = validateScriptFactGrounding({
+    script: "Лангкави в Малайзии это бюджетный тропический остров. Еда стоит один-два доллара, жилье на первой линии сто долларов за неделю. Плати по миру решает оплату картой.",
+    hook: "Нашел бюджетный тропический остров Лангкави в Малайзии.",
+    facts: langkawiFacts,
+    ...factCard,
+  });
+  assert.deepEqual(langkawiScript, [], `grounded Langkawi script passes: ${JSON.stringify(langkawiScript)}`);
 
   console.log("Omni scriptwriter and director role checks passed");
 } finally {

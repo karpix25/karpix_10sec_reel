@@ -9,6 +9,7 @@ import {
 } from "./omni-scriptwriter-frames";
 import { sanitizeOmniScriptText, assertOmniScriptTextContract } from "./omni-script-text-contract";
 import { ensureOmniScriptCta, assertOmniCtaContract } from "./omni-cta-contract";
+import { validateScriptFactGrounding } from "./omni-script-fact-validator";
 import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
 import type { CtaMode } from "../../omni/creative-contract";
 
@@ -198,7 +199,13 @@ function normalizeDraftText(value: string) {
   return sanitizeOmniScriptText(spellPromptChainNumbersInText(value));
 }
 
-function validateScriptwriterDraft(input: { script: string; wordBudget: number; product: ScriptwriterProductCard }) {
+function validateScriptwriterDraft(input: {
+  script: string;
+  hook: string;
+  wordBudget: number;
+  product: ScriptwriterProductCard;
+  facts: string[];
+}) {
   const issues: string[] = [];
   try {
     assertOmniScriptTextContract(input.script);
@@ -211,6 +218,20 @@ function validateScriptwriterDraft(input: { script: string; wordBudget: number; 
   if (deviation > WORD_BUDGET_TOLERANCE) {
     issues.push(`Word budget miss: ${wordCount} words vs target ${input.wordBudget} (±25%)`);
   }
+
+  issues.push(...validateScriptFactGrounding({
+    script: input.script,
+    hook: input.hook,
+    facts: input.facts,
+    productCardText: [
+      input.product.name,
+      input.product.description,
+      input.product.product_reference_notes,
+      input.product.visual_summary,
+      input.product.physical_contract,
+      input.product.cta_value,
+    ].filter(Boolean).join(" "),
+  }));
 
   const withCta = ensureOmniScriptCta(input.script, input.product.cta_mode, input.product.cta_value);
   try {
@@ -245,7 +266,13 @@ export async function composeScriptwriterDraft(input: {
       const script = normalizeDraftText(draft.script);
       const hook = normalizeDraftText(draft.hook);
       lastDraft = script;
-      const validation = validateScriptwriterDraft({ script, wordBudget, product: input.product });
+      const validation = validateScriptwriterDraft({
+        script,
+        hook,
+        wordBudget,
+        product: input.product,
+        facts: input.materials.flatMap((material) => material.content_facts),
+      });
       if (validation.issues.length) {
         lastError = validation.issues.join("\n");
         continue;
