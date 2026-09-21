@@ -154,8 +154,9 @@ export function buildScriptwriterPrompt(input: {
     const facts = input.materials.flatMap((material) => material.content_facts).filter(Boolean).slice(0, 10);
     if (facts.length) {
       lines.push(
-        "ФАКТЫ ИЗ РЕФЕРЕНСА (конкретика для сценария: места, суммы, детали):",
+        "ФАКТЫ ИЗ РЕФЕРЕНСА (единственный источник конкретики: места, суммы, детали):",
         ...facts.map((fact) => `- ${fact}`),
+        "- Место и суммы бери ТОЛЬКО отсюда и дословно. Подменять место или придумывать другие суммы запрещено.",
         ""
       );
     }
