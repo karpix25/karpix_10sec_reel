@@ -2,7 +2,9 @@ import { getS3Config, isS3Configured, putObjectToS3 } from "@/lib/server/s3-stor
 import { buildOmniStorageKey } from "./omni-storage-path";
 
 const DEFAULT_MAX_VIDEO_BYTES = 80 * 1024 * 1024;
-const DIRECTOR_VIDEO_DOWNLOAD_TIMEOUT_MS = 90_000;
+// Container egress to Instagram CDN can be ~10x slower than the host network;
+// keep enough headroom for large reels to finish within the abort window.
+const DIRECTOR_VIDEO_DOWNLOAD_TIMEOUT_MS = 240_000;
 
 export type StoredDirectorVideo = {
   url: string;

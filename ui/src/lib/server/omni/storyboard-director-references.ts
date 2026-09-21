@@ -20,7 +20,8 @@ import {
 const DEFAULT_MAX_REFERENCE_FRAMES = STORYBOARD_REFERENCE_FRAMES_PER_SEGMENT;
 const DEFAULT_MAX_VIDEO_MB = 120;
 const REFERENCE_VIDEO_DOWNLOAD_ATTEMPTS = 3;
-const REFERENCE_VIDEO_REQUEST_TIMEOUT_MS = 60_000;
+// Container egress to Instagram CDN can be ~10x slower than the host network.
+const REFERENCE_VIDEO_REQUEST_TIMEOUT_MS = 180_000;
 const SEEK_SECONDS = [0.4, 2.2, 4.5, 6.5, 8.5] as const;
 
 type StorageTarget =
