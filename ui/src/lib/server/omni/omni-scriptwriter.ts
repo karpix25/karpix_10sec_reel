@@ -327,12 +327,20 @@ async function defaultScriptwriterRequest(input: { attempt: number; userPrompt: 
   return content;
 }
 
+export type ScriptwriterMatrixCell = {
+  signature: string;
+  benefit: string;
+  audience: string;
+  frameId?: string;
+};
+
 export async function runOmniScriptwriter(input: {
   projectId: number;
   productId: number;
   topic: string;
   frameId?: string | null;
   materialIds?: number[];
+  matrixCell?: ScriptwriterMatrixCell | null;
   request?: ScriptwriterRequest;
 }) {
   await ensureOmniSchema();
@@ -392,6 +400,7 @@ export async function runOmniScriptwriter(input: {
         frame: { id: frame.id, title: frame.title, structure: frame.structure, source: frame.source },
         material_ids: selectedMaterials.map((material) => material.material_id),
         word_budget: composed.wordBudget,
+        ...(input.matrixCell ? { matrix_cell: input.matrixCell } : {}),
       }),
     ]
   );
