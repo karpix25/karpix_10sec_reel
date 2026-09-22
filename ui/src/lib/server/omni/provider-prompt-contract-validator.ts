@@ -7,7 +7,6 @@ import type {
 } from "./llm-prompt-chain-types";
 
 const DASH_PATTERN = /[-‐‑‒–—―−]/u;
-const DIGIT_PATTERN = /\p{N}/u;
 const EMOJI_PATTERN = /\p{Extended_Pictographic}/u;
 
 const NO_HANDS_PATTERN = /без\s+рук|руки\s+вне\s+кадра|рук\s+нет|no\s+hands|without\s+hands|hands\s+out\s+of\s+frame/iu;
@@ -171,7 +170,6 @@ function validateTextValues(value: unknown, path: string, issues: PromptValidati
 function validateForbiddenSymbols(text: string, path: string, issues: PromptValidationIssue[]) {
   if (EMOJI_PATTERN.test(text)) addIssue(issues, path, "emoji", "Text values must not contain emoji.");
   if (DASH_PATTERN.test(text)) addIssue(issues, path, "dash", "Text values must not contain dashes or minus signs.");
-  if (DIGIT_PATTERN.test(text)) addIssue(issues, path, "digit", "Text values must spell numbers as words.");
 }
 
 function validateDirectorProviderAlignment(
