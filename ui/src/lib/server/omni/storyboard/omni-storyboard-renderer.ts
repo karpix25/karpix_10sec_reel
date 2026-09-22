@@ -1,4 +1,5 @@
 import {
+  sanitizeOmniStoryboardAudio,
   validateOmniStoryboardSegment,
 } from "../../../omni/storyboard/omni-storyboard-contract";
 import type { OmniStoryboardSegment } from "../../../omni/storyboard/omni-storyboard-types";
@@ -27,12 +28,13 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   directorBrief?: DirectorBrief | null;
   referenceSceneMode?: ReferenceSceneMode;
 }) {
-  const validation = validateOmniStoryboardSegment(input.storyboard);
+  const storyboard = sanitizeOmniStoryboardAudio(input.storyboard);
+  const validation = validateOmniStoryboardSegment(storyboard);
   if (!validation.valid) {
     throw new Error(`Invalid Omni storyboard: ${validation.errors.join(", ")}`);
   }
-  const voiceoverText = input.storyboard.voiceoverText.trim();
-  const frameCount = input.storyboard.frames.length;
+  const voiceoverText = storyboard.voiceoverText.trim();
+  const frameCount = storyboard.frames.length;
   const referenceSceneMode = input.referenceSceneMode || resolveReferenceSceneMode(input.directorBrief);
   const referenceFormatMode = resolveReferenceFormatMode(input.directorBrief);
   const montageReference = isVoiceoverMontageReference(referenceFormatMode);
@@ -43,13 +45,13 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
   const animationReference = referenceSceneMode === "animation";
   const visibleSubjectPolicy = resolveDirectorVisibleSubjectPolicy(input.directorBrief);
   const noPeopleReference = visibleSubjectPolicy === "no_people";
-  const deliveryModes = new Set(input.storyboard.frames
+  const deliveryModes = new Set(storyboard.frames
     .map((frame) => frame.speechMode || frame.physicalPlan?.speechMode)
     .filter((mode): mode is "on_camera" | "voiceover_only" => mode === "on_camera" || mode === "voiceover_only"));
   const hybridDelivery = deliveryModes.has("on_camera") && deliveryModes.has("voiceover_only");
   const objectOnlyReferenceScene = isObjectOnlyReferenceScene(referenceSceneMode);
   const preservePipLayout = isCollagePictureInPictureReference(input.directorBrief || null) && !avatarFreeReferenceScene && !noPeopleReference;
-  const productFrameNumbers = input.storyboard.frames
+  const productFrameNumbers = storyboard.frames
     .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName || "") ? index + 1 : null)
     .filter((index): index is number => index !== null);
   const productAppearsInThisSegment = productFrameNumbers.length > 0;
@@ -118,7 +120,7 @@ export function renderCompactRussianOmniStoryboardPrompt(input: {
     productAppearsInThisSegment && input.productRole === "digital_demo"
       ? "DIGITAL PRODUCT: показывай только утвержденный экран продукта на смартфоне; не изображай пластиковую карту, упаковку или физический рекламный товар."
       : "",
-    renderOmniStoryboardTimeline(input.storyboard, input.productName || ""),
+    renderOmniStoryboardTimeline(storyboard, input.productName || ""),
     voiceoverBrollReference || animationReference
       ? "Точная реплика закадрового диктора на русском языке (произноси только текст в кавычках, ничего кроме него):"
       : hybridDelivery
