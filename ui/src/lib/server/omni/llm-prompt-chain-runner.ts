@@ -123,6 +123,7 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
     systemPrompt: `${DIRECTOR_ANALYSIS_SYSTEM_PROMPT}\nТы должен вернуть director_brief вместе со сценарием и раскадровкой в одном корневом JSON.`,
     videoUrl: input.referenceVideoUrl,
     responseFormatJson: true,
+    maxTokens: 30_000,
     temperature: 0.45,
     onUsage: (usage) => openRouterUsage.push(usage),
   });
@@ -490,6 +491,7 @@ async function requestOpenRouter(input: {
   systemPrompt?: string;
   videoUrl?: string;
   responseFormatJson: boolean;
+  maxTokens?: number;
   temperature?: number;
   onUsage: (usage: OpenRouterUsageRecord) => void;
 }) {
@@ -498,7 +500,7 @@ async function requestOpenRouter(input: {
   const body: Record<string, unknown> = {
     model: input.input.model,
     temperature: input.temperature ?? PROMPT_CHAIN_TEMPERATURE,
-    max_tokens: input.responseFormatJson ? 12_000 : 4_000,
+    max_tokens: input.maxTokens || (input.responseFormatJson ? 12_000 : 4_000),
     messages: [
       {
         role: "system",
@@ -530,6 +532,11 @@ async function requestOpenRouter(input: {
     throw new Error(`Prompt chain request failed: ${response.status} ${text.slice(0, 240)}`);
   }
   const data = (await response.json()) as Record<string, unknown>;
+  const choices = Array.isArray(data.choices) ? data.choices : [];
+  const firstChoice = choices[0] && typeof choices[0] === "object" ? choices[0] as Record<string, unknown> : null;
+  if (firstChoice?.finish_reason === "length") {
+    throw new Error("Unified Gemini JSON was truncated by the provider token limit");
+  }
   const pricing = await getOpenRouterPricingSnapshot(String(data.model || input.input.model));
   input.onUsage(normalizeOpenRouterUsage({
     layer: input.layer,

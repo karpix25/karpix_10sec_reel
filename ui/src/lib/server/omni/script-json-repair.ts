@@ -22,7 +22,7 @@ export class JsonOutputParseError extends Error {
 }
 
 export function parseAndRepairJson<T = GeneratedScriptPayload>(content: string): T {
-  let cleaned = content.trim();
+  let cleaned = content.replace(/^\uFEFF/u, "").trim();
 
   // 1. Strip markdown fences
   cleaned = cleaned
@@ -30,24 +30,27 @@ export function parseAndRepairJson<T = GeneratedScriptPayload>(content: string):
     .replace(/^```\s*/i, "")
     .replace(/\s*```$/i, "");
 
-  // 2. Locate first '{' and last '}' to strip surrounding prose
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start < 0 || end <= start) {
-    throw new JsonOutputParseError("No JSON object found in script model output", cleaned);
+  // 2. Extract the first balanced JSON object. This ignores prose or another
+  // object after the actual answer without confusing braces inside strings.
+  const extracted = extractFirstJsonObject(cleaned);
+  if (!extracted.json) {
+    throw new JsonOutputParseError(
+      extracted.truncated ? "Model output contains truncated JSON" : "No JSON object found in script model output",
+      cleaned,
+    );
   }
-
-  let jsonStr = cleaned.slice(start, end + 1);
+  let jsonStr = extracted.json;
 
   // 3. Normalize smart quotes only when they are used as JSON string delimiters.
   // Keep smart quotes that appear inside valid JSON string values as prose.
   jsonStr = normalizeSmartQuoteDelimiters(jsonStr);
 
-  // 4. Remove trailing commas in objects and arrays
-  jsonStr = jsonStr.replace(/,\s*([}\]])/g, "$1");
+  // 4. Remove JS-style comments and trailing commas outside strings.
+  jsonStr = stripJsonComments(jsonStr);
+  jsonStr = removeTrailingCommas(jsonStr);
 
-  // 5. Escape unescaped newlines inside double-quoted string values
-  jsonStr = escapeNewlinesInStrings(jsonStr);
+  // 5. Escape unescaped control characters inside string values.
+  jsonStr = escapeControlCharactersInStrings(jsonStr);
 
   try {
     return JSON.parse(jsonStr) as T;
@@ -69,6 +72,99 @@ export function parseAndRepairJson<T = GeneratedScriptPayload>(content: string):
       );
     }
   }
+}
+
+function extractFirstJsonObject(value: string): { json: string | null; truncated: boolean } {
+  const start = value.indexOf("{");
+  if (start < 0) return { json: null, truncated: false };
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < value.length; index += 1) {
+    const char = value[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{" || char === "[") stack.push(char);
+    else if (char === "}" || char === "]") {
+      const expected = char === "}" ? "{" : "[";
+      if (stack.at(-1) !== expected) return { json: null, truncated: false };
+      stack.pop();
+      if (!stack.length) return { json: value.slice(start, index + 1), truncated: false };
+    }
+  }
+  return { json: null, truncated: stack.length > 0 || inString };
+}
+
+function stripJsonComments(value: string) {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    const next = value[index + 1];
+    if (inString) {
+      result += char;
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      result += char;
+      continue;
+    }
+    if (char === "/" && next === "/") {
+      index += 2;
+      while (index < value.length && value[index] !== "\n") index += 1;
+      result += "\n";
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      index += 2;
+      while (index < value.length && !(value[index] === "*" && value[index + 1] === "/")) index += 1;
+      index += 1;
+      continue;
+    }
+    result += char;
+  }
+  return result;
+}
+
+function removeTrailingCommas(value: string) {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (inString) {
+      result += char;
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      result += char;
+      continue;
+    }
+    if (char === ",") {
+      let cursor = index + 1;
+      while (cursor < value.length && /\s/u.test(value[cursor])) cursor += 1;
+      if (value[cursor] === "}" || value[cursor] === "]") continue;
+    }
+    result += char;
+  }
+  return result;
 }
 
 /**
@@ -119,7 +215,7 @@ function insertMissingValueCommas(str: string) {
  * Escapes literal newline characters within JSON double-quoted string values
  * so that standard JSON.parse doesn't throw on unescaped control characters.
  */
-function escapeNewlinesInStrings(str: string): string {
+function escapeControlCharactersInStrings(str: string): string {
   let result = "";
   let inString = false;
   let escaped = false;
@@ -132,10 +228,9 @@ function escapeNewlinesInStrings(str: string): string {
       escaped = !escaped;
       result += char;
     } else {
-      if (inString && char === '\n') {
-        result += '\\n';
-      } else if (inString && char === '\r') {
-        result += '\\r';
+      if (inString && char.charCodeAt(0) < 0x20) {
+        const escapes: Record<string, string> = { "\n": "\\n", "\r": "\\r", "\t": "\\t", "\b": "\\b", "\f": "\\f" };
+        result += escapes[char] || `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`;
       } else {
         result += char;
       }
