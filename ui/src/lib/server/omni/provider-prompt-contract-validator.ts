@@ -5,6 +5,7 @@ import type {
   ProviderPromptPlan,
   ProviderPromptSegment,
 } from "./llm-prompt-chain-types";
+import { hasCompletedSentenceBoundary } from "./omni-script-segmentation";
 
 const DASH_PATTERN = /[-‐‑‒–—―−]/u;
 const EMOJI_PATTERN = /\p{Extended_Pictographic}/u;
@@ -34,7 +35,9 @@ export function validateDirectorSegmentPlan(plan: DirectorSegmentPlan): PromptVa
   }
 
   validateTextValues(plan, "director", issues);
-  plan.segments.forEach((segment, index) => validateDirectorSegment(segment, index, issues));
+  plan.segments.forEach((segment, index) =>
+    validateDirectorSegment(segment, index, plan.segments.length, issues)
+  );
   return issues;
 }
 
@@ -69,9 +72,26 @@ export function formatPromptValidationIssues(issues: readonly PromptValidationIs
   return issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ");
 }
 
-function validateDirectorSegment(segment: DirectorSegment, index: number, issues: PromptValidationIssue[]) {
+function validateDirectorSegment(
+  segment: DirectorSegment,
+  index: number,
+  segmentCount: number,
+  issues: PromptValidationIssue[],
+) {
   const path = `director.segments.${index}`;
   if (!segment.voiceover?.trim()) addIssue(issues, `${path}.voiceover`, "empty_voiceover", "Voiceover is required.");
+  if (
+    segment.voiceover?.trim() &&
+    index < segmentCount - 1 &&
+    !hasCompletedSentenceBoundary(segment.voiceover)
+  ) {
+    addIssue(
+      issues,
+      `${path}.voiceover`,
+      "incomplete_sentence_boundary",
+      "Segment must end with a complete sentence. Redistribute words with adjacent segments and update storyboard spoken words.",
+    );
+  }
   segment.storyboardFrames.forEach((frame, frameIndex) => {
     validatePhysicalConflict(
       `${frame.visualDescription} ${frame.camera} ${frame.action} ${frame.productState}`,

@@ -22,6 +22,14 @@ test("director storyboard contracts stay format neutral and speech exact", () =>
   assert.equal(directorIssues.filter((issue) => issue.severity === "error").length, 0);
   assert.deepEqual(validateStoryboardDirectorPlan(plan), []);
 
+  const incompleteBoundary = structuredClone(plan);
+  incompleteBoundary.segments[0].voiceover = incompleteBoundary.segments[0].voiceover.replace(/\.$/u, "");
+  assert.ok(
+    validateDirectorSegmentPlan(incompleteBoundary).some(
+      (issue) => issue.code === "incomplete_sentence_boundary"
+    )
+  );
+
   const duplicateTotal = {
     ...plan,
     totalVoiceover: `${plan.totalVoiceover} каждый день`,
@@ -211,16 +219,16 @@ function makePlan(): DirectorSegmentPlan {
     title: "Универсальная раскадровка",
     hookOptions: ["Как упростить поездки"],
     selectedHook: "Как упростить поездки",
-    totalVoiceover: "С этим новым сервисом вы сможете экономить время в поездках каждый день без лишних сложностей сегодня",
+    totalVoiceover: "С этим новым сервисом вы сможете экономить время. в поездках каждый день без лишних сложностей сегодня",
     notes: null,
     segments: [
       {
         index: 1,
         durationSeconds: 4,
-        voiceover: "С этим новым сервисом вы сможете экономить время",
+        voiceover: "С этим новым сервисом вы сможете экономить время.",
         storyboardFrames: [
           makeFrame(1, "environment_cutaway", "С этим новым сервисом"),
-          makeFrame(2, "product_cutaway", "вы сможете экономить время"),
+          makeFrame(2, "product_cutaway", "вы сможете экономить время."),
         ],
         shots: [{ role: "cutaway", action: "Ведущий смотрит в камеру — кадр 1" }],
         productState: "сервис показан в кадре",
