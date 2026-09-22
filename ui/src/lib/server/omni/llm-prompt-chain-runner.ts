@@ -70,6 +70,7 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DIRECTOR_TARGETED_REPAIR_ATTEMPTS = 2;
 const PROMPT_CHAIN_TEMPERATURE = 0.8;
 const PROMPT_CHAIN_REQUEST_TIMEOUT_MS = 90_000;
+const PROMPT_CHAIN_VIDEO_REQUEST_TIMEOUT_MS = 240_000;
 export type LlmPromptChainFailureStage =
   | "creative_copywriter"
   | "director_segmenter"
@@ -655,7 +656,7 @@ async function requestOpenRouter(input: {
         "X-Title": "Omni Reels",
       },
       body: serializedBody,
-      signal: AbortSignal.timeout(PROMPT_CHAIN_REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(videoDataUrl ? PROMPT_CHAIN_VIDEO_REQUEST_TIMEOUT_MS : PROMPT_CHAIN_REQUEST_TIMEOUT_MS),
     });
   } finally {
     // The reference video is never written to disk. Drop all large in-memory
