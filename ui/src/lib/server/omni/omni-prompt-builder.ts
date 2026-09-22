@@ -232,7 +232,10 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       outputTotalDurationSeconds,
       sourceDurationSeconds: input.referenceSourceDurationSeconds,
     });
-    const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole, Boolean(segmentIntent.productMentioned));
+    const resolvedProductRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole, Boolean(segmentIntent.productMentioned));
+    const productRole = resolvedProductRole === "hidden" && segmentIntent.productMentioned && productReference
+      ? "digital_demo"
+      : resolvedProductRole;
     const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
       segmentIndex,
       voiceoverText: segmentIntent.spokenText,
@@ -373,7 +376,10 @@ function buildStoredProviderPromptSegments(
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
     const segmentIntent = segmentIntents[index];
-    const productRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole, Boolean(segmentIntent?.productMentioned));
+    const resolvedProductRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole, Boolean(segmentIntent?.productMentioned));
+    const productRole = resolvedProductRole === "hidden" && segmentIntent?.productMentioned && productReference
+      ? "digital_demo"
+      : resolvedProductRole;
     const voiceoverText = segmentIntent?.spokenText || segment.voiceover;
     const referenceSegmentPlan = buildReferenceSegmentPlan({
       brief: directorBrief,
