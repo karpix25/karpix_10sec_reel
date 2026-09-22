@@ -3,8 +3,9 @@ import { sanitizeCameraStabilizationForPrompt } from "./omni-scene-safety-contra
 import { renderReferenceSceneModeForDirectorPrompt, resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { renderVisibleSubjectPolicy, resolveDirectorVisibleSubjectPolicy } from "./director-visibility-policy";
 import { renderReferenceFormatContract, resolveReferenceFormatMode } from "./omni-reference-format-mode";
+import { renderDirectorFormatGrammarForPrompt } from "./director-format-grammar";
 
-export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v16-visual-shot-timeline";
+export const DIRECTOR_ANALYSIS_PROMPT_VERSION = "director-brief-v17-format-grammar";
 
 export const DIRECTOR_ANALYSIS_SYSTEM_PROMPT = [
   "You are an expert AI video director and UGC cinematographer.",
@@ -25,7 +26,7 @@ export function buildDirectorAnalysisUserPrompt(input: {
     "Analyze the attached video and the supplied transcript when present.",
     "If the supplied transcript is empty or marked as unavailable, transcribe only the audible spoken words into spoken_transcript. Do not summarize or interpret the meaning in that field.",
     "Generate a compact director_brief JSON object with exactly these top-level keys:",
-    "spoken_transcript, content_meaning, reference_subject_mode, visible_subject_policy, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, wardrobe_continuity, subject_continuity, wardrobe_timeline, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
+    "spoken_transcript, content_meaning, format_grammar, reference_subject_mode, visible_subject_policy, reference_format_mode, reference_render_mode, reference_motion_mode, audio_profile, wardrobe_continuity, subject_continuity, wardrobe_timeline, visual_hook, atmosphere, clothing, location_timeline, camera_timeline, camera, montage_rhythm, action_beats, prop_sources, hand_object_interactions, motion_continuity, reference_action_style, reusable_mechanics, product_introduction, visual_transfer.",
     "",
     "Required JSON shape:",
     JSON.stringify(buildDirectorBriefSkeleton(), null, 2),
@@ -39,6 +40,10 @@ export function buildDirectorAnalysisUserPrompt(input: {
     "- Values must be descriptive but compact.",
     "- spoken_transcript is a technical transcription only. Do not turn it into a summary, content strategy, product recommendation, or adaptation decision.",
     "- content_meaning is the semantic source for the new writer: extract the topic, core concept, hook mechanism, narrative structure, problem or question, key arguments, proof or examples, conclusion, and CTA mechanism from the spoken content. Preserve the presentation mechanism as part of narrative_structure: for comment-review videos explicitly record question, comment reading, presenter reaction, next comment, and conclusion. Never copy wording. Do not add product facts or claims that are absent from the transcript and supplied product data.",
+    "- format_grammar is the universal operational grammar of the actual edit, not a genre label. Describe what happens in order: who acts, what visible element appears or disappears, how speech relates to it, the transition, and which steps repeat. Use neutral operations that work for any format. Do not name a known template instead of decomposing it. Mark every indispensable operation required=true.",
+    "- format_grammar.repeated_pattern must identify a real repeated cycle by beat_ids and observed repetitions. minimum_adapted_repetitions should preserve recognizability while fitting a short adaptation, normally two when the source repeats a cycle at least twice. Set enabled=false only when no operation cycle repeats.",
+    "- format_grammar.required_visual_mechanics must include editorial graphics, split screens, inserts, demonstrations, reveals, reactions, or object transformations when they carry meaning. Generic subtitles and platform chrome remain excluded.",
+    "- format_grammar.prohibited_simplifications must state what would destroy the source format, for example replacing interaction with a plain monologue or collapsing repeated examples into one summary. Derive this from the observed video rather than from a hardcoded catalog of formats.",
     "- reference_subject_mode MUST be classified from visible frames and narration, not transcript alone: presenter, voiceover_broll, faceless_hands, body_crop, or object_only. Use voiceover_broll when the meaning is carried by off-camera voiceover over independent B-roll cutaways; the saved avatar may remain the silent visual protagonist, but there is no stable talking-head performance. Use faceless_hands only when only hands/props are visible; never invent a face or avatar.",
     "- visible_subject_policy MUST be classified from visible frames: presenter when a person speaks to camera, silent_avatar when the same person appears but narration is off-camera, no_people when no person or hands are visible, hands_only when only hands/body crop are visible, object_only when only an object or surface is visible, and animation when the source is illustrated or animated. Never choose silent_avatar for a reference that contains no person.",
     "- reference_format_mode MUST be classified from the visible edit and narration: continuous_story when one scene and physical state continue between segments; voiceover_montage when one narrator carries the meaning across independent cutaways where location, action, camera setup, or outfit can change while the main presenter remains the same.",
@@ -107,6 +112,10 @@ export function renderDirectorContentMeaningForScriptPrompt(brief: DirectorBrief
   ].join("\n");
 }
 
+export function renderDirectorFormatGrammarContract(brief: DirectorBrief | null) {
+  return renderDirectorFormatGrammarForPrompt(brief?.format_grammar);
+}
+
 export function renderDirectorBriefForOmniPrompt(brief: DirectorBrief | null) {
   if (!brief) return null;
   const handObjectInteractions = brief.hand_object_interactions || [];
@@ -163,6 +172,30 @@ function buildDirectorBriefSkeleton() {
       proof_or_examples: [""],
       conclusion: "",
       cta_mechanism: "",
+    },
+    format_grammar: {
+      opening_pattern: "first observable content operation and its audience function",
+      beat_sequence: [{
+        id: "beat_01",
+        narrative_function: "what this operation does in the story",
+        presenter_action: "what the presenter physically does",
+        visual_action: "what appears, changes, or disappears on screen",
+        speech_relation: "how the spoken words relate to the visible action",
+        transition_in: "observed entrance or cut",
+        transition_out: "observed exit or cut",
+        repeat_group: null,
+        required: true,
+      }],
+      repeated_pattern: {
+        enabled: false,
+        beat_ids: [],
+        observed_repetitions: 0,
+        minimum_adapted_repetitions: 0,
+      },
+      ending_pattern: "final observable operation and how it resolves or loops",
+      required_visual_mechanics: ["meaning-bearing visible mechanics only"],
+      invariants: ["relationships and order that make the format recognizable"],
+      prohibited_simplifications: ["changes that would collapse the format into another presentation"],
     },
     reference_subject_mode: "presenter|voiceover_broll|faceless_hands|body_crop|object_only",
     visible_subject_policy: "presenter|silent_avatar|no_people|hands_only|object_only|animation",

@@ -3,7 +3,7 @@ import type { OmniLegacyScenario } from "@/lib/omni/types";
 import type { OmniAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import { normalizeOmniWardrobeSource, type OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type { DirectorBrief } from "./director-analysis-types";
-import { renderDirectorBriefForScriptPrompt, renderDirectorContentMeaningForScriptPrompt } from "./director-analysis-prompt";
+import { renderDirectorBriefForScriptPrompt, renderDirectorContentMeaningForScriptPrompt, renderDirectorFormatGrammarContract } from "./director-analysis-prompt";
 import type { OmniDurationRange } from "./omni-duration-range";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
 import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
@@ -33,6 +33,7 @@ export function buildPrompt(input: {
 }) {
   const referenceMeaningGuidance = buildReferenceMeaningGuidance(input.sourceScenario.script);
   const semanticReferenceMeaning = renderDirectorContentMeaningForScriptPrompt(input.directorBrief || null);
+  const formatGrammar = renderDirectorFormatGrammarContract(input.directorBrief || null);
   const presentationContract = renderReferencePresentationContract(input.sourceScenario.script);
   const durationInstruction = buildDurationInstruction(input.durationRange);
   const wardrobeSource = normalizeOmniWardrobeSource(input.wardrobeSource);
@@ -50,13 +51,14 @@ Voiceover это текст, который произносит сохранё�
 Правила:
 ${referenceMeaningGuidance}
 ${semanticReferenceMeaning}
+${formatGrammar}
 ${presentationContract}
 1. Сначала разберись в теме, конфликте, форме хука и фактах reference. Не показывай этот разбор в ответе.
 1. Reference передаёт тему, угол подачи, темп и набор возможных фактов. Выбери подходящие факты и напиши новый сценарий с нашим продуктом, не копируя исходный ответ, список или порядок раскрытия.
 1а. Перед написанием внутренне выбери ситуацию из reference, которая естественно ведёт к подтверждённой пользе продукта. Не показывай этот разбор в ответе.
 1аб. Не пытайся сохранить большую часть фраз дословно: собери новую логику вокруг темы и выбранных фактов.
 1б. Если нужно сократить текст до пяти частей, убирай повторы и второстепенные детали. Не заменяй выбранный конкретный факт общей фразой вроде "это полезно" или "помогает лучше себя чувствовать".
-2. Reference задает смысловую структуру, тип хука и визуальный язык. Точные сцены, локации, действия, одежду, камеру и тайминги поставь заново под новый сценарий. Чужой продукт не копируй.
+2. Reference задает смысловую структуру, тип хука, визуальный язык и FORMAT GRAMMAR. Сохрани операции FORMAT GRAMMAR, их порядок, роли и обязательные повторы. Наполни их новым содержанием и нашим продуктом. Точные исходные формулировки и чужой продукт не копируй.
 3. Сохрани тему, естественную подачу, понятный хук и последовательное раскрытие мысли, но полностью адаптируй содержание под наш продукт.
 3б. Если продукт не отвечает на исходный вопрос напрямую, сохрани тему как контекст и добавь естественный переход к реальной потребности, которую продукт решает. Не притворяйся, что продукт решает чужую проблему.
 3в. Если исходный предмет не подходит, перенеси форму хука, личную подачу, темп и структуру на новую честную продуктовую историю. Не отбрасывай reference только из-за несовпадения тем.

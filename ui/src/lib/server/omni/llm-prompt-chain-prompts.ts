@@ -3,7 +3,7 @@ import type { OmniLegacyScenario } from "@/lib/omni/types";
 import type { OmniAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import type { OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type { DirectorBrief } from "./director-analysis-types";
-import { renderDirectorContentMeaningForScriptPrompt } from "./director-analysis-prompt";
+import { renderDirectorContentMeaningForScriptPrompt, renderDirectorFormatGrammarContract } from "./director-analysis-prompt";
 import type { OmniDurationRange } from "./omni-duration-range";
 import type { OmniReelSegmentPlan } from "./omni-duration-planner";
 import type { CreativeScriptDraft, DirectorSegmentPlan, OmniBeatSheet } from "./llm-prompt-chain-types";
@@ -46,6 +46,7 @@ export type PromptChainInput = {
 export function buildCreativeCopywriterPrompt(input: PromptChainInput) {
   const referenceFacts = renderReferenceFactContract(input.sourceScenario.script);
   const contentMeaning = renderDirectorContentMeaningForScriptPrompt(input.directorBrief || null);
+  const formatGrammar = renderDirectorFormatGrammarContract(input.directorBrief || null);
   const presentationContract = renderReferencePresentationContract(input.sourceScenario.script);
   return `
 Ты пишешь новый сценарий короткого видео на основе reference, внедряя наш продукт.
@@ -57,6 +58,7 @@ Reference задаёт тему, угол, хук и визуально-сцен
 Если включаешь факт из reference, не искажай его. Детали, которые не помогают честно связать тему с продуктом, опусти.
 ${referenceFacts}
 ${contentMeaning}
+${formatGrammar}
 ${presentationContract}
 КРЕАТИВНЫЙ БРИФ REFERENCE:
 Тема: ${input.sourceScenario.topic || "не указана"}
@@ -98,6 +100,7 @@ export function buildDirectorSegmenterPrompt(input: {
     items: [],
   };
   const presentationContract = renderReferencePresentationContract(input.chainInput.sourceScenario.script);
+  const formatGrammar = renderDirectorFormatGrammarContract(input.chainInput.directorBrief || null);
   const referenceFormatMode = resolveReferenceFormatMode(input.chainInput.directorBrief);
   const referenceSceneMode = resolveReferenceSceneMode(input.chainInput.directorBrief);
   const montageReference = isVoiceoverMontageReference(referenceFormatMode);
@@ -147,6 +150,7 @@ export function buildDirectorSegmenterPrompt(input: {
 Верни только валидный JSON без markdown.
 
   Правила режиссуры:
+  ${formatGrammar}
   ${presentationContract}
   ${presentationContract ? "Для каждого читаемого комментария явно напиши в visual_description и action: запланированная карточка комментария с точным коротким текстом из текущей реплики появляется рядом с ведущим. Карточка не является субтитром, не имитирует интерфейс соцсети и исчезает перед следующим отзывом." : ""}
   ${STORYBOARD_FRAME_ROLE_CONTRACT}

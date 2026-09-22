@@ -23,6 +23,10 @@ import {
   type DirectorSourceRole,
   type DirectorVisibleSubjectRole,
 } from "./director-source-interval";
+import {
+  normalizeDirectorFormatGrammar,
+  type DirectorFormatGrammar,
+} from "./director-format-grammar";
 export { selectDirectorSegmentProfile } from "./director-analysis-timeline";
 
 export type DirectorAnalysisStatus = "pending" | "processing" | "completed" | "failed";
@@ -131,6 +135,7 @@ export type DirectorContentMeaning = {
 
 export type DirectorBrief = {
   content_meaning?: DirectorContentMeaning;
+  format_grammar?: DirectorFormatGrammar;
   content_adaptation?: ScriptAdaptationPlan;
   reference_subject_mode?: ReferenceSceneMode;
   visible_subject_policy?: DirectorVisibleSubjectPolicy;
@@ -235,6 +240,7 @@ export function normalizeDirectorBrief(value: unknown): DirectorBrief | null {
 
   const brief: DirectorBrief = {
     content_meaning: contentMeaning || undefined,
+    format_grammar: normalizeDirectorFormatGrammar(candidate.format_grammar ?? candidate.formatGrammar),
     content_adaptation: contentAdaptation || undefined,
     reference_subject_mode: normalizeReferenceSceneMode(
       candidate.reference_subject_mode ?? candidate.referenceSceneMode ?? candidate.reference_scene_mode ?? candidate.referenceSubjectMode
