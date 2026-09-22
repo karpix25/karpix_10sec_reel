@@ -532,6 +532,12 @@ async function requestOpenRouter(input: {
   let videoDataUrl = input.videoUrl ? await loadOpenRouterVideoDataUrl(input.videoUrl) : null;
   let body: Record<string, unknown> = {
     model: input.input.model,
+    ...(videoDataUrl ? {
+      // Google AI Studio rejects request bodies above 20 MB. Vertex accepts
+      // the same supported base64 video input and keeps the full clip in one
+      // multimodal context, so do not let OpenRouter fall back to AI Studio.
+      provider: { order: ["google-vertex"], allow_fallbacks: false },
+    } : {}),
     temperature: input.temperature ?? PROMPT_CHAIN_TEMPERATURE,
     max_tokens: input.maxTokens || (input.responseFormatJson ? 12_000 : 4_000),
     messages: [
