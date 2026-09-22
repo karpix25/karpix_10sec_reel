@@ -14,6 +14,7 @@ import {
   type CreativeScriptAttemptDiagnostic,
   type DirectorSegmentPlan,
   type LlmPromptChainResult,
+  type OmniBeatSheet,
   type PromptValidationIssue,
   type ScriptSemanticReview,
 } from "./llm-prompt-chain-types";
@@ -50,6 +51,7 @@ import {
   formatDirectorSegmenterDiagnostic,
   type DirectorSegmenterAttemptDiagnostic,
 } from "./llm-prompt-chain-diagnostics";
+import { buildOmniBeatSheet, validateOmniBeatSheetAlignment } from "./omni-beat-sheet";
 
 export { assertPromptChainNumericRangeIntegrity } from "./creative-script-preflight";
 
@@ -69,6 +71,7 @@ export type LlmPromptChainPartialSnapshot = {
   creativeScriptDraft?: CreativeScriptDraft;
   creativeAttemptDiagnostics?: CreativeScriptAttemptDiagnostic[];
   semanticReview?: ScriptSemanticReview;
+  beatSheet?: OmniBeatSheet;
   directorSegmentPlan?: DirectorSegmentPlan;
   directorSegmenterDiagnostics?: DirectorSegmenterAttemptDiagnostic[];
 };
@@ -113,9 +116,17 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
     throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), { adaptationPlan, contentContract });
   }
   const draft = creativeResult.draft;
+  const beatSheet = buildOmniBeatSheet({
+    segments: creativeResult.segmentPlan.segments.map((segment, index) => ({
+      index: index + 1,
+      durationSeconds: creativeResult.segmentPlan.segmentDurationsSeconds[index],
+      voiceover: segment.text,
+    })),
+    productName: input.productName,
+  });
   let directorResult: Awaited<ReturnType<typeof runDirectorSegmenter>>;
   try {
-    directorResult = await runDirectorSegmenter(chainInput, draft, creativeResult.segmentPlan, onUsage);
+    directorResult = await runDirectorSegmenter(chainInput, draft, creativeResult.segmentPlan, beatSheet, onUsage);
   } catch (error) {
     const directorFailure = error instanceof DirectorSegmenterFailure ? error : null;
     throw new LlmPromptChainFailure("director_segmenter", getErrorMessage(error), {
@@ -124,6 +135,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
       creativeScriptDraft: draft,
       semanticReview: creativeResult.semanticReview,
       creativeAttemptDiagnostics: creativeResult.diagnostics,
+      beatSheet,
       ...(directorFailure ? { directorSegmenterDiagnostics: directorFailure.diagnostics } : {}),
     });
   }
@@ -145,6 +157,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
       creativeScriptDraft: draft,
       semanticReview: creativeResult.semanticReview,
       creativeAttemptDiagnostics: creativeResult.diagnostics,
+      beatSheet,
       directorSegmentPlan: directorPlan,
     });
   }
@@ -177,6 +190,7 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
         adaptationPlan,
         contentContract,
         creativeScriptDraft: draft,
+        beatSheet,
         directorSegmentPlan: directorPlan,
         providerPromptPlan: providerPlan,
         semanticReview: creativeResult.semanticReview,
@@ -191,10 +205,11 @@ async function runDirectorSegmenter(
   input: PromptChainInput & { model: string },
   draft: CreativeScriptDraft,
   segmentPlan: OmniReelSegmentPlan,
+  beatSheet: OmniBeatSheet,
   onUsage: (usage: OpenRouterUsageRecord) => void
 ) {
   const format = resolveDirectorSegmentFormat(input.directorBrief);
-  const basePrompt = buildDirectorSegmenterPrompt({ chainInput: input, draft, segmentPlan });
+  const basePrompt = buildDirectorSegmenterPrompt({ chainInput: input, draft, segmentPlan, beatSheet });
   const maxAttempts = DIRECTOR_TARGETED_REPAIR_ATTEMPTS + 2;
   let previousPlan: DirectorSegmentPlan | null = null;
   let lastError: unknown = null;
@@ -264,6 +279,15 @@ async function runDirectorSegmenter(
         ...validateDirectorSegmentPlan(plan),
         ...validateStoryboardDirectorPlan(plan),
       ];
+      const beatSheetIssues = validateOmniBeatSheetAlignment(plan, beatSheet);
+      if (beatSheetIssues.length) {
+        validationIssues.push({
+          path: "director.beatSheet",
+          code: "beat_sheet_alignment",
+          message: beatSheetIssues.join("; "),
+          severity: "error",
+        });
+      }
       const errors = validationIssues.filter((issue) => issue.severity === "error");
       if (errors.length) {
         const reason = formatPromptValidationIssues(errors);

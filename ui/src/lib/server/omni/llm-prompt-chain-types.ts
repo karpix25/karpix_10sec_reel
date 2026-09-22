@@ -25,6 +25,28 @@ export type CreativeScriptDraft = {
 
 export type CreativeSpeechSegment = { durationSeconds: number; voiceover: string };
 
+export type OmniBeatSheetStage = "hook" | "body" | "product" | "cta";
+export type OmniBeatSheetVisualRole = "avatar" | "product" | "avatar_or_environment";
+
+/** One immutable speech-to-frame handoff row. */
+export type OmniBeatSheetItem = {
+  id: string;
+  segmentIndex: number;
+  frameIndex: number;
+  startSeconds: number;
+  endSeconds: number;
+  spokenWords: string;
+  stage: OmniBeatSheetStage;
+  productMentioned: boolean;
+  visualRole: OmniBeatSheetVisualRole;
+  visualInstruction: string;
+};
+
+export type OmniBeatSheet = {
+  version: "omni-beat-sheet-v1";
+  items: OmniBeatSheetItem[];
+};
+
 export type ScriptSemanticDefect = {
   code: "missing_product" | "missing_product_value" | "missing_answer" | "missing_list_item" | "unsupported_product_claim";
   message: string;
@@ -138,6 +160,7 @@ export type LlmPromptChainSnapshot = {
   adaptationPlan: ScriptAdaptationPlan;
   contentContract?: ScriptContentContract;
   creativeScriptDraft: CreativeScriptDraft;
+  beatSheet: OmniBeatSheet;
   directorSegmentPlan: DirectorSegmentPlan;
   providerPromptPlan: ProviderPromptPlan;
   semanticReview: ScriptSemanticReview;

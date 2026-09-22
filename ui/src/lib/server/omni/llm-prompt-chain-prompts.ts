@@ -6,7 +6,8 @@ import type { DirectorBrief } from "./director-analysis-types";
 import { renderDirectorContentMeaningForScriptPrompt } from "./director-analysis-prompt";
 import type { OmniDurationRange } from "./omni-duration-range";
 import type { OmniReelSegmentPlan } from "./omni-duration-planner";
-import type { CreativeScriptDraft, DirectorSegmentPlan } from "./llm-prompt-chain-types";
+import type { CreativeScriptDraft, DirectorSegmentPlan, OmniBeatSheet } from "./llm-prompt-chain-types";
+import { renderOmniBeatSheetForPrompt } from "./omni-beat-sheet";
 import { formatPromptChainRange } from "./llm-prompt-chain-number-words";
 import { renderRussianSpeechGenderRule } from "./russian-speech-gender-contract";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
@@ -87,7 +88,12 @@ export function buildDirectorSegmenterPrompt(input: {
   chainInput: PromptChainInput;
   draft: CreativeScriptDraft;
   segmentPlan: OmniReelSegmentPlan;
+  beatSheet?: OmniBeatSheet;
 }) {
+  const beatSheet = input.beatSheet || {
+    version: "omni-beat-sheet-v1" as const,
+    items: [],
+  };
   const referenceFormatMode = resolveReferenceFormatMode(input.chainInput.directorBrief);
   const referenceSceneMode = resolveReferenceSceneMode(input.chainInput.directorBrief);
   const montageReference = isVoiceoverMontageReference(referenceFormatMode);
@@ -147,6 +153,7 @@ total_voiceover должен дословно совпадать с готовы
 Количество storyboard frames зависит от duration_seconds: четыре секунды это два кадра, шесть секунд это три кадра, восемь секунд это четыре кадра, десять секунд это пять кадров.
 В утвержденных segments поле frame_word_counts задает точное количество слов для каждого storyboard frame. Соблюдай этот массив по порядку и не перераспределяй слова самостоятельно.
 Каждый frame обычно содержит четыре слова финальной русской речи в spoken_words. Канонический тайминг может дать три слова в недогруженном кадре или два слова только в последнем кадре финальной группы из пяти слов. Не добавляй пустые слова и не меняй порядок речи.
+БИТОВКА НИЖЕ — ИСТОЧНИК ПРАВДЫ ДЛЯ РЕЧИ И СМЫСЛА КАЖДОГО КАДРА. Одна строка битовки равна одному storyboard_frame. Скопируй spoken_words из соответствующей строки дословно. Не объединяй строки, не дели их и не добавляй слова. После фиксации речи опиши для этого бита visual_description, camera, action, product_state и sfx. Соблюдай visual_role и visual_instruction каждой строки.
 Каждый segment обязан содержать минимум один frame с reference_role avatar: сохранённый аватар физически присутствует и ведёт повествование, либо говорит в камеру, либо находится в движении с voiceover. Product frames с reference_role product считаются отдельным B-roll и никогда не заменяют avatar frame.
 Двухсекундные frames привязывают смысл речи к монтажу, а не задают отдельные речитативы. Внутри segment звучит одна непрерывная реплика; склейка и переход на B-roll не требуют паузы или нового начала фразы. Естественные короткие паузы следуют синтаксису, без растягивания слов и придумывания междометий для заполнения времени.
 Склейка spoken_words всех frames должна дословно совпадать с voiceover segment.
@@ -196,7 +203,10 @@ ${JSON.stringify(input.segmentPlan.segments.map((segment, index) => ({
       segment.wordCount,
       input.segmentPlan.segmentDurationsSeconds[index]
     ),
-  })), null, 2)}
+})), null, 2)}
+
+УТВЕРЖДЕННАЯ БИТОВКА:
+${renderOmniBeatSheetForPrompt(beatSheet)}
 
 Верни JSON:
 {
