@@ -131,6 +131,11 @@ export function assertStoryboardPromptContracts(
       ...(voiceoverMismatch ? [`segment_${segment.index}_storyboard_voiceover_mismatch`] : []),
     ];
   });
+  const expectedProductFrameCount = promptPlan.reduce(
+    (count, segment) => count + (segment.creativePlan.productVisibleByFrame?.filter(Boolean).length || 0),
+    0,
+  );
+  if (expectedProductFrameCount > 1) errors.push("reel_product_must_appear_in_exactly_one_frame");
   if (errors.length) throw new Error(`Omni storyboard contract preflight blocked: ${errors.join(", ")}`);
 }
 
