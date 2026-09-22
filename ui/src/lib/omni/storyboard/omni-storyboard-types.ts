@@ -45,6 +45,8 @@ export type OmniStoryboardFrame = {
   environment: string;
   wardrobe: string;
   productPlacement: string;
+  /** Source of truth from the semantic beat timeline, not inferred from prompt prose. */
+  productVisible?: boolean;
   sfxNotes: string;
   effectNotes?: string | null;
   modelMusicNotes?: string | null;

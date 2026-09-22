@@ -131,6 +131,7 @@ export function buildStoredStoryboardFrame(input: {
     environment,
     wardrobe,
     productPlacement,
+    productVisible,
     sfxNotes,
     effectNotes: null,
     modelMusicNotes: null,

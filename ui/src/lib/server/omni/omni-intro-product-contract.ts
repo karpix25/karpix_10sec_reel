@@ -53,6 +53,8 @@ export function isProductVisibleInStoryboardFrame(
   frame: Record<string, unknown>,
   productName: string
 ) {
+  if (typeof frame.productVisible === "boolean") return frame.productVisible;
+  if (typeof frame.product_visible === "boolean") return frame.product_visible;
   const placement = String(frame.productPlacement || frame.product_placement || "");
   return isProductPlacementVisible(placement, productName);
 }

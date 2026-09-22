@@ -292,6 +292,7 @@ function buildFrame(input: {
       ? OMNI_PRODUCT_BROLL_WARDROBE
       : renderStoryboardWardrobe({ characterContract: input.characterContract, brief: input.directorBrief, referenceProfile, wardrobeSource: input.wardrobeSource, referenceFormatMode: input.referenceFormatMode, referenceSceneMode: input.referenceSceneMode }),
     productPlacement,
+    productVisible,
     sfxNotes: isCutawayFrame
       ? productVisible
         ? "естественный звук короткого действия с продуктом"
