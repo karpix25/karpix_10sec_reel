@@ -19,7 +19,8 @@ import {
   type ScriptSemanticReview,
 } from "./llm-prompt-chain-types";
 import {
-  buildUnifiedContentPlannerPrompt,
+  buildUnifiedAdaptationPlannerPrompt,
+  buildUnifiedReferenceAnalysisPrompt,
   buildDirectorSegmentRepairPrompt,
   buildDirectorSegmenterPrompt,
   type PromptChainInput,
@@ -128,19 +129,53 @@ async function runUnifiedLlmPromptChain(
     });
   }
   const openRouterUsage = repair?.openRouterUsage || [];
+  let sourceObservation = repair?.sourceObservation || {};
+  if (!repair) {
+    const analysisContent = await requestOpenRouter({
+      input,
+      layer: "director_analysis",
+      attempt: 1,
+      userPrompt: buildUnifiedReferenceAnalysisPrompt(),
+      systemPrompt: DIRECTOR_ANALYSIS_SYSTEM_PROMPT,
+      videoUrl: input.referenceVideoUrl,
+      responseFormatJson: true,
+      maxTokens: 18_000,
+      temperature: 0.2,
+      onUsage: (usage) => openRouterUsage.push(usage),
+    });
+    let analysis: Record<string, unknown>;
+    try {
+      analysis = parseAndRepairJson<Record<string, unknown>>(analysisContent);
+    } catch (error) {
+      throw new LlmPromptChainFailure("creative_copywriter", `Reference analysis JSON is invalid: ${getErrorMessage(error)}`, {
+        adaptationPlan: input.adaptationPlan,
+        contentContract: input.contentContract,
+        rawResponse: analysisContent,
+        openRouterUsage,
+      });
+    }
+    sourceObservation = lockUnifiedSourceObservation(analysis);
+    if (!normalizeDirectorBrief(sourceObservation.director_brief) || !isRecordValue(sourceObservation.reference_analysis) || !sourceObservation.spoken_transcript) {
+      throw new LlmPromptChainFailure("creative_copywriter", "Reference analysis is missing required source fields", {
+        adaptationPlan: input.adaptationPlan,
+        contentContract: input.contentContract,
+        rawResponse: analysisContent,
+        openRouterUsage,
+      });
+    }
+  }
   const content = await requestOpenRouter({
     input,
     layer: "content_adapter",
     attempt: repair?.attempt || 1,
     userPrompt: repair
-      ? buildUnifiedPlanRepairPrompt(repair.previousResponse, repair.validationError)
-      : buildUnifiedContentPlannerPrompt(input),
+      ? buildUnifiedPlanRepairPrompt(repair.previousResponse, repair.validationError, sourceObservation)
+      : buildUnifiedAdaptationPlannerPrompt(input, sourceObservation),
     systemPrompt: repair
       ? "Ты профессиональный редактор JSON-плана ролика. Верни только полный исправленный корневой JSON без markdown и пояснений."
-      : `${DIRECTOR_ANALYSIS_SYSTEM_PROMPT}\nТы должен вернуть director_brief вместе со сценарием и раскадровкой в одном корневом JSON.`,
-    videoUrl: repair ? undefined : input.referenceVideoUrl,
+      : "Ты профессиональный UGC-сценарист и режиссёр. Верни только JSON по заданному контракту.",
     responseFormatJson: true,
-    maxTokens: 30_000,
+    maxTokens: 18_000,
     temperature: 0.45,
     onUsage: (usage) => openRouterUsage.push(usage),
   });
@@ -154,7 +189,7 @@ async function runUnifiedLlmPromptChain(
         previousResponse: content,
         validationError: `Ответ содержит оборванный или невалидный JSON: ${getErrorMessage(error)}. Восстанови полный компактный JSON по заданному контракту.`,
         openRouterUsage,
-        sourceObservation: repair?.sourceObservation || {},
+        sourceObservation,
       }));
     }
     throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), {
@@ -164,13 +199,7 @@ async function runUnifiedLlmPromptChain(
       openRouterUsage,
     });
   }
-  const hasLockedSourceObservation = Boolean(
-    repair?.sourceObservation && Object.keys(repair.sourceObservation).length
-  );
-  if (hasLockedSourceObservation) Object.assign(parsed, repair!.sourceObservation);
-  const sourceObservation = hasLockedSourceObservation
-    ? repair!.sourceObservation
-    : lockUnifiedSourceObservation(parsed);
+  Object.assign(parsed, sourceObservation);
   const directorPlan = normalizeDirectorSegmentPlan(parsed);
   const directorBrief = normalizeDirectorBrief(parsed.director_brief ?? parsed.directorBrief);
   if (!directorPlan || !directorBrief) {

@@ -30,7 +30,11 @@ export function nextUnifiedRepair(input: {
   };
 }
 
-export function buildUnifiedPlanRepairPrompt(previousResponse: string, validationError: string) {
+export function buildUnifiedPlanRepairPrompt(
+  previousResponse: string,
+  validationError: string,
+  sourceObservation: Record<string, unknown>,
+) {
   return [
     "Исправь готовый JSON-план ролика по точному отчёту валидатора.",
     "Это repair-проход: не анализируй референс заново и не создавай новую концепцию.",
@@ -45,6 +49,14 @@ export function buildUnifiedPlanRepairPrompt(previousResponse: string, validatio
     "Если речи слишком много, сократи формулировки без потери темы, фактов, логики, названия продукта и CTA. CTA не удаляй, сделай его мягким и органичным.",
     "Сохрани ровно один непрерывный интервал product_beat. Не добавляй новый показ продукта.",
     "Пересчитай слова перед ответом. self_check=true допустим только для реально выполненных условий.",
-    "", "ОШИБКИ ВАЛИДАТОРА:", validationError, "", "ИСХОДНЫЙ JSON:", previousResponse,
+    "",
+    "НЕИЗМЕНЯЕМЫЙ SOURCE OBSERVATION:",
+    JSON.stringify(sourceObservation),
+    "",
+    "ОШИБКИ ВАЛИДАТОРА:",
+    validationError,
+    "",
+    "ИСХОДНЫЙ JSON:",
+    previousResponse,
   ].join("\n");
 }

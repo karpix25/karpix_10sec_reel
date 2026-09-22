@@ -173,6 +173,41 @@ TARGET ADAPTATION CONTEXT начинается только с блока «Пр
 `.trim();
 }
 
+export function buildUnifiedReferenceAnalysisPrompt() {
+  return `
+Проанализируй приложенное reference video целиком со звуком. Этот запрос описывает только источник: никаких данных целевого продукта, CTA, аудитории или нового аватара здесь нет.
+Зафиксируй точную транскрипцию, конкретную тему, обещание хука, последовательность аргументов, вывод, формат подачи, монтаж, локацию, свет, одежду, камеру и обязательные визуальные операции. Не обобщай конкретную тему до соседней категории.
+Верни только компактный JSON:
+{"reference_analysis":{"topic":"","hook_promise":"","narrative_logic":[""],"presentation_frame":"","visual_grammar":"","preservation_explanation":""},"spoken_transcript":"полная точная транскрипция","director_brief":${JSON.stringify(buildDirectorBriefSkeleton())}}
+Служебные описания краткие. Timeline содержит максимум три реальных интервала, beat_sequence максимум шесть уникальных операций. Не повторяй транскрипцию в пояснениях. Без markdown и текста вне JSON.
+  `.trim();
+}
+
+export function buildUnifiedAdaptationPlannerPrompt(input: PromptChainInput, sourceObservation: Record<string, unknown>) {
+  const minSeconds = input.durationRange?.minSeconds || 20;
+  const maxSeconds = input.durationRange?.maxSeconds || 40;
+  const minWords = input.durationRange?.minWords || 30;
+  const maxWords = input.durationRange?.maxWords || 80;
+  return `
+Ты senior UGC-сценарист и режиссёр. Создай новый сценарий и полную двухсекундную битовку на основе зафиксированного анализа reference ниже.
+SOURCE OBSERVATION неизменяем: не исправляй и не возвращай его. Сохрани конкретную тему, обещание хука, существенные аргументы, вывод и формат подачи. Продукт является одним добавочным органичным интервалом и не заменяет историю.
+Для каждого существенного source beat заполни adaptation_trace. Если меняется сценарий, заново согласуй все segments и storyboard_frames. Все product_beat образуют один непрерывный B-roll продукта без людей, рук и взаимодействия.
+Проект: ${input.projectName}
+Целевая аудитория: ${input.targetAudience || "не указана"}
+Тон: ${input.brandVoice || "естественная разговорная речь"}
+Продукт: ${input.productName}
+Описание: ${input.productDescription || "не указано"}
+Подтверждённые заметки: ${input.productReferenceNotes || "не указаны"}
+CTA: ${buildCtaLine(input.ctaMode, input.ctaValue)}
+Пол речи: ${input.avatarSpeechGender}
+Диапазон: ${minWords}-${maxWords} слов, ${minSeconds}-${maxSeconds} секунд. Три-четыре слова на две секунды.
+SOURCE OBSERVATION: ${JSON.stringify(sourceObservation)}
+Верни только компактный JSON:
+{"adaptation_trace":[{"source_beat":"","adapted_beat":"","preserved":true}],"format":"talking_head_cutaways или voiceover_broll","title":"","hook_options":["","",""],"selected_hook":"","total_voiceover":"","segments":[{"index":1,"duration_seconds":8,"voiceover":"","product_state":"","storyboard_frames":[{"index":1,"role":"face_open, face_return, environment_cutaway или product_cutaway","spoken_words":"","visual_description":"","camera":"","action":"","product_state":"вне кадра или отдельный неподвижный B-roll без людей и рук","sfx":"только SFX без музыки","reference_role":"avatar, product или none","product_beat":false}],"end_state":""}],"notes":"","self_check":{"topic_preserved":true,"hook_promise_preserved":true,"presentation_frame_preserved":true,"product_integration_causal":true,"single_product_interval":true,"speech_alignment_exact":true,"source_observation_uncontaminated":true}}
+spoken_words кадров дословно составляют voiceover сегмента; voiceover сегментов составляет total_voiceover. Segment: четыре, шесть, восемь или десять секунд; кадр: две секунды. CTA не удаляй. Без музыки, emoji, длинных тире и цифр в речи. Без markdown.
+  `.trim();
+}
+
 export function buildCreativeCopywriterPrompt(input: PromptChainInput) {
   const referenceFacts = renderReferenceFactContract(input.sourceScenario.script);
   const contentMeaning = renderDirectorContentMeaningForScriptPrompt(input.directorBrief || null);
