@@ -7,7 +7,7 @@ import { prepareOmniPromptPlanWithSemanticRepair } from "./omni-storyboard-seman
 import { assertPhysicalPromptPlan } from "./physical-scene-validator";
 import { assertStoryboardPromptContracts } from "./storyboard/storyboard-contract-validator";
 import { renderCompactRussianOmniStoryboardPrompt } from "./storyboard/omni-storyboard-renderer";
-import { validateOmniStoryboardSegment } from "../../omni/storyboard/omni-storyboard-contract";
+import { sanitizeOmniStoryboardAudio, validateOmniStoryboardSegment } from "../../omni/storyboard/omni-storyboard-contract";
 import { resolveReferenceSceneMode } from "./omni-reference-scene-mode";
 import { resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { resolveReferenceTransferMode } from "./omni-reference-transfer-policy";
@@ -20,7 +20,7 @@ export type OmniPromptPreparationInput = Parameters<typeof buildOmniSegmentPromp
   productId: number;
 };
 
-export const OMNI_PREPARED_PLAN_VERSION = "avatar-broll-timeline-v2-avatar-identity";
+export const OMNI_PREPARED_PLAN_VERSION = "avatar-broll-timeline-v3-sfx-only";
 const PROMPT_LOCK_NAMESPACE = 53_902;
 type SavedPromptPlan = { version: string; signature: string; segments: OmniSegmentPrompt[] };
 
@@ -132,15 +132,16 @@ function assertOmniPreparationInputs(input: OmniPromptPreparationInput) {
 
 async function buildPreparedPlan(input: OmniPromptPreparationInput) {
   const directorBrief = input.directorBrief || null;
-  const repaired = await repairOmniPromptPlanWithAi({
-    promptPlan: buildOmniSegmentPrompts(input),
+  const initial = sanitizePromptPlanAudio(buildOmniSegmentPrompts(input));
+  const repaired = sanitizePromptPlanAudio(await repairOmniPromptPlanWithAi({
+    promptPlan: initial,
     productName: input.product.name,
     productPhysicalContract: input.product.product_physical_contract,
     segmentCount: input.segmentCount,
     directorBrief,
     referenceSceneMode: resolveReferenceSceneMode(directorBrief),
-  });
-  const reviewed = await prepareOmniPromptPlanWithSemanticRepair({
+  }));
+  const reviewed = sanitizePromptPlanAudio(await prepareOmniPromptPlanWithSemanticRepair({
     projectId: input.projectId, productId: input.productId, promptPlan: repaired,
     script: input.generatedScript?.script || input.legacyTranscript || input.brief || "",
     productName: input.product.name, productDescription: input.product.description,
@@ -152,7 +153,7 @@ async function buildPreparedPlan(input: OmniPromptPreparationInput) {
     model: process.env.OMNI_STORYBOARD_SEMANTIC_REVIEW_MODEL?.trim()
       || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL?.trim()
       || process.env.SCENARIO_MODEL?.trim() || "google/gemini-2.5-flash",
-  });
+  }));
   const plan = reviewed.map((segment) => {
     if (!segment.storyboardPlan) throw new Error(`Storyboard ${segment.index} is required`);
     return {
@@ -167,6 +168,18 @@ async function buildPreparedPlan(input: OmniPromptPreparationInput) {
   });
   assertPreparedOmniPromptPlan(input, plan);
   return plan;
+}
+
+function sanitizePromptPlanAudio(plan: readonly OmniSegmentPrompt[]): OmniSegmentPrompt[] {
+  return plan.map((segment) => {
+    if (!segment.storyboardPlan) return segment;
+    const storyboardPlan = sanitizeOmniStoryboardAudio(segment.storyboardPlan);
+    return {
+      ...segment,
+      storyboardPlan,
+      storyboardValidation: validateOmniStoryboardSegment(storyboardPlan),
+    };
+  });
 }
 
 function assertPreparedOmniPromptPlan(input: OmniPromptPreparationInput, plan: readonly OmniSegmentPrompt[]) {

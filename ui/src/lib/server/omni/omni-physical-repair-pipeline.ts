@@ -1,5 +1,5 @@
 import type { OmniStoryboardSegment } from "../../omni/storyboard/omni-storyboard-types";
-import { validateOmniStoryboardSegment } from "../../omni/storyboard/omni-storyboard-contract";
+import { sanitizeOmniStoryboardAudio, validateOmniStoryboardSegment } from "../../omni/storyboard/omni-storyboard-contract";
 import type { DirectorBrief } from "./director-analysis-types";
 import type { OmniSegmentPrompt } from "./omni-prompt-builder";
 import {
@@ -90,14 +90,14 @@ export async function repairOmniPromptPlanWithAi(input: {
       });
       if (!result.patch.frames.length) break;
 
-      storyboard = normalizePhysicalStoryboardSegment({
+      storyboard = sanitizeOmniStoryboardAudio(normalizePhysicalStoryboardSegment({
         storyboard: applyPatch(storyboard, result.patch.frames),
         productName: input.productName,
         productVisible: segment.creativePlan.productRole !== "hidden",
         productVisibleByFrame: segment.creativePlan.productVisibleByFrame,
         productRole: segment.creativePlan.productRole,
         referenceSceneMode: input.referenceSceneMode,
-      });
+      }));
       validation = validatePhysicalScene({
         storyboard,
         creativePlan: segment.creativePlan,

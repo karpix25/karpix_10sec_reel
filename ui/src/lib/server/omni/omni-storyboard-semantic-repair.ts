@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { OmniStoryboardFrame, OmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-types";
-import { normalizeOmniStoryboardSpeech, validateOmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-contract";
+import { normalizeOmniStoryboardSpeech, sanitizeOmniStoryboardAudio, validateOmniStoryboardSegment } from "@/lib/omni/storyboard/omni-storyboard-contract";
 import type { OmniSegmentPrompt } from "./omni-prompt-builder";
 import type { DirectorBrief } from "./director-analysis-types";
 import { applyReferenceSceneModeToOmniPrompt, type ReferenceSceneMode } from "./omni-reference-scene-mode";
@@ -406,11 +406,11 @@ function mergeRepairedStoryboard(original: OmniStoryboardSegment, value: unknown
   if (normalizeOmniStoryboardSpeech(storyboardVoiceover) !== normalizeOmniStoryboardSpeech(voiceoverText)) {
     throw new Error("Semantic storyboard repair changed the voiceover text");
   }
-  return {
+  return sanitizeOmniStoryboardAudio({
     ...original,
     voiceoverText,
     frames: value.frames.map((frame, index) => mergeRepairedFrame(original.frames[index], frame)),
-  };
+  });
 }
 
 function mergeRepairedFrame(original: OmniStoryboardFrame, value: unknown): OmniStoryboardFrame {

@@ -24,6 +24,23 @@ const REQUIRED_FRAME_FIELDS: readonly (keyof Pick<
 const MODEL_MUSIC_CUE_PATTERN =
   /(?:музык|саундтрек|трек|песня|мелод|music|soundtrack|background\s+music|bgm|song|melody)/iu;
 
+/** Omni generates dialogue and diegetic SFX only. Final music is mixed later. */
+export function sanitizeOmniStoryboardAudio(input: OmniStoryboardSegment): OmniStoryboardSegment {
+  return {
+    ...input,
+    frames: input.frames.map((frame) => ({
+      ...frame,
+      sfxNotes: MODEL_MUSIC_CUE_PATTERN.test(frame.sfxNotes || "")
+        ? "естественные звуки текущей сцены"
+        : frame.sfxNotes,
+      effectNotes: frame.effectNotes && MODEL_MUSIC_CUE_PATTERN.test(frame.effectNotes)
+        ? null
+        : frame.effectNotes,
+      modelMusicNotes: null,
+    })),
+  };
+}
+
 export function normalizeOmniStoryboardSegment(input: OmniStoryboardSegment): OmniStoryboardSegment {
   return {
     segmentIndex: input.segmentIndex,

@@ -459,6 +459,11 @@ try {
   musicCue.frames[2] = { ...musicCue.frames[2], sfxNotes: "легкая музыка на фоне" };
   assertInvalid(musicCue, "frame_3_sfxNotes_must_not_include_music_cue");
 
+  const sanitizedMusicCue = contract.sanitizeOmniStoryboardAudio(musicCue);
+  assert.equal(sanitizedMusicCue.frames[2].sfxNotes, "естественные звуки текущей сцены");
+  assert.equal(sanitizedMusicCue.frames[2].modelMusicNotes, null);
+  assert.equal(contract.validateOmniStoryboardSegment(sanitizedMusicCue).valid, true);
+
   assert.throws(
     () => renderer.renderCompactRussianOmniStoryboardPrompt({ storyboard: musicCue }),
     /Invalid Omni storyboard/u
