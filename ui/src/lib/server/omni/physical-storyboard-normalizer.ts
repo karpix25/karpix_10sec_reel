@@ -19,6 +19,7 @@ import {
   buildProductBrollCamera,
   buildProductBrollPlacement,
 } from "./omni-product-broll-contract";
+import { mentionsOmniProduct } from "./omni-intro-product-contract";
 
 const CUTAWAY_PATTERN = /cutaway|insert|macro|product close|крупн(?:ый|ом) кадр|перебив|предметн(?:ый|ая) кадр/iu;
 export const CANONICAL_STORYBOARD_OVERRIDES_HEADER =
@@ -37,18 +38,19 @@ export function normalizePhysicalStoryboardSegment(input: {
   productRole?: ProductRole;
   referenceSceneMode?: ReferenceSceneMode;
 }): OmniStoryboardSegment {
+  const normalizedFrames = input.storyboard.frames.map((frame, index) => normalizeFrame({
+    frame,
+    productName: input.productName,
+    productVisible: Boolean(input.productVisible),
+    productVisibleByFrame: input.productVisibleByFrame,
+    frameIndex: index + 1,
+    frameCount: input.storyboard.frames.length,
+    productRole: input.productRole,
+    referenceSceneMode: input.referenceSceneMode,
+  }));
   return {
     ...input.storyboard,
-    frames: input.storyboard.frames.map((frame, index) => normalizeFrame({
-      frame,
-      productName: input.productName,
-      productVisible: Boolean(input.productVisible),
-      productVisibleByFrame: input.productVisibleByFrame,
-      frameIndex: index + 1,
-      frameCount: input.storyboard.frames.length,
-      productRole: input.productRole,
-      referenceSceneMode: input.referenceSceneMode,
-    })),
+    frames: enforceNarratorVisibility(normalizedFrames),
   };
 }
 
@@ -81,7 +83,8 @@ function normalizeFrame(input: {
   const { frame, productName } = input;
   const product = productName.trim() || "продукт";
   const spokenText = frame.spokenText.trim();
-  const visibleInFrame = input.productVisibleByFrame?.[input.frameIndex - 1] ?? false;
+  const explicitProductMention = input.productRole !== "hidden" && mentionsOmniProduct(spokenText, product);
+  const visibleInFrame = (input.productVisibleByFrame?.[input.frameIndex - 1] ?? false) || explicitProductMention;
   const speechMode = visibleInFrame || input.referenceSceneMode === "voiceover_broll"
     ? "voiceover_only"
     : frame.speechMode || frame.physicalPlan?.speechMode;
@@ -160,6 +163,21 @@ function normalizeFrame(input: {
     physicalPlan,
     referenceTransfer: synchronizeReferenceTransferProductVisibility(frame.referenceTransfer, visibleInFrame),
   };
+}
+
+function enforceNarratorVisibility(frames: readonly OmniStoryboardFrame[]) {
+  const eligible = frames.map((frame) => {
+    const productVisible = Boolean(frame.physicalPlan?.visibleEntityIds?.length);
+    const isCutaway = CUTAWAY_PATTERN.test(`${frame.visualAction} ${frame.camera}`);
+    return Boolean(frame.spokenText.trim()) && !productVisible && !isCutaway;
+  });
+  const hasNarrator = frames.some((frame, index) => frame.narratorVisible === true && eligible[index]);
+  let assignedFallback = false;
+  return frames.map((frame, index) => {
+    const narratorVisible = eligible[index] && (frame.narratorVisible === true || (!hasNarrator && !assignedFallback));
+    if (narratorVisible && !hasNarrator) assignedFallback = true;
+    return { ...frame, narratorVisible };
+  });
 }
 
 function withPassengerContext(action: string, sourceAction: string) {
