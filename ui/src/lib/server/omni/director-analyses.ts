@@ -193,6 +193,23 @@ async function runDirectorAnalysis(
     if (!sourceScenario.reels_url) throw new Error("Legacy scenario has no reels_url");
 
     const resolved = await resolveInstagramVideoWithScrapeCreators(sourceScenario.reels_url);
+    // Scrape Creators returns the provider-readable media URL. Pass it directly
+    // to Gemini through OpenRouter; do not download, recompress, or proxy it.
+    const videoUrlForAnalysis = resolved.videoUrl;
+    const analyzed = await analyzeDirectorVideo({
+      videoUrl: videoUrlForAnalysis,
+      transcript: sourceScenario.script,
+    });
+    const evidenceFrames = await extractDirectorEvidenceFrames(videoUrlForAnalysis, sourceScenario.duration_seconds);
+    const verified = await verifyDirectorBriefAgainstReferenceFrames({
+      videoUrl: videoUrlForAnalysis,
+      brief: analyzed.brief,
+      model: analyzed.model,
+      evidenceFrames,
+    });
+
+    // Keep a library copy only after analysis has started and completed. Storage
+    // is archival and must never replace or delay the direct provider URL.
     let storedVideoUrl: string | null = null;
     let storageStatus = "skipped";
     let storageError: string | null = null;
@@ -208,18 +225,6 @@ async function runDirectorAnalysis(
       storageError = formatError(error);
     }
 
-    const videoUrlForAnalysis = storedVideoUrl || resolved.videoUrl;
-    const analyzed = await analyzeDirectorVideo({
-      videoUrl: videoUrlForAnalysis,
-      transcript: sourceScenario.script,
-    });
-    const evidenceFrames = await extractDirectorEvidenceFrames(videoUrlForAnalysis, sourceScenario.duration_seconds);
-    const verified = await verifyDirectorBriefAgainstReferenceFrames({
-      videoUrl: videoUrlForAnalysis,
-      brief: analyzed.brief,
-      model: analyzed.model,
-      evidenceFrames,
-    });
     const openRouterUsage = [
       verified.openRouterUsage,
       ...(analyzed.openRouterUsage ? [analyzed.openRouterUsage] : []),
