@@ -220,6 +220,7 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
     "product_integration_causal",
     "single_product_interval",
     "speech_alignment_exact",
+    "source_observation_uncontaminated",
   ].every((key) => selfCheck[key] === true);
   if (!semanticPassed) {
     throw new LlmPromptChainFailure("creative_copywriter", "Unified Gemini self-check did not pass", {

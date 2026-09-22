@@ -57,8 +57,15 @@ export function buildUnifiedContentPlannerPrompt(input: PromptChainInput) {
 
 Фаза A. Наблюдение reference
 - Просмотри видео целиком со звуком, включая начало и финал.
-- Сделай точную транскрипцию слышимой речи. Переданный текст является подсказкой, видео и его звук являются источником истины.
+- Сделай точную транскрипцию слышимой речи непосредственно из аудиодорожки видео. Видео и его звук являются единственным источником истины.
 - Отделяй содержание речи от визуального исполнения. Не додумывай отсутствующие факты.
+
+SOURCE OBSERVATION FIREWALL
+- Поля spoken_transcript, reference_analysis и весь director_brief, кроме director_brief.camera_timeline[].adaptation_rule и director_brief.visual_transfer, описывают только исходное видео до адаптации.
+- Не смешивай metadata нашего продукта, ЦА, CTA или аватара с наблюдением reference. Не переписывай исходную тему так, будто reference уже посвящён нашему продукту.
+- Название, свойства, интерфейс и CTA нашего продукта запрещены в source observation fields, если они буквально не звучат или не видны в исходном видео.
+- content_meaning обязан отражать полный фактический смысл оригинала, включая все существенные аргументы и этапы, а не только ту часть, к которой удобно присоединить продукт.
+- adaptation_rule может объяснить, как заменить конкретный source beat, а visual_transfer может описать перенос визуальной механики. Эти поля не изменяют факты наблюдения.
 
 Фаза B. Извлечение контентных инвариантов
 - Сам определи предмет и границы темы, центральный тезис, обещание хука, вопрос зрителя, цепочку раскрытия и финальный смысл.
@@ -89,10 +96,7 @@ export function buildUnifiedContentPlannerPrompt(input: PromptChainInput) {
 
 Весь voiceover: от ${minWords} до ${maxWords} слов, длительность от ${minSeconds} до ${maxSeconds} секунд. Оптимальная плотность: три-четыре слова на две секунды. Каждый segment длится четыре, шесть, восемь или десять секунд; каждый storyboard frame длится две секунды. Не разрывай незаконченную фразу между segments. spoken_words всех кадров по порядку должны дословно составлять voiceover segment, а voiceover всех segments — total_voiceover.
 
-Reference transcript:
-${input.sourceScenario.script}
-
-Видео reference передано в этом же сообщении. Анализируй именно его; transcript ниже используй только как подсказку и исправь по звуку видео, если он неточен.
+Видео reference передано в этом же сообщении. Самостоятельно извлеки из него речь, смысл и визуальную форму. Не используй legacy-транскрипт как вход анализа.
 
 Проект: ${input.projectName}
 Целевая аудитория: ${input.targetAudience || "не указана"}
@@ -102,6 +106,8 @@ ${input.sourceScenario.script}
 Подтверждённые заметки о продукте: ${input.productReferenceNotes || "не указаны"}
 CTA: ${buildCtaLine(input.ctaMode, input.ctaValue)}
 Пол речи аватара: ${input.avatarSpeechGender}
+
+TARGET ADAPTATION CONTEXT начинается только с блока «Проект» выше. Используй его исключительно для нового total_voiceover, segments, storyboard_frames, adaptation_rule и visual_transfer. Он не является доказательством того, что происходило в reference.
 
 Верни JSON строго такой структуры:
 {
@@ -146,7 +152,8 @@ CTA: ${buildCtaLine(input.ctaMode, input.ctaValue)}
     "presentation_frame_preserved": true,
     "product_integration_causal": true,
     "single_product_interval": true,
-    "speech_alignment_exact": true
+    "speech_alignment_exact": true,
+    "source_observation_uncontaminated": true
   }
 }
 
