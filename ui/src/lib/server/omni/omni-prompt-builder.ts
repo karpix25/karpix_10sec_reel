@@ -232,10 +232,12 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       outputTotalDurationSeconds,
       sourceDurationSeconds: input.referenceSourceDurationSeconds,
     });
-    const resolvedProductRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole, Boolean(segmentIntent.productMentioned));
-    const productRole = resolvedProductRole === "hidden" && segmentIntent.productMentioned
-      ? "digital_demo"
-      : resolvedProductRole;
+    const productRole = resolvePhysicalProductDemoRole(
+      segmentIndex,
+      productDemoSegmentIndex,
+      strategy.productRole,
+      segmentIndex === productDemoSegmentIndex,
+    );
     const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
       segmentIndex,
       voiceoverText: segmentIntent.spokenText,
@@ -376,10 +378,12 @@ function buildStoredProviderPromptSegments(
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
     const segmentIntent = segmentIntents[index];
-    const resolvedProductRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole, Boolean(segmentIntent?.productMentioned));
-    const productRole = resolvedProductRole === "hidden" && segmentIntent?.productMentioned
-      ? "digital_demo"
-      : resolvedProductRole;
+    const productRole = resolvePhysicalProductDemoRole(
+      segmentIndex,
+      productDemoSegmentIndex,
+      strategy.productRole,
+      segmentIndex === productDemoSegmentIndex,
+    );
     const voiceoverText = segmentIntent?.spokenText || segment.voiceover;
     const referenceSegmentPlan = buildReferenceSegmentPlan({
       brief: directorBrief,
@@ -392,8 +396,9 @@ function buildStoredProviderPromptSegments(
       sourceDurationSeconds: input.referenceSourceDurationSeconds,
     });
     const explicitProductFrames = segment.storyboardFrames.map((frame) => frame.referenceRole === "product" && frame.productBeat === true);
-    const productVisibleByFrame = explicitProductFrames.some(Boolean)
-      ? explicitProductFrames
+    const explicitProductFrameIndex = explicitProductFrames.findIndex(Boolean);
+    const productVisibleByFrame = segmentIndex === productDemoSegmentIndex && explicitProductFrameIndex >= 0
+      ? explicitProductFrames.map((_, frameIndex) => frameIndex === explicitProductFrameIndex)
       : buildOmniProductVisualIntent({ voiceoverText, durationSeconds: segment.durationSeconds, productName: input.product.name, productRole, referenceSegmentPlan }).visibleByFrame;
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,
