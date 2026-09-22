@@ -104,8 +104,10 @@ export function repairReferenceAction(input: {
   if (hasMultipleObjects && input.productVisible) {
     return buildProductBrollAction(product);
   }
-  if (interactsWithObject && hasSpeech && !input.productVisible && !preservesSupportProp) {
-    return "герой показывает только один предмет из текущей реплики одной рукой; остальные предметы вне кадра";
+  if (interactsWithObject && !input.productVisible && !preservesSupportProp) {
+    return hasSpeech
+      ? "герой спокойно говорит в камеру с нейтральным жестом, без демонстрации продукта и взаимодействия с предметами"
+      : "нейтральный тематический B-roll текущей реплики без демонстрации продукта и взаимодействия с предметами";
   }
   return action;
 }
