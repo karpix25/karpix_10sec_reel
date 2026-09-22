@@ -56,6 +56,8 @@ try {
 
   assert.deepEqual(plan.visibleByFrame, [true, true, false, false, false]);
   assert.equal(productContract.isProductPlacementVisible("Плати по миру вне кадра", "Плати по миру"), false);
+  assert.equal(productContract.isProductPlacementVisible("Плати по миру не используется в этой сцене", "Плати по миру"), false);
+  assert.equal(productContract.isProductPlacementVisible("Плати по миру видна крупным планом в центре кадра", "Плати по миру"), true);
   assert.equal(plan.firstVisibleFrame, 1);
   assert.equal(plan.lastVisibleFrame, 2);
   assert.deepEqual(

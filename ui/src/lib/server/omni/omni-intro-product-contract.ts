@@ -45,7 +45,8 @@ export function getOmniProductRevealFrame(spokenTexts: readonly string[], produc
 export function isProductPlacementVisible(placement: string, productName: string) {
   const normalized = normalize(placement);
   if (!normalized || /вне\s+кадра|не\s+вид(?:ен|на|но|ны)|скрыт|hidden|off\s*camera/iu.test(normalized)) return false;
-  return mentionsOmniProduct(placement, productName);
+  const explicitVisualCue = /(?:в\s+кадре|вид(?:ен|на|но|ны)|показан|крупн(?:ый|ым)\s+план|в\s+центр|на\s+(?:столе|поверхности|фоне)|лежит|стоит)/iu.test(normalized);
+  return explicitVisualCue && mentionsOmniProduct(placement, productName);
 }
 
 export function isProductVisibleInStoryboardFrame(
