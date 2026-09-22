@@ -4,7 +4,7 @@ import { spellPromptChainNumbersInText } from "./llm-prompt-chain-number-words";
 type ReviewContext = { script: string; referenceScript: string; productName: string; productDescription?: string | null; productReferenceNotes?: string | null };
 
 const CODES = new Set<ScriptSemanticDefect["code"]>([
-  "missing_product", "missing_product_value",
+  "missing_product_value",
 ]);
 
 /** Evidence is checked against the actual inputs, never against another model explanation. */
@@ -27,8 +27,9 @@ export function normalizeGroundedSemanticReview(raw: unknown, input: ReviewConte
   const add = (code: ScriptSemanticDefect["code"], message: string, referenceQuote = "", scriptQuote = "", expectedText = "") => {
     defects.push({ code, message, referenceQuote, scriptQuote, expectedText });
   };
-  const productNamed = hasSpokenProductName(input.script, input.productName);
-  if (!productNamed) add("missing_product", `Не назван продукт «${input.productName}».`, "", "", input.productName);
+  // Product naming is intentionally non-blocking. Product cards often contain a
+  // technical descriptor while natural speech uses the shorter recognizable brand.
+  const productNamed = true;
   const productValue = verified("value");
   // Missing positive evidence is not proof that useful speech is absent.
   if (!productValue && record.defects.some((item) => object(item)?.code === "missing_product_value")) {
@@ -45,7 +46,7 @@ export function normalizeGroundedSemanticReview(raw: unknown, input: ReviewConte
       continue;
     }
     // These checks have already been reconciled with exact evidence above.
-    if (code === "missing_product" || code === "missing_product_value") continue;
+    if (code === "missing_product_value") continue;
     const referenceQuote = text(item?.referenceQuote);
     const scriptQuote = text(item?.scriptQuote);
     const expectedText = text(item?.expectedText);

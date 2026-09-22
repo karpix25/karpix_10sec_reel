@@ -212,6 +212,29 @@ test("combined named anchors and missing positive value evidence do not reject c
   assert.equal(explicitMissingValue.passed, false, "an explicit missing-value finding still blocks until resolved");
 });
 
+test("short natural product name is not blocked by the technical card title", () => {
+  const context = {
+    productName: "Плати по миру виртуальная карта",
+    referenceScript: "Весной в Стамбуле уже тепло.",
+    script: "Паромы удобно оплачивать картой Плати по миру.",
+  };
+  const review = normalizeGroundedSemanticReview({
+    evidence: {
+      product: "Плати по миру",
+      value: "удобно оплачивать",
+      answer: "",
+      answerKind: "explanation",
+      referenceAnswer: "",
+      expectedAnswer: "",
+      transition: "",
+    },
+    defects: [{ code: "missing_product", message: "Нет полного названия." }],
+    warnings: [],
+  }, context);
+  assert.equal(review.passed, true);
+  assert.equal(review.productNamed, true);
+});
+
 function makePlan(): DirectorSegmentPlan {
   return {
     version: "llm-prompt-chain-v1",

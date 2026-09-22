@@ -104,7 +104,7 @@ SOURCE OBSERVATION FIREWALL
 Проект: ${input.projectName}
 Целевая аудитория: ${input.targetAudience || "не указана"}
 Тон бренда: ${input.brandVoice || "естественная разговорная речь"}
-Продукт: ${input.productName}
+Продукт: ${input.productName}. В речи разрешено естественное узнаваемое краткое название бренда; дословное полное название карточки не обязательно.
 Описание продукта: ${input.productDescription || "не указано"}
 Подтверждённые заметки о продукте: ${input.productReferenceNotes || "не указаны"}
 CTA: ${buildCtaLine(input.ctaMode, input.ctaValue)}
@@ -195,7 +195,7 @@ SOURCE OBSERVATION неизменяем: не исправляй и не воз�
 Проект: ${input.projectName}
 Целевая аудитория: ${input.targetAudience || "не указана"}
 Тон: ${input.brandVoice || "естественная разговорная речь"}
-Продукт: ${input.productName}
+Продукт: ${input.productName}. В речи разрешено естественное узнаваемое краткое название бренда; дословное полное название карточки не обязательно.
 Описание: ${input.productDescription || "не указано"}
 Подтверждённые заметки: ${input.productReferenceNotes || "не указаны"}
 CTA: ${buildCtaLine(input.ctaMode, input.ctaValue)}
