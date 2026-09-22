@@ -5,8 +5,6 @@ import type { OmniAutomationJobSummary, OmniGeneratedScript } from "@/lib/omni/t
 import { ensureOmniSchema } from "./schema";
 import { getGeneratedScriptCostSummaries } from "./omni-generation-costs";
 import { getLatestOmniClientAvatar } from "./avatars";
-import { shouldAnalyzeDirectorReference } from "./director-analysis-policy";
-import { ensureDirectorAnalysis } from "./director-analyses";
 import { advanceGeneratedScriptSourceCursor, resolveGeneratedScriptSource } from "./generated-script-source";
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
@@ -19,7 +17,6 @@ import {
   failStaleGeneratedScriptGenerations,
   failGeneratedScriptGeneration,
 } from "./generated-script-generation-state";
-import { resolveReadyGeneratedScriptReference } from "./generated-script-reference-selection";
 import { resolveOmniDurationRange } from "./omni-duration-settings";
 import { extractDirectorReferenceImageUrls } from "./director-reference-images";
 import { resolveNarratorSpeechGender } from "../../omni/avatar-speech-gender";
@@ -33,6 +30,8 @@ import {
 import { resolveGeneratedScriptReferenceTranscript } from "./generated-script-reference-transcript";
 import { adaptDirectorBriefForAvatarReel } from "./omni-avatar-reel-plan";
 import { resolveProductReferenceImageUrls } from "./omni-product-reference-images";
+import { resolveInstagramVideoWithScrapeCreators } from "./scrapecreators-client";
+import { storeDirectorReferenceVideo } from "./director-video-storage";
 
 
 function normalizeScript(row: OmniGeneratedScript & { prepared_prompt_plan?: unknown }): OmniGeneratedScript {
@@ -125,50 +124,27 @@ export async function createGeneratedScriptFromLegacy(input: {
   const avatar = await getLatestOmniClientAvatar(input.projectId);
   if (!avatar?.reference_url) throw new Error("Для разговорного ролика нужен сохранённый аватар с изображением.");
   if (!resolveProductReferenceImageUrls(product).length) throw new Error("Добавьте изображение продукта для товарных B-roll.");
-  const { sourceScenario, sourceMode, directorAnalysis } = await resolveReadyGeneratedScriptReference({
-    ...input,
-    resolveSource: resolveGeneratedScriptSource,
-    onSourceAttempted: (sourceScenario) => advanceGeneratedScriptSourceCursor({
-      projectId: input.projectId,
-      productId: input.productId,
-      legacyScenarioId: sourceScenario.id,
-    }),
-    shouldAnalyze: shouldAnalyzeDirectorReference,
-    ensureAnalysis: ensureDirectorAnalysis,
-    // The writer-owned flow needs the reference's topic and visual direction;
-    // an incomplete source timeline must not block the new script.
-    requireCompleteTimeline: false,
-    warn: (message) => console.warn(message),
-  });
-  if (!sourceScenario.reels_url?.trim() || !directorAnalysis) {
-    throw new Error("Сценарий можно создать только из legacy-reference с Instagram URL и готовым визуальным анализом.");
+  const { sourceScenario, sourceMode } = await resolveGeneratedScriptSource(input);
+  if (!sourceScenario.reels_url?.trim()) {
+    throw new Error("Сценарий можно создать только из legacy-reference с Instagram video URL.");
   }
+  const resolvedVideo = await resolveInstagramVideoWithScrapeCreators(sourceScenario.reels_url);
+  await advanceGeneratedScriptSourceCursor({
+    projectId: input.projectId,
+    productId: input.productId,
+    legacyScenarioId: sourceScenario.id,
+  });
   const durationRange = await resolveOmniDurationRange({
     project,
     product,
     legacyClientId: sourceScenario.client_id,
   });
-  const directorBrief = adaptDirectorBriefForAvatarReel(
-    directorAnalysis.director_analysis_status === "completed"
-      ? normalizeDirectorBrief(directorAnalysis.director_analysis_json)
-      : null);
-  if (!directorBrief) {
-    throw new Error("Сценарий можно создать только после успешного визуального анализа legacy-reference.");
-  }
   const avatarSpeechGender = resolveNarratorSpeechGender(
     avatar?.speech_gender,
-    isAvatarFreeReferenceScene(resolveReferenceSceneMode(directorBrief))
+    false,
   );
-  const directorReferenceImageUrls = extractDirectorReferenceImageUrls({ directorAnalysis });
-  const referenceTransferPlan = buildReferenceTransferPolicy({
-    hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),
-    directorBrief,
-    adaptationMode: "writer_owned",
-  });
-  const referenceTranscript = resolveGeneratedScriptReferenceTranscript(
-    sourceScenario,
-    directorAnalysis?.source_snapshot,
-  );
+  const referenceTranscript = sourceScenario.script.trim();
+  const model = process.env.SCENARIO_MODEL || "google/gemini-3.8-flash";
   const sourceSnapshotBase = {
     id: sourceScenario.id,
     source_selection_mode: sourceMode,
@@ -183,29 +159,28 @@ export async function createGeneratedScriptFromLegacy(input: {
     word_count: sourceScenario.word_count,
     duration_seconds: sourceScenario.duration_seconds,
     source_reference: sourceScenario.source_reference,
-    director_analysis_id: directorAnalysis?.id || null,
-    director_analysis_status: directorAnalysis?.director_analysis_status || "not_requested",
-    director_analysis: directorBrief,
-    reference_format_mode: resolveReferenceFormatMode(directorBrief),
-    reference_transfer_plan: referenceTransferPlan,
-    director_video_url: directorAnalysis?.stored_video_url || directorAnalysis?.resolved_video_url || null,
-    director_reference_image_urls: directorReferenceImageUrls,
+    director_analysis_id: null,
+    director_analysis_status: "processing_in_unified_call",
+    director_analysis: null,
+    reference_format_mode: null,
+    reference_transfer_plan: null,
+    director_video_url: resolvedVideo.videoUrl,
+    director_reference_image_urls: [],
     wardrobe_source: project.wardrobe_source,
     avatar_speech_gender: avatarSpeechGender,
-    director_analysis_model: directorAnalysis?.analysis_model || null,
-    director_analysis_prompt_version: directorAnalysis?.analysis_prompt_version || null,
-    director_analysis_error: directorAnalysis?.analysis_error || null,
-    generated_script_plan_version: "reels-script-writer-v2-writer-owned-adaptation",
+    director_analysis_model: model,
+    director_analysis_prompt_version: "unified-content-planner-v1",
+    director_analysis_error: null,
+    generated_script_plan_version: "unified-content-planner-v1",
     duration_range: durationRange,
     script_adaptation_mode: "writer_owned",
   };
-  const model = process.env.SCENARIO_MODEL || "google/gemini-3.5-flash-lite";
   const pendingScript = await createGeneratedScriptGenerationRecord({
     projectId: input.projectId,
     productId: input.productId,
     sourceLegacyScenarioId: sourceScenario.id,
     sourceLegacyClientId: sourceScenario.client_id,
-    directorAnalysisId: directorAnalysis?.id || null,
+    directorAnalysisId: null,
     title: sourceScenario.title || null,
     sourceSnapshot: sourceSnapshotBase,
     productSnapshot: { id: product.id, name: product.name },
@@ -226,28 +201,48 @@ export async function createGeneratedScriptFromLegacy(input: {
       ctaMode: product.cta_mode,
       ctaValue: product.cta_value,
       sourceScenario: { ...sourceScenario, script: referenceTranscript },
-      directorBrief,
+      directorBrief: null,
       wardrobeSource: project.wardrobe_source,
       durationRange,
       avatarSpeechGender,
       adaptationPlan: writerContentContext.adaptation,
       contentContract: writerContentContext,
+      referenceVideoUrl: resolvedVideo.videoUrl,
     });
     timedVoiceoverPlan = buildOmniTimedVoiceoverPlan(generated.payload.script, { durationRange });
   } catch (error) {
     await failGeneratedScriptGeneration(pendingScript.id, error);
     throw error;
   }
-  const directorCost = extractOpenRouterCostSummaryFromSnapshot(directorAnalysis?.source_snapshot);
-  const openRouterUsage = [
-    ...(directorCost?.layers || []),
-    ...generated.openRouterUsage,
-  ];
+  const directorBrief = adaptDirectorBriefForAvatarReel(generated.llmPromptChainSnapshot?.directorBrief || null);
+  if (!directorBrief) throw new Error("Unified Gemini response did not contain a valid director analysis.");
+  let storedVideoUrl: string | null = null;
+  try {
+    storedVideoUrl = (await storeDirectorReferenceVideo({
+      legacyScenarioId: sourceScenario.id,
+      videoUrl: resolvedVideo.videoUrl,
+    }))?.url || null;
+  } catch (error) {
+    console.warn("Unified reference video archival failed:", error);
+  }
+  const referenceTransferPlan = buildReferenceTransferPolicy({
+    hasProductReference: product.product_refs.some((reference) => reference.kind === "image"),
+    directorBrief,
+    adaptationMode: "writer_owned",
+  });
+  const openRouterUsage = generated.openRouterUsage;
   const openRouterCost = summarizeOpenRouterUsage(openRouterUsage);
 
   const sourceSnapshot = {
     ...sourceSnapshotBase,
-    script_writer_prompt_version: "reels-script-writer-v2-writer-owned-adaptation",
+    director_analysis_status: "completed",
+    director_analysis: directorBrief,
+    reference_format_mode: resolveReferenceFormatMode(directorBrief),
+    reference_transfer_plan: referenceTransferPlan,
+    director_video_url: storedVideoUrl || resolvedVideo.videoUrl,
+    reference_transcript: generated.llmPromptChainSnapshot?.spokenTranscript || referenceTranscript,
+    reference_analysis: generated.llmPromptChainSnapshot?.referenceAnalysis || null,
+    script_writer_prompt_version: "unified-content-planner-v1",
     generation_stage: "completed",
     generation_error: null,
     quality_check: generated.qualityCheck,

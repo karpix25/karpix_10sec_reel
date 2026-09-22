@@ -159,7 +159,7 @@ function renderWardrobeTimelineForPrompt(brief: DirectorBrief) {
   return `- Одежда по таймлайну: ${brief.wardrobe_timeline.map((item) => `${item.start_sec}-${item.end_sec}s ${item.subject_id}: ${item.visible ? item.description || "видимая одежда без деталей" : "одежда не видна"}`).join(" | ")}.`;
 }
 
-function buildDirectorBriefSkeleton() {
+export function buildDirectorBriefSkeleton() {
   return {
     spoken_transcript: "",
     content_meaning: {

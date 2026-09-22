@@ -4,6 +4,7 @@ import {
 } from "../../omni/storyboard/omni-storyboard-timing";
 import type { ScriptAdaptationPlan } from "./script-adaptation-contract";
 import type { ScriptContentContract } from "./script-content-contract";
+import type { DirectorBrief } from "./director-analysis-types";
 
 export const LLM_PROMPT_CHAIN_VERSION = "llm-prompt-chain-v1";
 export const OMNI_STORYBOARD_WORDS_PER_FRAME_MIN = OMNI_STORYBOARD_MIN_FRAME_WORDS;
@@ -166,6 +167,9 @@ export type LlmPromptChainSnapshot = {
   semanticReview: ScriptSemanticReview;
   creativeAttemptDiagnostics?: CreativeScriptAttemptDiagnostic[];
   validationIssues: PromptValidationIssue[];
+  referenceAnalysis?: Record<string, unknown> | null;
+  directorBrief?: DirectorBrief | null;
+  spokenTranscript?: string | null;
 };
 
 export type LlmPromptChainResult = {

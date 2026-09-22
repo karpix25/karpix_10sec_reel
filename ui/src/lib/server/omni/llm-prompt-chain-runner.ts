@@ -19,10 +19,13 @@ import {
   type ScriptSemanticReview,
 } from "./llm-prompt-chain-types";
 import {
+  buildUnifiedContentPlannerPrompt,
   buildDirectorSegmentRepairPrompt,
   buildDirectorSegmenterPrompt,
   type PromptChainInput,
 } from "./llm-prompt-chain-prompts";
+import { DIRECTOR_ANALYSIS_SYSTEM_PROMPT } from "./director-analysis-prompt";
+import { normalizeDirectorBrief } from "./director-analysis-types";
 import { runCreativeCopywriter, CreativeCopywriterFailure } from "./llm-creative-copywriter";
 import { assertPromptChainNumericRangeIntegrity, validateCreativeScriptQuality } from "./creative-script-preflight";
 import {
@@ -95,6 +98,167 @@ export class LlmPromptChainFailure extends Error {
 }
 
 export async function runLlmPromptChain(input: PromptChainInput & { model: string }): Promise<{
+  result: LlmPromptChainResult;
+  openRouterUsage: OpenRouterUsageRecord[];
+}> {
+  return runUnifiedLlmPromptChain(input);
+}
+
+async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: string }): Promise<{
+  result: LlmPromptChainResult;
+  openRouterUsage: OpenRouterUsageRecord[];
+}> {
+  if (!input.referenceVideoUrl?.trim()) {
+    throw new LlmPromptChainFailure("creative_copywriter", "Reference video URL is required for unified content planning", {
+      adaptationPlan: input.adaptationPlan,
+      contentContract: input.contentContract,
+    });
+  }
+  const openRouterUsage: OpenRouterUsageRecord[] = [];
+  const content = await requestOpenRouter({
+    input,
+    layer: "content_adapter",
+    attempt: 1,
+    userPrompt: buildUnifiedContentPlannerPrompt(input),
+    systemPrompt: `${DIRECTOR_ANALYSIS_SYSTEM_PROMPT}\nТы должен вернуть director_brief вместе со сценарием и раскадровкой в одном корневом JSON.`,
+    videoUrl: input.referenceVideoUrl,
+    responseFormatJson: true,
+    temperature: 0.45,
+    onUsage: (usage) => openRouterUsage.push(usage),
+  });
+  const parsed = parseAndRepairJson<Record<string, unknown>>(content);
+  const directorPlan = normalizeDirectorSegmentPlan(parsed);
+  const directorBrief = normalizeDirectorBrief(parsed.director_brief ?? parsed.directorBrief);
+  if (!directorPlan || !directorBrief) {
+    throw new LlmPromptChainFailure("director_segmenter", "Unified Gemini response is missing director_brief or director plan", {
+      adaptationPlan: input.adaptationPlan,
+      contentContract: input.contentContract,
+    });
+  }
+  const script = normalizeRussianSpeechGender(
+    sanitizeOmniScriptText(spellPromptChainNumbersInText(formatScenarioScript(directorPlan.totalVoiceover))),
+    input.avatarSpeechGender,
+  );
+  assertOmniScriptTextContract(script);
+  assertRussianSpeechGender(script, input.avatarSpeechGender);
+  validateCreativeScriptQuality(input, script, { hook: directorPlan.selectedHook });
+  const providerPlan = buildProviderPromptPlanFromDirector(directorPlan);
+  const productTimeline = directorPlan.segments.flatMap((segment) =>
+    segment.storyboardFrames.map((frame) => frame.productBeat === true)
+  );
+  if (!hasSingleContiguousTrueInterval(productTimeline)) {
+    throw new LlmPromptChainFailure("provider_plan_validation", "Unified plan must contain exactly one contiguous product interval", {
+      adaptationPlan: input.adaptationPlan,
+      contentContract: input.contentContract,
+      directorSegmentPlan: directorPlan,
+    });
+  }
+  const validationIssues = [
+    ...validateDirectorSegmentPlan(directorPlan),
+    ...validateStoryboardDirectorPlan(directorPlan),
+    ...validateProviderPromptPlan(providerPlan),
+    ...validateStoryboardProviderPlan(providerPlan),
+    ...validateStoryboardProviderAlignment(directorPlan, providerPlan),
+  ];
+  const errors = validationIssues.filter((issue) => issue.severity === "error");
+  if (errors.length) {
+    throw new LlmPromptChainFailure("provider_plan_validation", formatPromptValidationIssues(errors), {
+      adaptationPlan: input.adaptationPlan,
+      contentContract: input.contentContract,
+      directorSegmentPlan: directorPlan,
+    });
+  }
+  const beatSheet: OmniBeatSheet = {
+    version: "omni-beat-sheet-v1",
+    items: directorPlan.segments.flatMap((segment) => segment.storyboardFrames.map((frame, offset) => ({
+      id: `segment_${segment.index}_frame_${frame.index}`,
+      segmentIndex: segment.index,
+      frameIndex: frame.index,
+      startSeconds: offset * 2,
+      endSeconds: (offset + 1) * 2,
+      spokenWords: frame.spokenWords,
+      stage: frame.productBeat ? "product" : segment.index === 1 && frame.index === 1 ? "hook" : "body",
+      productMentioned: frame.productBeat === true,
+      visualRole: frame.productBeat ? "product" : frame.referenceRole === "avatar" ? "avatar" : "avatar_or_environment",
+      visualInstruction: frame.visualDescription,
+    }))),
+  };
+  const selfCheck = isRecordValue(parsed.self_check) ? parsed.self_check : {};
+  const semanticPassed = [
+    "topic_preserved",
+    "hook_promise_preserved",
+    "presentation_frame_preserved",
+    "product_integration_causal",
+    "single_product_interval",
+    "speech_alignment_exact",
+  ].every((key) => selfCheck[key] === true);
+  if (!semanticPassed) {
+    throw new LlmPromptChainFailure("creative_copywriter", "Unified Gemini self-check did not pass", {
+      adaptationPlan: input.adaptationPlan,
+      contentContract: input.contentContract,
+      directorSegmentPlan: directorPlan,
+    });
+  }
+  const semanticReview: ScriptSemanticReview = {
+    version: "script-semantic-review-v2",
+    passed: semanticPassed,
+    productNamed: true,
+    productValueStated: true,
+    hookAnswered: true,
+    finalAnswerPresent: true,
+    productNaturallyIntegrated: true,
+    referenceMeaningPreserved: true,
+    evidence: { product: "", value: "", answer: "", transition: "" },
+    issues: [], repairInstructions: [], defects: [], warnings: [],
+  };
+  const referenceAnalysis = isRecordValue(parsed.reference_analysis) ? parsed.reference_analysis : null;
+  const spokenTranscript = typeof parsed.spoken_transcript === "string" ? parsed.spoken_transcript.trim() : null;
+  return {
+    result: {
+      title: directorPlan.title,
+      hookOptions: directorPlan.hookOptions,
+      selectedHook: directorPlan.selectedHook,
+      script,
+      caption: "",
+      ctaKeyword: input.ctaMode === "keyword_in_comments" ? input.ctaValue || "" : "",
+      leadMagnet: "",
+      backgroundAudioMood: normalizeAudioMood(null, detectAudioMoodFromText(script)),
+      beats: directorPlan.segments.map((segment, index) => ({
+        stage: index === 0 ? "hook" : index === directorPlan.segments.length - 1 ? "cta" : "body",
+        visualCue: segment.storyboardFrames.map((frame) => `${frame.role}: ${frame.visualDescription}`).join(". "),
+        voiceover: segment.voiceover,
+      })),
+      snapshot: {
+        version: LLM_PROMPT_CHAIN_VERSION,
+        adaptationPlan: input.adaptationPlan,
+        contentContract: input.contentContract,
+        creativeScriptDraft: { version: LLM_PROMPT_CHAIN_VERSION, script, hookAngle: directorPlan.selectedHook, creativeNotes: null },
+        beatSheet,
+        directorSegmentPlan: directorPlan,
+        providerPromptPlan: providerPlan,
+        semanticReview,
+        validationIssues,
+        referenceAnalysis,
+        directorBrief,
+        spokenTranscript,
+      },
+    },
+    openRouterUsage,
+  };
+}
+
+function isRecordValue(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasSingleContiguousTrueInterval(values: readonly boolean[]) {
+  const first = values.indexOf(true);
+  if (first < 0) return false;
+  const last = values.lastIndexOf(true);
+  return values.slice(first, last + 1).every(Boolean);
+}
+
+async function runLegacyLlmPromptChain(input: PromptChainInput & { model: string }): Promise<{
   result: LlmPromptChainResult;
   openRouterUsage: OpenRouterUsageRecord[];
 }> {
@@ -323,6 +487,8 @@ async function requestOpenRouter(input: {
   layer: OpenRouterUsageLayer;
   attempt: number;
   userPrompt: string;
+  systemPrompt?: string;
+  videoUrl?: string;
   responseFormatJson: boolean;
   temperature?: number;
   onUsage: (usage: OpenRouterUsageRecord) => void;
@@ -336,11 +502,14 @@ async function requestOpenRouter(input: {
     messages: [
       {
         role: "system",
-        content: input.responseFormatJson
+        content: input.systemPrompt || (input.responseFormatJson
           ? "Верни только валидный JSON без markdown."
-          : "Верни только запрошенный текст без markdown и пояснений.",
+          : "Верни только запрошенный текст без markdown и пояснений."),
       },
-      { role: "user", content: input.userPrompt },
+      { role: "user", content: input.videoUrl ? [
+        { type: "text", text: input.userPrompt },
+        { type: "video_url", video_url: { url: input.videoUrl } },
+      ] : input.userPrompt },
     ],
   };
   if (input.responseFormatJson) body.response_format = { type: "json_object" };

@@ -3,7 +3,7 @@ import type { OmniLegacyScenario } from "@/lib/omni/types";
 import type { OmniAvatarSpeechGender } from "../../omni/avatar-speech-gender";
 import type { OmniWardrobeSource } from "../../omni/wardrobe-source";
 import type { DirectorBrief } from "./director-analysis-types";
-import { renderDirectorContentMeaningForScriptPrompt, renderDirectorFormatGrammarContract } from "./director-analysis-prompt";
+import { buildDirectorBriefSkeleton, renderDirectorContentMeaningForScriptPrompt, renderDirectorFormatGrammarContract } from "./director-analysis-prompt";
 import type { OmniDurationRange } from "./omni-duration-range";
 import type { OmniReelSegmentPlan } from "./omni-duration-planner";
 import type { CreativeScriptDraft, DirectorSegmentPlan, OmniBeatSheet } from "./llm-prompt-chain-types";
@@ -41,7 +41,118 @@ export type PromptChainInput = {
   avatarSpeechGender: OmniAvatarSpeechGender;
   adaptationPlan: ScriptAdaptationPlan;
   contentContract?: ScriptContentContract;
+  referenceVideoUrl?: string | null;
 };
+
+export function buildUnifiedContentPlannerPrompt(input: PromptChainInput) {
+  const minSeconds = input.durationRange?.minSeconds || 20;
+  const maxSeconds = input.durationRange?.maxSeconds || 40;
+  const minWords = input.durationRange?.minWords || 30;
+  const maxWords = input.durationRange?.maxWords || 80;
+  return `
+РОЛЬ
+Ты одновременно senior content strategist, сценарист UGC и режиссёр вертикального видео. У тебя один мультимодальный контекст: приложенное reference video, данные нашего продукта, аватара и CTA. Выполни весь контентный этап за один вызов и верни один согласованный JSON.
+
+ПОРЯДОК РАБОТЫ ВНУТРИ ЭТОГО ЖЕ ВЫЗОВА
+
+Фаза A. Наблюдение reference
+- Просмотри видео целиком со звуком, включая начало и финал.
+- Сделай точную транскрипцию слышимой речи. Переданный текст является подсказкой, видео и его звук являются источником истины.
+- Отделяй содержание речи от визуального исполнения. Не додумывай отсутствующие факты.
+
+Фаза B. Извлечение контентных инвариантов
+- Сам определи предмет и границы темы, центральный тезис, обещание хука, вопрос зрителя, цепочку раскрытия и финальный смысл.
+- Сам декомпозируй фрейм подачи на наблюдаемые операции: кто говорит, что появляется в кадре, как речь связана с визуалом, какие операции повторяются и чем формат завершается.
+- Не ограничивайся названием жанра. Если убрать операцию и ролик превратится в другой формат, эта операция является обязательным инвариантом.
+- Различай смысловой инвариант и заменяемую деталь. Замена продукта, бренда или CTA допустима; незаметная подмена темы, обещания хука, логики доказательства или механики подачи недопустима.
+
+Фаза C. Адаптация под наш продукт
+- Напиши новый самостоятельный сценарий своими словами, сохраняя найденные инварианты reference.
+- Новый хук должен обещать тот же тип ценности и раскрыться в сценарии. Не делай более общий, более узкий или соседний сюжет вместо исходного.
+- Используй только факты из видео, корректной транскрипции и карточки продукта. Не приписывай продукту неподтверждённые свойства.
+- Найди причинный переход к продукту внутри текущей мысли. Интеграция не должна звучать как отдельная рекламная вставка.
+- CTA короткий, мягкий и следует после понятной пользы продукта.
+
+Фаза D. Режиссура и битовка
+- Раздели окончательный voiceover на законченные речевые segments, затем на двухсекундные смысловые биты.
+- Для каждого бита выбери видимое действие, роль кадра, камеру, среду, одежду, SFX и product_beat по смыслу полной реплики и её функции во всём сценарии.
+- Не классифицируй бит по ключевому слову, совпадению подстроки или названию предмета. product_beat=true только когда текущая мысль действительно говорит о нашем продукте, его подтверждённой функции или результате выбора.
+- Все product_beat образуют один непрерывный временной интервал. В нём только отдельный предметный B-roll продукта на устойчивой поверхности, без человека, частей тела, рук и взаимодействия. Во всех остальных кадрах наш продукт полностью вне кадра.
+- Сохрани из reference композицию, ритм, переходы, атмосферу, одежду и обязательные визуальные операции. Промпт и режиссура не должны противоречить раскадровке.
+
+Фаза E. Самопроверка до выдачи JSON
+- Сверь новый сценарий с reference_analysis: topic, hook_promise, narrative_logic и presentation_frame действительно сохранены, а не просто похожи по настроению.
+- Проверь, что продукт назван, польза подтверждена входными данными, переход причинный, CTA соответствует настройке.
+- Проверь дословную идентичность речи: spoken_words всех frames по порядку равны voiceover segment; voiceover всех segments равен total_voiceover.
+- Проверь, что число кадров равно duration_seconds, делённому на два, и что продуктовый интервал ровно один.
+- Если проверка не проходит, исправь результат внутри этого же вызова. Не выводи черновики и рассуждения.
+
+Весь voiceover: от ${minWords} до ${maxWords} слов, длительность от ${minSeconds} до ${maxSeconds} секунд. Оптимальная плотность: три-четыре слова на две секунды. Каждый segment длится четыре, шесть, восемь или десять секунд; каждый storyboard frame длится две секунды. Не разрывай незаконченную фразу между segments. spoken_words всех кадров по порядку должны дословно составлять voiceover segment, а voiceover всех segments — total_voiceover.
+
+Reference transcript:
+${input.sourceScenario.script}
+
+Видео reference передано в этом же сообщении. Анализируй именно его; transcript ниже используй только как подсказку и исправь по звуку видео, если он неточен.
+
+Проект: ${input.projectName}
+Целевая аудитория: ${input.targetAudience || "не указана"}
+Тон бренда: ${input.brandVoice || "естественная разговорная речь"}
+Продукт: ${input.productName}
+Описание продукта: ${input.productDescription || "не указано"}
+Подтверждённые заметки о продукте: ${input.productReferenceNotes || "не указаны"}
+CTA: ${buildCtaLine(input.ctaMode, input.ctaValue)}
+Пол речи аватара: ${input.avatarSpeechGender}
+
+Верни JSON строго такой структуры:
+{
+  "reference_analysis": {
+    "topic": "",
+    "hook_promise": "",
+    "narrative_logic": [""],
+    "presentation_frame": "",
+    "visual_grammar": "",
+    "preservation_explanation": ""
+  },
+  "spoken_transcript": "точная транскрипция речи из видео",
+  "director_brief": ${JSON.stringify(buildDirectorBriefSkeleton(), null, 2)},
+  "format": "talking_head_cutaways или voiceover_broll",
+  "title": "",
+  "hook_options": ["", "", ""],
+  "selected_hook": "",
+  "total_voiceover": "",
+  "segments": [{
+    "index": 1,
+    "duration_seconds": 8,
+    "voiceover": "",
+    "product_state": "",
+    "storyboard_frames": [{
+      "index": 1,
+      "role": "face_open, face_return, environment_cutaway или product_cutaway",
+      "spoken_words": "",
+      "visual_description": "",
+      "camera": "",
+      "action": "",
+      "product_state": "вне кадра или отдельный неподвижный B-roll без людей и рук",
+      "sfx": "только естественный SFX без музыки",
+      "reference_role": "avatar, product или none",
+      "product_beat": false
+    }],
+    "end_state": ""
+  }],
+  "notes": "короткая профессиональная режиссёрская логика",
+  "self_check": {
+    "topic_preserved": true,
+    "hook_promise_preserved": true,
+    "presentation_frame_preserved": true,
+    "product_integration_causal": true,
+    "single_product_interval": true,
+    "speech_alignment_exact": true
+  }
+}
+
+Не добавляй музыку в кадры. Не используй emoji, длинные тире и цифры в произносимом тексте. Не объясняй ответ вне JSON.
+`.trim();
+}
 
 export function buildCreativeCopywriterPrompt(input: PromptChainInput) {
   const referenceFacts = renderReferenceFactContract(input.sourceScenario.script);
@@ -54,8 +165,8 @@ Reference transcript и данные продукта ниже являются 
 Верни только JSON с массивом segments по описанному ниже формату, без markdown и пояснений.
 
 Reference задаёт тему, угол, хук и визуально-сценарный ритм. Сохрани его смысловое ядро и подачу, но сформулируй новый текст своими словами.
-Сначала мысленно выдели идентифицирующие опоры reference: конкретную географию, центральное сравнение или конфликт, ключевые доказательства и тип финального вывода. Сохрани все опоры, которые не конфликтуют с карточкой продукта. Нельзя заменять конкретный регион, страну, город или категорию расплывчатым «у моря», «за границей», «в поездке» или аналогичным обобщением.
-Ты можешь менять порядок и формулировки, но не тему и не главный тезис. Не переноси чужую рекламу или CTA.
+Сам определи тему, обещание хука, смысловую логику и фрейм подачи reference. Сохрани их в адаптации и не подменяй внешне похожей, но другой историей.
+Ты можешь менять порядок и формулировки, но не определённую тему и главный тезис. Не переноси чужую рекламу или CTA.
 Если включаешь факт из reference, не искажай его. Детали, которые не помогают честно связать тему с продуктом, опусти.
 ${referenceFacts}
 ${contentMeaning}
