@@ -49,6 +49,7 @@ import {
 } from "./llm-prompt-chain-number-words";
 import type { OmniReelSegmentPlan } from "./omni-duration-planner";
 import { resolveDirectorSegmentFormat } from "./director-analysis-timeline";
+import { loadOpenRouterVideoDataUrl } from "./openrouter-video-input";
 import {
   diagnoseDirectorSegmenterOutput,
   formatDirectorSegmenterDiagnostic,
@@ -528,7 +529,8 @@ async function requestOpenRouter(input: {
 }) {
   const apiKey = process.env.OPENROUTER_API_KEY || "";
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured");
-  const body: Record<string, unknown> = {
+  let videoDataUrl = input.videoUrl ? await loadOpenRouterVideoDataUrl(input.videoUrl) : null;
+  let body: Record<string, unknown> = {
     model: input.input.model,
     temperature: input.temperature ?? PROMPT_CHAIN_TEMPERATURE,
     max_tokens: input.maxTokens || (input.responseFormatJson ? 12_000 : 4_000),
@@ -539,25 +541,35 @@ async function requestOpenRouter(input: {
           ? "Верни только валидный JSON без markdown."
           : "Верни только запрошенный текст без markdown и пояснений."),
       },
-      { role: "user", content: input.videoUrl ? [
+      { role: "user", content: videoDataUrl ? [
         { type: "text", text: input.userPrompt },
-        { type: "video_url", video_url: { url: input.videoUrl } },
+        { type: "video_url", video_url: { url: videoDataUrl } },
       ] : input.userPrompt },
     ],
   };
   if (input.responseFormatJson) body.response_format = { type: "json_object" };
 
-  const response = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://n8n-omnireels.ap2dy7.easypanel.host",
-      "X-Title": "Omni Reels",
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(PROMPT_CHAIN_REQUEST_TIMEOUT_MS),
-  });
+  let serializedBody = JSON.stringify(body);
+  let response: Response;
+  try {
+    response = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://n8n-omnireels.ap2dy7.easypanel.host",
+        "X-Title": "Omni Reels",
+      },
+      body: serializedBody,
+      signal: AbortSignal.timeout(PROMPT_CHAIN_REQUEST_TIMEOUT_MS),
+    });
+  } finally {
+    // The reference video is never written to disk. Drop all large in-memory
+    // representations immediately after the HTTP upload has completed.
+    videoDataUrl = null;
+    serializedBody = "";
+    body = {};
+  }
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(`Prompt chain request failed: ${response.status} ${text.slice(0, 240)}`);
