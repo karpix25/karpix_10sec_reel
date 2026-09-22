@@ -12,7 +12,11 @@ import { getOpenRouterPricingSnapshot } from "./openrouter-pricing";
 import { parseAndRepairJson } from "./script-json-repair";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const REQUEST_TIMEOUT_MS = 45_000;
+// Gemini 3.8 can take longer on the full storyboard + director brief payload.
+// Keep the semantic gate enabled, but give the bounded repair pipeline enough
+// time to receive the JSON response instead of treating a slow response as an
+// empty review.
+const REQUEST_TIMEOUT_MS = 120_000;
 const REVIEW_VERSION = "storyboard-plan-semantic-review-v2" as const;
 const REVIEW_CACHE_LIMIT = 64;
 const reviewCache = new Map<string, StoryboardPlanSemanticReview>();

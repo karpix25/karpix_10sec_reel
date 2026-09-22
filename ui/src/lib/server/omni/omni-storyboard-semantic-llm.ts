@@ -1,7 +1,7 @@
 import { parseAndRepairJson } from "./script-json-repair";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const REQUEST_TIMEOUT_MS = 45_000;
+const REQUEST_TIMEOUT_MS = 120_000;
 
 export async function requestSemanticStoryboardJson(input: {
   model: string;
