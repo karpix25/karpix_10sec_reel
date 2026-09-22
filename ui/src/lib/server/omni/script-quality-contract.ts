@@ -8,6 +8,7 @@ import {
 } from "./omni-speech-density";
 import type { OmniDurationRange } from "./omni-duration-range";
 import { validateReferenceMeaningCoverage, type ReferenceMeaningCoverage } from "./reference-meaning-contract";
+import { assertReferencePresentationPreserved } from "./reference-presentation-mechanics";
 import type { ScriptAdaptationMode } from "./script-adaptation-contract";
 import type { CtaMode } from "../../omni/creative-contract";
 import { assertOmniCtaContract } from "./omni-cta-contract";
@@ -195,6 +196,7 @@ export function validateViralScriptContract(input: {
     errors.add("Сценарий отклонен: нельзя переносить профессиональную роль автора reference на аватара. Убери фразы от первого лица вроде «я врач», «я косметолог», «как эксперт».");
   }
   check(() => assertOmniCtaContract(scriptText, { ctaMode: input.ctaMode as CtaMode, ctaValue: input.ctaValue }));
+  check(() => assertReferencePresentationPreserved(input.referenceScript || "", scriptText));
   const productMentioned = hasSpokenProductName(scriptText, input.productName);
   if (!productMentioned) errors.add(`Сценарий не называет продукт «${input.productName}».`);
 

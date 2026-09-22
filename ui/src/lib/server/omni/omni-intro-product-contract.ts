@@ -11,11 +11,19 @@ export function mentionsOmniProduct(text: string, productName: string) {
 
 /** Matches the client's named product, without treating neutral props as the product. */
 export function mentionsNamedOmniProduct(text: string, productName: string) {
-  const normalizedText = normalize(text);
+  const textWords = normalize(text).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const productWords = normalize(productName)
     .split(/[^\p{L}\p{N}]+/u)
     .filter((word) => word.length >= 4);
-  return productWords.some((word) => normalizedText.includes(word.slice(0, Math.max(4, word.length - 2))));
+  return productWords.some((word) => textWords.some((candidate) => isProductWordForm(candidate, word)));
+}
+
+function isProductWordForm(candidate: string, productWord: string) {
+  if (candidate === productWord) return true;
+  const stem = productWord.slice(0, Math.max(4, productWord.length - 1));
+  if (!candidate.startsWith(stem)) return false;
+  const suffix = candidate.slice(stem.length);
+  return /^(?:а|я|ы|и|у|ю|е|ом|ем|ой|ей|ою|ею|ам|ям|ами|ями|ах|ях)?$/u.test(suffix);
 }
 
 export function mentionsExplicitOmniProduct(text: string, productName: string) {

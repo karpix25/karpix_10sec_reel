@@ -33,6 +33,7 @@ export function renderOmniProviderPromptContract(input: {
   characterIdentityLocked: boolean;
   storyboardDriven?: boolean;
 }) {
+  const plannedCommentCards = /(?:карточк[аи]\s+(?:комментар|отзыв)|comment\s*card|review\s*card)/iu.test(input.basePrompt);
   const referenceRoles = input.references.length
     ? input.references.map((reference, index) => `image ${index + 1}=${reference.role}`).join("; ")
     : "no image references";
@@ -45,6 +46,7 @@ export function renderOmniProviderPromptContract(input: {
         voiceoverText: input.voiceoverText,
         references: input.references,
         characterIdentityLocked: input.characterIdentityLocked,
+        plannedCommentCards,
       })
     : input.basePrompt.trim();
 
@@ -70,6 +72,7 @@ function renderStoryboardDrivenContentPlan(input: {
   voiceoverText: string;
   references: readonly PromptReference[];
   characterIdentityLocked: boolean;
+  plannedCommentCards: boolean;
 }) {
   const storyboardIndex = input.references.findIndex((reference) => reference.role === "storyboard");
   if (storyboardIndex < 0) throw new Error("Storyboard-driven Omni prompt requires a storyboard reference");
@@ -86,7 +89,9 @@ function renderStoryboardDrivenContentPlan(input: {
     productFiles.length
       ? `${productFiles.join(" and ")} are the sole authority for product appearance. Show the product only in storyboard panels that contain it.`
       : "Do not invent a product that is absent from the supplied references.",
-    "The REPLICA instruction strip under each storyboard panel is audio direction only. Speak those Russian words in panel order; never render the strip, panel borders, labels, timestamps, subtitles, or other text in the final video.",
+    input.plannedCommentCards
+      ? "The REPLICA instruction strip under each storyboard panel is audio direction only. Speak those Russian words in panel order; never render the strip, panel borders, labels, timestamps, or subtitles. Preserve only the explicitly planned in-frame comment or review cards shown inside the live storyboard panels; they are part of the directing format, not social-platform UI."
+      : "The REPLICA instruction strip under each storyboard panel is audio direction only. Speak those Russian words in panel order; never render the strip, panel borders, labels, timestamps, subtitles, or other text in the final video.",
     `Exact Russian voiceover safety copy: "${input.voiceoverText.trim()}"`,
     "Create a clean full-screen vertical video, not a contact sheet. Start speaking immediately and keep natural continuous pacing across cuts.",
   ].filter(Boolean).join("\n");

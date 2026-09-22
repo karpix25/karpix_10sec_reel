@@ -11,6 +11,7 @@ import type { ScriptContentContract } from "./script-content-contract";
 import { SCRIPT_PRODUCT_INTEGRATION_CONTRACT } from "./script-product-integration-contract";
 import { CREATIVE_SPEECH_PACKING_RULE } from "./creative-script-preflight";
 import { buildReferenceMeaningGuidance } from "./reference-meaning-contract";
+import { renderReferencePresentationContract } from "./reference-presentation-mechanics";
 
 export function buildPrompt(input: {
   projectName: string;
@@ -32,6 +33,7 @@ export function buildPrompt(input: {
 }) {
   const referenceMeaningGuidance = buildReferenceMeaningGuidance(input.sourceScenario.script);
   const semanticReferenceMeaning = renderDirectorContentMeaningForScriptPrompt(input.directorBrief || null);
+  const presentationContract = renderReferencePresentationContract(input.sourceScenario.script);
   const durationInstruction = buildDurationInstruction(input.durationRange);
   const wardrobeSource = normalizeOmniWardrobeSource(input.wardrobeSource);
   const directorGuidance = wardrobeSource === "avatar_reference"
@@ -48,6 +50,7 @@ Voiceover это текст, который произносит сохранё�
 Правила:
 ${referenceMeaningGuidance}
 ${semanticReferenceMeaning}
+${presentationContract}
 1. Сначала разберись в теме, конфликте, форме хука и фактах reference. Не показывай этот разбор в ответе.
 1. Reference передаёт тему, угол подачи, темп и набор возможных фактов. Выбери подходящие факты и напиши новый сценарий с нашим продуктом, не копируя исходный ответ, список или порядок раскрытия.
 1а. Перед написанием внутренне выбери ситуацию из reference, которая естественно ведёт к подтверждённой пользе продукта. Не показывай этот разбор в ответе.

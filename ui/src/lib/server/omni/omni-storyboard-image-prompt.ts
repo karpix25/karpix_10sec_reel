@@ -10,6 +10,7 @@ import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-
 import type { ReferenceSegmentPlan } from "./reference-segment-plan";
 import { resolveReferenceTransferMode } from "./omni-reference-transfer-policy";
 import type { ScriptAdaptationMode } from "./script-adaptation-contract";
+import { hasPlannedCommentCard } from "./reference-presentation-mechanics";
 
 const FEATURED_IDENTITY_EXCLUSIVITY = "IDENTITY: @file1 only; other people are background extras.";
 
@@ -63,6 +64,11 @@ export function buildStoryboardImagePrompt(input: {
   const productFileStart = firstReferenceFile + (canonicalFile ? 1 : 0) + (repairFile ? 1 : 0);
   const directorFileStart = productFileStart + productReferenceUrls.length;
   const frameCount = input.storyboard.frames.length;
+  const plannedCommentCards = input.storyboard.frames.some((frame) => hasPlannedCommentCard([
+    frame.visualAction,
+    frame.environment,
+    frame.effectNotes,
+  ].filter(Boolean).join(" ")));
   const productFrameNumbers = input.storyboard.frames
     .map((frame, index) => isProductVisibleInStoryboardFrame(frame as unknown as Record<string, unknown>, input.productName) ? index + 1 : null)
     .filter((index): index is number => index !== null);
@@ -77,7 +83,9 @@ export function buildStoryboardImagePrompt(input: {
       ? "APPROVED STORYBOARD: use the adapted per-frame plan below. Source frames supply setting, light and visual style; the approved plan determines subject, action and product B-roll."
       : "",
     "Верхняя часть каждой панели — живой вертикальный кадр. Под ним — аккуратная служебная плашка с номером кадра, интервалом времени и точной русской строкой РЕПЛИКА.",
-    "Служебная плашка является инструкцией для видеогенерации: её текст нужно произнести, но нельзя переносить в финальное видео как субтитр или графику. Не добавляй на раскадровку никакого другого текста.",
+    plannedCommentCards
+      ? "Служебная плашка является инструкцией для видеогенерации: её текст нужно произнести, но нельзя переносить в финальное видео как субтитр. Внутри живого кадра разрешена только явно запланированная карточка комментария или отзыва из описания панели; это часть режиссуры. Другого текста не добавляй."
+      : "Служебная плашка является инструкцией для видеогенерации: её текст нужно произнести, но нельзя переносить в финальное видео как субтитр или графику. Не добавляй на раскадровку никакого другого текста.",
     "Без рекламного дизайна, элементов соцсетей, водяных знаков, стикеров и декора; экран продукта допустим только по product reference.",
     objectOnlyReferenceScene
       ? "OBJECT-ONLY CONTRACT: в кадре нет человека, рук, лица, головы, глаз, губ, портрета аватара или talking-head. Показывай только утверждённую поверхность, предметы и концептуальные пропы. Озвучка идёт за кадром. Не добавляй человека из avatar reference."
