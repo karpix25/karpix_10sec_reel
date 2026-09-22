@@ -170,6 +170,7 @@ export type LlmPromptChainSnapshot = {
   referenceAnalysis?: Record<string, unknown> | null;
   directorBrief?: DirectorBrief | null;
   spokenTranscript?: string | null;
+  rawResponse?: string | null;
 };
 
 export type LlmPromptChainResult = {

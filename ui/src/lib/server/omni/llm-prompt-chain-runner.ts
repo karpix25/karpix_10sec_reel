@@ -77,6 +77,7 @@ export type LlmPromptChainPartialSnapshot = {
   beatSheet?: OmniBeatSheet;
   directorSegmentPlan?: DirectorSegmentPlan;
   directorSegmenterDiagnostics?: DirectorSegmenterAttemptDiagnostic[];
+  rawResponse?: string;
 };
 
 class DirectorSegmenterFailure extends Error {
@@ -127,22 +128,47 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
     temperature: 0.45,
     onUsage: (usage) => openRouterUsage.push(usage),
   });
-  const parsed = parseAndRepairJson<Record<string, unknown>>(content);
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parseAndRepairJson<Record<string, unknown>>(content);
+  } catch (error) {
+    throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), {
+      adaptationPlan: input.adaptationPlan,
+      contentContract: input.contentContract,
+      rawResponse: content,
+    });
+  }
   const directorPlan = normalizeDirectorSegmentPlan(parsed);
   const directorBrief = normalizeDirectorBrief(parsed.director_brief ?? parsed.directorBrief);
   if (!directorPlan || !directorBrief) {
     throw new LlmPromptChainFailure("director_segmenter", "Unified Gemini response is missing director_brief or director plan", {
       adaptationPlan: input.adaptationPlan,
       contentContract: input.contentContract,
+      rawResponse: content,
     });
   }
   const script = normalizeRussianSpeechGender(
     sanitizeOmniScriptText(spellPromptChainNumbersInText(formatScenarioScript(directorPlan.totalVoiceover))),
     input.avatarSpeechGender,
   );
-  assertOmniScriptTextContract(script);
-  assertRussianSpeechGender(script, input.avatarSpeechGender);
-  validateCreativeScriptQuality(input, script, { hook: directorPlan.selectedHook });
+  try {
+    assertOmniScriptTextContract(script);
+    assertRussianSpeechGender(script, input.avatarSpeechGender);
+    validateCreativeScriptQuality(input, script, { hook: directorPlan.selectedHook });
+  } catch (error) {
+    throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), {
+      adaptationPlan: input.adaptationPlan,
+      contentContract: input.contentContract,
+      creativeScriptDraft: {
+        version: LLM_PROMPT_CHAIN_VERSION,
+        script,
+        hookAngle: directorPlan.selectedHook,
+        creativeNotes: null,
+      },
+      directorSegmentPlan: directorPlan,
+      rawResponse: content,
+    });
+  }
   const providerPlan = buildProviderPromptPlanFromDirector(directorPlan);
   const productTimeline = directorPlan.segments.flatMap((segment) =>
     segment.storyboardFrames.map((frame) => frame.productBeat === true)
@@ -152,6 +178,7 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
       adaptationPlan: input.adaptationPlan,
       contentContract: input.contentContract,
       directorSegmentPlan: directorPlan,
+      rawResponse: content,
     });
   }
   const validationIssues = [
@@ -167,6 +194,7 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
       adaptationPlan: input.adaptationPlan,
       contentContract: input.contentContract,
       directorSegmentPlan: directorPlan,
+      rawResponse: content,
     });
   }
   const beatSheet: OmniBeatSheet = {
@@ -198,6 +226,7 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
       adaptationPlan: input.adaptationPlan,
       contentContract: input.contentContract,
       directorSegmentPlan: directorPlan,
+      rawResponse: content,
     });
   }
   const semanticReview: ScriptSemanticReview = {
@@ -242,6 +271,7 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
         referenceAnalysis,
         directorBrief,
         spokenTranscript,
+        rawResponse: content,
       },
     },
     openRouterUsage,
