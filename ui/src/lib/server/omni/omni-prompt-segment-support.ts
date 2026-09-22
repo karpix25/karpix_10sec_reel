@@ -1,6 +1,6 @@
 import type { OmniGeneratedScript, OmniProduct, OmniReferenceAsset } from "@/lib/omni/types";
 import type { OmniCreativeStrategy, OmniSegmentCreativePlan, ProductRole } from "@/lib/omni/creative-contract";
-import { isOmniProductVisualBeat, mentionsExplicitOmniProduct } from "./omni-intro-product-contract";
+import { isOmniProductVisualBeat, mentionsExplicitOmniProduct, mentionsOmniProduct } from "./omni-intro-product-contract";
 import {
   buildProductVisualProfileFromText,
   extractProductVisualProfileFromSnapshot,
@@ -60,7 +60,9 @@ export function selectPhysicalProductDemoSegmentIndex(input: {
   productName: string;
   productRole: ProductRole;
 }) {
-  if (input.productRole === "hidden") return null;
+  if (input.productRole === "hidden" && !input.segments.some((segment) => mentionsOmniProduct(segment.spokenText, input.productName))) {
+    return null;
+  }
   const explicit = input.segments.find((segment) => mentionsExplicitOmniProduct(segment.spokenText, input.productName));
   if (explicit) return explicit.index;
   return input.segments.find((segment) => isOmniProductVisualBeat(segment.spokenText, input.productName))?.index || null;
@@ -72,7 +74,7 @@ export function resolvePhysicalProductDemoRole(
   selectedRole: ProductRole = "brief_demo",
   forceVisible = false,
 ): ProductRole {
-  if (selectedRole === "hidden") return "hidden";
+  if (selectedRole === "hidden") return forceVisible ? "background_prop" : "hidden";
   if (forceVisible) return selectedRole === "digital_demo" ? "digital_demo" : "background_prop";
   if (segmentIndex !== productDemoSegmentIndex) return "hidden";
   return selectedRole === "digital_demo" ? "digital_demo" : "background_prop";
