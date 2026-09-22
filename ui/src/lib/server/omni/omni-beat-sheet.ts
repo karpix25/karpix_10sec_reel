@@ -1,4 +1,3 @@
-import { isOmniProductVisualBeat, mentionsOmniProduct } from "./omni-intro-product-contract";
 import { splitStoryboardSpeechWithBoundaries } from "./storyboard/omni-storyboard-speech";
 import { getOmniStoryboardFrameCount } from "../../omni/storyboard/omni-storyboard-timing";
 import type { DirectorSegmentPlan, OmniBeatSheet, OmniBeatSheetItem } from "./llm-prompt-chain-types";
@@ -14,11 +13,9 @@ export function buildOmniBeatSheet(input: {
     const chunks = splitStoryboardSpeechWithBoundaries(segment.voiceover, frameCount);
     if (chunks.length !== frameCount) throw new Error(`Beat sheet speech split failed for segment ${segment.index}`);
     chunks.forEach((chunk, frameOffset) => {
-      const productMentioned = mentionsOmniProduct(chunk.text, input.productName);
-      const productVisible = isOmniProductVisualBeat(chunk.text, input.productName);
       const isFirstFrame = frameOffset === 0;
       const isLastFrame = segmentOffset === input.segments.length - 1 && frameOffset === chunks.length - 1;
-      const stage = isLastFrame ? "cta" : productVisible ? "product" : segmentOffset === 0 && isFirstFrame ? "hook" : "body";
+      const stage = isLastFrame ? "cta" : segmentOffset === 0 && isFirstFrame ? "hook" : "body";
       items.push({
         id: `segment_${segment.index}_frame_${frameOffset + 1}`,
         segmentIndex: segment.index,
@@ -27,13 +24,11 @@ export function buildOmniBeatSheet(input: {
         endSeconds: (frameOffset + 1) * 2,
         spokenWords: chunk.text,
         stage,
-        productMentioned,
-        visualRole: productVisible ? "product" : isFirstFrame ? "avatar" : "avatar_or_environment",
-        visualInstruction: productVisible
-          ? "Показать только наш продукт отдельной предметной перебивкой; без рук и человека."
-          : isFirstFrame
-            ? "Начать с сохранённого аватара, который ведёт повествование."
-            : "Подобрать визуальное действие под смысл этих слов, сохраняя механику референса.",
+        productMentioned: false,
+        visualRole: isFirstFrame ? "avatar" : "avatar_or_environment",
+        visualInstruction: isFirstFrame
+          ? "Начать с сохранённого аватара. Смысл и визуальную роль бита определяет режиссёрская LLM."
+          : "Определить смысл и визуальную роль бита по полной фразе и контексту сценария.",
       });
     });
   });
@@ -47,10 +42,8 @@ export function renderOmniBeatSheetForPrompt(sheet: OmniBeatSheet) {
     frame_index: item.frameIndex,
     time: `${item.startSeconds}-${item.endSeconds} seconds`,
     spoken_words: item.spokenWords,
-    stage: item.stage,
-    product_mentioned: item.productMentioned,
-    visual_role: item.visualRole,
-    visual_instruction: item.visualInstruction,
+    timeline_hint: item.stage,
+    semantic_assignment: "LLM_MUST_DECIDE_FROM_CONTEXT",
   })), null, 2);
 }
 

@@ -1,12 +1,19 @@
 const PRODUCT_FORM_PATTERN =
-  /аэрогрил|бад\b|витамин|добавк|желе|капсул|коллаген|крем|пенк|порошок|продукт|сыворотк|саше|флакон|тюбик|упаковк|баноч|коробк|пакет/iu;
+  /аэрогрил|бад\b|витамин|добавк|желе|капсул|коллаген|крем|пенк|порошок|сыворотк|саше|флакон|тюбик|упаковк|баноч|коробк|пакет/iu;
+const GENERIC_PRODUCT_FORMS = new Set([
+  "продукт", "продукта", "продукту", "продуктом", "продукте",
+  "продукты", "продуктов", "продуктам", "продуктами", "продуктах",
+]);
 const EXPLICIT_PRODUCT_CUE =
   /(?:^|[\s,.;:!?])(?:вот|этот|эта|это|мой|моя|наша|наш|именно|использую|держу|показываю|оставил|оставила|артикул|код|описани)(?=$|[\s,.;:!?])|(?:^|[\s,.;:!?])(?:я|мы)\s+(?:пью|принимаю|использую)(?=$|[\s,.;:!?])/iu;
 const CTA_ONLY_PATTERN =
   /^\s*(?:(?:артикул|код|ссылк|подробност|ищите|закаж|заказать|смотрите|можно\s+найти)|(?:(?:если|когда|кому|нужен|нужна|нужно|хотите|ищете)(?:\s|$)[\s\S]*(?:артикул|код|ссылк|описани|комментар|профил)))[\s\S]*/iu;
 
 export function mentionsOmniProduct(text: string, productName: string) {
-  return mentionsNamedOmniProduct(text, productName) || PRODUCT_FORM_PATTERN.test(normalize(text));
+  const normalizedText = normalize(text);
+  return mentionsNamedOmniProduct(normalizedText, productName) ||
+    PRODUCT_FORM_PATTERN.test(normalizedText) ||
+    normalizedText.split(/[^\p{L}\p{N}]+/u).some((word) => GENERIC_PRODUCT_FORMS.has(word));
 }
 
 /** Matches the client's named product, without treating neutral props as the product. */
