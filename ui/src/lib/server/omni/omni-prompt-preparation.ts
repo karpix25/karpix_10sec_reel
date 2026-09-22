@@ -20,7 +20,7 @@ export type OmniPromptPreparationInput = Parameters<typeof buildOmniSegmentPromp
   productId: number;
 };
 
-export const OMNI_PREPARED_PLAN_VERSION = "avatar-broll-timeline-v4-single-product-shot";
+export const OMNI_PREPARED_PLAN_VERSION = "avatar-broll-timeline-v5-deterministic-credit-fallback";
 const PROMPT_LOCK_NAMESPACE = 53_902;
 type SavedPromptPlan = { version: string; signature: string; segments: OmniSegmentPrompt[] };
 
@@ -160,7 +160,11 @@ async function buildPreparedPlan(input: OmniPromptPreparationInput) {
   } catch (error) {
     if (!input.generatedScript || !isOpenRouterCreditError(error)) throw error;
     console.warn(`OpenRouter credits unavailable; using deterministic validated storyboard for generated script ${input.generatedScript.id}`);
-    reviewed = repaired;
+    // A paid repair can finish before the following semantic-review request hits
+    // the exhausted balance. Its partially accepted output is not deterministic
+    // and may re-introduce product shots in unrelated segments. Fall back to the
+    // locally built plan, which already owns the single product-shot contract.
+    reviewed = initial;
   }
   const plan = reviewed.map((segment) => {
     if (!segment.storyboardPlan) throw new Error(`Storyboard ${segment.index} is required`);

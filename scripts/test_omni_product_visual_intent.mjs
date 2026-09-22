@@ -53,12 +53,12 @@ try {
     productRole: "brief_demo",
   });
 
-  assert.deepEqual(plan.visibleByFrame, [true, false, false, false, false]);
+  assert.deepEqual(plan.visibleByFrame, [true, true, false, false, false]);
   assert.equal(plan.firstVisibleFrame, 1);
-  assert.equal(plan.lastVisibleFrame, 1);
+  assert.equal(plan.lastVisibleFrame, 2);
   assert.deepEqual(
     physical.resolveProductDemoFrame(plan.visibleByFrame, 0, 5),
-    { frameIndex: 1, frameCount: 1 },
+    { frameIndex: 1, frameCount: 2 },
   );
   assert.deepEqual(
     physical.resolveProductDemoFrame([false, false, true, true, false], 2, 5),
@@ -79,7 +79,7 @@ try {
       }],
     },
   });
-  assert.deepEqual(unrelatedReferenceProductBroll.visibleByFrame, [true, false, false, false, false]);
+  assert.deepEqual(unrelatedReferenceProductBroll.visibleByFrame, [true, true, false, false, false]);
   assert.deepEqual(intent.buildOmniProductVisualIntent({
     voiceoverText: "Плати по миру помогает в поездке. Дальше выбираем район и пляж. Вечером отдыхаем дома и планируем маршрут на завтра спокойно.",
     durationSeconds: 10,
