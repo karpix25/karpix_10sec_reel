@@ -42,6 +42,7 @@ try {
   copyFileSync(moods, aliasMoods);
 
   const intent = require(findFile(compiled, "omni-product-visual-intent.js"));
+  const productContract = require(findFile(compiled, "omni-intro-product-contract.js"));
   const continuity = require(findFile(compiled, "omni-generation-continuity.js"));
   const physical = require(findFile(compiled, "physical-scene-model.js"));
   const reference = require(findFile(compiled, "reference-segment-plan.js"));
@@ -54,6 +55,7 @@ try {
   });
 
   assert.deepEqual(plan.visibleByFrame, [true, true, false, false, false]);
+  assert.equal(productContract.isProductPlacementVisible("Плати по миру вне кадра", "Плати по миру"), false);
   assert.equal(plan.firstVisibleFrame, 1);
   assert.equal(plan.lastVisibleFrame, 2);
   assert.deepEqual(

@@ -44,7 +44,7 @@ export function getOmniProductRevealFrame(spokenTexts: readonly string[], produc
 
 export function isProductPlacementVisible(placement: string, productName: string) {
   const normalized = normalize(placement);
-  if (!normalized || /(?:продукт|товар)\s+(?:вне\s+кадра|не\s+виден|скрыт)|hidden|off\s*camera/iu.test(normalized)) return false;
+  if (!normalized || /вне\s+кадра|не\s+вид(?:ен|на|но|ны)|скрыт|hidden|off\s*camera/iu.test(normalized)) return false;
   return mentionsOmniProduct(placement, productName);
 }
 
