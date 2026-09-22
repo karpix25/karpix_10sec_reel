@@ -148,6 +148,15 @@ async function runUnifiedLlmPromptChain(
   try {
     parsed = parseAndRepairJson<Record<string, unknown>>(content);
   } catch (error) {
+    if (content.trim() && canRepairUnifiedPlan(repair)) {
+      return runUnifiedLlmPromptChain(input, nextUnifiedRepair({
+        repair,
+        previousResponse: content,
+        validationError: `Ответ содержит оборванный или невалидный JSON: ${getErrorMessage(error)}. Восстанови полный компактный JSON по заданному контракту.`,
+        openRouterUsage,
+        sourceObservation: repair?.sourceObservation || {},
+      }));
+    }
     throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), {
       adaptationPlan: input.adaptationPlan,
       contentContract: input.contentContract,
@@ -155,8 +164,13 @@ async function runUnifiedLlmPromptChain(
       openRouterUsage,
     });
   }
-  if (repair?.sourceObservation) Object.assign(parsed, repair.sourceObservation);
-  const sourceObservation = repair?.sourceObservation || lockUnifiedSourceObservation(parsed);
+  const hasLockedSourceObservation = Boolean(
+    repair?.sourceObservation && Object.keys(repair.sourceObservation).length
+  );
+  if (hasLockedSourceObservation) Object.assign(parsed, repair!.sourceObservation);
+  const sourceObservation = hasLockedSourceObservation
+    ? repair!.sourceObservation
+    : lockUnifiedSourceObservation(parsed);
   const directorPlan = normalizeDirectorSegmentPlan(parsed);
   const directorBrief = normalizeDirectorBrief(parsed.director_brief ?? parsed.directorBrief);
   if (!directorPlan || !directorBrief) {
@@ -670,11 +684,6 @@ async function requestOpenRouter(input: {
     throw new Error(`Prompt chain request failed: ${response.status} ${text.slice(0, 240)}`);
   }
   const data = (await response.json()) as Record<string, unknown>;
-  const choices = Array.isArray(data.choices) ? data.choices : [];
-  const firstChoice = choices[0] && typeof choices[0] === "object" ? choices[0] as Record<string, unknown> : null;
-  if (firstChoice?.finish_reason === "length") {
-    throw new Error("Unified Gemini JSON was truncated by the provider token limit");
-  }
   const pricing = await getOpenRouterPricingSnapshot(String(data.model || input.input.model));
   input.onUsage(normalizeOpenRouterUsage({
     layer: input.layer,

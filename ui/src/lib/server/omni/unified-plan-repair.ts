@@ -38,6 +38,7 @@ export function buildUnifiedPlanRepairPrompt(previousResponse: string, validatio
     "Не меняй reference_analysis, spoken_transcript и фактические поля director_brief: это зафиксированный анализ source video.",
     "Полностью пересобери согласованный блок title, hook_options, selected_hook, total_voiceover, segments, storyboard_frames, product_beat, adaptation_trace и self_check. Не латай старую битовку после изменения сценария.",
     "Верни полный корневой JSON со всеми исходными разделами.",
+    "Верни компактный JSON без форматирования и повторов. Служебные описания сокращай до одной конкретной фразы, чтобы ответ поместился в лимит.",
     "Каждый двухсекундный storyboard frame должен содержать три или четыре финальных русских слова.",
     "voiceover сегмента должен дословно совпадать с объединением spoken_words его кадров в исходном порядке.",
     "total_voiceover должен дословно совпадать с объединением voiceover всех сегментов.",
