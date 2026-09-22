@@ -20,7 +20,7 @@ export type OmniPromptPreparationInput = Parameters<typeof buildOmniSegmentPromp
   productId: number;
 };
 
-export const OMNI_PREPARED_PLAN_VERSION = "avatar-broll-timeline-v3-sfx-only";
+export const OMNI_PREPARED_PLAN_VERSION = "avatar-broll-timeline-v4-single-product-shot";
 const PROMPT_LOCK_NAMESPACE = 53_902;
 type SavedPromptPlan = { version: string; signature: string; segments: OmniSegmentPrompt[] };
 
@@ -133,27 +133,35 @@ function assertOmniPreparationInputs(input: OmniPromptPreparationInput) {
 async function buildPreparedPlan(input: OmniPromptPreparationInput) {
   const directorBrief = input.directorBrief || null;
   const initial = sanitizePromptPlanAudio(buildOmniSegmentPrompts(input));
-  const repaired = sanitizePromptPlanAudio(await repairOmniPromptPlanWithAi({
-    promptPlan: initial,
-    productName: input.product.name,
-    productPhysicalContract: input.product.product_physical_contract,
-    segmentCount: input.segmentCount,
-    directorBrief,
-    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
-  }));
-  const reviewed = sanitizePromptPlanAudio(await prepareOmniPromptPlanWithSemanticRepair({
-    projectId: input.projectId, productId: input.productId, promptPlan: repaired,
-    script: input.generatedScript?.script || input.legacyTranscript || input.brief || "",
-    productName: input.product.name, productDescription: input.product.description,
-    productPhysicalContract: input.product.product_physical_contract,
-    directorBrief,
-    referenceSceneMode: resolveReferenceSceneMode(directorBrief),
-    referenceFormatMode: resolveReferenceFormatMode(directorBrief),
-    referenceTransferMode: input.generatedScript ? "style_only" : resolveReferenceTransferMode(directorBrief),
-    model: process.env.OMNI_STORYBOARD_SEMANTIC_REVIEW_MODEL?.trim()
-      || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL?.trim()
-      || process.env.SCENARIO_MODEL?.trim() || "google/gemini-2.5-flash",
-  }));
+  let repaired = initial;
+  let reviewed = initial;
+  try {
+    repaired = sanitizePromptPlanAudio(await repairOmniPromptPlanWithAi({
+      promptPlan: initial,
+      productName: input.product.name,
+      productPhysicalContract: input.product.product_physical_contract,
+      segmentCount: input.segmentCount,
+      directorBrief,
+      referenceSceneMode: resolveReferenceSceneMode(directorBrief),
+    }));
+    reviewed = sanitizePromptPlanAudio(await prepareOmniPromptPlanWithSemanticRepair({
+      projectId: input.projectId, productId: input.productId, promptPlan: repaired,
+      script: input.generatedScript?.script || input.legacyTranscript || input.brief || "",
+      productName: input.product.name, productDescription: input.product.description,
+      productPhysicalContract: input.product.product_physical_contract,
+      directorBrief,
+      referenceSceneMode: resolveReferenceSceneMode(directorBrief),
+      referenceFormatMode: resolveReferenceFormatMode(directorBrief),
+      referenceTransferMode: input.generatedScript ? "style_only" : resolveReferenceTransferMode(directorBrief),
+      model: process.env.OMNI_STORYBOARD_SEMANTIC_REVIEW_MODEL?.trim()
+        || process.env.OMNI_DIRECTOR_ANALYSIS_MODEL?.trim()
+        || process.env.SCENARIO_MODEL?.trim() || "google/gemini-2.5-flash",
+    }));
+  } catch (error) {
+    if (!input.generatedScript || !isOpenRouterCreditError(error)) throw error;
+    console.warn(`OpenRouter credits unavailable; using deterministic validated storyboard for generated script ${input.generatedScript.id}`);
+    reviewed = repaired;
+  }
   const plan = reviewed.map((segment) => {
     if (!segment.storyboardPlan) throw new Error(`Storyboard ${segment.index} is required`);
     return {
@@ -168,6 +176,11 @@ async function buildPreparedPlan(input: OmniPromptPreparationInput) {
   });
   assertPreparedOmniPromptPlan(input, plan);
   return plan;
+}
+
+function isOpenRouterCreditError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /(?:\b402\b|insufficient credits|openrouter_credits)/iu.test(message);
 }
 
 function sanitizePromptPlanAudio(plan: readonly OmniSegmentPrompt[]): OmniSegmentPrompt[] {
