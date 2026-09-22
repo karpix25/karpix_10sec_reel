@@ -233,7 +233,7 @@ export function buildOmniSegmentPrompts(input: BuildOmniPromptsInput): OmniSegme
       sourceDurationSeconds: input.referenceSourceDurationSeconds,
     });
     const resolvedProductRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole, Boolean(segmentIntent.productMentioned));
-    const productRole = resolvedProductRole === "hidden" && segmentIntent.productMentioned && productReference
+    const productRole = resolvedProductRole === "hidden" && segmentIntent.productMentioned
       ? "digital_demo"
       : resolvedProductRole;
     const plan = applyDirectorLayoutToPlan(buildSegmentCreativePlan({
@@ -377,7 +377,7 @@ function buildStoredProviderPromptSegments(
     const segmentIndex = index + 1;
     const segmentIntent = segmentIntents[index];
     const resolvedProductRole = resolvePhysicalProductDemoRole(segmentIndex, productDemoSegmentIndex, strategy.productRole, Boolean(segmentIntent?.productMentioned));
-    const productRole = resolvedProductRole === "hidden" && segmentIntent?.productMentioned && productReference
+    const productRole = resolvedProductRole === "hidden" && segmentIntent?.productMentioned
       ? "digital_demo"
       : resolvedProductRole;
     const voiceoverText = segmentIntent?.spokenText || segment.voiceover;
