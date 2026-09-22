@@ -24,6 +24,10 @@ import { assertReferenceScenePromptContract, isAvatarFreeReferenceScene, normali
 import { extractDirectorBriefFromSnapshot } from "./director-analysis-types";
 import { isVoiceoverMontageReference, resolveReferenceFormatMode } from "./omni-reference-format-mode";
 import { getSkippedReferenceReason, markOmniReelPreflightFailure } from "./omni-reel-preflight-failure";
+import {
+  OMNI_PROVIDER_PROMPT_CONTRACT_VERSION,
+  renderOmniProviderPromptContract,
+} from "./omni-provider-prompt-contract";
 type ReelBundle = {
   reel: OmniReel;
   segments: OmniReelSegment[];
@@ -318,9 +322,19 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
             Boolean(videoCharacterId),
           )
         : continuityPrompt;
-    const finalProviderPrompt = providerPrompt;
-    assertReferenceScenePromptContract(finalProviderPrompt, referenceSceneMode);
+    const voiceoverText = segment.voiceover_text || segment.creative_plan?.voiceoverText;
+    if (typeof voiceoverText !== "string" || !voiceoverText.trim()) {
+      throw new Error(`Segment ${segment.segment_index} has no exact storyboard voiceover`);
+    }
     const usesStoryboardReference = selectedReferenceImages.sent.some((image) => image.role === "storyboard");
+    const finalProviderPrompt = renderOmniProviderPromptContract({
+      basePrompt: providerPrompt,
+      voiceoverText,
+      references: selectedReferenceImages.sent,
+      characterIdentityLocked: Boolean(videoCharacterId),
+      storyboardDriven: provider === "kie-ai" && usesStoryboardReference,
+    });
+    assertReferenceScenePromptContract(finalProviderPrompt, referenceSceneMode);
     const continuitySourceSegmentId =
       typeof continuity.metadata.sourceSegmentId === "number"
         ? continuity.metadata.sourceSegmentId
@@ -374,6 +388,7 @@ async function submitOmniReelUnlocked(reelId: number, providerInput?: unknown) {
       },
       continuity: continuity.metadata,
       prompt_contracts: [
+        OMNI_PROVIDER_PROMPT_CONTRACT_VERSION,
         ...(continuity.image ? ["previous_frame_continuity_v1"] : []),
         ...(provider === "kie-ai" && selectedReferenceImages.sent.length > 0
           ? ["kie_reference_order_v1"]

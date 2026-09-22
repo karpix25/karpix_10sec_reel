@@ -173,6 +173,7 @@ const STORYBOARD_VISION_SYSTEM_PROMPT = [
   "You are a strict static visual QA auditor for storyboard contact sheets.",
   "Inspect only facts that are positively visible. Identity and form error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only when the featured/main person is clearly not the supplied avatar, a planned client product is absent, the client product has the wrong physical form or is visibly replaced by a foreign advertised product, or the image has gross corruption such as a melted face, extra limb, or impossible phone.",
   "In non-product panels, background people are allowed. Clothing, camera, location, gesture, mouth state, timing, and reference similarity are creative choices and never errors.",
+  "Each panel must have one readable REPLICA instruction strip matching expected_replica exactly. Use STORYBOARD_REPLICA_MISMATCH with severity error only when words are missing, changed, assigned to the wrong panel, or unreadable. Ignore typography and punctuation style.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous, outside the crop, or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
@@ -183,6 +184,7 @@ const STORYBOARD_VISION_FACELESS_SYSTEM_PROMPT = [
   "The approved format is hands-only, body-crop, or object-only with off-camera narration.",
   "Use severity error when a face, head, eyes, lips, portrait, or talking-head framing is visibly introduced. Do not require avatar identity, face, hair, or wardrobe continuity.",
   "Hands, arms, and an approved body crop are allowed only in non-product panels when required by the storyboard plan. Product panels follow the object-only physical contract.",
+  "Each panel must have one readable REPLICA instruction strip matching expected_replica exactly. Use STORYBOARD_REPLICA_MISMATCH with severity error only when words are missing, changed, assigned to the wrong panel, or unreadable. Ignore typography and punctuation style.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
@@ -193,6 +195,7 @@ const STORYBOARD_VISION_OBJECT_ONLY_SYSTEM_PROMPT = [
   "The approved format is object-only with off-camera narration.",
   "Use severity error when a person, hand, face, head, eyes, lips, portrait, or talking-head framing is visibly introduced. Do not require avatar identity, face, hair, or wardrobe continuity.",
   "Only the approved surface, product, and conceptual props are allowed when required by the storyboard plan.",
+  "Each panel must have one readable REPLICA instruction strip matching expected_replica exactly. Use STORYBOARD_REPLICA_MISMATCH with severity error only when words are missing, changed, assigned to the wrong panel, or unreadable. Ignore typography and punctuation style.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
@@ -201,6 +204,7 @@ const STORYBOARD_VISION_MONTAGE_SYSTEM_PROMPT = [
   "You are a strict static visual QA auditor for storyboard contact sheets in a voiceover montage.",
   "Inspect only facts that are positively visible. Identity and form error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only when the featured/main person is clearly not the supplied avatar, a planned client product is absent, the client product has the wrong physical form or is visibly replaced by a foreign advertised product, or the image has gross visual corruption.",
   "Independent scenes and background people in non-product panels are allowed. Clothing, camera, location, gesture, mouth state, timing, and source-reference similarity are creative choices and never errors.",
+  "Each panel must have one readable REPLICA instruction strip matching expected_replica exactly. Use STORYBOARD_REPLICA_MISMATCH with severity error only when words are missing, changed, assigned to the wrong panel, or unreadable. Ignore typography and punctuation style.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous, outside the crop, or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
@@ -209,6 +213,7 @@ const STORYBOARD_VISION_BROLL_SYSTEM_PROMPT = [
   "You are a strict static visual QA auditor for storyboard contact sheets in voiceover B-roll.",
   "Inspect only facts that are positively visible. Identity and form error codes are FEATURED_IDENTITY_MISMATCH, PRODUCT_MISSING, PRODUCT_FORM_MISMATCH, FOREIGN_PRODUCT, and GROSS_VISUAL_CORRUPTION. Use them only when the featured/main person is clearly not the supplied avatar, a planned client product is absent, the client product has the wrong physical form or is visibly replaced by a foreign advertised product, or the image has gross visual corruption.",
   "Background people in non-product panels, visible speaking, lip movement, clothing, camera, location, gesture, timing, and source-reference similarity are creative choices and never errors.",
+  "Each panel must have one readable REPLICA instruction strip matching expected_replica exactly. Use STORYBOARD_REPLICA_MISMATCH with severity error only when words are missing, changed, assigned to the wrong panel, or unreadable. Ignore typography and punctuation style.",
   "Return only valid JSON with exactly this shape: { status: pass|repair|block, confidence: number, panels: [{ panel_index: integer, status: pass|repair|block, violations: [{ code: string, severity: error|warning, evidence: string }] }], repair_instructions: string[] }. Include every expected panel.",
   "If a detail is ambiguous or cannot be verified, omit it or return a warning. Do not block on uncertainty.",
 ].join(" ");
@@ -240,6 +245,7 @@ function buildStoryboardVisionPrompt(input: {
         product: input.productName,
         panels: input.storyboard.frames.map((frame, index) => ({
           panel_index: index + 1,
+          expected_replica: frame.spokenText,
           product_placement: frame.productPlacement,
           physical_plan: frame.physicalPlan || null,
           reference_transfer: frame.referenceTransfer || null,
@@ -259,6 +265,7 @@ function buildStoryboardVisionPrompt(input: {
         product: input.productName,
         panels: input.storyboard.frames.map((frame, index) => ({
           panel_index: index + 1,
+          expected_replica: frame.spokenText,
           product_placement: frame.productPlacement,
           physical_plan: frame.physicalPlan || null,
           visual_action: frame.visualAction,
@@ -277,6 +284,7 @@ function buildStoryboardVisionPrompt(input: {
       product: input.productName,
       panels: input.storyboard.frames.map((frame, index) => ({
         panel_index: index + 1,
+        expected_replica: frame.spokenText,
         product_placement: frame.productPlacement,
         physical_plan: frame.physicalPlan || null,
         visual_action: frame.visualAction,

@@ -61,7 +61,7 @@ export function appendKieReferenceOrderPrompt(
 
 function describeReferenceRole(role: string) {
   if (role === "previous_last_frame") return "previous segment final frame for pose, room layout, camera, lighting, and prop positions";
-  if (role === "storyboard") return "text-free storyboard reference for composition, timing, camera angle, framing, lighting, background, avatar-matching pose, product placement, and visual actions; never a separate identity source";
+  if (role === "storyboard") return "mandatory storyboard reference for composition, timing, camera angle, framing, lighting, background, avatar-matching pose, product placement, visual actions, and exact Russian speech written in each panel's REPLICA instruction strip; the strips are audio instructions and must not appear in the final video; never a separate identity source";
   if (role === "storyboard_canonical") return "first storyboard reference as canonical outfit, exact clothing colors and fabric; use it for continuity only, not for speech, current actions, or a separate identity";
   if (role === "product") return "product reference to preserve product appearance";
   if (role === "product_secondary") return "additional product reference to preserve product appearance";

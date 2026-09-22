@@ -76,8 +76,9 @@ export function buildStoryboardImagePrompt(input: {
     strictReferencePlan
       ? "APPROVED STORYBOARD: use the adapted per-frame plan below. Source frames supply setting, light and visual style; the approved plan determines subject, action and product B-roll."
       : "",
-    "В панелях только живые вертикальные кадры без букв, цифр, реплик, заголовков и технических подписей.",
-    "Без рекламного дизайна, элементов соцсетей, водяных знаков, captions, стикеров и декора; экран продукта допустим только по product reference.",
+    "Верхняя часть каждой панели — живой вертикальный кадр. Под ним — аккуратная служебная плашка с номером кадра, интервалом времени и точной русской строкой РЕПЛИКА.",
+    "Служебная плашка является инструкцией для видеогенерации: её текст нужно произнести, но нельзя переносить в финальное видео как субтитр или графику. Не добавляй на раскадровку никакого другого текста.",
+    "Без рекламного дизайна, элементов соцсетей, водяных знаков, стикеров и декора; экран продукта допустим только по product reference.",
     objectOnlyReferenceScene
       ? "OBJECT-ONLY CONTRACT: в кадре нет человека, рук, лица, головы, глаз, губ, портрета аватара или talking-head. Показывай только утверждённую поверхность, предметы и концептуальные пропы. Озвучка идёт за кадром. Не добавляй человека из avatar reference."
       : facelessReferenceScene
@@ -212,7 +213,7 @@ export function buildStoryboardImagePrompt(input: {
     input.repairInstructions?.length
       ? `PHYSICAL REPAIR FROM PRIOR CHECK: ${input.repairInstructions.join("; ")}.`
       : "",
-    "2 сек на панель.",
+    "2 сек на панель. Панели читаются строго слева направо. Реплики не сокращать, не перефразировать и не переносить между панелями.",
     detailedSourceTimeline
       ? "ADAPTED PLAN PRIORITY: preserve the approved panel's composition, camera, setting and light. Its assigned product B-roll and speech mode take precedence over source-person actions."
       : "",
@@ -222,9 +223,9 @@ export function buildStoryboardImagePrompt(input: {
         input.productName,
       );
       return [
-        `Кадр ${index + 1}:`,
+        `Кадр ${index + 1}: ${index * 2}-${(index + 1) * 2} сек;`,
+        `видимая служебная плашка: КАДР ${index + 1} | ${index * 2}-${(index + 1) * 2} СЕК | РЕПЛИКА: «${frame.spokenText}»;`,
         productVisible ? "subject=product_only; avatar_allowed=false;" : "",
-        `смысл кадра: ${frame.spokenText}.`,
         frame.speechMode ? `speech_mode: ${frame.speechMode};` : "",
         `действие: ${frame.visualAction}; камера: ${frame.camera}; окружение: ${frame.environment};${productVisible ? "" : ` одежда: ${frame.wardrobe};`}`,
         frame.effectNotes ? `переход: ${frame.effectNotes};` : "",

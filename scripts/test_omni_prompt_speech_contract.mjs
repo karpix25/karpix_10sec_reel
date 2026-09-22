@@ -95,7 +95,8 @@ try {
       directorReferenceImageUrls: ["https://example.com/source-frame.jpg"],
       canonicalStoryboardReferenceUrl: item.index > 1 ? "https://example.com/canonical.png" : null,
     });
-    assert.match(imagePrompt, /без букв, цифр, реплик, заголовков/u);
+    assert.doesNotMatch(imagePrompt, /без букв, цифр, реплик, заголовков/u);
+    assert.match(imagePrompt, /служебная плашка/u);
     assert.match(imagePrompt, /ровно 3 вертикальных панелей/u);
     assert.ok(/FEATURED PERSON LOCK: лицо и личность главного героя берутся из @file1/u.test(imagePrompt), "image panels must preserve avatar identity");
     assert.match(imagePrompt, /OUTFIT LOCK/u);
@@ -108,13 +109,14 @@ try {
     assert.equal(panels.length, 3);
     panels.forEach((panel, index) => {
       assert.ok(panel.includes(frames[index].spokenText));
+      assert.ok(panel.includes(`РЕПЛИКА: «${frames[index].spokenText}»`));
       assert.ok(panel.includes(frames[index].environment), "full environment must survive");
       if (index !== 1) assert.ok(panel.includes(frames[index].wardrobe), "full presenter wardrobe must survive");
     });
     assert.match(panels[1], /subject=product_only; avatar_allowed=false/u);
     assert.match(panels[0], /продукт в этом кадре не показывай/u);
     assert.match(panels[2], /продукт в этом кадре не показывай/u);
-    sizes.push({ kind: "image", index: item.index, chars: imagePrompt.length, max: 4300 });
+    sizes.push({ kind: "image", index: item.index, chars: imagePrompt.length, max: 5000 });
   }
 
   const pipImagePrompt = buildStoryboardImagePrompt({
