@@ -1,4 +1,4 @@
-import { createGeneratedScriptFromLegacy } from "./generated-scripts";
+import { createGeneratedScriptFromLegacy, recoverNextStaleGeneratedScriptGeneration } from "./generated-scripts";
 import { LlmPromptChainFailure } from "./llm-prompt-chain-runner";
 import pool from "@/lib/db";
 import {
@@ -304,6 +304,10 @@ async function runSyncStage(job: OmniAutomationJob) {
 
 export async function processNextOmniAutomationJob(input?: { workerId?: string }) {
   await ensureOmniSchema();
+  const recoveredScript = await recoverNextStaleGeneratedScriptGeneration();
+  if (recoveredScript) {
+    return { processed: true, action: "recovered_script", generatedScriptId: recoveredScript.id };
+  }
   let job = await claimNextOmniAutomationJob({
     workerId: input?.workerId || `omni-worker-${process.pid}`,
     leaseSeconds: envInt("OMNI_AUTOMATION_WORKER_LEASE_SECONDS", 1800, 60),

@@ -367,6 +367,8 @@ function buildStoredProviderPromptSegments(
     productName: input.product.name,
     productRole: strategy.productRole,
   });
+  const hasLlmProductTimeline = providerPromptPlan.segmentPrompts.some((promptSegment) =>
+    promptSegment.storyboardFrames.some((frame) => frame.productBeat === true));
 
   let outputStartSeconds = 0;
   const outputTotalDurationSeconds = providerPromptPlan.segmentPrompts.reduce(
@@ -378,11 +380,14 @@ function buildStoredProviderPromptSegments(
   return providerPromptPlan.segmentPrompts.map((segment, index) => {
     const segmentIndex = index + 1;
     const segmentIntent = segmentIntents[index];
+    const explicitProductFrames = segment.storyboardFrames.map(
+      (frame) => frame.referenceRole === "product" && frame.productBeat === true);
+    const segmentHasLlmProductBeat = explicitProductFrames.some(Boolean);
     const productRole = resolvePhysicalProductDemoRole(
       segmentIndex,
       productDemoSegmentIndex,
       strategy.productRole,
-      segmentIndex === productDemoSegmentIndex,
+      hasLlmProductTimeline ? segmentHasLlmProductBeat : segmentIndex === productDemoSegmentIndex,
     );
     const voiceoverText = segmentIntent?.spokenText || segment.voiceover;
     const referenceSegmentPlan = buildReferenceSegmentPlan({
@@ -395,10 +400,8 @@ function buildStoredProviderPromptSegments(
       outputTotalDurationSeconds,
       sourceDurationSeconds: input.referenceSourceDurationSeconds,
     });
-    const explicitProductFrames = segment.storyboardFrames.map((frame) => frame.referenceRole === "product" && frame.productBeat === true);
-    const explicitProductFrameIndex = explicitProductFrames.findIndex(Boolean);
-    const productVisibleByFrame = segmentIndex === productDemoSegmentIndex && explicitProductFrameIndex >= 0
-      ? explicitProductFrames.map((_, frameIndex) => frameIndex === explicitProductFrameIndex)
+    const productVisibleByFrame = hasLlmProductTimeline
+      ? explicitProductFrames
       : buildOmniProductVisualIntent({ voiceoverText, durationSeconds: segment.durationSeconds, productName: input.product.name, productRole, referenceSegmentPlan }).visibleByFrame;
     const creativePlan = buildStoredCreativePlan({
       segmentIndex,

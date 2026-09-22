@@ -56,6 +56,13 @@ import {
   type DirectorSegmenterAttemptDiagnostic,
 } from "./llm-prompt-chain-diagnostics";
 import { buildOmniBeatSheet, validateOmniBeatSheetAlignment } from "./omni-beat-sheet";
+import { reviewUnifiedSemanticPreservation } from "./unified-semantic-preservation-reviewer";
+import {
+  buildUnifiedPlanRepairPrompt,
+  canRepairUnifiedPlan,
+  nextUnifiedRepair,
+  type UnifiedRepairContext,
+} from "./unified-plan-repair";
 
 export { assertPromptChainNumericRangeIntegrity } from "./creative-script-preflight";
 
@@ -63,7 +70,6 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DIRECTOR_TARGETED_REPAIR_ATTEMPTS = 2;
 const PROMPT_CHAIN_TEMPERATURE = 0.8;
 const PROMPT_CHAIN_REQUEST_TIMEOUT_MS = 90_000;
-
 export type LlmPromptChainFailureStage =
   | "creative_copywriter"
   | "director_segmenter"
@@ -79,6 +85,7 @@ export type LlmPromptChainPartialSnapshot = {
   directorSegmentPlan?: DirectorSegmentPlan;
   directorSegmenterDiagnostics?: DirectorSegmenterAttemptDiagnostic[];
   rawResponse?: string;
+  openRouterUsage?: OpenRouterUsageRecord[];
 };
 
 class DirectorSegmenterFailure extends Error {
@@ -106,7 +113,10 @@ export async function runLlmPromptChain(input: PromptChainInput & { model: strin
   return runUnifiedLlmPromptChain(input);
 }
 
-async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: string }): Promise<{
+async function runUnifiedLlmPromptChain(
+  input: PromptChainInput & { model: string },
+  repair?: UnifiedRepairContext,
+): Promise<{
   result: LlmPromptChainResult;
   openRouterUsage: OpenRouterUsageRecord[];
 }> {
@@ -116,14 +126,18 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
       contentContract: input.contentContract,
     });
   }
-  const openRouterUsage: OpenRouterUsageRecord[] = [];
+  const openRouterUsage = repair?.openRouterUsage || [];
   const content = await requestOpenRouter({
     input,
     layer: "content_adapter",
-    attempt: 1,
-    userPrompt: buildUnifiedContentPlannerPrompt(input),
-    systemPrompt: `${DIRECTOR_ANALYSIS_SYSTEM_PROMPT}\nТы должен вернуть director_brief вместе со сценарием и раскадровкой в одном корневом JSON.`,
-    videoUrl: input.referenceVideoUrl,
+    attempt: repair?.attempt || 1,
+    userPrompt: repair
+      ? buildUnifiedPlanRepairPrompt(repair.previousResponse, repair.validationError)
+      : buildUnifiedContentPlannerPrompt(input),
+    systemPrompt: repair
+      ? "Ты профессиональный редактор JSON-плана ролика. Верни только полный исправленный корневой JSON без markdown и пояснений."
+      : `${DIRECTOR_ANALYSIS_SYSTEM_PROMPT}\nТы должен вернуть director_brief вместе со сценарием и раскадровкой в одном корневом JSON.`,
+    videoUrl: repair ? undefined : input.referenceVideoUrl,
     responseFormatJson: true,
     maxTokens: 30_000,
     temperature: 0.45,
@@ -137,8 +151,11 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
       adaptationPlan: input.adaptationPlan,
       contentContract: input.contentContract,
       rawResponse: content,
+      openRouterUsage,
     });
   }
+  if (repair?.sourceObservation) Object.assign(parsed, repair.sourceObservation);
+  const sourceObservation = repair?.sourceObservation || lockUnifiedSourceObservation(parsed);
   const directorPlan = normalizeDirectorSegmentPlan(parsed);
   const directorBrief = normalizeDirectorBrief(parsed.director_brief ?? parsed.directorBrief);
   if (!directorPlan || !directorBrief) {
@@ -146,6 +163,7 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
       adaptationPlan: input.adaptationPlan,
       contentContract: input.contentContract,
       rawResponse: content,
+      openRouterUsage,
     });
   }
   const script = normalizeRussianSpeechGender(
@@ -168,6 +186,7 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
       },
       directorSegmentPlan: directorPlan,
       rawResponse: content,
+      openRouterUsage,
     });
   }
   const providerPlan = buildProviderPromptPlanFromDirector(directorPlan);
@@ -180,6 +199,7 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
       contentContract: input.contentContract,
       directorSegmentPlan: directorPlan,
       rawResponse: content,
+      openRouterUsage,
     });
   }
   const validationIssues = [
@@ -191,11 +211,63 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
   ];
   const errors = validationIssues.filter((issue) => issue.severity === "error");
   if (errors.length) {
+    if (canRepairUnifiedPlan(repair)) {
+      return runUnifiedLlmPromptChain(input, nextUnifiedRepair({
+        repair,
+        previousResponse: content,
+        validationError: formatPromptValidationIssues(errors),
+        openRouterUsage,
+        sourceObservation,
+      }));
+    }
     throw new LlmPromptChainFailure("provider_plan_validation", formatPromptValidationIssues(errors), {
       adaptationPlan: input.adaptationPlan,
       contentContract: input.contentContract,
       directorSegmentPlan: directorPlan,
       rawResponse: content,
+      openRouterUsage,
+    });
+  }
+  let preservationReview;
+  try {
+    preservationReview = await reviewUnifiedSemanticPreservation({
+      model: input.model,
+      parsed,
+      script,
+      productName: input.productName,
+      attempt: repair?.attempt || 1,
+      onUsage: (usage) => openRouterUsage.push(usage),
+    });
+  } catch (error) {
+    throw new LlmPromptChainFailure("creative_copywriter", getErrorMessage(error), {
+      adaptationPlan: input.adaptationPlan,
+      contentContract: input.contentContract,
+      directorSegmentPlan: directorPlan,
+      rawResponse: content,
+      openRouterUsage,
+    });
+  }
+  if (!preservationReview.passed) {
+    const semanticError = [
+      "Independent semantic QA rejected the adaptation.",
+      ...preservationReview.defects,
+      ...preservationReview.repairInstructions,
+    ].join(" ");
+    if (canRepairUnifiedPlan(repair)) {
+      return runUnifiedLlmPromptChain(input, nextUnifiedRepair({
+        repair,
+        previousResponse: content,
+        validationError: semanticError,
+        openRouterUsage,
+        sourceObservation,
+      }));
+    }
+    throw new LlmPromptChainFailure("creative_copywriter", semanticError, {
+      adaptationPlan: input.adaptationPlan,
+      contentContract: input.contentContract,
+      directorSegmentPlan: directorPlan,
+      rawResponse: content,
+      openRouterUsage,
     });
   }
   const beatSheet: OmniBeatSheet = {
@@ -229,6 +301,7 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
       contentContract: input.contentContract,
       directorSegmentPlan: directorPlan,
       rawResponse: content,
+      openRouterUsage,
     });
   }
   const semanticReview: ScriptSemanticReview = {
@@ -240,8 +313,15 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
     finalAnswerPresent: true,
     productNaturallyIntegrated: true,
     referenceMeaningPreserved: true,
-    evidence: { product: "", value: "", answer: "", transition: "" },
-    issues: [], repairInstructions: [], defects: [], warnings: [],
+    evidence: {
+      product: input.productName,
+      value: preservationReview.evidence.preservedLogic,
+      answer: preservationReview.evidence.preservedTopic,
+      transition: preservationReview.evidence.productBridge,
+    },
+    issues: preservationReview.defects,
+    repairInstructions: preservationReview.repairInstructions,
+    defects: [], warnings: [],
   };
   const referenceAnalysis = isRecordValue(parsed.reference_analysis) ? parsed.reference_analysis : null;
   const spokenTranscript = typeof parsed.spoken_transcript === "string" ? parsed.spoken_transcript.trim() : null;
@@ -277,6 +357,14 @@ async function runUnifiedLlmPromptChain(input: PromptChainInput & { model: strin
       },
     },
     openRouterUsage,
+  };
+}
+
+function lockUnifiedSourceObservation(parsed: Record<string, unknown>) {
+  return {
+    reference_analysis: parsed.reference_analysis,
+    spoken_transcript: parsed.spoken_transcript,
+    director_brief: parsed.director_brief ?? parsed.directorBrief,
   };
 }
 

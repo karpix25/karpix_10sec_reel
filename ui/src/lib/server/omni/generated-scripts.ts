@@ -9,7 +9,7 @@ import { advanceGeneratedScriptSourceCursor, resolveGeneratedScriptSource } from
 import { requireOmniProductInProject } from "./products";
 import { getOmniProject } from "./projects";
 import {
-  buildOmniTimedVoiceoverPlan,
+  buildOmniTimedVoiceoverPlanFromDirectorPlan,
 } from "./omni-timed-voiceover-plan";
 import { generateScript } from "./script-generator";
 import {
@@ -115,6 +115,7 @@ export async function createGeneratedScriptFromLegacy(input: {
   projectId: number;
   productId: number;
   legacyScenarioId?: number | null;
+  resumeScriptId?: number | null;
 }) {
   await ensureOmniSchema();
   const project = await getOmniProject(input.projectId);
@@ -129,11 +130,13 @@ export async function createGeneratedScriptFromLegacy(input: {
     throw new Error("Сценарий можно создать только из legacy-reference с Instagram video URL.");
   }
   const resolvedVideo = await resolveInstagramVideoWithScrapeCreators(sourceScenario.reels_url);
-  await advanceGeneratedScriptSourceCursor({
-    projectId: input.projectId,
-    productId: input.productId,
-    legacyScenarioId: sourceScenario.id,
-  });
+  if (!input.resumeScriptId) {
+    await advanceGeneratedScriptSourceCursor({
+      projectId: input.projectId,
+      productId: input.productId,
+      legacyScenarioId: sourceScenario.id,
+    });
+  }
   const durationRange = await resolveOmniDurationRange({
     project,
     product,
@@ -175,20 +178,29 @@ export async function createGeneratedScriptFromLegacy(input: {
     duration_range: durationRange,
     script_adaptation_mode: "writer_owned",
   };
-  const pendingScript = await createGeneratedScriptGenerationRecord({
-    projectId: input.projectId,
-    productId: input.productId,
-    sourceLegacyScenarioId: sourceScenario.id,
-    sourceLegacyClientId: sourceScenario.client_id,
-    directorAnalysisId: null,
-    title: sourceScenario.title || null,
-    sourceSnapshot: sourceSnapshotBase,
-    productSnapshot: { id: product.id, name: product.name },
-    model,
-  });
+  const pendingScript = input.resumeScriptId
+    ? await resumeGeneratedScriptGenerationRecord({
+        scriptId: input.resumeScriptId,
+        projectId: input.projectId,
+        productId: input.productId,
+        sourceLegacyScenarioId: sourceScenario.id,
+        sourceSnapshot: sourceSnapshotBase,
+        model,
+      })
+    : await createGeneratedScriptGenerationRecord({
+        projectId: input.projectId,
+        productId: input.productId,
+        sourceLegacyScenarioId: sourceScenario.id,
+        sourceLegacyClientId: sourceScenario.client_id,
+        directorAnalysisId: null,
+        title: sourceScenario.title || null,
+        sourceSnapshot: sourceSnapshotBase,
+        productSnapshot: { id: product.id, name: product.name },
+        model,
+      });
   const writerContentContext = buildWriterOwnedScriptContentContract(referenceTranscript);
   let generated: Awaited<ReturnType<typeof generateScript>>;
-  let timedVoiceoverPlan: ReturnType<typeof buildOmniTimedVoiceoverPlan>;
+  let timedVoiceoverPlan: ReturnType<typeof buildOmniTimedVoiceoverPlanFromDirectorPlan>;
   try {
     generated = await generateScript({
       model,
@@ -209,7 +221,9 @@ export async function createGeneratedScriptFromLegacy(input: {
       contentContract: writerContentContext,
       referenceVideoUrl: resolvedVideo.videoUrl,
     });
-    timedVoiceoverPlan = buildOmniTimedVoiceoverPlan(generated.payload.script, { durationRange });
+    const directorPlan = generated.llmPromptChainSnapshot?.directorSegmentPlan;
+    if (!directorPlan) throw new Error("Unified Gemini response did not contain a director segment plan.");
+    timedVoiceoverPlan = buildOmniTimedVoiceoverPlanFromDirectorPlan(directorPlan, durationRange);
   } catch (error) {
     await failGeneratedScriptGeneration(pendingScript.id, error);
     throw error;
@@ -307,4 +321,79 @@ export async function createGeneratedScriptFromLegacy(input: {
   );
 
   return normalizeScript(rows[0]);
+}
+
+async function resumeGeneratedScriptGenerationRecord(input: {
+  scriptId: number;
+  projectId: number;
+  productId: number;
+  sourceLegacyScenarioId: number;
+  sourceSnapshot: Record<string, unknown>;
+  model: string;
+}) {
+  const { rows } = await pool.query<OmniGeneratedScript>(
+    `UPDATE omni_generated_scripts
+     SET source_snapshot = COALESCE(source_snapshot, '{}'::jsonb) || $5::jsonb,
+         model = $6,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1
+       AND project_id = $2
+       AND product_id = $3
+       AND source_legacy_scenario_id = $4
+       AND status = 'generating'
+     RETURNING *`,
+    [
+      input.scriptId,
+      input.projectId,
+      input.productId,
+      input.sourceLegacyScenarioId,
+      JSON.stringify({ ...input.sourceSnapshot, generation_stage: "creative_copywriter", generation_error: null }),
+      input.model,
+    ]
+  );
+  if (!rows[0]) throw new Error("Stale generated script could not be resumed");
+  return rows[0];
+}
+
+export async function recoverNextStaleGeneratedScriptGeneration() {
+  const staleMinutes = 5;
+  const maxRecoveryAttempts = 3;
+  const { rows } = await pool.query<{
+    id: number;
+    project_id: number;
+    product_id: number;
+    source_legacy_scenario_id: number;
+  }>(
+    `WITH candidate AS (
+       SELECT id
+       FROM omni_generated_scripts
+       WHERE status = 'generating'
+         AND source_legacy_scenario_id IS NOT NULL
+         AND updated_at < CURRENT_TIMESTAMP - ($1::int * INTERVAL '1 minute')
+         AND COALESCE((source_snapshot->>'generation_recovery_attempt')::int, 0) < $2
+       ORDER BY updated_at ASC, id ASC
+       FOR UPDATE SKIP LOCKED
+       LIMIT 1
+     )
+     UPDATE omni_generated_scripts script
+     SET updated_at = CURRENT_TIMESTAMP,
+         source_snapshot = COALESCE(script.source_snapshot, '{}'::jsonb) || jsonb_build_object(
+           'generation_stage', 'restart_recovery',
+           'generation_error', NULL,
+           'generation_recovery_attempt', COALESCE((script.source_snapshot->>'generation_recovery_attempt')::int, 0) + 1,
+           'generation_recovery_started_at', CURRENT_TIMESTAMP
+         )
+     FROM candidate
+     WHERE script.id = candidate.id
+     RETURNING script.id, script.project_id, script.product_id, script.source_legacy_scenario_id`,
+    [staleMinutes, maxRecoveryAttempts]
+  );
+  const stale = rows[0];
+  if (!stale) return null;
+  return createGeneratedScriptFromLegacy({
+    projectId: Number(stale.project_id),
+    productId: Number(stale.product_id),
+    legacyScenarioId: Number(stale.source_legacy_scenario_id),
+    resumeScriptId: Number(stale.id),
+  });
 }

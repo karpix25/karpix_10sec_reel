@@ -2,6 +2,7 @@ import pool from "@/lib/db";
 import type { OmniGeneratedScript } from "@/lib/omni/types";
 import { LlmPromptChainFailure } from "./llm-prompt-chain-runner";
 import { CreativeScriptValidationError } from "./creative-script-preflight";
+import { summarizeOpenRouterUsage } from "@/lib/omni/openrouter-cost";
 
 const STALE_GENERATION_MINUTES = 30;
 
@@ -75,6 +76,7 @@ export async function failGeneratedScriptGeneration(scriptId: number, error: unk
   const chainFailure = error instanceof LlmPromptChainFailure ? error : null;
   const draft = chainFailure?.partialSnapshot.creativeScriptDraft?.script ||
     (error instanceof CreativeScriptValidationError ? error.script : "");
+  const openRouterUsage = chainFailure?.partialSnapshot.openRouterUsage || [];
   await pool.query(
     `UPDATE omni_generated_scripts
      SET status = $4,
@@ -88,6 +90,8 @@ export async function failGeneratedScriptGeneration(scriptId: number, error: unk
         generation_stage: chainFailure?.stage || inferGenerationStage(message),
         generation_error: message,
         llm_prompt_chain_partial: chainFailure?.partialSnapshot || null,
+        openrouter_usage: openRouterUsage,
+        openrouter_cost: openRouterUsage.length ? summarizeOpenRouterUsage(openRouterUsage) : null,
       }),
       draft,
       draft.trim() ? "draft" : "failed",

@@ -6,6 +6,7 @@ import {
 } from "./omni-script-segmentation";
 import { planOmniReelSegments, type OmniReelSegmentPlan } from "./omni-duration-planner";
 import { getOmniStoryboardFrameWordCounts, isOmniStoryboardDuration } from "../../omni/storyboard/omni-storyboard-timing";
+import type { DirectorSegmentPlan } from "./llm-prompt-chain-types";
 
 export const OMNI_TIMED_VOICEOVER_PLAN_VERSION = "omni-timed-voiceover-v1" as const;
 
@@ -35,6 +36,44 @@ export function buildOmniTimedVoiceoverPlan(
     requireSentenceBoundaries: true,
   });
   return buildOmniTimedVoiceoverPlanFromSegments(segmentPlan, options.durationRange);
+}
+
+export function buildOmniTimedVoiceoverPlanFromDirectorPlan(
+  directorPlan: DirectorSegmentPlan,
+  durationRange?: OmniDurationRange,
+): OmniTimedVoiceoverPlan {
+  let startSeconds = 0;
+  const segments = directorPlan.segments.map((segment, index) => {
+    const text = normalizeScriptText(segment.voiceover);
+    const wordCount = countWords(text);
+    const frameWordCounts = getOmniStoryboardFrameWordCounts(wordCount, segment.durationSeconds);
+    if (!frameWordCounts) {
+      throw new Error(`Director segment ${segment.index} cannot be mapped to storyboard timing`);
+    }
+    const timedSegment: OmniTimedVoiceoverSegment = {
+      index: index + 1,
+      text,
+      wordCount,
+      durationSeconds: segment.durationSeconds,
+      startSeconds,
+      endSeconds: startSeconds + segment.durationSeconds,
+      frameWordCounts,
+    };
+    startSeconds = timedSegment.endSeconds;
+    return timedSegment;
+  });
+  const script = normalizeScriptText(segments.map((segment) => segment.text).join(" "));
+  const plan: OmniTimedVoiceoverPlan = {
+    version: OMNI_TIMED_VOICEOVER_PLAN_VERSION,
+    script,
+    segmentCount: segments.length,
+    durationSeconds: startSeconds,
+    wordCount: countWords(script),
+    segments,
+    durationRange,
+  };
+  assertOmniTimedVoiceoverPlanMatchesScript(plan, script);
+  return plan;
 }
 
 export function resolveOmniTimedVoiceoverPlan(input: {
