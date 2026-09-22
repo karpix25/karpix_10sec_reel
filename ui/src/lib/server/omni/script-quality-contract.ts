@@ -12,7 +12,6 @@ import { assertReferencePresentationPreserved } from "./reference-presentation-m
 import type { ScriptAdaptationMode } from "./script-adaptation-contract";
 import type { CtaMode } from "../../omni/creative-contract";
 import { assertOmniCtaContract } from "./omni-cta-contract";
-import { hasSpokenProductName } from "./script-semantic-findings";
 
 const FORBIDDEN_SYMBOL_ERROR = "Сценарий отклонен: исходный ответ модели содержит emoji или длинное тире.";
 const CTA_SENTENCE_PATTERN = /артикул|описани|коммент|кодово.*слов|ссылк|профил/iu;
@@ -28,7 +27,6 @@ export interface ScriptQualityResult {
     hasContrast: boolean;
     hasProblem: boolean;
     hasMechanism: boolean;
-    productMentioned: boolean;
     slopCount: number;
     ctaAppended: boolean;
     referenceMeaning: ReferenceMeaningCoverage;
@@ -197,9 +195,6 @@ export function validateViralScriptContract(input: {
   }
   check(() => assertOmniCtaContract(scriptText, { ctaMode: input.ctaMode as CtaMode, ctaValue: input.ctaValue }));
   check(() => assertReferencePresentationPreserved(input.referenceScript || "", scriptText));
-  const productMentioned = hasSpokenProductName(scriptText, input.productName);
-  if (!productMentioned) errors.add(`Сценарий не называет продукт «${input.productName}».`);
-
   const repeatedDescriptor = findRepeatedProductDescriptor(scriptText, input.productName);
   if (repeatedDescriptor) {
     warnings.push(`Слово продукта «${repeatedDescriptor}» повторяется слишком часто.`);
@@ -268,7 +263,6 @@ export function validateViralScriptContract(input: {
 
   // Scoring algorithm (0 to 100)
   let score = 100;
-  if (!productMentioned) score -= 15;
   if (!hasContrast && !hasProblem && !hasMechanism) score -= 15;
   if (hookWordCount > 12 || hookCharCount > 80) score -= 15;
   if (
@@ -293,7 +287,6 @@ export function validateViralScriptContract(input: {
       hasContrast,
       hasProblem,
       hasMechanism,
-      productMentioned,
       slopCount,
       ctaAppended,
       referenceMeaning,
